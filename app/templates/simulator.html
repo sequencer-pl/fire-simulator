@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FIRE Simulator</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>FIRE Simulator</h1>
+        <p class="subtitle">Symulator niezależności finansowej</p>
+
+        <form id="simForm">
+            <div id="stages-container">
+            </div>
+
+            <button type="button" id="addStageBtn" class="btn btn-secondary">+ Dodaj etap</button>
+            <button type="submit" class="btn btn-primary">Symuluj</button>
+        </form>
+
+        <div id="results" class="results-section" style="display:none;">
+            <h2>Wyniki symulacji</h2>
+            <div id="summary"></div>
+            <div class="table-wrap">
+                <table id="resultsTable">
+                    <thead>
+                        <tr>
+                            <th>Wiek</th>
+                            <th>Etap</th>
+                            <th>Broker</th>
+                            <th>IKE</th>
+                            <th>IKZE</th>
+                            <th>Majątek</th>
+                            <th>Wypłata roczna</th>
+                            <th>Wypłata mies.</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    const STAGE_TYPES = {{ stage_types | tojson }};
+    const DEFAULTS = {{ defaults | tojson }};
+    </script>
+    <script src="/static/js/simulator.js"></script>
+</body>
+</html>
