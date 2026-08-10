@@ -52,6 +52,50 @@ h2 {
     position: relative;
 }
 
+/* --- Stage reordering --- */
+.stage-actions {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    display: flex;
+    gap: 0.4rem;
+}
+
+.move-btn {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    font-size: 1rem;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0.25rem 0.5rem;
+    border-radius: 4px;
+    transition: all 0.15s;
+}
+
+.move-btn:hover:not(:disabled) {
+    border-color: var(--text-dim);
+    color: var(--text);
+}
+
+.move-btn:disabled {
+    opacity: 0.3;
+    cursor: default;
+}
+
+.stage-block.dragging {
+    opacity: 0.4;
+    border-style: dashed;
+}
+
+.stage-block.drag-before {
+    border-top: 3px solid var(--primary);
+}
+
+.stage-block.drag-after {
+    border-bottom: 3px solid var(--primary);
+}
+
 .stage-block .stage-header {
     display: flex;
     align-items: center;
@@ -173,15 +217,12 @@ h2 {
 }
 
 .remove-btn {
-    position: absolute;
-    top: 1rem;
-    right: 1rem;
     background: none;
     border: none;
     color: var(--danger);
     font-size: 1.2rem;
     cursor: pointer;
-    padding: 0.25rem 0.5rem;
+    padding: 0.1rem 0.4rem;
     border-radius: 4px;
 }
 

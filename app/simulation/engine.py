@@ -26,21 +26,18 @@ def simulate(data: SimulationInput) -> SimulationResult:
 
     balances: dict[str, float] = {}
     account_rois: dict[str, float] = {}
-
-    first_stage = data.stages[0]
-    for acc_name, acc_cfg in first_stage.accounts.items():
-        if acc_cfg.starting_balance > 0:
-            balances[acc_name] = acc_cfg.starting_balance
-        account_rois[acc_name] = acc_cfg.roi
-
     all_accounts: set[str] = set()
-    computed: dict[int, dict] = {}
 
-    for stage_input in data.stages:
-        for acc_name in stage_input.accounts:
-            all_accounts.add(acc_name)
+    # Inicjalizacja sald i ROI niezależna od kolejności etapów
+    # (najwcześniejszy chronologicznie etap definiuje saldo startowe)
+    for stage_input in sorted(data.stages, key=lambda s: s.start_age):
+        all_accounts.update(stage_input.accounts.keys())
         for name, cfg in stage_input.accounts.items():
             account_rois[name] = cfg.roi
+            if cfg.starting_balance > 0:
+                balances.setdefault(name, cfg.starting_balance)
+
+    computed: dict[int, dict] = {}
 
     min_age = min(si.start_age for si in data.stages)
     max_age = data.max_age

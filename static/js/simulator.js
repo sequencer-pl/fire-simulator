@@ -120,9 +120,14 @@ function createStageBlock(defaults) {
     const block = document.createElement("div");
     block.className = "stage-block";
     block.dataset.index = idx;
+    block.draggable = true;
 
     block.innerHTML = `
-        <button type="button" class="remove-btn" title="Usuń etap">&times;</button>
+        <div class="stage-actions">
+            <button type="button" class="move-btn move-up" title="Przesuń w górę">&uarr;</button>
+            <button type="button" class="move-btn move-down" title="Przesuń w dół">&darr;</button>
+            <button type="button" class="remove-btn" title="Usuń etap">&times;</button>
+        </div>
         <div class="stage-header">
             <div class="field-group">
                 <label>Typ etapu</label>
@@ -150,7 +155,12 @@ function createStageBlock(defaults) {
         <div class="accounts-grid"></div>
     `;
 
-    block.querySelector(".remove-btn").addEventListener("click", () => block.remove());
+    block.querySelector(".move-up").addEventListener("click", () => moveStage(block, "up"));
+    block.querySelector(".move-down").addEventListener("click", () => moveStage(block, "down"));
+    block.querySelector(".remove-btn").addEventListener("click", () => {
+        block.remove();
+        updateStageButtons(document.getElementById("stages-container"));
+    });
 
     const stageTypeSelect = block.querySelector(".stage-type-select");
     stageTypeSelect.addEventListener("change", () => {
@@ -171,6 +181,87 @@ function createStageBlock(defaults) {
     renderAccountToggles(block);
 
     return block;
+}
+
+// --- Reordering etapów ---
+
+function moveStage(block, direction) {
+    const container = document.getElementById("stages-container");
+    const blocks = Array.from(container.querySelectorAll(".stage-block"));
+    const index = blocks.indexOf(block);
+    const target = direction === "up" ? blocks[index - 1] : blocks[index + 1];
+    if (!target) return;
+
+    if (direction === "up") {
+        container.insertBefore(block, target);
+    } else {
+        container.insertBefore(target, block);
+    }
+    updateStageButtons(container);
+}
+
+function updateStageButtons(container) {
+    const blocks = container.querySelectorAll(".stage-block");
+    blocks.forEach((block, i) => {
+        const upBtn = block.querySelector(".move-up");
+        const downBtn = block.querySelector(".move-down");
+        if (upBtn) upBtn.disabled = i === 0;
+        if (downBtn) downBtn.disabled = i === blocks.length - 1;
+    });
+}
+
+// --- Drag & drop etapów ---
+
+let dragSource = null;
+
+function clearDragMarkers(container) {
+    container.querySelectorAll(".dragging, .drag-before, .drag-after").forEach((el) => {
+        el.classList.remove("dragging", "drag-before", "drag-after");
+    });
+}
+
+function initDragDrop(container) {
+    container.addEventListener("dragstart", (e) => {
+        const block = e.target.closest(".stage-block");
+        if (!block) return;
+        dragSource = block;
+        block.classList.add("dragging");
+        e.dataTransfer.effectAllowed = "move";
+        e.dataTransfer.setData("text/plain", "");
+    });
+
+    container.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "move";
+        clearDragMarkers(container);
+        if (dragSource) dragSource.classList.add("dragging");
+        const block = e.target.closest(".stage-block");
+        if (!block || block === dragSource) return;
+        const rect = block.getBoundingClientRect();
+        const after = e.clientY - rect.top > rect.height / 2;
+        block.classList.toggle("drag-after", after);
+        block.classList.toggle("drag-before", !after);
+    });
+
+    container.addEventListener("drop", (e) => {
+        e.preventDefault();
+        const block = e.target.closest(".stage-block");
+        clearDragMarkers(container);
+        if (!block || !dragSource || block === dragSource) return;
+        const rect = block.getBoundingClientRect();
+        const after = e.clientY - rect.top > rect.height / 2;
+        if (after) {
+            container.insertBefore(dragSource, block.nextSibling);
+        } else {
+            container.insertBefore(dragSource, block);
+        }
+        updateStageButtons(container);
+    });
+
+    container.addEventListener("dragend", () => {
+        clearDragMarkers(container);
+        dragSource = null;
+    });
 }
 
 function gatherFormData() {
@@ -288,7 +379,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
     document.getElementById("addStageBtn").addEventListener("click", () => {
         container.appendChild(createStageBlock(null));
+        updateStageButtons(container);
     });
+
+    initDragDrop(container);
+    updateStageButtons(container);
 
     document.getElementById("simForm").addEventListener("submit", async (e) => {
         e.preventDefault();

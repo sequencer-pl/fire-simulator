@@ -8,6 +8,21 @@ def acc(**kwargs):
     return AccountConfig(**kwargs)
 
 
+def test_stage_order_irrelevant_for_sequential():
+    # Kolejność etapów w liście nie ma wpływu na wyniki dla etapów sekwencyjnych
+    # (silnik przetwarza wieki chronologicznie)
+    stage_a = accumulation_stage(
+        {"broker": acc(starting_balance=100000, roi=0.02, annual_contribution=24000)}
+    )
+    stage_b = realization_stage("Broker", {"broker": acc(roi=0.02, buffer=100000)}, 45, 50)
+
+    def months(stages):
+        r = simulate(SimulationInput(stages=stages, max_age=49))
+        return [(y.monthly_withdrawal, y.total_wealth) for y in r.years]
+
+    assert months([stage_a, stage_b]) == months([stage_b, stage_a])
+
+
 def accumulation_stage(accounts, start=40, end=45):
     return StageInput(
         stage_type="akumulacja",
