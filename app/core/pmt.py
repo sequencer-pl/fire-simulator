@@ -1,6 +1,3 @@
-import math
-
-
 def pmt(rate: float, nper: int, pv: float, fv: float = 0.0, when: int = 0) -> float:
     """
     Oblicza ratę annuitetu (wypłatę roczną) - wierna kopia Excel PMT.

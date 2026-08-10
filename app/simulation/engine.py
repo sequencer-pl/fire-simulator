@@ -20,7 +20,9 @@ def simulate(data: SimulationInput) -> SimulationResult:
     end_age jest exclusive.
     """
     if not data.stages:
-        return SimulationResult(years=[], accounts=[], final_wealth=0, peak_wealth=0, total_withdrawn=0, total_tax=0)
+        return SimulationResult(
+            years=[], accounts=[], final_wealth=0, peak_wealth=0, total_withdrawn=0, total_tax=0
+        )
 
     balances: dict[str, float] = {}
     account_rois: dict[str, float] = {}
@@ -44,10 +46,7 @@ def simulate(data: SimulationInput) -> SimulationResult:
     max_age = data.max_age
 
     for age in range(min_age, max_age + 1):
-        active_stages = [
-            si for si in data.stages
-            if si.start_age <= age < si.end_age
-        ]
+        active_stages = [si for si in data.stages if si.start_age <= age < si.end_age]
 
         if not active_stages:
             continue
@@ -61,13 +60,10 @@ def simulate(data: SimulationInput) -> SimulationResult:
 
         for stage_input in active_stages:
             stage_obj = create_stage(stage_input.stage_type)
-            accounts_config = {
-                name: cfg.model_dump() for name, cfg in stage_input.accounts.items()
-            }
+            accounts_config = {name: cfg.model_dump() for name, cfg in stage_input.accounts.items()}
 
             accounts_to_process = {
-                name: cfg for name, cfg in accounts_config.items()
-                if name not in processed_accounts
+                name: cfg for name, cfg in accounts_config.items() if name not in processed_accounts
             }
 
             if not accounts_to_process:

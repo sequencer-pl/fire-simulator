@@ -1,5 +1,5 @@
-from app.stages.base import BaseStage
 from app.stages.akumulacja import AkumulacjaStage
+from app.stages.base import BaseStage
 from app.stages.realizacja import RealizacjaStage
 
 STAGE_CLASSES: dict[str, type[BaseStage]] = {
@@ -41,7 +41,12 @@ STAGE_META = {
                 "label": "Lokata",
                 "fields": {
                     "starting_balance": {"label": "Saldo startowe", "type": "number"},
-                    "roi": {"label": "Oprocentowanie", "type": "number", "step": "0.1", "percent": True},
+                    "roi": {
+                        "label": "Oprocentowanie",
+                        "type": "number",
+                        "step": "0.1",
+                        "percent": True,
+                    },
                 },
             },
         },
@@ -75,7 +80,12 @@ STAGE_META = {
             "lokata": {
                 "label": "Lokata",
                 "fields": {
-                    "roi": {"label": "Oprocentowanie", "type": "number", "step": "0.1", "percent": True},
+                    "roi": {
+                        "label": "Oprocentowanie",
+                        "type": "number",
+                        "step": "0.1",
+                        "percent": True,
+                    },
                     "buffer": {"label": "Bufor (zostaje)", "type": "number"},
                 },
             },

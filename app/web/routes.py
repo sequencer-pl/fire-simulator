@@ -2,8 +2,8 @@ from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 
-from app.simulation.schemas import SimulationInput, AccountConfig, StageInput
 from app.simulation.engine import simulate
+from app.simulation.schemas import SimulationInput
 from app.stages.registry import get_all_stage_types
 
 router = APIRouter()
