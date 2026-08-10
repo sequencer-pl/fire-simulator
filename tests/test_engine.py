@@ -108,6 +108,38 @@ def test_passive_growth_for_unhandled_accounts():
 # --- Nakładające się etapy ---
 
 
+def test_realization_cannot_overlap_accumulation():
+    stages = [
+        accumulation_stage({"broker": acc(starting_balance=100000, roi=0.02)}, start=40, end=50),
+        realization_stage("Broker", {"broker": acc(roi=0.02, buffer=0)}, 45, 60),
+    ]
+    with pytest.raises(ValueError, match="przed końcem etapu akumulacji"):
+        simulate(SimulationInput(stages=stages, max_age=59))
+
+
+def test_realization_after_accumulation_ok():
+    stages = [
+        accumulation_stage({"broker": acc(starting_balance=100000, roi=0.02)}, start=40, end=50),
+        realization_stage("Broker", {"broker": acc(roi=0.02, buffer=0)}, 50, 60),
+    ]
+    result = simulate(SimulationInput(stages=stages, max_age=59))
+    assert result.years[0].age == 40
+    assert result.years[-1].age == 59
+
+
+def test_realization_only_without_accumulation_ok():
+    stages = [
+        realization_stage(
+            "Broker",
+            {"broker": acc(starting_balance=100000, roi=0.02, buffer=0)},
+            45,
+            60,
+        )
+    ]
+    result = simulate(SimulationInput(stages=stages, max_age=59))
+    assert result.years[0].annual_withdrawal > 0
+
+
 def test_overlapping_stages_merge_withdrawal():
     stages = [
         accumulation_stage({"ike": acc(starting_balance=300000, roi=0.02)}, start=40, end=45),

@@ -14,16 +14,19 @@
         <div class="mode-toggle">
             <button type="button" id="modeSimBtn" class="mode-btn active">Symulator</button>
             <button type="button" id="modeConfigBtn" class="mode-btn">Konfiguracja</button>
+            <button type="button" id="clearStagesBtn" class="btn btn-danger">Wyczyść etapy</button>
         </div>
 
         <!-- ====== SYMULATOR ====== -->
         <div id="simulatorView">
-            <form id="simForm">
+            <form id="simForm" novalidate>
                 <div id="stages-container">
                 </div>
 
-                <button type="button" id="addStageBtn" class="btn btn-secondary">+ Dodaj etap</button>
-                <button type="submit" class="btn btn-primary">Symuluj</button>
+                <div class="form-actions">
+                    <button type="button" id="addRealizationBtn" class="btn btn-secondary">+ Dodaj etap realizacji</button>
+                    <button type="submit" id="simulateBtn" class="btn btn-primary">Symuluj</button>
+                </div>
             </form>
 
             <div id="results" class="results-section" style="display:none;">

@@ -96,6 +96,11 @@ h2 {
     border-bottom: 3px solid var(--primary);
 }
 
+.stage-block.drag-invalid {
+    border-color: #e74c3c;
+    border-style: dashed;
+}
+
 .stage-block .stage-header {
     display: flex;
     align-items: center;
@@ -196,6 +201,42 @@ h2 {
     gap: 0.5rem;
 }
 
+.max-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+    margin-top: 0.4rem;
+}
+
+.max-btn {
+    background: rgba(108, 92, 231, 0.08);
+    border: 1px solid rgba(108, 92, 231, 0.35);
+    color: var(--primary);
+    font-size: 0.72rem;
+    font-weight: 500;
+    padding: 0.2rem 0.55rem;
+    border-radius: 999px;
+    cursor: pointer;
+    line-height: 1.3;
+    transition: all 0.15s;
+}
+
+.max-btn:hover {
+    background: rgba(108, 92, 231, 0.16);
+    border-color: var(--primary);
+}
+
+.max-btn.active {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: #fff;
+}
+
+.max-btn.active::before {
+    content: "▲ ";
+    font-size: 0.6rem;
+}
+
 .remove-account-btn {
     position: absolute;
     top: 0.5rem;
@@ -260,6 +301,48 @@ h2 {
 .btn-secondary:hover {
     border-color: var(--text-dim);
     color: var(--text);
+}
+
+.btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.phase-divider {
+    display: flex;
+    justify-content: flex-start;
+    margin: 0.5rem 0;
+}
+
+.phase-divider .phase-divider-btn {
+    margin: 0;
+    padding: 0.5rem 1.25rem;
+}
+
+.btn-danger {
+    background: transparent;
+    color: #e74c3c;
+    border: 1px solid rgba(231, 76, 60, 0.4);
+    margin-top: 0;
+    margin-left: auto;
+    padding: 0.45rem 1rem;
+    font-size: 0.9rem;
+}
+
+.btn-danger:hover {
+    background: rgba(231, 76, 60, 0.1);
+    border-color: #e74c3c;
+}
+
+.form-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 1rem;
+}
+
+.form-actions .btn {
+    margin: 0;
 }
 
 /* --- Results --- */
@@ -384,13 +467,35 @@ tr.fade-2 td { opacity: 0.2; }
 
 /* --- Rozróżnienie etapów akumulacja / realizacja --- */
 .stage-block.stage-akumulacja {
+    border-left: 3px solid #e17055;
+    background: linear-gradient(180deg, rgba(225, 112, 85, 0.05), rgba(26, 29, 39, 0) 60%);
+}
+
+.stage-block.stage-realizacja {
     border-left: 3px solid var(--accent);
     background: linear-gradient(180deg, rgba(0, 206, 201, 0.04), rgba(26, 29, 39, 0) 60%);
 }
 
-.stage-block.stage-realizacja {
-    border-left: 3px solid #e17055;
-    background: linear-gradient(180deg, rgba(225, 112, 85, 0.05), rgba(26, 29, 39, 0) 60%);
+.stage-type-badge {
+    align-self: flex-start;
+    display: inline-block;
+    padding: 0.28rem 0.85rem;
+    border-radius: 999px;
+    font-size: 0.82rem;
+    font-weight: 500;
+    line-height: 1.4;
+}
+
+.stage-type-badge.stage-akumulacja {
+    color: #e17055;
+    border: 1px solid rgba(225, 112, 85, 0.4);
+    background: rgba(225, 112, 85, 0.08);
+}
+
+.stage-type-badge.stage-realizacja {
+    color: var(--accent);
+    border: 1px solid rgba(0, 206, 201, 0.4);
+    background: rgba(0, 206, 201, 0.08);
 }
 
 /* --- Subtelne ostrzeżenia etapu --- */
@@ -403,6 +508,17 @@ tr.fade-2 td { opacity: 0.2; }
     color: #f1c40f;
     font-size: 0.82rem;
     line-height: 1.5;
+}
+
+.stage-hint.error {
+    background: rgba(231, 76, 60, 0.07);
+    border-color: rgba(231, 76, 60, 0.35);
+    color: #e74c3c;
+}
+
+.stage-block .start-age.input-error,
+.stage-block input.input-error {
+    border-color: #e74c3c;
 }
 
 /* --- Wyniki --- */

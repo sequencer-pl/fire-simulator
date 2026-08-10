@@ -59,19 +59,38 @@ def test_ikze_after_65_flat_10_percent():
     assert y.tax_paid == pytest.approx(10_000, rel=1e-3)
 
 
-# --- IKZE przed 65: skala PIT ---
+# --- IKZE przed 65: jednorazowy zwrot całości, skala PIT ---
 
 
-def test_ikze_before_65_scale_tax():
+def test_ikze_before_65_zwrot_lump_tax():
     stages = [
         accumulation_stage({"ikze": acc(starting_balance=500_000, roi=0.0)}, start=40, end=50),
         realization_stage("IKZE", {"ikze": acc(roi=0.0, buffer=0)}, 50, 55),
     ]
     result = simulate(SimulationInput(stages=stages, max_age=54))
-    y = result.years[10]
-    # 100k/rok brutto -> skala: 12%*100k - 3600 = 8400 -> 91600 netto
-    assert y.annual_withdrawal == pytest.approx(91_600, rel=1e-3)
-    assert y.tax_paid == pytest.approx(8_400, rel=1e-3)
+    lump = result.years[10]
+    # Zwrot całości w 50 r.ż.: skala 2026 od 500k = 132 400 zł.
+    # Kapitał netto 367 600 zł rozłożony PMT na 5 lat -> 73 520 zł/rok.
+    assert lump.tax_paid == pytest.approx(132_400, rel=1e-3)
+    assert lump.annual_withdrawal == pytest.approx(73_520, rel=1e-3)
+    assert lump.balances["ikze"] == pytest.approx(500_000)
+    for y in result.years[11:]:
+        assert y.tax_paid == 0
+        assert y.annual_withdrawal == pytest.approx(73_520, rel=1e-3)
+    assert result.total_tax == pytest.approx(132_400, rel=1e-3)
+    assert result.total_withdrawn == pytest.approx(367_600, rel=1e-3)
+
+
+def test_ikze_zwrot_no_tax_after_65():
+    # Po jednorazowym zwrocie przed 65 r.ż. kolejne lata (także po 65) nie są
+    # ponownie opodatkowane (brak podwójnego opodatkowania 10% ryczałtem).
+    stages = [
+        accumulation_stage({"ikze": acc(starting_balance=500_000, roi=0.0)}, start=40, end=50),
+        realization_stage("IKZE", {"ikze": acc(roi=0.0, buffer=0)}, 50, 70),
+    ]
+    result = simulate(SimulationInput(stages=stages, max_age=69))
+    assert result.years[10].tax_paid == pytest.approx(132_400, rel=1e-3)
+    assert all(y.tax_paid == 0 for y in result.years[11:])
 
 
 # --- IKE przed 60: Belka od zysku; po 60: 0% ---
@@ -167,3 +186,27 @@ def test_warning_over_limit_contribution():
     ]
     result = simulate(SimulationInput(stages=stages, max_age=44))
     assert any("limit" in w and "IKZE" in w for w in result.warnings)
+
+
+def test_warning_ikze_limit_self_employed_ok():
+    stages = [
+        accumulation_stage(
+            {"ikze": acc(annual_contribution=15_000, ikze_limit="self_employed")},
+            start=40,
+            end=45,
+        ),
+    ]
+    result = simulate(SimulationInput(stages=stages, max_age=44))
+    assert not any("limit" in w and "IKZE" in w for w in result.warnings)
+
+
+def test_warning_ikze_limit_self_employed_over():
+    stages = [
+        accumulation_stage(
+            {"ikze": acc(annual_contribution=18_000, ikze_limit="self_employed")},
+            start=40,
+            end=45,
+        ),
+    ]
+    result = simulate(SimulationInput(stages=stages, max_age=44))
+    assert any("16,956" in w and "IKZE" in w for w in result.warnings)

@@ -9,6 +9,7 @@ class AccountConfig(BaseModel):
     annual_contribution: float = 0.0
     buffer: float = 0.0
     monthly_pension: float = 0.0
+    ikze_limit: str = "etat"
 
 
 class StageInput(BaseModel):

@@ -3,9 +3,27 @@ from app.simulation.config import ACCOUNT_LABELS
 from app.simulation.schemas import (
     SimulationInput,
     SimulationResult,
+    StageInput,
     YearResult,
 )
 from app.stages.registry import create_stage
+
+
+def _validate_stage_order(stages: list[StageInput]) -> None:
+    """Etap realizacji nie może zaczynać się przed końcem ostatniej akumulacji."""
+    akum_end = max(
+        (s.end_age for s in stages if s.stage_type == "akumulacja"),
+        default=None,
+    )
+    real_start = min(
+        (s.start_age for s in stages if s.stage_type == "realizacja"),
+        default=None,
+    )
+    if akum_end is not None and real_start is not None and real_start < akum_end:
+        raise ValueError(
+            f"Etap realizacji (od {real_start} r.ż.) nie może zaczynać się "
+            f"przed końcem etapu akumulacji ({akum_end} r.ż.)."
+        )
 
 
 def simulate(data: SimulationInput) -> SimulationResult:
@@ -27,6 +45,8 @@ def simulate(data: SimulationInput) -> SimulationResult:
             years=[], accounts=[], final_wealth=0, peak_wealth=0, total_withdrawn=0, total_tax=0
         )
 
+    _validate_stage_order(data.stages)
+
     config = data.config
     balances: dict[str, float] = {}
     basis: dict[str, float] = {}
@@ -44,6 +64,7 @@ def simulate(data: SimulationInput) -> SimulationResult:
                 basis.setdefault(name, cfg.starting_balance)
 
     computed: dict[int, dict] = {}
+    zwrocone: set[str] = set()
 
     min_age = min(si.start_age for si in data.stages)
     max_age = data.max_age
@@ -59,6 +80,34 @@ def simulate(data: SimulationInput) -> SimulationResult:
         merged_withdrawal: dict[str, float] = {}
         stage_label_parts: list[str] = []
         seen_labels: set[str] = set()
+
+        # Jednorazowy zwrot IKZE przed wiekiem uprawniającym (np. 65 r.ż.):
+        # podatek wg skali od CAŁOŚCI salda jest potrącany przed wyliczeniem PMT,
+        # więc wypłaty ratalne są liczone od kapitału netto (model "wypłata + lokata").
+        zwrot_tax: dict[str, float] = {}
+        for si in active_stages:
+            if si.stage_type != "realizacja" or age != si.start_age:
+                continue
+            for acc in si.accounts:
+                rules = config.accounts.get(acc)
+                if (
+                    acc in zwrocone
+                    or not rules
+                    or rules.min_withdrawal_age <= 0
+                    or age >= rules.min_withdrawal_age
+                    or rules.early_tax_model != "scale"
+                ):
+                    continue
+                full = balances.get(acc, 0.0)
+                zwrot_tax[acc] = scale_tax(
+                    full,
+                    kwota_wolna=config.kwota_wolna,
+                    prog=config.prog,
+                    rate_lower=config.rate_lower,
+                    rate_upper=config.rate_upper,
+                )
+                balances[acc] = max(0.0, full - zwrot_tax[acc])
+        zwrocone.update(zwrot_tax.keys())
 
         for stage_input in active_stages:
             stage_obj = create_stage(stage_input.stage_type)
@@ -99,7 +148,10 @@ def simulate(data: SimulationInput) -> SimulationResult:
             basis=basis,
             age=age,
             config=config,
+            zwrocone=zwrocone,
         )
+        for acc, t in zwrot_tax.items():
+            merged_tax[acc] = merged_tax.get(acc, 0.0) + t
 
         for acc_name in list(balances.keys()):
             if acc_name not in processed_accounts:
@@ -111,6 +163,7 @@ def simulate(data: SimulationInput) -> SimulationResult:
             "ending_balances": dict(balances),
             "withdrawal": merged_withdrawal,
             "tax": merged_tax,
+            "zwrot_tax": sum(zwrot_tax.values()),
             "stage_name": "+".join(stage_label_parts),
         }
 
@@ -124,7 +177,10 @@ def simulate(data: SimulationInput) -> SimulationResult:
         sb = c["starting_balances"]
         stage_withdrawal = sum(c["withdrawal"].values())
         stage_tax = sum(c["tax"].values())
-        stage_withdrawal_net = max(0.0, stage_withdrawal - stage_tax)
+        # Podatek od jednorazowego zwrotu IKZE jest już potrącony z kapitału
+        # (model "wypłata + lokata") — nie zmniejsza dodatkowo rocznej wypłaty.
+        annual_net_deduction = stage_tax - c.get("zwrot_tax", 0.0)
+        stage_withdrawal_net = max(0.0, stage_withdrawal - annual_net_deduction)
         total_withdrawn_net += stage_withdrawal_net
         total_tax += stage_tax
 
@@ -164,6 +220,7 @@ def _apply_tax(
     basis: dict[str, float],
     age: int,
     config,
+    zwrocone: set[str],
 ) -> dict[str, float]:
     """Oblicza podatek za rok dla każdego konta i aktualizuje podstawę kosztów."""
     tax: dict[str, float] = {}
@@ -173,6 +230,10 @@ def _apply_tax(
     for account, amount in withdrawals.items():
         rules = config.accounts.get(account)
         if not rules:
+            continue
+        if account in zwrocone:
+            # Jednorazowy zwrot IKZE przed wiekiem — podatek pobrany przy zwrocie,
+            # dalsze wypłaty (raty z kapitału netto) nie są ponownie opodatkowane.
             continue
 
         early = rules.min_withdrawal_age > 0 and age < rules.min_withdrawal_age
@@ -236,8 +297,9 @@ def _collect_warnings(data: SimulationInput) -> list[str]:
                     before = f"przed {rules.min_withdrawal_age} r.ż."
                     after = f"po {rules.min_withdrawal_age} r.ż."
                     warnings.append(
-                        f"{label} wypłacane od {si.start_age} r.ż. ({before}) — podatek wg skali "
-                        f"{lower}/{upper}%; {after} ryczałt {flat:.0f}% od całości."
+                        f"{label} wypłacane od {si.start_age} r.ż. ({before}) — jednorazowy zwrot "
+                        f"całości w pierwszym roku etapu, podatek wg skali {lower}/{upper}% "
+                        f"od całości; {after} ryczałt {flat:.0f}% od każdej wypłaty."
                     )
                 elif early in ("flat", "none") and rules.early_tax_rate != rules.tax_rate:
                     early_pct = rules.early_tax_rate * 100
@@ -256,8 +318,14 @@ def _collect_warnings(data: SimulationInput) -> list[str]:
                 limit = None
                 if name == "ike" and contribution > limits.ike_annual:
                     limit = limits.ike_annual
-                elif name == "ikze" and contribution > limits.ikze_annual:
-                    limit = limits.ikze_annual
+                elif name == "ikze":
+                    ikze_limit = (
+                        limits.ikze_annual_self_employed
+                        if cfg.ikze_limit == "self_employed"
+                        else limits.ikze_annual
+                    )
+                    if contribution > ikze_limit:
+                        limit = ikze_limit
                 if limit is not None:
                     label = ACCOUNT_LABELS.get(name, name)
                     warnings.append(

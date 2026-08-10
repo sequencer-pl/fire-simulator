@@ -16,31 +16,43 @@ STAGE_META = {
             "broker": {
                 "label": "Broker",
                 "fields": {
-                    "starting_balance": {"label": "Saldo startowe", "type": "number"},
-                    "annual_contribution": {"label": "Dopłata roczna", "type": "number"},
+                    "starting_balance": {"label": "Saldo startowe", "type": "number", "step": 1000},
+                    "annual_contribution": {
+                        "label": "Dopłata roczna",
+                        "type": "number",
+                        "step": 1000,
+                    },
                     "roi": {"label": "ROI", "type": "number", "step": "0.1", "percent": True},
                 },
             },
             "ike": {
                 "label": "IKE",
                 "fields": {
-                    "starting_balance": {"label": "Saldo startowe", "type": "number"},
-                    "annual_contribution": {"label": "Dopłata roczna", "type": "number"},
+                    "starting_balance": {"label": "Saldo startowe", "type": "number", "step": 1000},
+                    "annual_contribution": {
+                        "label": "Dopłata roczna",
+                        "type": "number",
+                        "step": 1000,
+                    },
                     "roi": {"label": "ROI", "type": "number", "step": "0.1", "percent": True},
                 },
             },
             "ikze": {
                 "label": "IKZE",
                 "fields": {
-                    "starting_balance": {"label": "Saldo startowe", "type": "number"},
-                    "annual_contribution": {"label": "Dopłata roczna", "type": "number"},
+                    "starting_balance": {"label": "Saldo startowe", "type": "number", "step": 1000},
+                    "annual_contribution": {
+                        "label": "Dopłata roczna",
+                        "type": "number",
+                        "step": 1000,
+                    },
                     "roi": {"label": "ROI", "type": "number", "step": "0.1", "percent": True},
                 },
             },
             "lokata": {
                 "label": "Lokata",
                 "fields": {
-                    "starting_balance": {"label": "Saldo startowe", "type": "number"},
+                    "starting_balance": {"label": "Saldo startowe", "type": "number", "step": 1000},
                     "roi": {
                         "label": "Oprocentowanie",
                         "type": "number",
@@ -60,21 +72,21 @@ STAGE_META = {
                 "label": "Broker",
                 "fields": {
                     "roi": {"label": "ROI", "type": "number", "step": "0.1", "percent": True},
-                    "buffer": {"label": "Bufor (zostaje)", "type": "number"},
+                    "buffer": {"label": "Bufor (zostaje)", "type": "number", "step": 1000},
                 },
             },
             "ike": {
                 "label": "IKE",
                 "fields": {
                     "roi": {"label": "ROI", "type": "number", "step": "0.1", "percent": True},
-                    "buffer": {"label": "Bufor (zostaje)", "type": "number"},
+                    "buffer": {"label": "Bufor (zostaje)", "type": "number", "step": 1000},
                 },
             },
             "ikze": {
                 "label": "IKZE",
                 "fields": {
                     "roi": {"label": "ROI", "type": "number", "step": "0.1", "percent": True},
-                    "buffer": {"label": "Bufor (zostaje)", "type": "number"},
+                    "buffer": {"label": "Bufor (zostaje)", "type": "number", "step": 1000},
                 },
             },
             "lokata": {
@@ -86,13 +98,13 @@ STAGE_META = {
                         "step": "0.1",
                         "percent": True,
                     },
-                    "buffer": {"label": "Bufor (zostaje)", "type": "number"},
+                    "buffer": {"label": "Bufor (zostaje)", "type": "number", "step": 1000},
                 },
             },
             "zus": {
                 "label": "ZUS (emerytura)",
                 "fields": {
-                    "monthly_pension": {"label": "Emerytura mies.", "type": "number"},
+                    "monthly_pension": {"label": "Emerytura mies.", "type": "number", "step": 1000},
                 },
             },
         },

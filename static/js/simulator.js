@@ -12,6 +12,26 @@ function getAvailableAccounts(stageType) {
     return meta.available_accounts;
 }
 
+function limitButtonsHtml(accountKey, fieldKey) {
+    if (fieldKey !== "annual_contribution") return "";
+    const defs = {
+        ike: [{ key: "ike_annual", label: "MAX", title: "Limit roczny IKE" }],
+        ikze: [
+            { key: "ikze_annual", label: "MAX etat", title: "Limit roczny IKZE (etat)" },
+            {
+                key: "ikze_annual_self_employed",
+                label: "MAX przeds.",
+                title: "Limit roczny IKZE (przedsiębiorca)",
+            },
+        ],
+    };
+    const btns = defs[accountKey];
+    if (!btns) return "";
+    return btns
+        .map((b) => `<button type="button" class="max-btn" data-limit="${b.key}" title="${b.title}">${b.label}</button>`)
+        .join("");
+}
+
 function createAccountCard(stageType, accountKey, accountData) {
     const meta = getAccountMeta(stageType, accountKey);
     if (!meta) return null;
@@ -24,6 +44,8 @@ function createAccountCard(stageType, accountKey, accountData) {
     for (const [key, fieldDef] of Object.entries(meta.fields)) {
         const rawVal = accountData?.[key] ?? 0;
         const displayVal = fieldDef.percent ? rawVal * 100 : rawVal;
+        const maxBtns = limitButtonsHtml(accountKey, key);
+        const chipsHtml = maxBtns ? `<div class="max-chips">${maxBtns}</div>` : "";
         fieldsHtml += `
             <div class="field-group">
                 <label>${fieldDef.label}${fieldDef.percent ? " (%)" : ""}</label>
@@ -35,6 +57,7 @@ function createAccountCard(stageType, accountKey, accountData) {
                        value="${displayVal}"
                        ${fieldDef.step ? `step="${fieldDef.step}"` : 'step="any"'}
                        min="0" />
+                ${chipsHtml}
             </div>
         `;
     }
@@ -44,6 +67,22 @@ function createAccountCard(stageType, accountKey, accountData) {
         <button type="button" class="remove-account-btn" title="Usuń konto">&times;</button>
         <div class="fields-row">${fieldsHtml}</div>
     `;
+
+    card.querySelectorAll(".max-btn").forEach((btn) => {
+        btn.addEventListener("click", () => {
+            if (!CONFIG || !CONFIG.limits) return;
+            const limit = CONFIG.limits[btn.dataset.limit];
+            if (!limit) return;
+            const chips = btn.closest(".max-chips");
+            if (chips) chips.querySelectorAll(".max-btn").forEach((b) => b.classList.remove("active"));
+            btn.classList.add("active");
+            const input = card.querySelector('[data-key="annual_contribution"]');
+            if (input) {
+                input.value = limit;
+                updateStageHints(document.getElementById("stages-container"));
+            }
+        });
+    });
 
     card.querySelector(".remove-account-btn").addEventListener("click", () => {
         card.closest(".accounts-grid").removeChild(card);
@@ -63,7 +102,7 @@ function getActiveAccounts(stageBlock) {
 }
 
 function updateStageName(stageBlock) {
-    const stageType = stageBlock.querySelector(".stage-type-select").value;
+    const stageType = stageTypeOf(stageBlock);
     const nameInput = stageBlock.querySelector(".stage-name");
     const accounts = getActiveAccounts(stageBlock);
 
@@ -77,7 +116,7 @@ function updateStageName(stageBlock) {
 }
 
 function renderAccountToggles(stageBlock) {
-    const stageType = stageBlock.querySelector(".stage-type-select").value;
+    const stageType = stageTypeOf(stageBlock);
     const accountsContainer = stageBlock.querySelector(".accounts-grid");
     const togglesContainer = stageBlock.querySelector(".accounts-toggles");
     const available = getAvailableAccounts(stageType);
@@ -127,6 +166,7 @@ function createStageBlock(defaults) {
     const block = document.createElement("div");
     block.className = "stage-block " + stageKindClass(stageType);
     block.dataset.index = idx;
+    block.dataset.stageType = stageType;
     block.draggable = true;
 
     block.innerHTML = `
@@ -138,12 +178,7 @@ function createStageBlock(defaults) {
         <div class="stage-header">
             <div class="field-group">
                 <label>Typ etapu</label>
-                <select class="stage-type-select">
-                    ${Object.entries(STAGE_TYPES).map(
-                        ([k, v]) =>
-                            `<option value="${k}" ${k === stageType ? "selected" : ""}>${v.label}</option>`
-                    ).join("")}
-                </select>
+                <span class="stage-type-badge ${stageKindClass(stageType)}">${cfg.label || stageType}</span>
             </div>
             <div class="field-group">
                 <label>Nazwa</label>
@@ -171,18 +206,6 @@ function createStageBlock(defaults) {
         updateStageHints(document.getElementById("stages-container"));
     });
 
-    const stageTypeSelect = block.querySelector(".stage-type-select");
-    stageTypeSelect.addEventListener("change", () => {
-        const newType = stageTypeSelect.value;
-        block.className = "stage-block " + stageKindClass(newType);
-        const meta = STAGE_TYPES[newType];
-        const grid = block.querySelector(".accounts-grid");
-        grid.innerHTML = "";
-        renderAccountToggles(block);
-        updateStageName(block);
-        updateStageHints(document.getElementById("stages-container"));
-    });
-
     const grid = block.querySelector(".accounts-grid");
     for (const [key, accData] of Object.entries(accounts)) {
         const card = createAccountCard(stageType, key, accData);
@@ -197,11 +220,12 @@ function createStageBlock(defaults) {
 // --- Subtelne ostrzeżenia o konfiguracji etapu ---
 
 function updateStageHints(container) {
-    if (!CONFIG || !container) return;
-    container.querySelectorAll(".stage-block").forEach((block) => {
+    if (!container) return;
+    if (CONFIG) {
+        container.querySelectorAll(".stage-block").forEach((block) => {
         const hint = block.querySelector(".stage-hint");
         if (!hint) return;
-        const stageType = block.querySelector(".stage-type-select").value;
+        const stageType = stageTypeOf(block);
         const startAge = parseInt(block.querySelector(".start-age").value) || 0;
         const hints = [];
 
@@ -212,10 +236,20 @@ function updateStageHints(container) {
                 if (!rules || !rules.min_withdrawal_age) return;
                 const label = ACCOUNT_LABELS[acc] || acc;
                 if (startAge < rules.min_withdrawal_age) {
-                    hints.push(
-                        `${label} wypłacane od ${startAge} r.ż. — przed ${rules.min_withdrawal_age} r.ż. ` +
-                        `opodatkowanie ${earlyTaxDescription(acc)}. Po ${rules.min_withdrawal_age} r.ż. ${normalTaxDescription(acc)}.`
-                    );
+                    if (rules.early_tax_model === "scale") {
+                        const lower = Math.round(CONFIG.rate_lower * 100);
+                        const upper = Math.round(CONFIG.rate_upper * 100);
+                        hints.push(
+                            `${label} wypłacane od ${startAge} r.ż. — przed ${rules.min_withdrawal_age} r.ż. ` +
+                            `jednorazowy zwrot całości w pierwszym roku (podatek wg skali ${lower}/${upper}% od całości); ` +
+                            `wypłaty ratalne liczone od kapitału netto. Po ${rules.min_withdrawal_age} r.ż. ${normalTaxDescription(acc)}.`
+                        );
+                    } else {
+                        hints.push(
+                            `${label} wypłacane od ${startAge} r.ż. — przed ${rules.min_withdrawal_age} r.ż. ` +
+                            `opodatkowanie ${earlyTaxDescription(acc)}. Po ${rules.min_withdrawal_age} r.ż. ${normalTaxDescription(acc)}.`
+                        );
+                    }
                 }
             });
         } else if (stageType === "akumulacja") {
@@ -224,7 +258,9 @@ function updateStageHints(container) {
                 const contribInput = card.querySelector('[data-key="annual_contribution"]');
                 if (!contribInput) return;
                 const contrib = parseFloat(contribInput.value) || 0;
-                const limit = CONFIG.limits[acc === "ike" ? "ike_annual" : acc === "ikze" ? "ikze_annual" : null];
+                const limitKey =
+                    acc === "ike" ? "ike_annual" : acc === "ikze" ? ikzeLimitKey(card) : null;
+                const limit = CONFIG.limits[limitKey];
                 if (!limit || contrib <= limit) return;
                 const label = ACCOUNT_LABELS[acc] || acc;
                 hints.push(
@@ -235,7 +271,46 @@ function updateStageHints(container) {
 
         hint.textContent = hints.join(" ");
         hint.classList.toggle("hidden", hints.length === 0);
+        });
+    }
+    const valid = validateStageOrder(container);
+    updateSimulateButton(valid);
+}
+
+// Miękka blokada: etap realizacji nie może zaczynać się przed końcem akumulacji.
+function validateStageOrder(container) {
+    let valid = true;
+    const blocks = getStageBlocks(container);
+    const lastEnd = lastAkumulacjaEnd(blocks);
+
+    blocks.forEach((block) => {
+        const startInput = block.querySelector(".start-age");
+        const hint = block.querySelector(".stage-hint");
+        if (startInput) startInput.classList.remove("input-error");
+        if (hint) hint.classList.remove("error");
+
+        if (stageTypeOf(block) !== "realizacja") return;
+        const startAge = parseInt(startInput.value, 10) || 0;
+        const bad = lastEnd !== null && startAge < lastEnd;
+        if (!bad) return;
+
+        valid = false;
+        if (startInput) startInput.classList.add("input-error");
+        if (hint) {
+            const msg = `Etap realizacji musi zaczynać się ≥ ${lastEnd} r.ż. (koniec akumulacji).`;
+            hint.textContent = hint.textContent ? `${hint.textContent} ${msg}` : msg;
+            hint.classList.add("error");
+            hint.classList.remove("hidden");
+        }
     });
+
+    if (!orderIsValid(blocks)) valid = false;
+    return valid;
+}
+
+function updateSimulateButton(valid) {
+    const btn = document.getElementById("simulateBtn");
+    if (btn) btn.disabled = !valid;
 }
 
 function earlyTaxDescription(acc) {
@@ -261,12 +336,56 @@ function normalTaxDescription(acc) {
 
 // --- Reordering etapów ---
 
+function stageTypeOf(block) {
+    return block.dataset.stageType || "akumulacja";
+}
+
+function ikzeLimitKey(card) {
+    const active = card.querySelector(".max-btn.active");
+    return active && active.dataset.limit === "ikze_annual_self_employed"
+        ? "ikze_annual_self_employed"
+        : "ikze_annual";
+}
+
+function getStageBlocks(container) {
+    return Array.from(container.querySelectorAll(".stage-block"));
+}
+
+// Realizacja musi być ciągłym sufiksem listy (żaden kafelek akumulacji pod realizacją).
+function orderIsValid(blocks) {
+    let seenRealizacja = false;
+    for (const block of blocks) {
+        if (stageTypeOf(block) === "realizacja") {
+            seenRealizacja = true;
+        } else if (seenRealizacja) {
+            return false;
+        }
+    }
+    return true;
+}
+
+// Najpóźniejszy wiek końca etapów akumulacji (null, gdy brak akumulacji).
+function lastAkumulacjaEnd(blocks) {
+    let maxEnd = null;
+    for (const block of blocks) {
+        if (stageTypeOf(block) !== "akumulacja") continue;
+        const end = parseInt(block.querySelector(".end-age").value, 10) || 0;
+        if (maxEnd === null || end > maxEnd) maxEnd = end;
+    }
+    return maxEnd;
+}
+
 function moveStage(block, direction) {
     const container = document.getElementById("stages-container");
-    const blocks = Array.from(container.querySelectorAll(".stage-block"));
+    const blocks = getStageBlocks(container);
     const index = blocks.indexOf(block);
     const target = direction === "up" ? blocks[index - 1] : blocks[index + 1];
     if (!target) return;
+
+    const simulated = blocks.slice();
+    const [moved] = simulated.splice(index, 1);
+    simulated.splice(direction === "up" ? index - 1 : index + 1, 0, moved);
+    if (!orderIsValid(simulated)) return;
 
     if (direction === "up") {
         container.insertBefore(block, target);
@@ -278,13 +397,55 @@ function moveStage(block, direction) {
 }
 
 function updateStageButtons(container) {
-    const blocks = container.querySelectorAll(".stage-block");
+    const blocks = getStageBlocks(container);
     blocks.forEach((block, i) => {
         const upBtn = block.querySelector(".move-up");
         const downBtn = block.querySelector(".move-down");
-        if (upBtn) upBtn.disabled = i === 0;
-        if (downBtn) downBtn.disabled = i === blocks.length - 1;
+        const above = blocks[i - 1];
+        const below = blocks[i + 1];
+        const isRealizacja = stageTypeOf(block) === "realizacja";
+
+        let upDisabled = i === 0;
+        if (isRealizacja && above && stageTypeOf(above) === "akumulacja") upDisabled = true;
+        if (upBtn) upBtn.disabled = upDisabled;
+
+        let downDisabled = i === blocks.length - 1;
+        if (!isRealizacja && below && stageTypeOf(below) === "realizacja") downDisabled = true;
+        if (downBtn) downBtn.disabled = downDisabled;
     });
+    updateDivider(container);
+}
+
+// Separator między fazami akumulacji i realizacji z przyciskiem dodawania etapu akumulacji.
+function updateDivider(container) {
+    container.querySelectorAll(".phase-divider").forEach((d) => d.remove());
+
+    const blocks = getStageBlocks(container);
+    const divider = document.createElement("div");
+    divider.className = "phase-divider";
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "btn btn-secondary phase-divider-btn";
+    btn.textContent = "+ Dodaj etap akumulacji";
+    btn.addEventListener("click", () => {
+        const block = createStageBlock(null);
+        const firstRealizacja = getStageBlocks(container).find((b) => stageTypeOf(b) === "realizacja");
+        if (firstRealizacja) {
+            container.insertBefore(block, firstRealizacja);
+        } else {
+            container.appendChild(block);
+        }
+        updateStageButtons(container);
+        updateStageHints(container);
+    });
+    divider.appendChild(btn);
+
+    const firstRealIndex = blocks.map(stageTypeOf).indexOf("realizacja");
+    if (firstRealIndex !== -1) {
+        container.insertBefore(divider, blocks[firstRealIndex]);
+    } else {
+        container.appendChild(divider);
+    }
 }
 
 // --- Drag & drop etapów ---
@@ -292,9 +453,22 @@ function updateStageButtons(container) {
 let dragSource = null;
 
 function clearDragMarkers(container) {
-    container.querySelectorAll(".dragging, .drag-before, .drag-after").forEach((el) => {
-        el.classList.remove("dragging", "drag-before", "drag-after");
+    container.querySelectorAll(".dragging, .drag-before, .drag-after, .drag-invalid").forEach((el) => {
+        el.classList.remove("dragging", "drag-before", "drag-after", "drag-invalid");
     });
+}
+
+function dropWouldBreakOrder(dragSource, target, after) {
+    const container = document.getElementById("stages-container");
+    const blocks = getStageBlocks(container);
+    const srcIdx = blocks.indexOf(dragSource);
+    const tgtIdx = blocks.indexOf(target);
+    const simulated = blocks.slice();
+    const [moved] = simulated.splice(srcIdx, 1);
+    let insertAt = tgtIdx + (after ? 1 : 0);
+    if (insertAt > simulated.length) insertAt = simulated.length;
+    simulated.splice(insertAt, 0, moved);
+    return !orderIsValid(simulated);
 }
 
 function initDragDrop(container) {
@@ -316,6 +490,11 @@ function initDragDrop(container) {
         if (!block || block === dragSource) return;
         const rect = block.getBoundingClientRect();
         const after = e.clientY - rect.top > rect.height / 2;
+        if (dropWouldBreakOrder(dragSource, block, after)) {
+            e.dataTransfer.dropEffect = "none";
+            block.classList.add("drag-invalid");
+            return;
+        }
         block.classList.toggle("drag-after", after);
         block.classList.toggle("drag-before", !after);
     });
@@ -327,6 +506,7 @@ function initDragDrop(container) {
         if (!block || !dragSource || block === dragSource) return;
         const rect = block.getBoundingClientRect();
         const after = e.clientY - rect.top > rect.height / 2;
+        if (dropWouldBreakOrder(dragSource, block, after)) return;
         if (after) {
             container.insertBefore(dragSource, block.nextSibling);
         } else {
@@ -354,9 +534,16 @@ function gatherFormData() {
             if (input.dataset.percent) val /= 100;
             accounts[acc][key] = val;
         });
+        block.querySelectorAll(".account-card").forEach((card) => {
+            const acc = card.dataset.account;
+            if (acc !== "ikze" || !card.querySelector('[data-key="annual_contribution"]')) return;
+            if (!accounts[acc]) accounts[acc] = {};
+            accounts[acc].ikze_limit =
+                ikzeLimitKey(card) === "ikze_annual_self_employed" ? "self_employed" : "etat";
+        });
 
         stages.push({
-            stage_type: block.querySelector(".stage-type-select").value,
+            stage_type: block.dataset.stageType,
             name: block.querySelector(".stage-name").value,
             start_age: parseInt(block.querySelector(".start-age").value) || 0,
             end_age: parseInt(block.querySelector(".end-age").value) || 0,
@@ -466,20 +653,58 @@ document.addEventListener("DOMContentLoaded", () => {
 
     defaults.forEach((s) => container.appendChild(createStageBlock(s)));
 
-    document.getElementById("addStageBtn").addEventListener("click", () => {
-        container.appendChild(createStageBlock(null));
+    document.getElementById("addRealizationBtn").addEventListener("click", () => {
+        const blocks = getStageBlocks(container);
+        const last = blocks[blocks.length - 1];
+        const prevEnd = last ? parseInt(last.querySelector(".end-age").value, 10) : NaN;
+        const start = Number.isFinite(prevEnd) ? prevEnd : 40;
+        const block = createStageBlock({
+            stage_type: "realizacja",
+            name: "Realizacja",
+            start_age: start,
+            end_age: start + 5,
+        });
+        container.appendChild(block);
+        updateStageButtons(container);
+        updateStageHints(container);
+    });
+
+    document.getElementById("clearStagesBtn").addEventListener("click", () => {
+        if (!confirm("Na pewno wyczyścić wszystkie etapy?")) return;
+        container.querySelectorAll(".stage-block").forEach((b) => b.remove());
+        const results = document.getElementById("results");
+        if (results) results.style.display = "none";
         updateStageButtons(container);
         updateStageHints(container);
     });
 
     initDragDrop(container);
     updateStageButtons(container);
+    updateStageHints(container);
 
     // Odświeżanie subtelnych podpowiedzi przy edycji pól
     container.addEventListener("input", () => updateStageHints(container));
 
+    // Kliknięcie w pole zaznacza całą wartość (wpisywanie nadpisuje, bez backspace)
+    document.addEventListener(
+        "focusin",
+        (e) => {
+            const input = e.target;
+            if (!input || !input.matches || !input.matches('input[type="number"], input[type="text"]')) return;
+            if (typeof input.select !== "function") return;
+            setTimeout(() => {
+                if (document.activeElement === input) input.select();
+            }, 0);
+        },
+        true
+    );
+
     document.getElementById("simForm").addEventListener("submit", async (e) => {
         e.preventDefault();
+        if (!validateStageOrder(container)) {
+            alert("Etap realizacji nie może zaczynać się przed końcem etapu akumulacji.");
+            return;
+        }
         const data = gatherFormData();
 
         try {
