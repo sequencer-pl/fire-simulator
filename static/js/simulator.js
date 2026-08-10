@@ -48,6 +48,7 @@ function createAccountCard(stageType, accountKey, accountData) {
     card.querySelector(".remove-account-btn").addEventListener("click", () => {
         card.closest(".accounts-grid").removeChild(card);
         updateStageName(card.closest(".stage-block"));
+        updateStageHints(document.getElementById("stages-container"));
     });
 
     return card;
@@ -105,10 +106,16 @@ function renderAccountToggles(stageBlock) {
                 if (card) accountsContainer.appendChild(card);
             }
             updateStageName(stageBlock);
+            updateStageHints(document.getElementById("stages-container"));
         });
 
         togglesContainer.appendChild(btn);
     }
+}
+
+function stageKindClass(stageType) {
+    const meta = STAGE_TYPES[stageType];
+    return meta && meta.type === "withdrawal" ? "stage-realizacja" : "stage-akumulacja";
 }
 
 function createStageBlock(defaults) {
@@ -118,7 +125,7 @@ function createStageBlock(defaults) {
     const idx = stageIndex++;
 
     const block = document.createElement("div");
-    block.className = "stage-block";
+    block.className = "stage-block " + stageKindClass(stageType);
     block.dataset.index = idx;
     block.draggable = true;
 
@@ -153,6 +160,7 @@ function createStageBlock(defaults) {
         </div>
         <div class="accounts-toggles"></div>
         <div class="accounts-grid"></div>
+        <div class="stage-hint hidden"></div>
     `;
 
     block.querySelector(".move-up").addEventListener("click", () => moveStage(block, "up"));
@@ -160,16 +168,19 @@ function createStageBlock(defaults) {
     block.querySelector(".remove-btn").addEventListener("click", () => {
         block.remove();
         updateStageButtons(document.getElementById("stages-container"));
+        updateStageHints(document.getElementById("stages-container"));
     });
 
     const stageTypeSelect = block.querySelector(".stage-type-select");
     stageTypeSelect.addEventListener("change", () => {
         const newType = stageTypeSelect.value;
+        block.className = "stage-block " + stageKindClass(newType);
         const meta = STAGE_TYPES[newType];
         const grid = block.querySelector(".accounts-grid");
         grid.innerHTML = "";
         renderAccountToggles(block);
         updateStageName(block);
+        updateStageHints(document.getElementById("stages-container"));
     });
 
     const grid = block.querySelector(".accounts-grid");
@@ -181,6 +192,71 @@ function createStageBlock(defaults) {
     renderAccountToggles(block);
 
     return block;
+}
+
+// --- Subtelne ostrzeżenia o konfiguracji etapu ---
+
+function updateStageHints(container) {
+    if (!CONFIG || !container) return;
+    container.querySelectorAll(".stage-block").forEach((block) => {
+        const hint = block.querySelector(".stage-hint");
+        if (!hint) return;
+        const stageType = block.querySelector(".stage-type-select").value;
+        const startAge = parseInt(block.querySelector(".start-age").value) || 0;
+        const hints = [];
+
+        if (stageType === "realizacja") {
+            block.querySelectorAll(".account-card").forEach((card) => {
+                const acc = card.dataset.account;
+                const rules = CONFIG.accounts[acc];
+                if (!rules || !rules.min_withdrawal_age) return;
+                const label = ACCOUNT_LABELS[acc] || acc;
+                if (startAge < rules.min_withdrawal_age) {
+                    hints.push(
+                        `${label} wypłacane od ${startAge} r.ż. — przed ${rules.min_withdrawal_age} r.ż. ` +
+                        `opodatkowanie ${earlyTaxDescription(acc)}. Po ${rules.min_withdrawal_age} r.ż. ${normalTaxDescription(acc)}.`
+                    );
+                }
+            });
+        } else if (stageType === "akumulacja") {
+            block.querySelectorAll(".account-card").forEach((card) => {
+                const acc = card.dataset.account;
+                const contribInput = card.querySelector('[data-key="annual_contribution"]');
+                if (!contribInput) return;
+                const contrib = parseFloat(contribInput.value) || 0;
+                const limit = CONFIG.limits[acc === "ike" ? "ike_annual" : acc === "ikze" ? "ikze_annual" : null];
+                if (!limit || contrib <= limit) return;
+                const label = ACCOUNT_LABELS[acc] || acc;
+                hints.push(
+                    `Dopłaty na ${label} (${contrib.toLocaleString("pl-PL")} zł/rok) przekraczają roczny limit ${limit.toLocaleString("pl-PL")} zł.`
+                );
+            });
+        }
+
+        hint.textContent = hints.join(" ");
+        hint.classList.toggle("hidden", hints.length === 0);
+    });
+}
+
+function earlyTaxDescription(acc) {
+    const rules = CONFIG.accounts[acc];
+    if (rules.early_tax_model === "scale") {
+        return `skalą ${(CONFIG.rate_lower * 100).toFixed(0)}/${(CONFIG.rate_upper * 100).toFixed(0)}% od całości`;
+    }
+    if (rules.early_tax_model === "flat") {
+        return `ryczałtem ${(rules.early_tax_rate * 100).toFixed(0)}% od zysku`;
+    }
+    return "bez podatku";
+}
+
+function normalTaxDescription(acc) {
+    const rules = CONFIG.accounts[acc];
+    if (rules.tax_model === "scale") return `skala PIT`;
+    if (rules.tax_model === "flat") {
+        const basis = rules.tax_basis === "full" ? "całości" : "zysku";
+        return `ryczałt ${(rules.tax_rate * 100).toFixed(0)}% od ${basis}`;
+    }
+    return "bez podatku";
 }
 
 // --- Reordering etapów ---
@@ -198,6 +274,7 @@ function moveStage(block, direction) {
         container.insertBefore(target, block);
     }
     updateStageButtons(container);
+    updateStageHints(container);
 }
 
 function updateStageButtons(container) {
@@ -256,6 +333,7 @@ function initDragDrop(container) {
             container.insertBefore(dragSource, block);
         }
         updateStageButtons(container);
+        updateStageHints(container);
     });
 
     container.addEventListener("dragend", () => {
@@ -286,7 +364,7 @@ function gatherFormData() {
         });
     });
 
-    return { stages: stages, max_age: 100 };
+    return { stages: stages, max_age: 100, config: CONFIG };
 }
 
 function formatMoney(val) {
@@ -299,6 +377,7 @@ function renderResults(data) {
     const thead = document.querySelector("#resultsTable thead");
     const tbody = document.querySelector("#resultsTable tbody");
     const summary = document.getElementById("summary");
+    const warnings = document.getElementById("warnings");
 
     const accounts = data.accounts || [];
 
@@ -311,10 +390,19 @@ function renderResults(data) {
         <th>Majątek</th>
         <th>Wypłata roczna</th>
         <th>Wypłata mies.</th>
+        <th>Podatek</th>
     `;
     thead.appendChild(headerRow);
 
     tbody.innerHTML = "";
+
+    warnings.innerHTML = "";
+    (data.warnings || []).forEach((w) => {
+        const div = document.createElement("div");
+        div.className = "warning-item";
+        div.textContent = "!" + " " + w;
+        warnings.appendChild(div);
+    });
 
     summary.innerHTML = `
         <div class="summary-card">
@@ -362,6 +450,7 @@ function renderResults(data) {
             <td class="amount"><strong>${formatMoney(y.total_wealth)}</strong></td>
             <td class="amount">${formatMoney(y.annual_withdrawal)}</td>
             <td class="amount">${formatMoney(y.monthly_withdrawal)}</td>
+            <td class="amount">${formatMoney(y.tax_paid)}</td>
         `;
         tbody.appendChild(tr);
     });
@@ -380,10 +469,14 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("addStageBtn").addEventListener("click", () => {
         container.appendChild(createStageBlock(null));
         updateStageButtons(container);
+        updateStageHints(container);
     });
 
     initDragDrop(container);
     updateStageButtons(container);
+
+    // Odświeżanie subtelnych podpowiedzi przy edycji pól
+    container.addEventListener("input", () => updateStageHints(container));
 
     document.getElementById("simForm").addEventListener("submit", async (e) => {
         e.preventDefault();
@@ -405,4 +498,163 @@ document.addEventListener("DOMContentLoaded", () => {
             alert("Błąd połączenia: " + err.message);
         }
     });
+
+    initModeToggle();
+    initConfig();
 });
+
+// --- Tryby: Symulator / Konfiguracja ---
+
+function initModeToggle() {
+    document.getElementById("modeSimBtn").addEventListener("click", () => switchMode("sim"));
+    document.getElementById("modeConfigBtn").addEventListener("click", () => switchMode("config"));
+}
+
+function switchMode(mode) {
+    document.getElementById("modeSimBtn").classList.toggle("active", mode === "sim");
+    document.getElementById("modeConfigBtn").classList.toggle("active", mode === "config");
+    document.getElementById("simulatorView").classList.toggle("hidden", mode !== "sim");
+    document.getElementById("configView").classList.toggle("hidden", mode !== "config");
+}
+
+// --- Konfiguracja (podatki, limity, reguły kont) ---
+
+const ACCOUNT_LABELS = {
+    broker: "Broker",
+    ike: "IKE",
+    ikze: "IKZE",
+    lokata: "Lokata",
+    zus: "ZUS (emerytura)",
+};
+
+const TAX_MODEL_LABELS = { none: "Brak", flat: "Ryczałt", scale: "Skala PIT" };
+const TAX_BASIS_LABELS = { gains: "od zysku", full: "od całości" };
+let CONFIG = null;
+
+async function initConfig() {
+    try {
+        const res = await fetch("/api/config");
+        CONFIG = await res.json();
+        renderConfigView();
+        updateStageHints(document.getElementById("stages-container"));
+    } catch (err) {
+        console.error("Nie udało się wczytać konfiguracji:", err);
+    }
+}
+
+function setConfigPath(path, value) {
+    const parts = path.split(".");
+    let obj = CONFIG;
+    for (let i = 0; i < parts.length - 1; i++) obj = obj[parts[i]];
+    obj[parts[parts.length - 1]] = value;
+}
+
+function renderConfigView() {
+    const root = document.getElementById("config-content");
+    root.innerHTML = "";
+
+    root.appendChild(configSection("Skala podatkowa", [
+        configNumberField("kwota_wolna", "Kwota wolna od podatku (zł)", CONFIG.kwota_wolna, 0),
+        configNumberField("prog", "Próg podatkowy (zł)", CONFIG.prog, 0),
+        configPercentField("rate_lower", "Stawka niższa (%)", CONFIG.rate_lower, 0),
+        configPercentField("rate_upper", "Stawka wyższa (%)", CONFIG.rate_upper, 0),
+    ]));
+
+    root.appendChild(configSection("Limity rocznych wpłat", [
+        configNumberField("limits.ike_annual", "IKE (zł)", CONFIG.limits.ike_annual, 0),
+        configNumberField("limits.ikze_annual", "IKZE — etat (zł)", CONFIG.limits.ikze_annual, 0),
+        configNumberField("limits.ikze_annual_self_employed", "IKZE — przedsiębiorca (zł)", CONFIG.limits.ikze_annual_self_employed, 0),
+    ]));
+
+    const accountsSection = document.createElement("div");
+    accountsSection.className = "config-section";
+    accountsSection.innerHTML = "<h3>Konta — reguły wypłat i podatków</h3>";
+    const grid = document.createElement("div");
+    grid.className = "config-accounts";
+    for (const [key, rules] of Object.entries(CONFIG.accounts)) {
+        grid.appendChild(renderAccountRulesCard(key, rules));
+    }
+    accountsSection.appendChild(grid);
+    root.appendChild(accountsSection);
+
+    document.getElementById("configResetBtn").addEventListener("click", resetConfig);
+}
+
+function configSection(title, fields) {
+    const section = document.createElement("div");
+    section.className = "config-section";
+    section.innerHTML = `<h3>${title}</h3>`;
+    const grid = document.createElement("div");
+    grid.className = "config-fields";
+    fields.forEach((f) => grid.appendChild(f));
+    section.appendChild(grid);
+    return section;
+}
+
+function configField(path, label, value, percent) {
+    const wrap = document.createElement("div");
+    wrap.className = "field-group";
+    wrap.innerHTML = `<label>${label}</label>`;
+    const input = document.createElement("input");
+    input.type = "number";
+    input.min = "0";
+    input.step = "any";
+    input.value = percent ? value * 100 : value;
+    input.addEventListener("input", () => {
+        const parsed = parseFloat(input.value) || 0;
+        setConfigPath(path, percent ? parsed / 100 : parsed);
+        updateStageHints(document.getElementById("stages-container"));
+    });
+    wrap.appendChild(input);
+    return wrap;
+}
+
+function configNumberField(path, label, value) {
+    return configField(path, label, value, false);
+}
+
+function configPercentField(path, label, value) {
+    return configField(path, label, value, true);
+}
+
+function renderAccountRulesCard(key, rules) {
+    const card = document.createElement("div");
+    card.className = "account-rules-card";
+    card.innerHTML = `<h4>${ACCOUNT_LABELS[key] || key}</h4>`;
+
+    card.appendChild(configSelect("accounts." + key + ".tax_model", "Model podatkowy", rules.tax_model, TAX_MODEL_LABELS));
+    card.appendChild(configPercentField("accounts." + key + ".tax_rate", "Stawka ryczałtowa (%)", rules.tax_rate));
+    card.appendChild(configSelect("accounts." + key + ".tax_basis", "Podstawa", rules.tax_basis, TAX_BASIS_LABELS));
+    card.appendChild(configNumberField("accounts." + key + ".min_withdrawal_age", "Wiek zmiany reżimu", rules.min_withdrawal_age));
+    card.appendChild(configSelect("accounts." + key + ".early_tax_model", "Model przed wiekiem", rules.early_tax_model, TAX_MODEL_LABELS));
+    card.appendChild(configPercentField("accounts." + key + ".early_tax_rate", "Stawka przed wiekiem (%)", rules.early_tax_rate));
+
+    return card;
+}
+
+function configSelect(path, label, value, options) {
+    const wrap = document.createElement("div");
+    wrap.className = "field-group";
+    wrap.innerHTML = `<label>${label}</label>`;
+    const select = document.createElement("select");
+    for (const [val, text] of Object.entries(options)) {
+        const opt = document.createElement("option");
+        opt.value = val;
+        opt.textContent = text;
+        if (val === value) opt.selected = true;
+        select.appendChild(opt);
+    }
+    select.addEventListener("change", () => {
+        setConfigPath(path, select.value);
+        updateStageHints(document.getElementById("stages-container"));
+    });
+    wrap.appendChild(select);
+    return wrap;
+}
+
+async function resetConfig() {
+    const res = await fetch("/api/config");
+    CONFIG = await res.json();
+    renderConfigView();
+    updateStageHints(document.getElementById("stages-container"));
+}

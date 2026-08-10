@@ -2,6 +2,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 
+from app.simulation.config import default_config
 from app.simulation.engine import simulate
 from app.simulation.schemas import SimulationInput
 from app.stages.registry import get_all_stage_types
@@ -39,6 +40,11 @@ async def api_stage_types():
 @router.get("/api/defaults")
 async def api_defaults():
     return _get_defaults()
+
+
+@router.get("/api/config")
+async def api_config():
+    return default_config().model_dump()
 
 
 def _get_defaults() -> dict:

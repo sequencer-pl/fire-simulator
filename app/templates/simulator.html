@@ -11,34 +11,53 @@
         <h1>FIRE Simulator</h1>
         <p class="subtitle">Symulator niezależności finansowej</p>
 
-        <form id="simForm">
-            <div id="stages-container">
-            </div>
+        <div class="mode-toggle">
+            <button type="button" id="modeSimBtn" class="mode-btn active">Symulator</button>
+            <button type="button" id="modeConfigBtn" class="mode-btn">Konfiguracja</button>
+        </div>
 
-            <button type="button" id="addStageBtn" class="btn btn-secondary">+ Dodaj etap</button>
-            <button type="submit" class="btn btn-primary">Symuluj</button>
-        </form>
+        <!-- ====== SYMULATOR ====== -->
+        <div id="simulatorView">
+            <form id="simForm">
+                <div id="stages-container">
+                </div>
 
-        <div id="results" class="results-section" style="display:none;">
-            <h2>Wyniki symulacji</h2>
-            <div id="summary"></div>
-            <div class="table-wrap">
-                <table id="resultsTable">
-                    <thead>
-                        <tr>
-                            <th>Wiek</th>
-                            <th>Etap</th>
-                            <th>Broker</th>
-                            <th>IKE</th>
-                            <th>IKZE</th>
-                            <th>Majątek</th>
-                            <th>Wypłata roczna</th>
-                            <th>Wypłata mies.</th>
-                        </tr>
-                    </thead>
-                    <tbody></tbody>
-                </table>
+                <button type="button" id="addStageBtn" class="btn btn-secondary">+ Dodaj etap</button>
+                <button type="submit" class="btn btn-primary">Symuluj</button>
+            </form>
+
+            <div id="results" class="results-section" style="display:none;">
+                <h2>Wyniki symulacji</h2>
+                <p class="results-note">Wypłaty podane netto (po podatku).</p>
+                <div id="warnings"></div>
+                <div id="summary"></div>
+                <div class="table-wrap">
+                    <table id="resultsTable">
+                        <thead>
+                            <tr>
+                                <th>Wiek</th>
+                                <th>Etap</th>
+                                <th>Broker</th>
+                                <th>IKE</th>
+                                <th>IKZE</th>
+                                <th>Majątek</th>
+                                <th>Wypłata roczna</th>
+                                <th>Wypłata mies.</th>
+                                <th>Podatek</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
             </div>
+        </div>
+
+        <!-- ====== KONFIGURACJA ====== -->
+        <div id="configView" class="hidden">
+            <h2>Konfiguracja</h2>
+            <p class="subtitle">Parametry zależne od państwa i instytucji (domyślnie 2026 r.). Wpływa na wyliczenie podatków, limitów wiekowych i wpłat.</p>
+            <div id="config-content"></div>
+            <button type="button" id="configResetBtn" class="btn btn-secondary">Przywróć domyślne</button>
         </div>
     </div>
 

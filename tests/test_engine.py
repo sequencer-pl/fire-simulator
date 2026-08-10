@@ -181,8 +181,8 @@ def test_zus_sequential_stages():
         realization_stage("ZUS", {"zus": acc(monthly_pension=4000)}, 52, 100),
     ]
     result = simulate(SimulationInput(stages=stages, max_age=100))
-    # Rosnąca emerytura: 3000 -> 3500 -> 4000 PLN/mies.
-    assert result.years[0].monthly_withdrawal == pytest.approx(3000)
-    assert result.years[5].monthly_withdrawal == pytest.approx(3500)
-    assert result.years[7].monthly_withdrawal == pytest.approx(4000)
-    assert result.years[-1].annual_withdrawal == pytest.approx(48000)
+    # Rosnąca emerytura: 3000 -> 3500 -> 4000 PLN/mies. (netto po skali PIT)
+    assert result.years[0].monthly_withdrawal == pytest.approx(2940.0)
+    assert result.years[5].monthly_withdrawal == pytest.approx(3380.0)
+    assert result.years[7].monthly_withdrawal == pytest.approx(3820.0)
+    assert result.years[-1].annual_withdrawal == pytest.approx(45840.0)

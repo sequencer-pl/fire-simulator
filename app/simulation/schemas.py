@@ -1,12 +1,13 @@
 from pydantic import BaseModel, Field
 
+from app.simulation.config import TaxConfig, default_config
+
 
 class AccountConfig(BaseModel):
     starting_balance: float = 0.0
     roi: float = 0.02
     annual_contribution: float = 0.0
     buffer: float = 0.0
-    tax_rate: float = 0.0
     monthly_pension: float = 0.0
 
 
@@ -21,6 +22,7 @@ class StageInput(BaseModel):
 class SimulationInput(BaseModel):
     stages: list[StageInput]
     max_age: int = 100
+    config: TaxConfig = Field(default_factory=default_config)
 
 
 class YearResult(BaseModel):
@@ -41,3 +43,4 @@ class SimulationResult(BaseModel):
     total_withdrawn: float
     total_tax: float
     has_pension: bool = False
+    warnings: list[str] = Field(default_factory=list)
