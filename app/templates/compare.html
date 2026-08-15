@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FIRE Simulator — Porównanie</title>
+    <link rel="stylesheet" href="/static/css/style.css?v={{ asset_version }}">
+</head>
+<body>
+    <div class="container">
+        <div class="topbar">
+            <div>
+                <h1>Porównanie symulacji</h1>
+                <p class="subtitle" style="margin-bottom:0;" id="compareSubtitle"></p>
+            </div>
+            <nav class="topnav">
+                <a href="/" class="btn btn-secondary" style="margin:0;">Moje symulacje</a>
+                <a href="/sim" class="btn btn-secondary" style="margin:0;">Symulator</a>
+            </nav>
+        </div>
+
+        <div id="errorMsg" class="warning-item hidden"></div>
+
+        <div id="metricsSection" class="hidden">
+            <h2>Podsumowanie</h2>
+            <div class="table-wrap">
+                <table id="metricsTable">
+                    <thead><tr></tr></thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="chartSection" class="hidden">
+            <h2>Majątek w czasie</h2>
+            <div id="overlayChart" class="chart-wrap"></div>
+        </div>
+
+        <div id="withdrawalSection" class="hidden">
+            <h2>Miesięczne wypłaty w czasie</h2>
+            <p class="subtitle">Wypłaty netto (po podatku) na miesiąc.</p>
+            <div id="withdrawalChart" class="chart-wrap"></div>
+        </div>
+
+        <div id="milestonesSection" class="hidden">
+            <h2>Kamienie milowe</h2>
+            <div class="table-wrap">
+                <table id="milestonesTable">
+                    <thead><tr></tr></thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/compare.js?v={{ asset_version }}"></script>
+</body>
+</html>
