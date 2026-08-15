@@ -1,0 +1,279 @@
+import pytest
+
+from app.simulation.config import default_config
+from app.simulation.engine import simulate
+from app.simulation.schemas import AccountConfig, SimulationInput, StageInput
+from app.simulation.tablica_sdtz import sdtz_months
+
+
+def acc(**kwargs):
+    return AccountConfig(**kwargs)
+
+
+def accumulation_stage(accounts, start=40, end=65):
+    return StageInput(
+        stage_type="akumulacja",
+        name="Akumulacja",
+        start_age=start,
+        end_age=end,
+        accounts=accounts,
+    )
+
+
+def realization_stage(name, accounts, start, end):
+    return StageInput(
+        stage_type="realizacja",
+        name=name,
+        start_age=start,
+        end_age=end,
+        accounts=accounts,
+    )
+
+
+def no_tax_config():
+    cfg = default_config()
+    cfg.kwota_wolna = 0.0
+    cfg.rate_lower = 0.0
+    cfg.rate_upper = 0.0
+    return cfg
+
+
+# --- Składka i wzrost kapitału ---
+
+
+def test_zus_skladka_19_52_from_monthly_base():
+    # podstawa 8000 zł/mies. -> składka 19,52% * 96 000 = 18 739,20 zł/rok
+    stages = [
+        accumulation_stage(
+            {"zus": acc(starting_balance=100000, monthly_base=8000, ofe_member=False)}
+        )
+    ]
+    result = simulate(SimulationInput(stages=stages, max_age=40))
+    y = result.years[0]
+    assert y.balances["zus"] == pytest.approx(100000)
+    after_one_year = simulate(SimulationInput(stages=stages, max_age=41)).years[1]
+    assert after_one_year.balances["zus"] == pytest.approx(100000 * 1.01 + 18739.2)
+
+
+def test_zus_skladka_capped_at_30x_base():
+    # podstawa 40 000 zł/mies. -> 480 000 zł/rok > limit 270 000 -> składka z 270 000
+    stages = [
+        accumulation_stage({"zus": acc(monthly_base=40000, ofe_member=False)})
+    ]
+    result = simulate(SimulationInput(stages=stages, max_age=41))
+    y = result.years[1]
+    assert y.balances["zus"] == pytest.approx(270000 * 0.1952)
+
+
+def test_zus_ofe_split_two_growth_rates():
+    stages = [
+        accumulation_stage(
+            {
+                "zus": acc(
+                    starting_balance_ofe=10000,
+                    monthly_base=8000,
+                    ofe_member=True,
+                    roi=0.06,
+                )
+            }
+        )
+    ]
+    result = simulate(SimulationInput(stages=stages, max_age=41))
+    y = result.years[1]
+    # 19,52% * 96 000 = 18 739,20; OFE 2,92% * 96 000 = 2 803,20; reszta do ZUS
+    assert y.balances["zus"] == pytest.approx(18739.2 - 2803.2)
+    assert y.balances["zus:ofe"] == pytest.approx(10000 * 1.06 + 2803.2)
+    assert "zus:ofe" not in result.accounts
+
+
+def test_zus_ofe_capital_ignored_when_not_member():
+    stages = [
+        accumulation_stage(
+            {
+                "zus": acc(
+                    starting_balance=100000,
+                    starting_balance_ofe=50000,
+                    monthly_base=8000,
+                    ofe_member=False,
+                )
+            }
+        )
+    ]
+    result = simulate(SimulationInput(stages=stages, max_age=41))
+    y = result.years[1]
+    assert y.balances["zus"] == pytest.approx(100000 * 1.01 + 18739.2)
+    assert "zus:ofe" not in y.balances
+
+
+def test_zus_ofe_subaccount_grows_at_market_roi_passively():
+    stages = [
+        accumulation_stage(
+            {
+                "zus": acc(
+                    starting_balance_ofe=10000,
+                    monthly_base=8000,
+                    ofe_member=True,
+                    roi=0.06,
+                )
+            },
+            start=40,
+            end=41,
+        ),
+        realization_stage(
+            "Broker",
+            {"broker": acc(starting_balance=1000, roi=0.02, buffer=0)},
+            41,
+            45,
+        ),
+    ]
+    result = simulate(SimulationInput(stages=stages, max_age=44))
+    ofe_bal = result.years[4].balances["zus:ofe"]
+    # akumulacja 40-41 (wzrost 6%), potem pasywny wzrost 6% przez lata 41-43
+    assert ofe_bal == pytest.approx(10000 * 1.06**4 + 2803.2 * 1.06**3)
+
+
+# --- Konwersja na emeryturę ---
+
+
+def test_zus_conversion_sanity_500k_at_65():
+    # 500 000 / 222,7 mies. = ~2 245 zł/mies. (brutto, bez podatku)
+    cfg = no_tax_config()
+    stages = [
+        realization_stage(
+            "ZUS", {"zus": acc(starting_balance=500000, monthly_pension=0)}, 65, 66
+        )
+    ]
+    result = simulate(SimulationInput(stages=stages, max_age=65, config=cfg))
+    y = result.years[0]
+    assert y.monthly_withdrawal == pytest.approx(500000 / sdtz_months(65), abs=0.005)
+    assert y.monthly_withdrawal == pytest.approx(2245.17, abs=0.01)
+    assert y.stage_name == "ZUS"
+
+
+def test_zus_waloryzacja_swiadczenia_yearly():
+    cfg = no_tax_config()
+    stages = [
+        realization_stage(
+            "ZUS", {"zus": acc(starting_balance=500000, monthly_pension=0)}, 65, 69
+        )
+    ]
+    result = simulate(SimulationInput(stages=stages, max_age=68, config=cfg))
+    gross = 500000 / sdtz_months(65)
+    assert result.years[0].monthly_withdrawal == pytest.approx(gross, abs=0.005)
+    assert result.years[1].monthly_withdrawal == pytest.approx(gross * 1.01, abs=0.01)
+    assert result.years[2].monthly_withdrawal == pytest.approx(gross * 1.01**2, abs=0.01)
+    assert result.years[3].monthly_withdrawal == pytest.approx(gross * 1.01**3, abs=0.01)
+
+
+def test_zus_manual_mode_not_converted():
+    stages = [realization_stage("ZUS", {"zus": acc(monthly_pension=4000)}, 65, 100)]
+    result = simulate(SimulationInput(stages=stages, max_age=100))
+    assert result.years[0].monthly_withdrawal == pytest.approx(3820.0)
+    assert result.warnings == []
+
+
+def test_zus_conversion_ignores_manual_override():
+    cfg = no_tax_config()
+    stages = [
+        accumulation_stage(
+            {"zus": acc(starting_balance=500000, monthly_base=8000, ofe_member=False)},
+            start=40,
+            end=65,
+        ),
+        realization_stage("ZUS", {"zus": acc(monthly_pension=4000)}, 65, 100),
+    ]
+    result = simulate(SimulationInput(stages=stages, max_age=100, config=cfg))
+    y = next(y for y in result.years if y.age == 65)
+    assert y.monthly_withdrawal == pytest.approx(4000)
+    # kapitał nie został skonsumowany — zostaje w majątku
+    assert y.total_wealth > 500000
+
+
+# --- Ostrzeżenia ---
+
+
+def test_zus_warning_zero_capital():
+    stages = [realization_stage("ZUS", {"zus": acc(monthly_pension=0)}, 65, 100)]
+    result = simulate(SimulationInput(stages=stages, max_age=100))
+    assert any("brak zgromadzonego kapitału" in w for w in result.warnings)
+
+
+def test_zus_warning_below_min_emerytura():
+    cfg = no_tax_config()
+    stages = [
+        realization_stage(
+            "ZUS", {"zus": acc(starting_balance=50000, monthly_pension=0)}, 65, 100
+        )
+    ]
+    result = simulate(SimulationInput(stages=stages, max_age=100, config=cfg))
+    pension = 50000 / sdtz_months(65)
+    assert pension < cfg.zus.min_emerytura
+    assert any("niższa od emerytury minimalnej" in w for w in result.warnings)
+
+
+def test_zus_warning_before_retirement_age():
+    stages = [
+        accumulation_stage(
+            {"zus": acc(starting_balance=500000, monthly_base=8000, ofe_member=False)},
+            start=40,
+            end=55,
+        ),
+        realization_stage("ZUS", {"zus": acc(monthly_pension=0)}, 55, 100),
+    ]
+    result = simulate(SimulationInput(stages=stages, max_age=100))
+    assert any("przed powszechnym wiekiem emerytalnym" in w for w in result.warnings)
+
+
+# --- Waloryzacja per etap (override globalnej z Konfiguracji) ---
+
+
+def test_zus_waloryzacja_skladek_override_accumulation():
+    cfg = no_tax_config()
+    stages = [
+        accumulation_stage(
+            {
+                "zus": acc(
+                    starting_balance=100000,
+                    monthly_base=8000,
+                    ofe_member=False,
+                    waloryzacja_skladek=0.03,
+                )
+            }
+        )
+    ]
+    result = simulate(SimulationInput(stages=stages, max_age=41, config=cfg))
+    assert result.years[1].balances["zus"] == pytest.approx(100000 * 1.03 + 18739.2)
+
+
+def test_zus_waloryzacja_swiadczenia_override_realization():
+    cfg = no_tax_config()
+    stages = [
+        realization_stage(
+            "ZUS",
+            {
+                "zus": acc(
+                    starting_balance=500000,
+                    monthly_pension=0,
+                    waloryzacja_swiadczenia=0.05,
+                )
+            },
+            65,
+            68,
+        )
+    ]
+    result = simulate(SimulationInput(stages=stages, max_age=67, config=cfg))
+    gross = 500000 / sdtz_months(65)
+    assert result.years[1].monthly_withdrawal == pytest.approx(gross * 1.05, abs=0.01)
+    assert result.years[2].monthly_withdrawal == pytest.approx(gross * 1.05**2, abs=0.01)
+
+
+def test_zus_waloryzacja_falls_back_to_global():
+    cfg = no_tax_config()
+    cfg.zus.waloryzacja_skladek = 0.02
+    stages = [
+        accumulation_stage(
+            {"zus": acc(starting_balance=100000, monthly_base=8000, ofe_member=False)}
+        )
+    ]
+    result = simulate(SimulationInput(stages=stages, max_age=41, config=cfg))
+    assert result.years[1].balances["zus"] == pytest.approx(100000 * 1.02 + 18739.2)

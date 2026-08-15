@@ -1,3 +1,5 @@
+import os
+
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
@@ -10,6 +12,18 @@ from app.stages.registry import get_all_stage_types
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
 
+STATIC_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "static")
+
+
+def _asset_version() -> str:
+    """Wersja statyków wg mtime — wymusza odświeżenie cache po zmianie plików."""
+    mtimes = [
+        os.path.getmtime(os.path.join(STATIC_DIR, rel))
+        for rel in ("css/style.css", "js/simulator.js")
+        if os.path.exists(os.path.join(STATIC_DIR, rel))
+    ]
+    return str(int(max(mtimes))) if mtimes else "0"
+
 
 @router.get("/", response_class=HTMLResponse)
 async def index(request: Request):
@@ -19,6 +33,7 @@ async def index(request: Request):
         {
             "stage_types": get_all_stage_types(),
             "defaults": _get_defaults(),
+            "asset_version": _asset_version(),
         },
     )
 
@@ -71,6 +86,48 @@ def _get_defaults() -> dict:
                         "roi": 0.02,
                         "annual_contribution": 12000,
                     },
+                    "ppk": {
+                        "starting_balance": 30000,
+                        "monthly_base": 8000,
+                        "employee_pct": 0.02,
+                        "employer_pct": 0.015,
+                        "state_topups": True,
+                        "roi": 0.06,
+                    },
+                    "ppe": {
+                        "starting_balance": 50000,
+                        "monthly_base": 8000,
+                        "employer_pct": 0.035,
+                        "annual_contribution": 6000,
+                        "roi": 0.06,
+                    },
+                    "oipe": {
+                        "starting_balance": 20000,
+                        "roi": 0.06,
+                        "annual_contribution": 10000,
+                    },
+                    "oki": {
+                        "starting_balance": 20000,
+                        "roi": 0.06,
+                        "annual_contribution": 10000,
+                        "asset_exemption": 100000,
+                    },
+                    "krypto": {
+                        "starting_balance": 10000,
+                        "roi": 0.08,
+                        "annual_contribution": 6000,
+                    },
+                    "gotowka": {
+                        "starting_balance": 20000,
+                        "roi": -0.025,
+                    },
+                    "zus": {
+                        "starting_balance": 150000,
+                        "starting_balance_ofe": 50000,
+                        "monthly_base": 8000,
+                        "ofe_member": False,
+                        "roi": 0.06,
+                    },
                 },
             },
             {
@@ -82,6 +139,14 @@ def _get_defaults() -> dict:
                     "broker": {
                         "roi": 0.02,
                         "buffer": 100000,
+                    },
+                    "oki": {
+                        "roi": 0.02,
+                        "buffer": 0,
+                    },
+                    "krypto": {
+                        "roi": 0.02,
+                        "buffer": 0,
                     },
                 },
             },
@@ -111,12 +176,36 @@ def _get_defaults() -> dict:
             },
             {
                 "stage_type": "realizacja",
+                "name": "III filar (PPK/PPE/OIPE)",
+                "start_age": 60,
+                "end_age": 100,
+                "accounts": {
+                    "ppk": {
+                        "roi": 0.02,
+                        "buffer": 0,
+                    },
+                    "ppe": {
+                        "roi": 0.02,
+                        "buffer": 0,
+                    },
+                    "oipe": {
+                        "roi": 0.02,
+                        "buffer": 0,
+                    },
+                    "gotowka": {
+                        "roi": -0.025,
+                        "buffer": 0,
+                    },
+                },
+            },
+            {
+                "stage_type": "realizacja",
                 "name": "ZUS",
                 "start_age": 67,
                 "end_age": 100,
                 "accounts": {
                     "zus": {
-                        "monthly_pension": 4000,
+                        "monthly_pension": 0,
                     },
                 },
             },

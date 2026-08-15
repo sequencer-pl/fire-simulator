@@ -10,6 +10,15 @@ class AccountConfig(BaseModel):
     buffer: float = 0.0
     monthly_pension: float = 0.0
     ikze_limit: str = "etat"
+    monthly_base: float = 0.0
+    ofe_member: bool = False
+    starting_balance_ofe: float = 0.0
+    waloryzacja_skladek: float | None = None
+    waloryzacja_swiadczenia: float | None = None
+    employee_pct: float = 0.02
+    employer_pct: float = 0.015
+    state_topups: bool = True
+    asset_exemption: float = 100_000
 
 
 class StageInput(BaseModel):

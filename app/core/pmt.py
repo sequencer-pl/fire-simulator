@@ -17,6 +17,9 @@ def pmt(rate: float, nper: int, pv: float, fv: float = 0.0, when: int = 0) -> fl
     if nper <= 0:
         return 0.0
 
+    if rate <= -1:
+        raise ValueError(f"Stopa musi być większa od -100% (otrzymano {rate * 100:.0f}%).")
+
     if rate == 0:
         return -(pv + fv) / nper
 

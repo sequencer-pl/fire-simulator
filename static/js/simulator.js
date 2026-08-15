@@ -24,12 +24,61 @@ function limitButtonsHtml(accountKey, fieldKey) {
                 title: "Limit roczny IKZE (przedsiębiorca)",
             },
         ],
+        oipe: [{ key: "oipe_annual", label: "MAX", title: "Limit roczny OIPE" }],
+        ppe: [
+            {
+                key: "ppe_additional_annual",
+                label: "MAX dodatk.",
+                title: "Limit roczny składki dodatkowej PPE",
+            },
+        ],
     };
     const btns = defs[accountKey];
     if (!btns) return "";
     return btns
         .map((b) => `<button type="button" class="max-btn" data-limit="${b.key}" title="${b.title}">${b.label}</button>`)
         .join("");
+}
+
+function applyFieldVisibility(card) {
+    card.querySelectorAll("[data-visible-when]").forEach((el) => {
+        const trigger = card.querySelector(`[data-key="${el.dataset.visibleWhen}"]`);
+        el.style.display = trigger && trigger.checked ? "" : "none";
+    });
+}
+
+function fieldDefault(accountKey, key) {
+    if (accountKey === "zus" && CONFIG && CONFIG.zus) {
+        if (key === "waloryzacja_skladek" || key === "waloryzacja_swiadczenia") {
+            return CONFIG.zus[key] ?? 0;
+        }
+    }
+    if (accountKey === "ppk" && CONFIG && CONFIG.ppk) {
+        if (key === "employee_pct") return CONFIG.ppk.employee_pct ?? 0;
+        if (key === "employer_pct") return CONFIG.ppk.employer_pct ?? 0;
+    }
+    if (accountKey === "ppe" && key === "employer_pct") {
+        return 0.035;
+    }
+    if (accountKey === "gotowka" && key === "roi") {
+        return -0.025;
+    }
+    if (accountKey === "oki" && key === "asset_exemption") {
+        return 100000;
+    }
+    return 0;
+}
+
+function applyZusWaloryzacjaDefaults() {
+    if (!CONFIG || !CONFIG.zus) return;
+    document.querySelectorAll('.account-card[data-account="zus"]').forEach((card) => {
+        ["waloryzacja_skladek", "waloryzacja_swiadczenia"].forEach((key) => {
+            const input = card.querySelector(`[data-key="${key}"]`);
+            if (input && !parseFloat(input.value)) {
+                input.value = (CONFIG.zus[key] ?? 0) * 100;
+            }
+        });
+    });
 }
 
 function createAccountCard(stageType, accountKey, accountData) {
@@ -42,12 +91,53 @@ function createAccountCard(stageType, accountKey, accountData) {
 
     let fieldsHtml = "";
     for (const [key, fieldDef] of Object.entries(meta.fields)) {
-        const rawVal = accountData?.[key] ?? 0;
-        const displayVal = fieldDef.percent ? rawVal * 100 : rawVal;
+        const visibleWhen = fieldDef.visible_when
+            ? `data-visible-when="${fieldDef.visible_when}"`
+            : "";
+        let rawVal = accountData?.[key];
+        if (rawVal === undefined) {
+            if (fieldDef.type === "checkbox") {
+                rawVal = accountKey === "ppk" && key === "state_topups";
+            } else {
+                rawVal = fieldDefault(accountKey, key);
+            }
+        }
+        const displayVal = fieldDef.percent ? Math.round(rawVal * 100 * 100) / 100 : rawVal;
         const maxBtns = limitButtonsHtml(accountKey, key);
         const chipsHtml = maxBtns ? `<div class="max-chips">${maxBtns}</div>` : "";
+
+        if (fieldDef.type === "checkbox") {
+            fieldsHtml += `
+                <div class="field-group field-checkbox" ${visibleWhen}>
+                    <label>${fieldDef.label}</label>
+                    <input type="checkbox"
+                           class="acc-field"
+                           data-account="${accountKey}"
+                           data-key="${key}"
+                           ${rawVal ? "checked" : ""} />
+                </div>
+            `;
+            continue;
+        }
+
+        if (fieldDef.type === "select") {
+            const selected = String(rawVal);
+            const options = (fieldDef.options || [])
+                .map((o) => `<option value="${o.value}" ${String(o.value) === selected ? "selected" : ""}>${o.label}</option>`)
+                .join("");
+            fieldsHtml += `
+                <div class="field-group" ${visibleWhen}>
+                    <label>${fieldDef.label}</label>
+                    <select class="acc-field"
+                            data-account="${accountKey}"
+                            data-key="${key}">${options}</select>
+                </div>
+            `;
+            continue;
+        }
+
         fieldsHtml += `
-            <div class="field-group">
+            <div class="field-group" ${visibleWhen}>
                 <label>${fieldDef.label}${fieldDef.percent ? " (%)" : ""}</label>
                 <input type="${fieldDef.type || 'number'}"
                        class="acc-field"
@@ -56,7 +146,7 @@ function createAccountCard(stageType, accountKey, accountData) {
                        ${fieldDef.percent ? 'data-percent="true"' : ''}
                        value="${displayVal}"
                        ${fieldDef.step ? `step="${fieldDef.step}"` : 'step="any"'}
-                       min="0" />
+                       min="${fieldDef.percent ? -99 : 0}" />
                 ${chipsHtml}
             </div>
         `;
@@ -67,6 +157,15 @@ function createAccountCard(stageType, accountKey, accountData) {
         <button type="button" class="remove-account-btn" title="Usuń konto">&times;</button>
         <div class="fields-row">${fieldsHtml}</div>
     `;
+
+    card.querySelectorAll("[data-key]").forEach((el) => {
+        if (el.type !== "checkbox") return;
+        el.addEventListener("change", () => {
+            applyFieldVisibility(card);
+            updateStageHints(document.getElementById("stages-container"));
+        });
+    });
+    applyFieldVisibility(card);
 
     card.querySelectorAll(".max-btn").forEach((btn) => {
         btn.addEventListener("click", () => {
@@ -232,6 +331,17 @@ function updateStageHints(container) {
         if (stageType === "realizacja") {
             block.querySelectorAll(".account-card").forEach((card) => {
                 const acc = card.dataset.account;
+                if (acc === "zus") {
+                    const pensionInput = card.querySelector('[data-key="monthly_pension"]');
+                    const pension = parseFloat(pensionInput?.value) || 0;
+                    if (pension <= 0 && CONFIG.zus && startAge < CONFIG.zus.wiek_emerytalny) {
+                        hints.push(
+                            `ZUS wyliczany z kapitału od ${startAge} r.ż. — przed powszechnym wiekiem ` +
+                            `emerytalnym (${CONFIG.zus.wiek_emerytalny} r.ż.). Realnie świadczenie nie przysługuje wcześniej.`
+                        );
+                    }
+                    return;
+                }
                 const rules = CONFIG.accounts[acc];
                 if (!rules || !rules.min_withdrawal_age) return;
                 const label = ACCOUNT_LABELS[acc] || acc;
@@ -255,11 +365,120 @@ function updateStageHints(container) {
         } else if (stageType === "akumulacja") {
             block.querySelectorAll(".account-card").forEach((card) => {
                 const acc = card.dataset.account;
+                if (acc === "zus") {
+                    const baseInput = card.querySelector('[data-key="monthly_base"]');
+                    const base = parseFloat(baseInput?.value) || 0;
+                    if (CONFIG.zus && base > 0) {
+                        const cap = CONFIG.zus.limit_base_annual;
+                        const annual = Math.min(base * 12, cap && cap > 0 ? cap : Infinity);
+                        const skladka = annual * CONFIG.zus.skladka_rate;
+                        const walInput = card.querySelector('[data-key="waloryzacja_skladek"]');
+                        const wal = parseFloat(walInput?.value) / 100;
+                        hints.push(
+                            `Składka roczna ≈ ${skladka.toLocaleString("pl-PL")} zł ` +
+                            `(19,52% podstawy), kapitał waloryzowany ` +
+                            `${((Number.isFinite(wal) ? wal : CONFIG.zus.waloryzacja_skladek) * 100).toFixed(0)}% realnie.`
+                        );
+                        const ofeCb = card.querySelector('[data-key="ofe_member"]');
+                        if (ofeCb && ofeCb.checked) {
+                            hints.push(
+                                `Członek OFE: ${(CONFIG.zus.ofe_rate * 100).toFixed(2)} pkt składki rośnie wg ROI w OFE, reszta waloryzowana w ZUS.`
+                            );
+                        }
+                    }
+                    return;
+                }
+                if (acc === "ppk") {
+                    const base = parseFloat(card.querySelector('[data-key="monthly_base"]')?.value) || 0;
+                    if (base > 0) {
+                        const empPct = (parseFloat(card.querySelector('[data-key="employee_pct"]')?.value) || 0) / 100;
+                        const emp = (parseFloat(card.querySelector('[data-key="employer_pct"]')?.value) || 0) / 100;
+                        const totalPct = (empPct + emp) * 100;
+                        const annual = base * 12 * (empPct + emp);
+                        const stateCb = card.querySelector('[data-key="state_topups"]');
+                        const state = CONFIG.ppk ? CONFIG.ppk.state_annual : 240;
+                        const total = annual + (stateCb && stateCb.checked ? state : 0);
+                        hints.push(
+                            `Wpłaty do PPK ≈ ${total.toLocaleString("pl-PL")} zł/rok ` +
+                            `(pracownik + pracodawca = ${totalPct.toFixed(1)}% podstawy` +
+                            `${stateCb && stateCb.checked ? ` + dopłata państwa ${state.toLocaleString("pl-PL")} zł` : ""}).`
+                        );
+                        if (totalPct > 8) {
+                            hints.push(`Suma wpłat do PPK (${totalPct.toFixed(1)}%) przekracza ustawowy limit 8%.`);
+                        }
+                    }
+                    return;
+                }
+                if (acc === "ppe") {
+                    const base = parseFloat(card.querySelector('[data-key="monthly_base"]')?.value) || 0;
+                    const empPct = (parseFloat(card.querySelector('[data-key="employer_pct"]')?.value) || 0) / 100;
+                    const add = parseFloat(card.querySelector('[data-key="annual_contribution"]')?.value) || 0;
+                    const employer = base * 12 * empPct;
+                    if (base > 0 || add > 0) {
+                        hints.push(
+                            `Składki do PPE ≈ ${(employer + add).toLocaleString("pl-PL")} zł/rok ` +
+                            `(podstawowa pracodawcy ${employer.toLocaleString("pl-PL")} zł, dodatkowa ${add.toLocaleString("pl-PL")} zł).`
+                        );
+                        if (empPct * 100 > 7) {
+                            hints.push(`Składka podstawowa PPE (${(empPct * 100).toFixed(1)}%) przekracza ustawowy limit 7%.`);
+                        }
+                        const addLimit = CONFIG.limits?.ppe_additional_annual;
+                        if (addLimit && add > addLimit) {
+                            hints.push(
+                                `Składka dodatkowa PPE (${add.toLocaleString("pl-PL")} zł/rok) przekracza roczny limit ${addLimit.toLocaleString("pl-PL")} zł.`
+                            );
+                        }
+                    }
+                    return;
+                }
+                if (acc === "gotowka") {
+                    const roiInput = card.querySelector('[data-key="roi"]');
+                    const roi = (parseFloat(roiInput?.value) || 0) / 100;
+                    if (roi < 0) {
+                        const bal = parseFloat(card.querySelector('[data-key="starting_balance"]')?.value) || 0;
+                        const loss = bal > 0 ? ` (~${Math.round(bal * -roi).toLocaleString("pl-PL")} zł/rok od salda)` : "";
+                        hints.push(
+                            `Gotówka realnie traci ${(roi * 100).toFixed(1)}% wartości rocznie${loss}.`
+                        );
+                    }
+                    return;
+                }
+                if (acc === "oki") {
+                    const rules = CONFIG.accounts && CONFIG.accounts.oki;
+                    if (rules && rules.tax_model === "assets") {
+                        const exemption = parseInt(card.querySelector('[data-key="asset_exemption"]')?.value) || rules.asset_exemption;
+                        const rate = (rules.asset_tax_rate * 100).toFixed(2);
+                        const contrib = parseFloat(card.querySelector('[data-key="annual_contribution"]')?.value) || 0;
+                        const bal = parseFloat(card.querySelector('[data-key="starting_balance"]')?.value) || 0;
+                        const over = bal > exemption ? ` Obecne saldo już przekracza próg.` : "";
+                        hints.push(
+                            `OKI: bez Belki do progu ${exemption.toLocaleString("pl-PL")} zł; powyżej — podatek od wartości aktywów ${rate}%/rok ` +
+                            `od nadwyżki średniego stanu (niezależnie od zysku).${over}`
+                        );
+                        if (contrib > exemption) {
+                            hints.push(`Dopłata roczna (${contrib.toLocaleString("pl-PL")} zł) przekracza próg zwolnienia ${exemption.toLocaleString("pl-PL")} zł.`);
+                        }
+                    }
+                    return;
+                }
+                if (acc === "krypto") {
+                    hints.push(
+                        "Krypto: 19% od zysku przy sprzedaży za złotówki (PIT-38, FIFO); " +
+                        "zamiana krypto→krypto neutralna podatkowo (koszt nabycia przechodzi dalej)."
+                    );
+                    return;
+                }
                 const contribInput = card.querySelector('[data-key="annual_contribution"]');
                 if (!contribInput) return;
                 const contrib = parseFloat(contribInput.value) || 0;
                 const limitKey =
-                    acc === "ike" ? "ike_annual" : acc === "ikze" ? ikzeLimitKey(card) : null;
+                    acc === "ike"
+                        ? "ike_annual"
+                        : acc === "ikze"
+                        ? ikzeLimitKey(card)
+                        : acc === "oipe"
+                        ? "oipe_annual"
+                        : null;
                 const limit = CONFIG.limits[limitKey];
                 if (!limit || contrib <= limit) return;
                 const label = ACCOUNT_LABELS[acc] || acc;
@@ -530,8 +749,15 @@ function gatherFormData() {
             const acc = input.dataset.account;
             const key = input.dataset.key;
             if (!accounts[acc]) accounts[acc] = {};
-            let val = parseFloat(input.value) || 0;
-            if (input.dataset.percent) val /= 100;
+            let val;
+            if (input.type === "checkbox") {
+                val = input.checked;
+            } else if (input.tagName === "SELECT") {
+                val = parseFloat(input.value) || 0;
+            } else {
+                val = parseFloat(input.value) || 0;
+                if (input.dataset.percent) val /= 100;
+            }
             accounts[acc][key] = val;
         });
         block.querySelectorAll(".account-card").forEach((card) => {
@@ -746,13 +972,19 @@ function switchMode(mode) {
 
 const ACCOUNT_LABELS = {
     broker: "Broker",
+    gotowka: "Gotówka",
     ike: "IKE",
     ikze: "IKZE",
+    krypto: "Krypto",
     lokata: "Lokata",
+    oipe: "OIPE",
+    oki: "OKI",
+    ppe: "PPE",
+    ppk: "PPK",
     zus: "ZUS (emerytura)",
 };
 
-const TAX_MODEL_LABELS = { none: "Brak", flat: "Ryczałt", scale: "Skala PIT" };
+const TAX_MODEL_LABELS = { none: "Brak", flat: "Ryczałt", scale: "Skala PIT", assets: "Od wartości aktywów" };
 const TAX_BASIS_LABELS = { gains: "od zysku", full: "od całości" };
 let CONFIG = null;
 
@@ -760,6 +992,7 @@ async function initConfig() {
     try {
         const res = await fetch("/api/config");
         CONFIG = await res.json();
+        applyZusWaloryzacjaDefaults();
         renderConfigView();
         updateStageHints(document.getElementById("stages-container"));
     } catch (err) {
@@ -789,6 +1022,30 @@ function renderConfigView() {
         configNumberField("limits.ike_annual", "IKE (zł)", CONFIG.limits.ike_annual, 0),
         configNumberField("limits.ikze_annual", "IKZE — etat (zł)", CONFIG.limits.ikze_annual, 0),
         configNumberField("limits.ikze_annual_self_employed", "IKZE — przedsiębiorca (zł)", CONFIG.limits.ikze_annual_self_employed, 0),
+        configNumberField("limits.oipe_annual", "OIPE (zł)", CONFIG.limits.oipe_annual, 0),
+        configNumberField("limits.ppe_additional_annual", "PPE — składka dodatkowa (zł)", CONFIG.limits.ppe_additional_annual, 0),
+    ]));
+
+    root.appendChild(configSection("PPK — parametry", [
+        configPercentField("ppk.employee_pct", "Wpłata pracownika (%)", CONFIG.ppk.employee_pct),
+        configPercentField("ppk.employer_pct", "Wpłata pracodawcy (%)", CONFIG.ppk.employer_pct),
+        configPercentField("ppk.max_total_pct", "Limit sumy wpłat (%)", CONFIG.ppk.max_total_pct),
+        configNumberField("ppk.state_welcoming", "Dopłata powitalna (zł)", CONFIG.ppk.state_welcoming),
+        configNumberField("ppk.state_annual", "Dopłata roczna (zł)", CONFIG.ppk.state_annual),
+    ]));
+
+    root.appendChild(configSection("PPE — parametry", [
+        configPercentField("ppe.max_employer_pct", "Limit składki podstawowej (%)", CONFIG.ppe.max_employer_pct),
+    ]));
+
+    root.appendChild(configSection("ZUS — parametry", [
+        configPercentField("zus.skladka_rate", "Składka emerytalna (%)", CONFIG.zus.skladka_rate),
+        configPercentField("zus.ofe_rate", "Część składki do OFE (%)", CONFIG.zus.ofe_rate),
+        configNumberField("zus.limit_base_annual", "Limit rocznej podstawy, 30× (zł; 0 = brak)", CONFIG.zus.limit_base_annual),
+        configPercentField("zus.waloryzacja_skladek", "Waloryzacja składek (%)", CONFIG.zus.waloryzacja_skladek),
+        configPercentField("zus.waloryzacja_swiadczenia", "Waloryzacja świadczenia (%)", CONFIG.zus.waloryzacja_swiadczenia),
+        configNumberField("zus.wiek_emerytalny", "Powszechny wiek emerytalny (lata)", CONFIG.zus.wiek_emerytalny),
+        configNumberField("zus.min_emerytura", "Emerytura minimalna (zł)", CONFIG.zus.min_emerytura),
     ]));
 
     const accountsSection = document.createElement("div");
@@ -853,6 +1110,8 @@ function renderAccountRulesCard(key, rules) {
     card.appendChild(configNumberField("accounts." + key + ".min_withdrawal_age", "Wiek zmiany reżimu", rules.min_withdrawal_age));
     card.appendChild(configSelect("accounts." + key + ".early_tax_model", "Model przed wiekiem", rules.early_tax_model, TAX_MODEL_LABELS));
     card.appendChild(configPercentField("accounts." + key + ".early_tax_rate", "Stawka przed wiekiem (%)", rules.early_tax_rate));
+    card.appendChild(configPercentField("accounts." + key + ".asset_tax_rate", "Podatek od wartości aktywów (%)", rules.asset_tax_rate));
+    card.appendChild(configNumberField("accounts." + key + ".asset_exemption", "Próg zwolnienia aktywów (zł)", rules.asset_exemption));
 
     return card;
 }

@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>FIRE Simulator</title>
-    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="/static/css/style.css?v={{ asset_version }}">
 </head>
 <body>
     <div class="container">
@@ -68,6 +68,6 @@
     const STAGE_TYPES = {{ stage_types | tojson }};
     const DEFAULTS = {{ defaults | tojson }};
     </script>
-    <script src="/static/js/simulator.js"></script>
+    <script src="/static/js/simulator.js?v={{ asset_version }}"></script>
 </body>
 </html>
