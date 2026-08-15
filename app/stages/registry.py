@@ -7,6 +7,111 @@ STAGE_CLASSES: dict[str, type[BaseStage]] = {
     "realizacja": RealizacjaStage,
 }
 
+# Opisy produktów i linki do oficjalnych źródeł (treść tooltipów na nagłówkach kart).
+ACCOUNT_INFO = {
+    "broker": {
+        "description": (
+            "Zwykły rachunek maklerski. Zyski ze sprzedaży są opodatkowane 19% "
+            "(podatek Belki) od nadwyżki ponad wpłacony kapitał."
+        ),
+    },
+    "lokata": {
+        "description": (
+            "Lokata bankowa. Odsetki (zysk) są opodatkowane 19% ryczałtem "
+            "pobieranym przez bank."
+        ),
+    },
+    "gotowka": {
+        "description": (
+            "Gotówka na rachunku, bez oprocentowania. Realnie traci na wartości "
+            "wskutek inflacji (domyślnie -2,5% rocznie)."
+        ),
+    },
+    "ike": {
+        "description": (
+            "Indywidualne Konto Emerytalne. Wpłaty objęte rocznym limitem; wypłaty "
+            "po 60. r.ż. są całkowicie zwolnione z podatku od zysków."
+        ),
+    },
+    "ikze": {
+        "description": (
+            "Indywidualne Konto Zabezpieczenia Emerytalnego. Wpłaty odliczane od "
+            "dochodu (bonus podatkowy), wypłaty po 65. r.ż. opodatkowane ryczałtem "
+            "10%; wcześniejszy zwrot — skalą PIT od całej kwoty."
+        ),
+    },
+    "oipe": {
+        "description": (
+            "OIPE — konto emerytalne o zasadach zbliżonych do IKE: wypłaty po 60. "
+            "r.ż. zwolnione z podatku od zysków, roczny limit wpłat (ok. 28 260 zł)."
+        ),
+    },
+    "ppk": {
+        "description": (
+            "Pracownicze Plany Kapitałowe. Składki pracownika i pracodawcy od "
+            "podstawy wynagrodzenia + dopłaty państwa: 240 zł rocznie i 250 zł "
+            "powitalne. Po 60. r.ż. wypłata bez podatku od zysków."
+        ),
+        "url": "https://www.mojeppk.pl/",
+    },
+    "ppe": {
+        "description": (
+            "Pracowniczy Program Emerytalny. Składkę podstawową finansuje "
+            "pracodawca (max 7% wynagrodzenia); uczestnik może dopłacać dodatkową "
+            "składkę w ramach rocznego limitu."
+        ),
+        "url": "https://www.mojeppk.pl/",
+    },
+    "oki": {
+        "description": (
+            "OKI (od 2027) — konto, w którym zamiast podatku Belki od zysków "
+            "płacisz roczny podatek od wartości aktywów (0,85%) ponad próg "
+            "zwolnienia (inwestycyjne 100 000 zł, oszczędnościowe 25 000 zł). "
+            "Wypłaty w każdym wieku bez podatku od zysku."
+        ),
+    },
+    "krypto": {
+        "description": (
+            "Kryptowaluty. 19% od zysku przy sprzedaży za złotówki (PIT-38, FIFO); "
+            "zamiany krypto→krypto są neutralne podatkowo."
+        ),
+    },
+    "zus": {
+        "description": (
+            "ZUS — obowiązkowy system emerytalny. Składki 19,52% podstawy, kapitał "
+            "waloryzowany; emerytura wyliczana z kapitału i tablic dalszego trwania "
+            "życia (ŚDTŻ)."
+        ),
+        "url": "https://www.zus.pl/",
+    },
+}
+
+# Krótkie, opisowe podpowiedzi do pól (treść tooltipów przy etykietach pól).
+FIELD_HINTS = {
+    "starting_balance": "Saldo zgromadzone na starcie etapu (przenoszone między etapami).",
+    "annual_contribution": "Dopłata wnoszona co roku (równymi ratami przez cały etap).",
+    "roi": "Roczna stopa zwrotu (kapitalizacja odsetek/zysków raz w roku).",
+    "buffer": "Kwota, która zostaje na koncie po etapie (nie jest wypłacana).",
+    "monthly_base": "Miesięczna podstawa wymiaru składek (wynagrodzenie).",
+    "employee_pct": "Wpłata pracownika (% podstawy, ustawowo min. 2%).",
+    "employer_pct": "Wpłata pracodawcy (% podstawy, min. 1,5%, max 4%).",
+    "state_topups": (
+        "Dopłaty państwa: 240 zł rocznie + 250 zł powitalne "
+        "w pierwszym roku akumulacji."
+    ),
+    "starting_balance_ofe": "Zgromadzony kapitał w OFE.",
+    "ofe_member": "Członek OFE: część składki (2,92 pkt) trafia do OFE i rośnie wg ROI.",
+    "waloryzacja_skladek": "Roczna waloryzacja składek zgromadzonych w ZUS.",
+    "waloryzacja_swiadczenia": "Roczna waloryzacja wypłacanego świadczenia emerytalnego.",
+    "monthly_pension": "Świadczenie miesięczne; 0 = wylicz z kapitału i tablic ŚDTŻ.",
+    "asset_exemption": (
+        "Typ aktywów w OKI: inwestycyjne (limit 100 000 zł: "
+        "akcje/ETF/fundusze) albo oszczędnościowe (limit 25 000 zł: "
+        "lokaty/obligacje)."
+    ),
+    "asset_tax_rate": "Roczny podatek od wartości aktywów ponad próg (OKI: 0,85%).",
+}
+
 STAGE_META = {
     "akumulacja": {
         "label": "Akumulacja",
@@ -16,48 +121,290 @@ STAGE_META = {
             "broker": {
                 "label": "Broker",
                 "fields": {
-                    "starting_balance": {"label": "Saldo startowe", "type": "number", "step": 1000},
+                    "starting_balance": {
+                        "label": "Saldo startowe", "type": "number", "step": 1000,
+                        "hint": FIELD_HINTS["starting_balance"],
+                    },
                     "annual_contribution": {
                         "label": "Dopłata roczna",
                         "type": "number",
                         "step": 1000,
+                        "hint": FIELD_HINTS["annual_contribution"],
                     },
-                    "roi": {"label": "ROI", "type": "number", "step": "0.1", "percent": True},
+                    "roi": {
+                        "label": "ROI", "type": "number", "step": 1, "percent": True,
+                        "hint": FIELD_HINTS["roi"],
+                    },
                 },
             },
             "ike": {
                 "label": "IKE",
                 "fields": {
-                    "starting_balance": {"label": "Saldo startowe", "type": "number", "step": 1000},
+                    "starting_balance": {
+                        "label": "Saldo startowe", "type": "number", "step": 1000,
+                        "hint": FIELD_HINTS["starting_balance"],
+                    },
                     "annual_contribution": {
                         "label": "Dopłata roczna",
                         "type": "number",
                         "step": 1000,
+                        "hint": (
+                            "Dopłata wnoszona co roku. Limit roczny (2026): "
+                            "28 260 zł — przekroczenie to błąd konfiguracji."
+                        ),
                     },
-                    "roi": {"label": "ROI", "type": "number", "step": "0.1", "percent": True},
+                    "roi": {
+                        "label": "ROI", "type": "number", "step": 1, "percent": True,
+                        "hint": FIELD_HINTS["roi"],
+                    },
                 },
             },
             "ikze": {
                 "label": "IKZE",
                 "fields": {
-                    "starting_balance": {"label": "Saldo startowe", "type": "number", "step": 1000},
+                    "starting_balance": {
+                        "label": "Saldo startowe", "type": "number", "step": 1000,
+                        "hint": FIELD_HINTS["starting_balance"],
+                    },
                     "annual_contribution": {
                         "label": "Dopłata roczna",
                         "type": "number",
                         "step": 1000,
+                        "hint": (
+                            "Dopłata wnoszona co roku. Limit roczny zależy od formy "
+                            "zatrudnienia: etat 11 304 zł, przedsiębiorca 16 956 zł."
+                        ),
                     },
-                    "roi": {"label": "ROI", "type": "number", "step": "0.1", "percent": True},
+                    "roi": {
+                        "label": "ROI", "type": "number", "step": 1, "percent": True,
+                        "hint": FIELD_HINTS["roi"],
+                    },
+                },
+            },
+            "oipe": {
+                "label": "OIPE",
+                "fields": {
+                    "starting_balance": {
+                        "label": "Saldo startowe", "type": "number", "step": 1000,
+                        "hint": FIELD_HINTS["starting_balance"],
+                    },
+                    "annual_contribution": {
+                        "label": "Dopłata roczna",
+                        "type": "number",
+                        "step": 1000,
+                        "hint": (
+                            "Dopłata wnoszona co roku. Limit roczny (2026): "
+                            "28 260 zł (3× przeciętne wynagrodzenie)."
+                        ),
+                    },
+                    "roi": {
+                        "label": "ROI", "type": "number", "step": 1, "percent": True,
+                        "hint": FIELD_HINTS["roi"],
+                    },
+                },
+            },
+            "oki": {
+                "label": "OKI",
+                "fields": {
+                    "starting_balance": {
+                        "label": "Saldo startowe", "type": "number", "step": 1000,
+                        "hint": FIELD_HINTS["starting_balance"],
+                    },
+                    "annual_contribution": {
+                        "label": "Dopłata roczna",
+                        "type": "number",
+                        "step": 1000,
+                        "hint": (
+                            "Dopłata wnoszona co roku. Powyżej progu zwolnienia "
+                            "płacisz podatek od wartości aktywów od całej nadwyżki."
+                        ),
+                    },
+                    "asset_exemption": {
+                        "label": "Typ aktywów",
+                        "type": "select",
+                        "hint": FIELD_HINTS["asset_exemption"],
+                        "options": [
+                            {"label": "Inwestycyjne", "value": "100000"},
+                            {"label": "Oszczędnościowe", "value": "25000"},
+                        ],
+                    },
+                    "roi": {
+                        "label": "ROI", "type": "number", "step": 1, "percent": True,
+                        "hint": FIELD_HINTS["roi"],
+                    },
+                },
+            },
+            "krypto": {
+                "label": "Krypto",
+                "fields": {
+                    "starting_balance": {
+                        "label": "Saldo startowe", "type": "number", "step": 1000,
+                        "hint": FIELD_HINTS["starting_balance"],
+                    },
+                    "annual_contribution": {
+                        "label": "Dopłata roczna",
+                        "type": "number",
+                        "step": 1000,
+                        "hint": "Dopłata roczna (kupno kryptowalut za złotówki).",
+                    },
+                    "roi": {
+                        "label": "ROI", "type": "number", "step": 1, "percent": True,
+                        "hint": FIELD_HINTS["roi"],
+                    },
+                },
+            },
+            "ppk": {
+                "label": "PPK",
+                "fields": {
+                    "starting_balance": {
+                        "label": "Saldo startowe", "type": "number", "step": 1000,
+                        "hint": FIELD_HINTS["starting_balance"],
+                    },
+                    "monthly_base": {
+                        "label": "Podstawa (mies.)",
+                        "type": "number",
+                        "step": 100,
+                        "hint": FIELD_HINTS["monthly_base"],
+                    },
+                    "employee_pct": {
+                        "label": "Wpłata pracownika",
+                        "type": "number",
+                        "step": 1,
+                        "percent": True,
+                        "hint": FIELD_HINTS["employee_pct"],
+                    },
+                    "employer_pct": {
+                        "label": "Wpłata pracodawcy",
+                        "type": "number",
+                        "step": 1,
+                        "percent": True,
+                        "hint": FIELD_HINTS["employer_pct"],
+                    },
+                    "state_topups": {
+                        "label": "Dopłaty państwa",
+                        "type": "checkbox",
+                        "hint": FIELD_HINTS["state_topups"],
+                    },
+                    "roi": {
+                        "label": "ROI", "type": "number", "step": 1, "percent": True,
+                        "hint": FIELD_HINTS["roi"],
+                    },
+                },
+            },
+            "ppe": {
+                "label": "PPE",
+                "fields": {
+                    "starting_balance": {
+                        "label": "Saldo startowe", "type": "number", "step": 1000,
+                        "hint": FIELD_HINTS["starting_balance"],
+                    },
+                    "monthly_base": {
+                        "label": "Podstawa (mies.)",
+                        "type": "number",
+                        "step": 100,
+                        "hint": FIELD_HINTS["monthly_base"],
+                    },
+                    "employer_pct": {
+                        "label": "Składka pracodawcy",
+                        "type": "number",
+                        "step": 1,
+                        "percent": True,
+                        "hint": (
+                            "Składka podstawowa finansowana przez pracodawcę "
+                            "(% podstawy, ustawowo max 7%)."
+                        ),
+                    },
+                    "annual_contribution": {
+                        "label": "Składka dodatkowa",
+                        "type": "number",
+                        "step": 1000,
+                        "hint": (
+                            "Dodatkowa składka uczestnika wnoszona rocznie "
+                            "(limit 2026: 42 390 zł)."
+                        ),
+                    },
+                    "roi": {
+                        "label": "ROI", "type": "number", "step": 1, "percent": True,
+                        "hint": FIELD_HINTS["roi"],
+                    },
+                },
+            },
+            "gotowka": {
+                "label": "Gotówka",
+                "fields": {
+                    "starting_balance": {
+                        "label": "Saldo startowe", "type": "number", "step": 1000,
+                        "hint": FIELD_HINTS["starting_balance"],
+                    },
+                    "roi": {
+                        "label": "Inflacja",
+                        "type": "number",
+                        "step": 1,
+                        "percent": True,
+                        "hint": (
+                            "Roczny spadek realnej wartości gotówki. Przy inflacji "
+                            "2,5% wpisz -2,5."
+                        ),
+                    },
                 },
             },
             "lokata": {
                 "label": "Lokata",
                 "fields": {
-                    "starting_balance": {"label": "Saldo startowe", "type": "number", "step": 1000},
+                    "starting_balance": {
+                        "label": "Saldo startowe", "type": "number", "step": 1000,
+                        "hint": FIELD_HINTS["starting_balance"],
+                    },
                     "roi": {
                         "label": "Oprocentowanie",
                         "type": "number",
-                        "step": "0.1",
+                        "step": 1,
                         "percent": True,
+                        "hint": "Roczne oprocentowanie lokaty; odsetki opodatkowane 19%.",
+                    },
+                },
+            },
+            "zus": {
+                "label": "ZUS (składki)",
+                "fields": {
+                    "starting_balance": {
+                        "label": "Kapitał dziś",
+                        "type": "number",
+                        "step": 1000,
+                        "hint": "Zgromadzony kapitał emerytalny (dane z eZUS).",
+                    },
+                    "starting_balance_ofe": {
+                        "label": "Kapitał OFE",
+                        "type": "number",
+                        "step": 1000,
+                        "visible_when": "ofe_member",
+                        "hint": FIELD_HINTS["starting_balance_ofe"],
+                    },
+                    "monthly_base": {
+                        "label": "Podstawa (mies.)",
+                        "type": "number",
+                        "step": 100,
+                        "hint": FIELD_HINTS["monthly_base"],
+                    },
+                    "ofe_member": {
+                        "label": "Członek OFE",
+                        "type": "checkbox",
+                        "hint": FIELD_HINTS["ofe_member"],
+                    },
+                    "roi": {
+                        "label": "ROI (OFE)",
+                        "type": "number",
+                        "step": 1,
+                        "percent": True,
+                        "visible_when": "ofe_member",
+                        "hint": "Stopa zwrotu części kapitału zgromadzonej w OFE.",
+                    },
+                    "waloryzacja_skladek": {
+                        "label": "Waloryzacja",
+                        "type": "number",
+                        "step": 1,
+                        "percent": True,
+                        "hint": FIELD_HINTS["waloryzacja_skladek"],
                     },
                 },
             },
@@ -71,22 +418,124 @@ STAGE_META = {
             "broker": {
                 "label": "Broker",
                 "fields": {
-                    "roi": {"label": "ROI", "type": "number", "step": "0.1", "percent": True},
-                    "buffer": {"label": "Bufor (zostaje)", "type": "number", "step": 1000},
+                    "roi": {
+                        "label": "ROI", "type": "number", "step": 1, "percent": True,
+                        "hint": FIELD_HINTS["roi"],
+                    },
+                    "buffer": {
+                        "label": "Bufor", "type": "number", "step": 1000,
+                        "hint": FIELD_HINTS["buffer"],
+                    },
                 },
             },
             "ike": {
                 "label": "IKE",
                 "fields": {
-                    "roi": {"label": "ROI", "type": "number", "step": "0.1", "percent": True},
-                    "buffer": {"label": "Bufor (zostaje)", "type": "number", "step": 1000},
+                    "roi": {
+                        "label": "ROI", "type": "number", "step": 1, "percent": True,
+                        "hint": FIELD_HINTS["roi"],
+                    },
+                    "buffer": {
+                        "label": "Bufor", "type": "number", "step": 1000,
+                        "hint": FIELD_HINTS["buffer"],
+                    },
                 },
             },
             "ikze": {
                 "label": "IKZE",
                 "fields": {
-                    "roi": {"label": "ROI", "type": "number", "step": "0.1", "percent": True},
-                    "buffer": {"label": "Bufor (zostaje)", "type": "number", "step": 1000},
+                    "roi": {
+                        "label": "ROI", "type": "number", "step": 1, "percent": True,
+                        "hint": FIELD_HINTS["roi"],
+                    },
+                    "buffer": {
+                        "label": "Bufor", "type": "number", "step": 1000,
+                        "hint": FIELD_HINTS["buffer"],
+                    },
+                },
+            },
+            "oipe": {
+                "label": "OIPE",
+                "fields": {
+                    "roi": {
+                        "label": "ROI", "type": "number", "step": 1, "percent": True,
+                        "hint": FIELD_HINTS["roi"],
+                    },
+                    "buffer": {
+                        "label": "Bufor", "type": "number", "step": 1000,
+                        "hint": FIELD_HINTS["buffer"],
+                    },
+                },
+            },
+            "oki": {
+                "label": "OKI",
+                "fields": {
+                    "roi": {
+                        "label": "ROI", "type": "number", "step": 1, "percent": True,
+                        "hint": FIELD_HINTS["roi"],
+                    },
+                    "buffer": {
+                        "label": "Bufor", "type": "number", "step": 1000,
+                        "hint": FIELD_HINTS["buffer"],
+                    },
+                },
+            },
+            "krypto": {
+                "label": "Krypto",
+                "fields": {
+                    "roi": {
+                        "label": "ROI", "type": "number", "step": 1, "percent": True,
+                        "hint": FIELD_HINTS["roi"],
+                    },
+                    "buffer": {
+                        "label": "Bufor", "type": "number", "step": 1000,
+                        "hint": FIELD_HINTS["buffer"],
+                    },
+                },
+            },
+            "ppk": {
+                "label": "PPK",
+                "fields": {
+                    "roi": {
+                        "label": "ROI", "type": "number", "step": 1, "percent": True,
+                        "hint": FIELD_HINTS["roi"],
+                    },
+                    "buffer": {
+                        "label": "Bufor", "type": "number", "step": 1000,
+                        "hint": FIELD_HINTS["buffer"],
+                    },
+                },
+            },
+            "ppe": {
+                "label": "PPE",
+                "fields": {
+                    "roi": {
+                        "label": "ROI", "type": "number", "step": 1, "percent": True,
+                        "hint": FIELD_HINTS["roi"],
+                    },
+                    "buffer": {
+                        "label": "Bufor", "type": "number", "step": 1000,
+                        "hint": FIELD_HINTS["buffer"],
+                    },
+                },
+            },
+            "gotowka": {
+                "label": "Gotówka",
+                "fields": {
+                    "roi": {
+                        "label": "Inflacja",
+                        "type": "number",
+                        "step": 1,
+                        "percent": True,
+                        "hint": (
+                            "Roczny spadek realnej wartości gotówki. Przy inflacji "
+                            "2,5% wpisz -2,5."
+                        ),
+                    },
+                    "buffer": {
+                        "label": "Bufor", "type": "number", "step": 1000,
+                        "hint": FIELD_HINTS["buffer"],
+                    },
                 },
             },
             "lokata": {
@@ -95,21 +544,55 @@ STAGE_META = {
                     "roi": {
                         "label": "Oprocentowanie",
                         "type": "number",
-                        "step": "0.1",
+                        "step": 1,
                         "percent": True,
+                        "hint": "Roczne oprocentowanie lokaty; odsetki opodatkowane 19%.",
                     },
-                    "buffer": {"label": "Bufor (zostaje)", "type": "number", "step": 1000},
+                    "buffer": {
+                        "label": "Bufor", "type": "number", "step": 1000,
+                        "hint": FIELD_HINTS["buffer"],
+                    },
                 },
             },
             "zus": {
                 "label": "ZUS (emerytura)",
                 "fields": {
-                    "monthly_pension": {"label": "Emerytura mies.", "type": "number", "step": 1000},
+                    "monthly_pension": {
+                        "label": "Emerytura mies.",
+                        "type": "number",
+                        "step": 1000,
+                        "hint": (
+                            "Świadczenie miesięczne. 0 = wylicz z kapitału i tablic "
+                            "dalszego trwania życia (ŚDTŻ)."
+                        ),
+                    },
+                    "waloryzacja_swiadczenia": {
+                        "label": "Waloryzacja",
+                        "type": "number",
+                        "step": 1,
+                        "percent": True,
+                        "hint": FIELD_HINTS["waloryzacja_swiadczenia"],
+                    },
                 },
             },
         },
     },
 }
+
+
+def _inject_account_info(stage_meta: dict) -> dict:
+    """Wstrzykuje description/url (z ACCOUNT_INFO) do metadanych kont."""
+    for stage_cfg in stage_meta.values():
+        for account_key, meta in stage_cfg.get("available_accounts", {}).items():
+            info = ACCOUNT_INFO.get(account_key, {})
+            if "description" in info:
+                meta.setdefault("description", info["description"])
+            if "url" in info:
+                meta.setdefault("url", info["url"])
+    return stage_meta
+
+
+STAGE_META = _inject_account_info(STAGE_META)
 
 
 def create_stage(stage_type: str) -> BaseStage:

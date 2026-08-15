@@ -4,12 +4,20 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>FIRE Simulator</title>
-    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="/static/css/style.css?v={{ asset_version }}">
 </head>
 <body>
     <div class="container">
-        <h1>FIRE Simulator</h1>
-        <p class="subtitle">Symulator niezależności finansowej</p>
+        <div class="topbar">
+            <div>
+                <h1>FIRE Simulator</h1>
+                <p class="subtitle" style="margin-bottom:0;">Symulator niezależności finansowej</p>
+            </div>
+            <nav class="topnav">
+                <a href="/" class="btn btn-secondary" style="margin:0;">Moje symulacje</a>
+                <span id="sessionBar" class="session-email"></span>
+            </nav>
+        </div>
 
         <div class="mode-toggle">
             <button type="button" id="modeSimBtn" class="mode-btn active">Symulator</button>
@@ -25,7 +33,10 @@
 
                 <div class="form-actions">
                     <button type="button" id="addRealizationBtn" class="btn btn-secondary">+ Dodaj etap realizacji</button>
-                    <button type="submit" id="simulateBtn" class="btn btn-primary">Symuluj</button>
+                    <div>
+                        <button type="button" id="saveSimBtn" class="btn btn-secondary" disabled>Zapisz symulację</button>
+                        <button type="submit" id="simulateBtn" class="btn btn-primary">Symuluj</button>
+                    </div>
                 </div>
             </form>
 
@@ -34,6 +45,18 @@
                 <p class="results-note">Wypłaty podane netto (po podatku).</p>
                 <div id="warnings"></div>
                 <div id="summary"></div>
+                <div class="results-toolbar">
+                    <div class="col-toggles" id="columnToggles"></div>
+                    <div class="density-control">
+                        <label>Wiersze</label>
+                        <select id="densitySelect">
+                            <option value="1">co roku</option>
+                            <option value="5">co 5 lat</option>
+                            <option value="10">co 10 lat</option>
+                        </select>
+                    </div>
+                </div>
+                <div id="wealthChart" class="chart-wrap hidden"></div>
                 <div class="table-wrap">
                     <table id="resultsTable">
                         <thead>
@@ -68,6 +91,6 @@
     const STAGE_TYPES = {{ stage_types | tojson }};
     const DEFAULTS = {{ defaults | tojson }};
     </script>
-    <script src="/static/js/simulator.js"></script>
+    <script src="/static/js/simulator.js?v={{ asset_version }}"></script>
 </body>
 </html>

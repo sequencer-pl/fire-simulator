@@ -219,3 +219,12 @@ __marimo__/
 
 # Excel reference files
 *.xlsx
+
+# Aplikacja FIRE
+# Baza SQLite generowana przy starcie (dane użytkowników i symulacji)
+fire.db
+fire.db-journal
+fire.db-wal
+fire.db-shm
+# Sekret sesji generowany przy starcie
+.secret_key

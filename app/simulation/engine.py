@@ -6,6 +6,7 @@ from app.simulation.schemas import (
     StageInput,
     YearResult,
 )
+from app.simulation.tablica_sdtz import sdtz_months
 from app.stages.registry import create_stage
 
 
@@ -24,6 +25,17 @@ def _validate_stage_order(stages: list[StageInput]) -> None:
             f"Etap realizacji (od {real_start} r.ż.) nie może zaczynać się "
             f"przed końcem etapu akumulacji ({akum_end} r.ż.)."
         )
+
+
+def _validate_roi(data: SimulationInput) -> None:
+    """ROI musi być większe od -100% (niższe wartości psują wzrost i PMT)."""
+    for si in data.stages:
+        for name, cfg in si.accounts.items():
+            if cfg.roi <= -1:
+                raise ValueError(
+                    f"ROI konta {ACCOUNT_LABELS.get(name, name)} nie może być mniejsze "
+                    f"lub równe -100% (otrzymano {cfg.roi * 100:.0f}%)."
+                )
 
 
 def simulate(data: SimulationInput) -> SimulationResult:
@@ -46,11 +58,13 @@ def simulate(data: SimulationInput) -> SimulationResult:
         )
 
     _validate_stage_order(data.stages)
+    _validate_roi(data)
 
     config = data.config
     balances: dict[str, float] = {}
     basis: dict[str, float] = {}
     account_rois: dict[str, float] = {}
+    asset_exemptions: dict[str, float] = {}
     all_accounts: set[str] = set()
 
     # Inicjalizacja sald i ROI niezależna od kolejności etapów
@@ -58,13 +72,19 @@ def simulate(data: SimulationInput) -> SimulationResult:
     for stage_input in sorted(data.stages, key=lambda s: s.start_age):
         all_accounts.update(stage_input.accounts.keys())
         for name, cfg in stage_input.accounts.items():
-            account_rois[name] = cfg.roi
+            if name != "zus" or stage_input.stage_type == "akumulacja":
+                account_rois[name] = cfg.roi
+            asset_exemptions[name] = cfg.asset_exemption
             if cfg.starting_balance > 0:
                 balances.setdefault(name, cfg.starting_balance)
                 basis.setdefault(name, cfg.starting_balance)
+            if name == "zus" and cfg.starting_balance_ofe > 0 and cfg.ofe_member:
+                balances.setdefault("zus:ofe", cfg.starting_balance_ofe)
 
     computed: dict[int, dict] = {}
     zwrocone: set[str] = set()
+    zus_pensions: dict[str, float] = {}
+    welcomed_ppk: set[str] = set()
 
     min_age = min(si.start_age for si in data.stages)
     max_age = data.max_age
@@ -80,6 +100,7 @@ def simulate(data: SimulationInput) -> SimulationResult:
         merged_withdrawal: dict[str, float] = {}
         stage_label_parts: list[str] = []
         seen_labels: set[str] = set()
+        zus_handled = False
 
         # Jednorazowy zwrot IKZE przed wiekiem uprawniającym (np. 65 r.ż.):
         # podatek wg skali od CAŁOŚCI salda jest potrącany przed wyliczeniem PMT,
@@ -112,6 +133,38 @@ def simulate(data: SimulationInput) -> SimulationResult:
         for stage_input in active_stages:
             stage_obj = create_stage(stage_input.stage_type)
             accounts_config = {name: cfg.model_dump() for name, cfg in stage_input.accounts.items()}
+
+            # ZUS — składki i waloryzacja kapitału (akumulacja) oraz konwersja
+            # kapitału na emeryturę (realizacja) są liczone przez silnik, bo
+            # różnią się od zwykłych kont (waloryzacja zamiast ROI, ŚDTŻ zamiast PMT).
+            if "zus" in accounts_config and not zus_handled:
+                if stage_input.stage_type == "akumulacja":
+                    _accumulate_zus(accounts_config["zus"], balances, config)
+                    processed_accounts.add("zus")
+                    if accounts_config["zus"].get("ofe_member"):
+                        processed_accounts.add("zus:ofe")
+                else:
+                    _convert_zus(
+                        zus_pensions=zus_pensions,
+                        age=age,
+                        start_age=stage_input.start_age,
+                        accounts_config=accounts_config,
+                        balances=balances,
+                        config=config,
+                    )
+                zus_handled = True
+
+            # PPK / PPE — składki procentowe od podstawy (akumulacja).
+            # Wypłaty idą przez generyczny RealizacjaStage (jak IKE).
+            if stage_input.stage_type == "akumulacja":
+                if "ppk" in accounts_config:
+                    _accumulate_ppk(
+                        accounts_config["ppk"], balances, basis, config, welcomed_ppk
+                    )
+                    processed_accounts.add("ppk")
+                if "ppe" in accounts_config:
+                    _accumulate_ppe(accounts_config["ppe"], balances, basis, config)
+                    processed_accounts.add("ppe")
 
             accounts_to_process = {
                 name: cfg for name, cfg in accounts_config.items() if name not in processed_accounts
@@ -154,9 +207,23 @@ def simulate(data: SimulationInput) -> SimulationResult:
             merged_tax[acc] = merged_tax.get(acc, 0.0) + t
 
         for acc_name in list(balances.keys()):
-            if acc_name not in processed_accounts:
+            if acc_name in processed_accounts:
+                continue
+            if acc_name == "zus":
+                balances[acc_name] = balances[acc_name] * (1 + config.zus.waloryzacja_skladek)
+            elif acc_name == "zus:ofe":
+                balances[acc_name] = balances[acc_name] * (1 + account_rois.get("zus", 0.02))
+            else:
                 roi = account_rois.get(acc_name, 0.02)
                 balances[acc_name] = balances[acc_name] * (1 + roi)
+
+        _apply_asset_tax(
+            balances=balances,
+            starting=starting,
+            merged_tax=merged_tax,
+            asset_exemptions=asset_exemptions,
+            config=config,
+        )
 
         computed[age] = {
             "starting_balances": starting,
@@ -202,6 +269,21 @@ def simulate(data: SimulationInput) -> SimulationResult:
     display_accounts = sorted(a for a in all_accounts if a != "zus")
     has_pension = any("zus" in si.accounts for si in data.stages)
 
+    warnings = _collect_warnings(data)
+    for name, pension in zus_pensions.items():
+        if pension <= 0:
+            warnings.append(
+                f"{ACCOUNT_LABELS.get(name, name)}: brak zgromadzonego kapitału — wyliczona "
+                f"emerytura wynosi 0 zł/mies. Uzupełnij kapitał i podstawę w etapie akumulacji "
+                f"albo wpisz emeryturę ręcznie."
+            )
+        elif config.zus.min_emerytura > 0 and pension < config.zus.min_emerytura:
+            warnings.append(
+                f"{ACCOUNT_LABELS.get(name, name)}: wyliczona emerytura {pension:,.0f} zł/mies. "
+                f"jest niższa od emerytury minimalnej ({config.zus.min_emerytura:,.0f} zł). "
+                f"ZUS podnosi świadczenie do minimum przy spełnieniu warunków stażowych."
+            )
+
     return SimulationResult(
         years=years,
         accounts=display_accounts,
@@ -210,8 +292,148 @@ def simulate(data: SimulationInput) -> SimulationResult:
         total_withdrawn=round(total_withdrawn_net, 2),
         total_tax=round(total_tax, 2),
         has_pension=has_pension,
-        warnings=_collect_warnings(data),
+        warnings=warnings,
     )
+
+
+def _accumulate_zus(cfg: dict, balances: dict, config) -> None:
+    """Roczna składka i waloryzacja kapitału emerytalnego (akumulacja)."""
+    zus_cfg = config.zus
+    base_annual = cfg.get("monthly_base", 0.0) * 12
+    cap = zus_cfg.limit_base_annual
+    capped = min(base_annual, cap) if cap and cap > 0 else base_annual
+    total_contrib = capped * zus_cfg.skladka_rate
+
+    if cfg.get("ofe_member"):
+        if "zus:ofe" not in balances and cfg.get("starting_balance_ofe", 0.0) > 0:
+            balances["zus:ofe"] = cfg["starting_balance_ofe"]
+        ofe_contrib = capped * zus_cfg.ofe_rate
+        zus_contrib = total_contrib - ofe_contrib
+        waloryzacja = (
+            cfg.get("waloryzacja_skladek")
+            if cfg.get("waloryzacja_skladek") is not None
+            else zus_cfg.waloryzacja_skladek
+        )
+        balances["zus"] = (
+            balances.get("zus", 0.0) * (1 + waloryzacja) + zus_contrib
+        )
+        balances["zus:ofe"] = (
+            balances.get("zus:ofe", 0.0) * (1 + cfg.get("roi", 0.02)) + ofe_contrib
+        )
+    else:
+        waloryzacja = (
+            cfg.get("waloryzacja_skladek")
+            if cfg.get("waloryzacja_skladek") is not None
+            else zus_cfg.waloryzacja_skladek
+        )
+        balances["zus"] = (
+            balances.get("zus", 0.0) * (1 + waloryzacja) + total_contrib
+        )
+
+
+def _accumulate_ppk(
+    cfg: dict,
+    balances: dict,
+    basis: dict,
+    config,
+    welcomed: set[str],
+) -> None:
+    """Roczna wpłata % od podstawy + dopłaty państwa (akumulacja PPK).
+
+    Wpłata pracownika (employee_pct) i pracodawcy (employer_pct) jest naliczana
+    od rocznej podstawy. Dopłata roczna państwa (240 zł) wpada co roku, wpłata
+    powitalna (250 zł) tylko w pierwszym roku akumulacji. Całość wliczana do
+    podstawy kosztów (basis) — dla Belki przy wypłatach przed 60 r.ż.
+    """
+    ppk_cfg = config.ppk
+    base_annual = cfg.get("monthly_base", 0.0) * 12
+    contrib = base_annual * (
+        cfg.get("employee_pct", ppk_cfg.employee_pct)
+        + cfg.get("employer_pct", ppk_cfg.employer_pct)
+    )
+    state = 0.0
+    if cfg.get("state_topups", True):
+        state += ppk_cfg.state_annual
+        if "ppk" not in welcomed:
+            state += ppk_cfg.state_welcoming
+            welcomed.add("ppk")
+    total = contrib + state
+    balances["ppk"] = balances.get("ppk", 0.0) * (1 + cfg.get("roi", 0.02)) + total
+    basis["ppk"] = basis.get("ppk", 0.0) + total
+
+
+def _accumulate_ppe(cfg: dict, balances: dict, basis: dict, config) -> None:
+    """Roczna składka podstawowa (pracodawca, % podstawy) + dodatkowa (kwotowo).
+
+    Limit podstawowej (7%) jest kontrolowany ostrzeżeniem w _collect_warnings —
+    silnik liczy od podanej wartości. Wpłaty wliczane do basis dla Belki.
+    """
+    base_annual = cfg.get("monthly_base", 0.0) * 12
+    employer = base_annual * cfg.get("employer_pct", 0.0)
+    additional = cfg.get("annual_contribution", 0.0)
+    total = employer + additional
+    balances["ppe"] = balances.get("ppe", 0.0) * (1 + cfg.get("roi", 0.02)) + total
+    basis["ppe"] = basis.get("ppe", 0.0) + total
+
+
+def _apply_asset_tax(
+    balances: dict[str, float],
+    starting: dict[str, float],
+    merged_tax: dict[str, float],
+    asset_exemptions: dict[str, float],
+    config,
+) -> None:
+    """Coroczny podatek od wartości aktywów (OKI) ponad próg zwolnienia.
+
+    Podstawa to średnia roczna wartość aktywów, stawka asset_tax_rate
+    (0,85% w 2027 r., od 2028 ok. 19% stopy NBP). Podatek płacony jest
+    niezależnie od wyniku inwestycyjnego — potrącany z salda i wliczany
+    do rocznego podatku (total_tax). Wypłaty z OKI nie podlegają Belce.
+    """
+    for account in list(balances.keys()):
+        rules = config.accounts.get(account)
+        if not rules or rules.tax_model != "assets":
+            continue
+        exemption = asset_exemptions.get(account, rules.asset_exemption)
+        avg = (starting.get(account, 0.0) + balances[account]) / 2.0
+        tax = max(0.0, avg - exemption) * rules.asset_tax_rate
+        if tax <= 0:
+            continue
+        balances[account] = max(0.0, balances[account] - tax)
+        merged_tax[account] = merged_tax.get(account, 0.0) + tax
+
+
+def _convert_zus(
+    zus_pensions: dict[str, float],
+    age: int,
+    start_age: int,
+    accounts_config: dict,
+    balances: dict,
+    config,
+) -> None:
+    """Konwersja kapitału na emeryturę przy starcie etapu realizacji.
+
+    Emerytura = kapitał / ŚDTŻ(age). Wstrzyknięcie do config etapu jako
+    monthly_pension sprawia, że RealizacjaStage traktuje ją jak zwykłe
+    świadczenie. Po konwersji kapitał jest zerowany, a świadczenie corocznie
+    waloryzowane o waloryzacja_swiadczenia.
+    """
+    cfg = accounts_config["zus"]
+    if cfg.get("monthly_pension", 0.0) > 0:
+        return
+    zus_cfg = config.zus
+    if age == start_age and "zus" not in zus_pensions:
+        capital = balances.pop("zus", 0.0) + balances.pop("zus:ofe", 0.0)
+        months = sdtz_months(age)
+        zus_pensions["zus"] = capital / months if months > 0 else 0.0
+    elif "zus" in zus_pensions:
+        waloryzacja = (
+            cfg.get("waloryzacja_swiadczenia")
+            if cfg.get("waloryzacja_swiadczenia") is not None
+            else zus_cfg.waloryzacja_swiadczenia
+        )
+        zus_pensions["zus"] = zus_pensions["zus"] * (1 + waloryzacja)
+    cfg["monthly_pension"] = zus_pensions.get("zus", 0.0)
 
 
 def _apply_tax(
@@ -241,6 +463,10 @@ def _apply_tax(
         rate = rules.early_tax_rate if early else rules.tax_rate
 
         if model == "none":
+            continue
+        if model == "assets":
+            # Podatek od wartości aktywów (OKI) liczony osobno w _apply_asset_tax —
+            # wypłaty nie podlegają Belce.
             continue
         if model == "scale":
             scale_accounts.append((account, amount))
@@ -282,7 +508,17 @@ def _collect_warnings(data: SimulationInput) -> list[str]:
 
     for si in data.stages:
         if si.stage_type == "realizacja":
-            for name in si.accounts:
+            for name, cfg in si.accounts.items():
+                if name == "zus" and cfg.monthly_pension <= 0:
+                    if si.start_age < config.zus.wiek_emerytalny:
+                        label = ACCOUNT_LABELS["zus"]
+                        em_wiek = config.zus.wiek_emerytalny
+                        warnings.append(
+                            f"{label} wyliczana z kapitału od {si.start_age} r.ż. — "
+                            f"przed powszechnym wiekiem emerytalnym ({em_wiek} r.ż.). "
+                            f"Realnie świadczenie nie przysługuje wcześniej; "
+                            f"wynik ma charakter poglądowy."
+                        )
                 rules = config.accounts.get(name)
                 if not rules or rules.min_withdrawal_age <= 0:
                     continue
@@ -310,6 +546,17 @@ def _collect_warnings(data: SimulationInput) -> list[str]:
                         f"{label} wypłacane od {si.start_age} r.ż. ({before}) — podatek "
                         f"{early_pct:.0f}% od zysku; {after} {normal_pct:.0f}%."
                     )
+                if name == "ppk":
+                    warnings.append(
+                        f"{label} przed 60 r.ż.: realnie zwracane są tylko wpłaty własne — "
+                        f"środki pracodawcy i dopłaty państwa przepadają. Wynik poglądowy."
+                    )
+                elif name == "ppe":
+                    warnings.append(
+                        f"{label} przed 60 r.ż.: dodatkowo 30% składek podstawowych "
+                        f"pracodawcy trafia do ZUS (subkonto), a nie do uczestnika. "
+                        f"Wynik poglądowy."
+                    )
 
         if si.stage_type == "akumulacja":
             for name, cfg in si.accounts.items():
@@ -326,11 +573,42 @@ def _collect_warnings(data: SimulationInput) -> list[str]:
                     )
                     if contribution > ikze_limit:
                         limit = ikze_limit
+                elif name == "oipe" and contribution > limits.oipe_annual:
+                    limit = limits.oipe_annual
+                elif name == "ppe" and contribution > limits.ppe_additional_annual:
+                    limit = limits.ppe_additional_annual
                 if limit is not None:
                     label = ACCOUNT_LABELS.get(name, name)
                     warnings.append(
                         f"Dopłaty na {label} ({contribution:,.0f} zł/rok) przekraczają "
                         f"roczny limit wpłat ({limit:,.0f} zł)."
                     )
+
+                if name == "ppk":
+                    total_pct = cfg.employee_pct + cfg.employer_pct
+                    if total_pct > config.ppk.max_total_pct:
+                        warnings.append(
+                            f"Suma wpłat do PPK ({total_pct * 100:.1f}% podstawy) "
+                            f"przekracza ustawowy limit 8%."
+                        )
+                elif name == "ppe":
+                    if cfg.employer_pct > config.ppe.max_employer_pct:
+                        warnings.append(
+                            f"Składka podstawowa PPE ({cfg.employer_pct * 100:.1f}% podstawy) "
+                            f"przekracza ustawowy limit 7%."
+                        )
+
+    # Gotówka — ROI >= 0% oznacza brak inflacji lub deflację (mało prawdopodobne).
+    # Deduplikacja: gotówka występuje zwykle w akumulacji i realizacji naraz.
+    gotowka_warnings: set[str] = set()
+    for si in data.stages:
+        for name, cfg in si.accounts.items():
+            if name == "gotowka" and cfg.roi >= 0:
+                gotowka_warnings.add(
+                    f"Gotówka z ROI {cfg.roi * 100:.1f}% — zakładasz brak inflacji lub "
+                    f"wieloletnią deflację. Realnie gotówka traci na wartości "
+                    f"(domyślnie -2,5%/rok); wynik mało prawdopodobny."
+                )
+    warnings.extend(sorted(gotowka_warnings))
 
     return warnings

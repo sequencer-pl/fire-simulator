@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FIRE Simulator — Moje symulacje</title>
+    <link rel="stylesheet" href="/static/css/style.css?v={{ asset_version }}">
+</head>
+<body>
+    <div class="container">
+        <div class="topbar">
+            <div>
+                <h1>FIRE Simulator</h1>
+                <p class="subtitle" style="margin-bottom:0;">Twoje zapisane symulacje</p>
+            </div>
+            <nav class="topnav">
+                <a href="/sim" class="btn btn-secondary" style="margin:0;">Symulator</a>
+                <span id="sessionEmail" class="session-email"></span>
+            </nav>
+        </div>
+
+        <!-- Autoryzacja -->
+        <div id="authPanel" class="auth-panel hidden">
+            <div class="auth-tabs">
+                <button type="button" class="mode-btn active" id="tabLogin">Logowanie</button>
+                <button type="button" class="mode-btn" id="tabRegister">Rejestracja</button>
+            </div>
+            <form id="loginForm" class="auth-form">
+                <div class="field-group">
+                    <label>E-mail</label>
+                    <input type="email" name="email" required>
+                </div>
+                <div class="field-group">
+                    <label>Hasło</label>
+                    <input type="password" name="password" required>
+                </div>
+                <button type="submit" class="btn btn-primary" style="margin-top:0.5rem;">Zaloguj</button>
+                <p id="loginMsg" class="form-msg"></p>
+            </form>
+            <form id="registerForm" class="auth-form hidden">
+                <div class="field-group">
+                    <label>E-mail</label>
+                    <input type="email" name="email" required>
+                </div>
+                <div class="field-group">
+                    <label>Hasło (min. 8 znaków)</label>
+                    <input type="password" name="password" required>
+                </div>
+                <button type="submit" class="btn btn-primary" style="margin-top:0.5rem;">Zarejestruj</button>
+                <p id="registerMsg" class="form-msg"></p>
+            </form>
+        </div>
+
+        <!-- Lista symulacji -->
+        <div id="simsPanel" class="hidden">
+            <div class="sim-actions">
+                <a href="/sim" class="btn btn-primary" style="margin:0;text-decoration:none;">+ Nowa symulacja</a>
+            </div>
+            <div id="simsList" class="sims-list"></div>
+            <div id="simFooter" class="sim-footer">
+                <button type="button" id="compareBtn" class="btn btn-secondary" disabled>Porównaj zaznaczone</button>
+                <span id="compareCount" class="sim-count"></span>
+            </div>
+            <p id="emptyMsg" class="form-msg hidden">Brak zapisanych symulacji. Uruchom symulator i zapisz wynik, aby zobaczyć go tutaj.</p>
+        </div>
+    </div>
+
+    <script src="/static/js/home.js?v={{ asset_version }}"></script>
+</body>
+</html>
