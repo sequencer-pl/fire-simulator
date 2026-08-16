@@ -351,11 +351,10 @@ def _get_defaults() -> dict:
                         "roi": 0.06,
                         "annual_contribution": 10000,
                     },
-                    "oki": {
+                    "oki_inw": {
                         "starting_balance": 20000,
                         "roi": 0.06,
                         "annual_contribution": 10000,
-                        "asset_exemption": 100000,
                     },
                     "krypto": {
                         "starting_balance": 10000,
@@ -385,7 +384,7 @@ def _get_defaults() -> dict:
                         "roi": 0.02,
                         "buffer": 100000,
                     },
-                    "oki": {
+                    "oki_inw": {
                         "roi": 0.02,
                         "buffer": 0,
                     },

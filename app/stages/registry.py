@@ -62,12 +62,21 @@ ACCOUNT_INFO = {
         ),
         "url": "https://www.mojeppk.pl/",
     },
-    "oki": {
+    "oki_inw": {
         "description": (
-            "OKI (od 2027) — konto, w którym zamiast podatku Belki od zysków "
-            "płacisz roczny podatek od wartości aktywów (0,85%) ponad próg "
-            "zwolnienia (inwestycyjne 100 000 zł, oszczędnościowe 25 000 zł). "
+            "OKI inwestycyjne (od 2027) — rachunek, w którym zamiast podatku Belki "
+            "od zysków płacisz roczny podatek od wartości aktywów (0,85%) ponad "
+            "próg zwolnienia. Próg 100 000 zł jest wspólny dla wszystkich kont OKI; "
+            "w jego ramach max 25 000 zł może przypadać na aktywa oszczędnościowe. "
             "Wypłaty w każdym wieku bez podatku od zysku."
+        ),
+    },
+    "oki_osk": {
+        "description": (
+            "OKI oszczędnościowe (od 2027) — aktywa typu lokaty i obligacje skarbowe "
+            "na rachunku OKI. W ramach wspólnego limitu 100 000 zł zwolniona jest "
+            "część oszczędnościowa do 25 000 zł; nadwyżka podlega rocznemu podatkowi "
+            "od wartości aktywów (0,85%)."
         ),
     },
     "krypto": {
@@ -105,9 +114,8 @@ FIELD_HINTS = {
     "waloryzacja_swiadczenia": "Roczna waloryzacja wypłacanego świadczenia emerytalnego.",
     "monthly_pension": "Świadczenie miesięczne; 0 = wylicz z kapitału i tablic ŚDTŻ.",
     "asset_exemption": (
-        "Typ aktywów w OKI: inwestycyjne (limit 100 000 zł: "
-        "akcje/ETF/fundusze) albo oszczędnościowe (limit 25 000 zł: "
-        "lokaty/obligacje)."
+        "Próg zwolnienia w OKI. Konta OKI dzielą wspólny limit 100 000 zł; "
+        "w jego ramach część oszczędnościowa (lokaty/obligacje) do 25 000 zł."
     ),
     "asset_tax_rate": "Roczny podatek od wartości aktywów ponad próg (OKI: 0,85%).",
 }
@@ -203,8 +211,8 @@ STAGE_META = {
                     },
                 },
             },
-            "oki": {
-                "label": "OKI",
+            "oki_inw": {
+                "label": "OKI inwestycyjne",
                 "fields": {
                     "starting_balance": {
                         "label": "Saldo startowe", "type": "number", "step": 1000,
@@ -215,18 +223,31 @@ STAGE_META = {
                         "type": "number",
                         "step": 1000,
                         "hint": (
-                            "Dopłata wnoszona co roku. Powyżej progu zwolnienia "
-                            "płacisz podatek od wartości aktywów od całej nadwyżki."
+                            "Dopłata wnoszona co roku. Powyżej wspólnego limitu OKI "
+                            "(100 000 zł) płacisz podatek od wartości aktywów od nadwyżki."
                         ),
                     },
-                    "asset_exemption": {
-                        "label": "Typ aktywów",
-                        "type": "select",
-                        "hint": FIELD_HINTS["asset_exemption"],
-                        "options": [
-                            {"label": "Inwestycyjne", "value": "100000"},
-                            {"label": "Oszczędnościowe", "value": "25000"},
-                        ],
+                    "roi": {
+                        "label": "ROI", "type": "number", "step": 1, "percent": True,
+                        "hint": FIELD_HINTS["roi"],
+                    },
+                },
+            },
+            "oki_osk": {
+                "label": "OKI oszczędnościowe",
+                "fields": {
+                    "starting_balance": {
+                        "label": "Saldo startowe", "type": "number", "step": 1000,
+                        "hint": FIELD_HINTS["starting_balance"],
+                    },
+                    "annual_contribution": {
+                        "label": "Dopłata roczna",
+                        "type": "number",
+                        "step": 1000,
+                        "hint": (
+                            "Dopłata wnoszona co roku. W ramach wspólnego limitu OKI "
+                            "zwolnienie części oszczędnościowej wynosi 25 000 zł."
+                        ),
                     },
                     "roi": {
                         "label": "ROI", "type": "number", "step": 1, "percent": True,
@@ -467,8 +488,21 @@ STAGE_META = {
                     },
                 },
             },
-            "oki": {
-                "label": "OKI",
+            "oki_inw": {
+                "label": "OKI inwestycyjne",
+                "fields": {
+                    "roi": {
+                        "label": "ROI", "type": "number", "step": 1, "percent": True,
+                        "hint": FIELD_HINTS["roi"],
+                    },
+                    "buffer": {
+                        "label": "Bufor", "type": "number", "step": 1000,
+                        "hint": FIELD_HINTS["buffer"],
+                    },
+                },
+            },
+            "oki_osk": {
+                "label": "OKI oszczędnościowe",
                 "fields": {
                     "roi": {
                         "label": "ROI", "type": "number", "step": 1, "percent": True,

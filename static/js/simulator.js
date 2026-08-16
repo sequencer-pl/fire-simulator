@@ -19,7 +19,8 @@ const ACCOUNT_ICONS = {
     oipe: "🎯",
     ppk: "🏢",
     ppe: "💼",
-    oki: "🆕",
+    oki_inw: "📊",
+    oki_osk: "💰",
     krypto: "₿",
     zus: "🏛️",
 };
@@ -47,6 +48,47 @@ function getAvailableAccounts(stageType) {
     const meta = STAGE_TYPES[stageType];
     if (!meta || !meta.available_accounts) return {};
     return meta.available_accounts;
+}
+
+const FIELD_ORDER = [
+    "starting_balance",
+    "starting_balance_ofe",
+    "ofe_member",
+    "monthly_base",
+    "annual_contribution",
+    "employee_pct",
+    "employer_pct",
+    "state_topups",
+    "roi",
+    "waloryzacja_skladek",
+    "waloryzacja_swiadczenia",
+    "buffer",
+    "monthly_pension",
+];
+
+function orderedFields(fields) {
+    const entries = Object.entries(fields);
+    const rank = (key) => {
+        const i = FIELD_ORDER.indexOf(key);
+        return i === -1 ? FIELD_ORDER.length : i;
+    };
+    const byRank = (a, b) => rank(a[0]) - rank(b[0]);
+
+    const triggers = new Set();
+    entries.forEach(([, def]) => {
+        if (def.visible_when) triggers.add(def.visible_when);
+    });
+
+    const result = entries.filter(([key, def]) => !def.visible_when && !triggers.has(key)).sort(byRank);
+    const triggerEntries = entries.filter(([key]) => triggers.has(key)).sort(byRank);
+
+    triggerEntries.forEach(([tKey, tDef]) => {
+        result.push([tKey, tDef]);
+        const deps = entries.filter(([key, def]) => def.visible_when === tKey).sort(byRank);
+        result.push(...deps);
+    });
+
+    return result;
 }
 
 function limitButtonsHtml(accountKey, fieldKey) {
@@ -77,6 +119,26 @@ function limitButtonsHtml(accountKey, fieldKey) {
         .join("");
 }
 
+function countDecimals(value) {
+    const s = String(value);
+    const dot = s.indexOf(".");
+    if (dot === -1) return 0;
+    return s.length - dot - 1;
+}
+
+function stepInputValue(input, dir) {
+    let step = parseFloat(input.step);
+    if (!Number.isFinite(step) || step <= 0) step = 1;
+    const min = input.min === "" ? null : parseFloat(input.min);
+    const max = input.max === "" ? null : parseFloat(input.max);
+    let val = (parseFloat(input.value) || 0) + dir * step;
+    if (min !== null && Number.isFinite(min) && val < min) val = min;
+    if (max !== null && Number.isFinite(max) && val > max) val = max;
+    const places = Math.max(countDecimals(input.value), countDecimals(step));
+    input.value = places > 0 ? val.toFixed(places) : String(Math.round(val));
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+}
+
 function applyFieldVisibility(card) {
     card.querySelectorAll("[data-visible-when]").forEach((el) => {
         const trigger = card.querySelector(`[data-key="${el.dataset.visibleWhen}"]`);
@@ -99,9 +161,6 @@ function fieldDefault(accountKey, key) {
     }
     if (accountKey === "gotowka" && key === "roi") {
         return -0.025;
-    }
-    if (accountKey === "oki" && key === "asset_exemption") {
-        return 100000;
     }
     return 0;
 }
@@ -127,7 +186,7 @@ function createAccountCard(stageType, accountKey, accountData) {
     card.dataset.account = accountKey;
 
     let fieldsHtml = "";
-    for (const [key, fieldDef] of Object.entries(meta.fields)) {
+    for (const [key, fieldDef] of orderedFields(meta.fields)) {
         const visibleWhen = fieldDef.visible_when
             ? `data-visible-when="${fieldDef.visible_when}"`
             : "";
@@ -176,14 +235,18 @@ function createAccountCard(stageType, accountKey, accountData) {
         fieldsHtml += `
             <div class="field-group" ${visibleWhen}>
                 <label>${fieldLabelHtml(fieldDef)}</label>
-                <input type="${fieldDef.type || 'number'}"
-                       class="acc-field"
-                       data-account="${accountKey}"
-                       data-key="${key}"
-                       ${fieldDef.percent ? 'data-percent="true"' : ''}
-                       value="${displayVal}"
-                       ${fieldDef.step ? `step="${fieldDef.step}"` : 'step="any"'}
-                       min="${fieldDef.percent ? -99 : 0}" />
+                <div class="num-control">
+                    <button type="button" class="stepper stepper-down" tabindex="-1" aria-label="Zmniejsz">&minus;</button>
+                    <input type="${fieldDef.type || 'number'}"
+                           class="acc-field"
+                           data-account="${accountKey}"
+                           data-key="${key}"
+                           ${fieldDef.percent ? 'data-percent="true"' : ''}
+                           value="${displayVal}"
+                           ${fieldDef.step ? `step="${fieldDef.step}"` : 'step="any"'}
+                           min="${fieldDef.percent ? -99 : 0}" />
+                    <button type="button" class="stepper stepper-up" tabindex="-1" aria-label="Zwiększ">+</button>
+                </div>
                 ${chipsHtml}
             </div>
         `;
@@ -230,7 +293,9 @@ function createAccountCard(stageType, accountKey, accountData) {
         );
         if (toggle) toggle.classList.remove("active");
         updateStageName(stageBlock);
-        updateStageHints(document.getElementById("stages-container"));
+        const container = document.getElementById("stages-container");
+        updateStageHints(container);
+        if (stageTypeOf(stageBlock) === "akumulacja") refreshRealizationToggles(container);
     });
 
     return card;
@@ -254,8 +319,24 @@ function updateStageName(stageBlock) {
         return;
     }
 
-    const labels = accounts.map(a => a.toUpperCase());
+    const labels = accounts.map(a => ACCOUNT_LABELS[a] || a);
     nameInput.value = labels.join("+") || "Realizacja";
+}
+
+function accumulatedAccounts(container) {
+    const set = new Set();
+    if (!container) return set;
+    container.querySelectorAll('.stage-block[data-stage-type="akumulacja"] .account-card').forEach((card) => {
+        set.add(card.dataset.account);
+    });
+    return set;
+}
+
+function refreshRealizationToggles(container) {
+    if (!container) return;
+    container.querySelectorAll('.stage-block[data-stage-type="realizacja"]').forEach((block) => {
+        renderAccountToggles(block);
+    });
 }
 
 function renderAccountToggles(stageBlock) {
@@ -269,8 +350,13 @@ function renderAccountToggles(stageBlock) {
         activeAccounts.add(card.dataset.account);
     });
 
+    const accumulated = stageType === "realizacja"
+        ? accumulatedAccounts(stageBlock.closest("#stages-container") || document.getElementById("stages-container"))
+        : null;
+
     togglesContainer.innerHTML = "";
     for (const [key, meta] of Object.entries(available)) {
+        if (stageType === "realizacja" && !activeAccounts.has(key) && !accumulated.has(key)) continue;
         const btn = document.createElement("button");
         btn.type = "button";
         btn.className = "account-toggle" + (activeAccounts.has(key) ? " active" : "");
@@ -278,7 +364,7 @@ function renderAccountToggles(stageBlock) {
         const tip = meta.description
             ? tipHtml(meta.description, meta.url, ACCOUNT_ICONS[key] || "?")
             : "";
-        btn.innerHTML = `${tip}${meta.label}`;
+        btn.innerHTML = `${tip}<span class="account-toggle-label">${meta.label}</span>`;
 
         btn.addEventListener("click", () => {
             if (btn.classList.contains("active")) {
@@ -291,7 +377,9 @@ function renderAccountToggles(stageBlock) {
                 if (card) accountsContainer.appendChild(card);
             }
             updateStageName(stageBlock);
-            updateStageHints(document.getElementById("stages-container"));
+            const container = document.getElementById("stages-container");
+            updateStageHints(container);
+            if (stageType === "akumulacja") refreshRealizationToggles(container);
         });
 
         togglesContainer.appendChild(btn);
@@ -332,11 +420,19 @@ function createStageBlock(defaults) {
             </div>
             <div class="field-group">
                 <label>Wiek start</label>
-                <input type="number" class="start-age" value="${defaults?.start_age ?? 40}" min="0" max="120" />
+                <div class="num-control">
+                    <button type="button" class="stepper stepper-down" tabindex="-1" aria-label="Zmniejsz wiek start">&minus;</button>
+                    <input type="number" class="acc-field start-age" value="${defaults?.start_age ?? 40}" min="0" max="120" />
+                    <button type="button" class="stepper stepper-up" tabindex="-1" aria-label="Zwiększ wiek start">+</button>
+                </div>
             </div>
             <div class="field-group">
                 <label>Wiek koniec${tipHtml("Wiek końca etapu (wyłączny) — etap obejmuje lata od wieku start do wieku koniec minus 1.")}</label>
-                <input type="number" class="end-age" value="${defaults?.end_age ?? 60}" min="0" max="120" />
+                <div class="num-control">
+                    <button type="button" class="stepper stepper-down" tabindex="-1" aria-label="Zmniejsz wiek koniec">&minus;</button>
+                    <input type="number" class="acc-field end-age" value="${defaults?.end_age ?? 60}" min="0" max="120" />
+                    <button type="button" class="stepper stepper-up" tabindex="-1" aria-label="Zwiększ wiek koniec">+</button>
+                </div>
             </div>
         </div>
         <div class="accounts-toggles"></div>
@@ -348,8 +444,10 @@ function createStageBlock(defaults) {
     block.querySelector(".move-down").addEventListener("click", () => moveStage(block, "down"));
     block.querySelector(".remove-btn").addEventListener("click", () => {
         block.remove();
-        updateStageButtons(document.getElementById("stages-container"));
-        updateStageHints(document.getElementById("stages-container"));
+        const container = document.getElementById("stages-container");
+        updateStageButtons(container);
+        updateStageHints(container);
+        refreshRealizationToggles(container);
     });
 
     const grid = block.querySelector(".accounts-grid");
@@ -391,6 +489,7 @@ function updateStageHints(container) {
     const lastEnd = lastAkumulacjaEnd(blocks);
 
     if (CONFIG) {
+        const accumulated = accumulatedAccounts(container);
         blocks.forEach((block) => {
         const hint = block.querySelector(".stage-hint");
         if (!hint) return;
@@ -399,17 +498,27 @@ function updateStageHints(container) {
         const hints = [];
 
         if (stageType === "realizacja") {
-            block.querySelectorAll(".account-card").forEach((card) => {
+            const cards = block.querySelectorAll(".account-card");
+            cards.forEach((card) => {
                 const acc = card.dataset.account;
+                if (!accumulated.has(acc)) {
+                    hints.push({
+                        level: "warning",
+                        text:
+                            `${ACCOUNT_LABELS[acc] || acc} nie ma etapu akumulacji — ` +
+                            `nie ma skąd wypłacać kapitału.`
+                    });
+                }
                 if (acc === "zus") {
                     const pensionInput = card.querySelector('[data-key="monthly_pension"]');
                     const pension = parseFloat(pensionInput?.value) || 0;
-                    if (pension <= 0 && CONFIG.zus && startAge < CONFIG.zus.wiek_emerytalny) {
+                    const em = pensionAge(CONFIG);
+                    if (pension <= 0 && em !== null && startAge < em) {
                         hints.push({
                             level: "warning",
                             text:
                                 `ZUS wyliczany z kapitału od ${startAge} r.ż. — przed powszechnym wiekiem ` +
-                                `emerytalnym (${CONFIG.zus.wiek_emerytalny} r.ż.). Realnie świadczenie nie przysługuje wcześniej.`
+                                `emerytalnym (${em} r.ż.). Realnie świadczenie nie przysługuje wcześniej.`
                         });
                     }
                     return;
@@ -438,6 +547,13 @@ function updateStageHints(container) {
                     }
                 }
             });
+            if (!cards.length && accumulated.size === 0) {
+                hints.push({
+                    level: "info",
+                    text:
+                        "Najpierw dodaj etap akumulacji, aby wybrać konta do wypłaty."
+                });
+            }
         } else if (stageType === "akumulacja") {
             block.querySelectorAll(".account-card").forEach((card) => {
                 const acc = card.dataset.account;
@@ -536,20 +652,20 @@ function updateStageHints(container) {
                     }
                     return;
                 }
-                if (acc === "oki") {
-                    const rules = CONFIG.accounts && CONFIG.accounts.oki;
+                if (acc === "oki_inw" || acc === "oki_osk") {
+                    const rules = CONFIG.accounts && CONFIG.accounts[acc];
                     if (rules && rules.tax_model === "assets") {
-                        const exemption = parseInt(card.querySelector('[data-key="asset_exemption"]')?.value) || rules.asset_exemption;
+                        const exemption = rules.asset_exemption || 0;
                         const rate = (rules.asset_tax_rate * 100).toFixed(2);
                         const contrib = parseFloat(card.querySelector('[data-key="annual_contribution"]')?.value) || 0;
                         const bal = parseFloat(card.querySelector('[data-key="starting_balance"]')?.value) || 0;
-                        const over = bal > exemption ? ` Obecne saldo już przekracza próg.` : "";
-                        hints.push({
-                            level: "info",
-                            text:
-                                `OKI: bez Belki do progu ${exemption.toLocaleString("pl-PL")} zł; powyżej — podatek od wartości aktywów ${rate}%/rok ` +
-                                `od nadwyżki średniego stanu (niezależnie od zysku).${over}`
-                        });
+                        const label = ACCOUNT_LABELS[acc] || acc;
+                        const text =
+                            acc === "oki_osk"
+                                ? `${label}: w ramach wspólnego limitu OKI (100 000 zł) zwolnione do ${exemption.toLocaleString("pl-PL")} zł; nadwyżka — podatek od wartości aktywów ${rate}%/rok od nadwyżki średniego stanu (niezależnie od zysku).`
+                                : `${label}: bez Belki do wspólnego limitu OKI (100 000 zł); powyżej — podatek od wartości aktywów ${rate}%/rok od nadwyżki średniego stanu (niezależnie od zysku).`;
+                        const over = bal > exemption ? ` Obecne saldo przekracza próg ${exemption.toLocaleString("pl-PL")} zł.` : "";
+                        hints.push({ level: "info", text: text + over });
                         if (contrib > exemption) {
                             hints.push({
                                 level: "warning",
@@ -605,8 +721,10 @@ function validateStageOrder(container) {
 
     blocks.forEach((block) => {
         const startInput = block.querySelector(".start-age");
+        const startControl = startInput ? startInput.closest(".num-control") : null;
         const hint = block.querySelector(".stage-hint");
         if (startInput) startInput.classList.remove("input-error");
+        if (startControl) startControl.classList.remove("input-error");
         if (hint) hint.classList.remove("error");
 
         if (stageTypeOf(block) !== "realizacja") return;
@@ -616,6 +734,7 @@ function validateStageOrder(container) {
 
         valid = false;
         if (startInput) startInput.classList.add("input-error");
+        if (startControl) startControl.classList.add("input-error");
         if (hint) {
             const msg = `Etap realizacji musi zaczynać się ≥ ${lastEnd} r.ż. (koniec akumulacji).`;
             if (hint.firstChild) {
@@ -748,36 +867,38 @@ function updateStageButtons(container) {
     updateDivider(container);
 }
 
-// Separator między fazami akumulacji i realizacji z przyciskiem dodawania etapu akumulacji.
+// Separator między fazami akumulacji i realizacji (linia wizualna).
 function updateDivider(container) {
     container.querySelectorAll(".phase-divider").forEach((d) => d.remove());
 
     const blocks = getStageBlocks(container);
+    const firstRealIndex = blocks.map(stageTypeOf).indexOf("realizacja");
+    if (firstRealIndex === -1) return;
+
+    const lastEnd = lastAkumulacjaEnd(blocks);
+    const ageHtml = lastEnd === null
+        ? ""
+        : `<span class="phase-divider-age">wiek: <strong>${lastEnd}</strong> lat</span>`;
+
     const divider = document.createElement("div");
     divider.className = "phase-divider";
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "btn btn-secondary phase-divider-btn";
-    btn.textContent = "+ Dodaj etap akumulacji";
-    btn.addEventListener("click", () => {
-        const block = createStageBlock(null);
-        const firstRealizacja = getStageBlocks(container).find((b) => stageTypeOf(b) === "realizacja");
-        if (firstRealizacja) {
-            container.insertBefore(block, firstRealizacja);
-        } else {
-            container.appendChild(block);
-        }
-        updateStageButtons(container);
-        updateStageHints(container);
-    });
-    divider.appendChild(btn);
+    divider.innerHTML = `
+        <span class="phase-divider-label">Akumulacja <span class="phase-divider-arrow">&rarr;</span> Realizacja</span>
+        ${ageHtml}
+    `;
+    container.insertBefore(divider, blocks[firstRealIndex]);
+}
 
-    const firstRealIndex = blocks.map(stageTypeOf).indexOf("realizacja");
-    if (firstRealIndex !== -1) {
-        container.insertBefore(divider, blocks[firstRealIndex]);
+function addAccumulationStage(container) {
+    const block = createStageBlock(null);
+    const firstRealizacja = getStageBlocks(container).find((b) => stageTypeOf(b) === "realizacja");
+    if (firstRealizacja) {
+        container.insertBefore(block, firstRealizacja);
     } else {
-        container.appendChild(divider);
+        container.appendChild(block);
     }
+    updateStageButtons(container);
+    updateStageHints(container);
 }
 
 // --- Drag & drop etapów ---
@@ -861,6 +982,7 @@ function gatherFormData() {
         block.querySelectorAll(".acc-field").forEach((input) => {
             const acc = input.dataset.account;
             const key = input.dataset.key;
+            if (!acc || !key) return;
             if (!accounts[acc]) accounts[acc] = {};
             let val;
             if (input.type === "checkbox") {
@@ -890,7 +1012,26 @@ function gatherFormData() {
         });
     });
 
-    return { stages: stages, max_age: 100, config: CONFIG };
+    return { stages: stages, max_age: 100, gender: currentGender(), config: CONFIG };
+}
+
+function currentGender() {
+    const checked = document.querySelector('input[name="gender"]:checked');
+    return checked ? checked.value : "m";
+}
+
+function setGender(value) {
+    const radio = document.querySelector(`input[name="gender"][value="${value}"]`);
+    if (radio) radio.checked = true;
+}
+
+function pensionAge(config) {
+    if (!config || !config.zus) return null;
+    const z = config.zus;
+    if (currentGender() === "k") {
+        return z.wiek_emerytalny_k ?? z.wiek_emerytalny ?? 60;
+    }
+    return z.wiek_emerytalny_m ?? z.wiek_emerytalny ?? 65;
 }
 
 function formatMoney(val) {
@@ -912,7 +1053,7 @@ function renderResults(data) {
     headerRow.innerHTML = `
         <th class="col-age">Wiek</th>
         <th class="col-stage">Etap</th>
-        ${accounts.map(a => `<th data-col="${a}">${a.toUpperCase()}</th>`).join("")}
+        ${accounts.map(a => `<th data-col="${a}">${ACCOUNT_LABELS[a] || a}</th>`).join("")}
         <th data-col="wealth">Majątek</th>
         <th data-col="annual">Wypłata roczna</th>
         <th data-col="monthly">Wypłata mies.</th>
@@ -1009,10 +1150,13 @@ document.addEventListener("DOMContentLoaded", () => {
         (DEFAULTS.stages || []).forEach((s) => container.appendChild(createStageBlock(s)));
         updateStageButtons(container);
         updateStageHints(container);
+        refreshRealizationToggles(container);
     }
 });
 
 function initStageEventHandlers(container) {
+    document.getElementById("addAccumulationBtn").addEventListener("click", () => addAccumulationStage(container));
+
     document.getElementById("addRealizationBtn").addEventListener("click", () => {
         const blocks = getStageBlocks(container);
         const last = blocks[blocks.length - 1];
@@ -1043,7 +1187,19 @@ function initStageEventHandlers(container) {
     updateStageHints(container);
 
     // Odświeżanie subtelnych podpowiedzi przy edycji pól
-    container.addEventListener("input", () => updateStageHints(container));
+    container.addEventListener("input", () => {
+        updateStageHints(container);
+        updateDivider(container);
+    });
+
+    // Steppery −/+ we wszystkich kontrolkach numerycznych (pola kont i wiek etapów)
+    container.addEventListener("click", (e) => {
+        const btn = e.target.closest(".num-control .stepper");
+        if (!btn) return;
+        const input = btn.parentElement.querySelector(".acc-field");
+        if (!input) return;
+        stepInputValue(input, btn.classList.contains("stepper-up") ? 1 : -1);
+    });
 
     // Kliknięcie w pole zaznacza całą wartość (wpisywanie nadpisuje, bez backspace)
     document.addEventListener(
@@ -1117,7 +1273,8 @@ const ACCOUNT_LABELS = {
     krypto: "Krypto",
     lokata: "Lokata",
     oipe: "OIPE",
-    oki: "OKI",
+    oki_inw: "OKI inwestycyjne",
+    oki_osk: "OKI oszczędnościowe",
     ppe: "PPE",
     ppk: "PPK",
     zus: "ZUS (emerytura)",
@@ -1126,11 +1283,13 @@ const ACCOUNT_LABELS = {
 const TAX_MODEL_LABELS = { none: "Brak", flat: "Ryczałt", scale: "Skala PIT", assets: "Od wartości aktywów" };
 const TAX_BASIS_LABELS = { gains: "od zysku", full: "od całości" };
 let CONFIG = null;
+let DEFAULT_CONFIG = null;
 
 async function initConfig() {
     try {
         const res = await fetch("/api/config");
-        CONFIG = await res.json();
+        DEFAULT_CONFIG = await res.json();
+        CONFIG = DEFAULT_CONFIG;
         applyZusWaloryzacjaDefaults();
         renderConfigView();
         updateStageHints(document.getElementById("stages-container"));
@@ -1138,6 +1297,21 @@ async function initConfig() {
     } catch (err) {
         console.error("Nie udało się wczytać konfiguracji:", err);
     }
+}
+
+// Uzupełnia brakujące klucze wczytanego configu domyślnymi (stare zapisane symulacje).
+function backfillConfig(config) {
+    if (!DEFAULT_CONFIG) return config;
+    const out = {};
+    for (const [section, defaults] of Object.entries(DEFAULT_CONFIG)) {
+        const loaded = config[section];
+        if (loaded && typeof defaults === "object" && defaults !== null && !Array.isArray(defaults)) {
+            out[section] = { ...defaults, ...loaded };
+        } else {
+            out[section] = loaded !== undefined ? loaded : defaults;
+        }
+    }
+    return out;
 }
 
 function setConfigPath(path, value) {
@@ -1184,7 +1358,8 @@ function renderConfigView() {
         configNumberField("zus.limit_base_annual", "Limit rocznej podstawy (30×)", CONFIG.zus.limit_base_annual, "Roczna podstawa wymiaru składek (30× przeciętne wynagrodzenie; 0 = brak limitu)."),
         configPercentField("zus.waloryzacja_skladek", "Waloryzacja składek", CONFIG.zus.waloryzacja_skladek, "Roczna waloryzacja kapitału zgromadzonego w ZUS."),
         configPercentField("zus.waloryzacja_swiadczenia", "Waloryzacja świadczenia", CONFIG.zus.waloryzacja_swiadczenia, "Roczna waloryzacja wypłacanej emerytury."),
-        configNumberField("zus.wiek_emerytalny", "Powszechny wiek emerytalny", CONFIG.zus.wiek_emerytalny, "Powszechny wiek emerytalny (obecnie 67 lat; w projektach reform wraca 65)."),
+        configNumberField("zus.wiek_emerytalny_k", "Wiek emerytalny — kobiety", CONFIG.zus.wiek_emerytalny_k, "Powszechny wiek emerytalny kobiet (60 r.ż. od 1.10.2017)."),
+        configNumberField("zus.wiek_emerytalny_m", "Wiek emerytalny — mężczyźni", CONFIG.zus.wiek_emerytalny_m, "Powszechny wiek emerytalny mężczyzn (65 r.ż. od 1.10.2017)."),
         configNumberField("zus.min_emerytura", "Emerytura minimalna", CONFIG.zus.min_emerytura, "Najniższa gwarantowana emerytura (2026 r.: 1 740 zł)."),
     ]));
 
@@ -1335,17 +1510,32 @@ function initSaveButton() {
 
 // --- Wczytywanie zapisanej symulacji (/sim?id=N) ---
 
+function migrateLegacyAccounts(stage) {
+    // Stare zapisy miały jedno konto "oki" z wyborem typu aktywów
+    // (asset_exemption: 100000 inwestycyjne / 25000 oszczędnościowe).
+    if (!stage.accounts || !stage.accounts["oki"]) return;
+    const legacy = stage.accounts["oki"];
+    const target =
+        legacy.asset_exemption === 25000 ? "oki_osk" : "oki_inw";
+    const { asset_exemption, ...rest } = legacy;
+    delete stage.accounts["oki"];
+    stage.accounts[target] = rest;
+}
+
 function populateStages(inputData) {
     const container = document.getElementById("stages-container");
-    if (inputData.config) CONFIG = inputData.config;
+    if (inputData.config) CONFIG = backfillConfig(inputData.config);
+    if (inputData.gender) setGender(inputData.gender);
     container.innerHTML = "";
     (inputData.stages || []).forEach((stage) => {
+        migrateLegacyAccounts(stage);
         container.appendChild(createStageBlock(stage));
     });
     if (inputData.config) renderConfigView();
     applyZusWaloryzacjaDefaults();
     updateStageButtons(container);
     updateStageHints(container);
+    refreshRealizationToggles(container);
 }
 
 async function loadSimulation(simId, container) {
@@ -1360,6 +1550,7 @@ async function loadSimulation(simId, container) {
         (DEFAULTS.stages || []).forEach((s) => container.appendChild(createStageBlock(s)));
         updateStageButtons(container);
         updateStageHints(container);
+        refreshRealizationToggles(container);
     }
 }
 
@@ -1383,7 +1574,7 @@ function renderColumnToggles(accounts) {
     container.innerHTML = "";
     const hidden = new Set(JSON.parse(localStorage.getItem(COLUMN_TOGGLES_KEY) || "[]"));
 
-    const cols = accounts.map((a) => ({ col: a, label: a.toUpperCase() }));
+    const cols = accounts.map((a) => ({ col: a, label: ACCOUNT_LABELS[a] || a }));
     cols.push(
         { col: "wealth", label: "Majątek" },
         { col: "annual", label: "Wypłata roczna" },

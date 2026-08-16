@@ -8,7 +8,8 @@ ACCOUNT_LABELS = {
     "krypto": "Krypto",
     "lokata": "Lokata",
     "oipe": "OIPE",
-    "oki": "OKI",
+    "oki_inw": "OKI inwestycyjne",
+    "oki_osk": "OKI oszczędnościowe",
     "ppe": "PPE",
     "ppk": "PPK",
     "zus": "ZUS (emerytura)",
@@ -37,6 +38,8 @@ class AccountRules(BaseModel):
     early_tax_rate: float = 0.0
     asset_tax_rate: float = 0.0
     asset_exemption: float = 0.0
+    asset_group: str | None = None  # konta z tym samym asset_group dzielą wspólny limit
+    asset_class: str | None = None  # "inwestycyjne" | "oszczednosciowe" w ramach grupy
 
 
 class Limits(BaseModel):
@@ -95,10 +98,19 @@ def default_account_rules() -> dict[str, AccountRules]:
             early_tax_model="flat",
             early_tax_rate=0.19,
         ),
-        "oki": AccountRules(
+        "oki_inw": AccountRules(
             tax_model="assets",
             asset_tax_rate=0.0085,
             asset_exemption=100_000,
+            asset_group="oki",
+            asset_class="inwestycyjne",
+        ),
+        "oki_osk": AccountRules(
+            tax_model="assets",
+            asset_tax_rate=0.0085,
+            asset_exemption=25_000,
+            asset_group="oki",
+            asset_class="oszczednosciowe",
         ),
         "zus": AccountRules(tax_model="scale"),
     }
@@ -117,7 +129,8 @@ class ZusConfig(BaseModel):
     limit_base_annual: float = 270_000
     waloryzacja_skladek: float = 0.01
     waloryzacja_swiadczenia: float = 0.01
-    wiek_emerytalny: int = 65
+    wiek_emerytalny_k: int = 60
+    wiek_emerytalny_m: int = 65
     min_emerytura: float = 2_000
 
 

@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 from app.simulation.config import TaxConfig, default_config
@@ -18,7 +20,7 @@ class AccountConfig(BaseModel):
     employee_pct: float = 0.02
     employer_pct: float = 0.015
     state_topups: bool = True
-    asset_exemption: float = 100_000
+    asset_exemption: float | None = None
 
 
 class StageInput(BaseModel):
@@ -32,6 +34,7 @@ class StageInput(BaseModel):
 class SimulationInput(BaseModel):
     stages: list[StageInput]
     max_age: int = 100
+    gender: Literal["k", "m"] = "m"
     config: TaxConfig = Field(default_factory=default_config)
 
 

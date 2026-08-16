@@ -74,7 +74,8 @@ def simulate(data: SimulationInput) -> SimulationResult:
         for name, cfg in stage_input.accounts.items():
             if name != "zus" or stage_input.stage_type == "akumulacja":
                 account_rois[name] = cfg.roi
-            asset_exemptions[name] = cfg.asset_exemption
+            if cfg.asset_exemption is not None:
+                asset_exemptions[name] = cfg.asset_exemption
             if cfg.starting_balance > 0:
                 balances.setdefault(name, cfg.starting_balance)
                 basis.setdefault(name, cfg.starting_balance)
@@ -376,6 +377,13 @@ def _accumulate_ppe(cfg: dict, balances: dict, basis: dict, config) -> None:
     basis["ppe"] = basis.get("ppe", 0.0) + total
 
 
+def _asset_class_of(rules) -> str:
+    """Klasyfikuje konto w grupie OKI: oszczędnościowe albo inwestycyjne."""
+    if rules and rules.asset_class:
+        return rules.asset_class
+    return "inwestycyjne"
+
+
 def _apply_asset_tax(
     balances: dict[str, float],
     starting: dict[str, float],
@@ -389,18 +397,67 @@ def _apply_asset_tax(
     (0,85% w 2027 r., od 2028 ok. 19% stopy NBP). Podatek płacony jest
     niezależnie od wyniku inwestycyjnego — potrącany z salda i wliczany
     do rocznego podatku (total_tax). Wypłaty z OKI nie podlegają Belce.
+
+    Konta oznaczone tym samym asset_group (np. OKI inwestycyjne + oszczęd-
+    nościowe) dzielą wspólny limit: 100 000 zł łącznie, z czego max
+    25 000 zł na część oszczędnościową (lokaty/obligacje). Każde samodzielne
+    konto OKI zachowuje swój niezależny próg.
     """
-    for account in list(balances.keys()):
+    groups: dict[str, list[str]] = {}
+    for account in balances:
         rules = config.accounts.get(account)
         if not rules or rules.tax_model != "assets":
             continue
-        exemption = asset_exemptions.get(account, rules.asset_exemption)
-        avg = (starting.get(account, 0.0) + balances[account]) / 2.0
-        tax = max(0.0, avg - exemption) * rules.asset_tax_rate
-        if tax <= 0:
+        groups.setdefault(rules.asset_group or account, []).append(account)
+
+    for members in groups.values():
+        savings = [
+            a for a in members
+            if _asset_class_of(config.accounts.get(a)) == "oszczednosciowe"
+        ]
+        invested = [
+            a for a in members
+            if _asset_class_of(config.accounts.get(a)) != "oszczednosciowe"
+        ]
+        rate = max((config.accounts[a].asset_tax_rate for a in members), default=0.0)
+
+        def _avg(account: str) -> float:
+            return (starting.get(account, 0.0) + balances[account]) / 2.0
+
+        def _exemption(account: str) -> float:
+            rules = config.accounts[account]
+            return asset_exemptions.get(account, rules.asset_exemption)
+
+        savings_avg = sum(_avg(a) for a in savings)
+        invested_avg = sum(_avg(a) for a in invested)
+
+        if not invested:
+            # Samodzielne konto o charakterze oszczędnościowym (próg 25 000 zł).
+            tax = max(0.0, savings_avg - max((_exemption(a) for a in savings), default=0.0)) * rate
+            for a in savings:
+                _deduct_asset_tax(balances, merged_tax, a, tax, _avg(a), savings_avg)
             continue
-        balances[account] = max(0.0, balances[account] - tax)
-        merged_tax[account] = merged_tax.get(account, 0.0) + tax
+
+        savings_limit = max((_exemption(a) for a in savings), default=0.0)
+        total_limit = max((_exemption(a) for a in invested), default=savings_limit)
+
+        s_tax = max(0.0, savings_avg - savings_limit) * rate
+        used = min(savings_avg, savings_limit)
+        i_tax = max(0.0, invested_avg - (total_limit - used)) * rate
+        for a in savings:
+            _deduct_asset_tax(balances, merged_tax, a, s_tax, _avg(a), savings_avg)
+        for a in invested:
+            _deduct_asset_tax(balances, merged_tax, a, i_tax, _avg(a), invested_avg)
+
+
+def _deduct_asset_tax(balances, merged_tax, account, total_tax, avg, group_avg) -> None:
+    """Potrąca przypadającą na konto część podatku od wartości aktywów."""
+    if total_tax <= 0 or group_avg <= 0:
+        return
+    share = avg / group_avg
+    tax = total_tax * share
+    balances[account] = max(0.0, balances[account] - tax)
+    merged_tax[account] = merged_tax.get(account, 0.0) + tax
 
 
 def _convert_zus(
@@ -501,18 +558,23 @@ def _apply_tax(
     return tax
 
 
+def _pension_age(config, gender: str) -> int:
+    """Powszechny wiek emerytalny wg płci (kobiety 60, mężczyźni 65, od 1.10.2017)."""
+    return config.zus.wiek_emerytalny_k if gender == "k" else config.zus.wiek_emerytalny_m
+
+
 def _collect_warnings(data: SimulationInput) -> list[str]:
     """Ostrzeżenia o suboptymalnej konfiguracji (wypłaty przed wiekiem, limity wpłat)."""
     warnings: list[str] = []
     config = data.config
+    em_wiek = _pension_age(config, data.gender)
 
     for si in data.stages:
         if si.stage_type == "realizacja":
             for name, cfg in si.accounts.items():
                 if name == "zus" and cfg.monthly_pension <= 0:
-                    if si.start_age < config.zus.wiek_emerytalny:
+                    if si.start_age < em_wiek:
                         label = ACCOUNT_LABELS["zus"]
-                        em_wiek = config.zus.wiek_emerytalny
                         warnings.append(
                             f"{label} wyliczana z kapitału od {si.start_age} r.ż. — "
                             f"przed powszechnym wiekiem emerytalnym ({em_wiek} r.ż.). "

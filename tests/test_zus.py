@@ -224,6 +224,66 @@ def test_zus_warning_before_retirement_age():
     assert any("przed powszechnym wiekiem emerytalnym" in w for w in result.warnings)
 
 
+# --- Wiek emerytalny wg płci (kobiety 60, mężczyźni 65) ---
+
+
+def test_zus_warning_male_below_65():
+    stages = [
+        accumulation_stage(
+            {"zus": acc(starting_balance=500000, monthly_base=8000, ofe_member=False)},
+            start=40,
+            end=62,
+        ),
+        realization_stage("ZUS", {"zus": acc(monthly_pension=0)}, 62, 100),
+    ]
+    result = simulate(SimulationInput(stages=stages, max_age=100, gender="m"))
+    assert any("przed powszechnym wiekiem emerytalnym (65 r.ż.)" in w for w in result.warnings)
+
+
+def test_zus_no_warning_female_from_62():
+    stages = [
+        accumulation_stage(
+            {"zus": acc(starting_balance=500000, monthly_base=8000, ofe_member=False)},
+            start=40,
+            end=62,
+        ),
+        realization_stage("ZUS", {"zus": acc(monthly_pension=0)}, 62, 100),
+    ]
+    result = simulate(SimulationInput(stages=stages, max_age=100, gender="k"))
+    assert not any("przed powszechnym wiekiem emerytalnym" in w for w in result.warnings)
+
+
+def test_zus_warning_female_below_60():
+    stages = [
+        accumulation_stage(
+            {"zus": acc(starting_balance=500000, monthly_base=8000, ofe_member=False)},
+            start=40,
+            end=58,
+        ),
+        realization_stage("ZUS", {"zus": acc(monthly_pension=0)}, 58, 100),
+    ]
+    result = simulate(SimulationInput(stages=stages, max_age=100, gender="k"))
+    assert any("przed powszechnym wiekiem emerytalnym (60 r.ż.)" in w for w in result.warnings)
+
+
+def test_zus_pension_independent_of_gender():
+    # Emerytura = kapitał / ŚDTŻ(wiek) — wspólna tablica dla obu płci.
+    stages = [
+        accumulation_stage(
+            {"zus": acc(starting_balance=400000, monthly_base=8000, ofe_member=False)},
+            start=40,
+            end=65,
+        ),
+        realization_stage("ZUS", {"zus": acc(monthly_pension=0)}, 65, 70),
+    ]
+    result_k = simulate(SimulationInput(stages=stages, max_age=70, gender="k"))
+    result_m = simulate(SimulationInput(stages=stages, max_age=70, gender="m"))
+    pension_k = next(y for y in result_k.years if y.age == 65).monthly_withdrawal
+    pension_m = next(y for y in result_m.years if y.age == 65).monthly_withdrawal
+    assert pension_k == pytest.approx(pension_m)
+    assert pension_k > 0
+
+
 # --- Waloryzacja per etap (override globalnej z Konfiguracji) ---
 
 

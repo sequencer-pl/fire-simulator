@@ -122,6 +122,81 @@ h2 {
     width: 120px;
 }
 
+/* --- Steppery −/+ w polach kont --- */
+.num-control {
+    display: flex;
+    align-items: stretch;
+    width: max-content;
+    max-width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+    transition: border-color 0.15s;
+}
+
+.num-control:focus-within {
+    border-color: var(--primary);
+}
+
+.num-control .acc-field {
+    flex: 1;
+    min-width: 0;
+    max-width: 15ch;
+    width: 100%;
+    border: none;
+    background: transparent;
+    padding: 0.45rem 0.5rem;
+    border-radius: 0;
+}
+
+.num-control .start-age,
+.num-control .end-age {
+    max-width: 5ch;
+    padding-right: 0.35rem;
+    padding-left: 0.35rem;
+}
+
+.num-control.input-error {
+    border-color: #e74c3c;
+}
+
+.num-control .stepper {
+    flex-shrink: 0;
+    width: 2rem;
+    border: none;
+    background: transparent;
+    color: var(--text-dim);
+    font-size: 1rem;
+    font-weight: 600;
+    line-height: 1;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.num-control .stepper:hover {
+    background: rgba(108, 92, 231, 0.12);
+    color: var(--primary);
+}
+
+.num-control .stepper:active {
+    background: rgba(108, 92, 231, 0.22);
+}
+
+.acc-field[type="number"]::-webkit-inner-spin-button,
+.acc-field[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+.acc-field[type="number"] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+}
+
 .stage-block select {
     width: 100%;
     max-width: 100%;
@@ -190,36 +265,44 @@ h2 {
 }
 
 .field-group.field-checkbox {
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
+    flex-direction: column;
+    align-items: flex-start;
 }
 
 .field-group.field-checkbox label {
-    margin-bottom: 0;
+    margin-bottom: 0.25rem;
 }
 
 /* --- Account toggles --- */
 .accounts-toggles {
-    display: flex;
-    gap: 0.5rem;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
+    gap: 0.4rem;
     margin-top: 1rem;
     margin-bottom: 0.5rem;
 }
 
 .account-toggle {
-    padding: 0.4rem 0.9rem;
-    border: 1px dashed var(--border);
-    border-radius: 6px;
-    background: transparent;
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.2rem;
+    min-width: 0;
+    width: 100%;
+    padding: 0.45rem 0.5rem;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface);
     color: var(--text-dim);
-    font-size: 0.85rem;
+    font-size: 0.78rem;
     cursor: pointer;
-    transition: all 0.15s;
+    text-align: center;
+    transition: border-color 0.15s, color 0.15s, background 0.15s;
 }
 
 .account-toggle:hover {
-    border-color: var(--text-dim);
+    border-color: var(--primary);
     color: var(--text);
 }
 
@@ -227,7 +310,13 @@ h2 {
     border-style: solid;
     border-color: var(--primary);
     color: var(--primary);
-    background: rgba(108, 92, 231, 0.1);
+    background: rgba(108, 92, 231, 0.12);
+}
+
+.account-toggle-label {
+    font-size: 0.78rem;
+    line-height: 1.3;
+    white-space: nowrap;
 }
 
 .account-toggle .tip {
@@ -236,9 +325,9 @@ h2 {
     background: none;
     border: none;
     color: inherit;
-    font-size: 1rem;
+    font-size: 1.05rem;
     line-height: 1;
-    margin-right: 0.3rem;
+    margin-right: 0;
     vertical-align: middle;
 }
 
@@ -365,7 +454,7 @@ h2 {
 
 .account-card .fields-row {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr;
     gap: 0.5rem;
 }
 
@@ -471,6 +560,29 @@ h2 {
     color: var(--text);
 }
 
+/* --- Przyciski dodawania etapów: kolor odpowiadający etapowi --- */
+.btn-add-accumulation {
+    color: #e17055;
+    border-color: rgba(225, 112, 85, 0.55);
+}
+
+.btn-add-accumulation:hover {
+    color: #e17055;
+    border-color: #e17055;
+    background: rgba(225, 112, 85, 0.08);
+}
+
+.btn-add-realization {
+    color: var(--accent);
+    border-color: rgba(0, 206, 201, 0.55);
+}
+
+.btn-add-realization:hover {
+    color: var(--accent);
+    border-color: var(--accent);
+    background: rgba(0, 206, 201, 0.08);
+}
+
 .btn:disabled {
     opacity: 0.45;
     cursor: not-allowed;
@@ -478,13 +590,44 @@ h2 {
 
 .phase-divider {
     display: flex;
-    justify-content: flex-start;
-    margin: 0.5rem 0;
+    align-items: center;
+    gap: 0.75rem;
+    margin: 1.5rem 0;
 }
 
-.phase-divider .phase-divider-btn {
-    margin: 0;
-    padding: 0.5rem 1.25rem;
+.phase-divider::before,
+.phase-divider::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+}
+
+.phase-divider-label {
+    color: var(--text);
+    font-size: 0.82rem;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+}
+
+.phase-divider-arrow {
+    color: var(--accent);
+    margin: 0 0.4rem;
+}
+
+.phase-divider-age {
+    background: rgba(108, 92, 231, 0.1);
+    border: 1px solid rgba(108, 92, 231, 0.3);
+    color: var(--primary);
+    border-radius: 999px;
+    padding: 0.15rem 0.65rem;
+    font-size: 0.72rem;
+    white-space: nowrap;
+}
+
+.phase-divider-age strong {
+    font-weight: 700;
 }
 
 .btn-danger {
@@ -506,6 +649,8 @@ h2 {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
     margin-top: 1rem;
     position: sticky;
     bottom: 0.75rem;
@@ -517,8 +662,65 @@ h2 {
     box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
 }
 
+.add-stage-btns,
+.form-actions-right {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
 .form-actions .btn {
     margin: 0;
+}
+
+/* --- Przełącznik płci (wiek emerytalny ZUS) --- */
+.gender-toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.gender-toggle > label {
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin: 0;
+}
+
+.gender-options {
+    display: inline-flex;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+    background: var(--bg);
+}
+
+.gender-option {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.35rem 0.8rem;
+    font-size: 0.85rem;
+    cursor: pointer;
+    color: var(--text-dim);
+    transition: background 0.15s, color 0.15s;
+    margin: 0;
+}
+
+.gender-option input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.gender-option:has(input:checked) {
+    background: var(--primary);
+    color: #fff;
+}
+
+.gender-option:not(:has(input:checked)):hover {
+    background: rgba(108, 92, 231, 0.1);
 }
 
 /* --- Results --- */
@@ -826,6 +1028,45 @@ tr.fade-2 td { opacity: 0.2; }
     justify-content: space-between;
     gap: 1rem;
     margin-bottom: 2rem;
+}
+
+.brand {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.brand-mark {
+    width: 46px;
+    height: 46px;
+    flex-shrink: 0;
+}
+
+.brand h1 {
+    font-size: 1.6rem;
+    line-height: 1.2;
+    margin-bottom: 0.1rem;
+}
+
+.brand-fire {
+    background: linear-gradient(90deg, #ffbe76, #e17055, #e74c3c);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    font-weight: 800;
+    letter-spacing: 0.03em;
+}
+
+.brand-sim {
+    color: var(--text-dim);
+    font-weight: 300;
+    letter-spacing: 0.03em;
+}
+
+.brand .subtitle {
+    margin-bottom: 0;
+    font-size: 0.85rem;
+    line-height: 1.3;
 }
 
 .topnav {
