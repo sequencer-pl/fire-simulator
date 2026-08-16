@@ -10,11 +10,25 @@ function escapeHtml(s) {
         .replace(/"/g, "&quot;");
 }
 
-function tipHtml(text, url) {
+const ACCOUNT_ICONS = {
+    broker: "📈",
+    lokata: "🏦",
+    gotowka: "💵",
+    ike: "🐷",
+    ikze: "🧾",
+    oipe: "🎯",
+    ppk: "🏢",
+    ppe: "💼",
+    oki: "🆕",
+    krypto: "₿",
+    zus: "🏛️",
+};
+
+function tipHtml(text, url, icon = "?") {
     const link = url
         ? ` <a href="${url}" target="_blank" rel="noopener">Więcej…</a>`
         : "";
-    return ` <span class="tip" tabindex="0">?<span class="tooltip">${escapeHtml(text)}${link}</span></span>`;
+    return ` <span class="tip" tabindex="0">${icon}<span class="tooltip">${escapeHtml(text)}${link}</span></span>`;
 }
 
 function fieldLabelHtml(fieldDef) {
@@ -208,8 +222,14 @@ function createAccountCard(stageType, accountKey, accountData) {
     });
 
     card.querySelector(".remove-account-btn").addEventListener("click", () => {
+        const stageBlock = card.closest(".stage-block");
+        const accountKey = card.dataset.account;
         card.closest(".accounts-grid").removeChild(card);
-        updateStageName(card.closest(".stage-block"));
+        const toggle = stageBlock.querySelector(
+            `.accounts-toggles .account-toggle[data-account="${accountKey}"]`
+        );
+        if (toggle) toggle.classList.remove("active");
+        updateStageName(stageBlock);
         updateStageHints(document.getElementById("stages-container"));
     });
 
@@ -255,8 +275,10 @@ function renderAccountToggles(stageBlock) {
         btn.type = "button";
         btn.className = "account-toggle" + (activeAccounts.has(key) ? " active" : "");
         btn.dataset.account = key;
-        const tip = meta.description ? tipHtml(meta.description, meta.url) : "";
-        btn.innerHTML = `${meta.label}${tip}`;
+        const tip = meta.description
+            ? tipHtml(meta.description, meta.url, ACCOUNT_ICONS[key] || "?")
+            : "";
+        btn.innerHTML = `${tip}${meta.label}`;
 
         btn.addEventListener("click", () => {
             if (btn.classList.contains("active")) {
@@ -1037,7 +1059,12 @@ function initStageEventHandlers(container) {
         true
     );
 
-    document.getElementById("simForm").addEventListener("submit", async (e) => {
+    const simForm = document.getElementById("simForm");
+    document.getElementById("simulateBtn").addEventListener("click", () => {
+        simForm.requestSubmit();
+    });
+
+    simForm.addEventListener("submit", async (e) => {
         e.preventDefault();
         if (!validateStageOrder(container)) {
             alert("Etap realizacji nie może zaczynać się przed końcem etapu akumulacji.");
@@ -1268,31 +1295,6 @@ async function resetConfig() {
 
 let lastInput = null;
 let lastResult = null;
-
-async function refreshSessionBar() {
-    try {
-        const res = await fetch("/api/session");
-        const session = await res.json();
-        const bar = document.getElementById("sessionBar");
-        if (!bar) return;
-        if (session.email) {
-            const btn = document.createElement("button");
-            btn.className = "btn btn-secondary";
-            btn.style.margin = "0";
-            btn.textContent = "Wyloguj (" + session.email + ")";
-            btn.addEventListener("click", async () => {
-                await fetch("/api/logout", { method: "POST" });
-                window.location.href = "/";
-            });
-            bar.innerHTML = "";
-            bar.appendChild(btn);
-        } else {
-            bar.innerHTML = `<a href="/" class="btn btn-secondary" style="margin:0;">Zaloguj</a>`;
-        }
-    } catch (err) {
-        console.error("Nie udało się odczytać sesji:", err);
-    }
-}
 
 function defaultSimName() {
     return "Symulacja " + new Date().toLocaleDateString("pl-PL");

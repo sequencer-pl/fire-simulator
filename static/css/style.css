@@ -230,6 +230,37 @@ h2 {
     background: rgba(108, 92, 231, 0.1);
 }
 
+.account-toggle .tip {
+    width: auto;
+    height: auto;
+    background: none;
+    border: none;
+    color: inherit;
+    font-size: 1rem;
+    line-height: 1;
+    margin-right: 0.3rem;
+    vertical-align: middle;
+}
+
+.account-toggle[data-account="krypto"] .tip {
+    color: #f7931a;
+}
+
+.account-toggle .tip .tooltip {
+    left: 0;
+    transform: translateY(4px);
+}
+
+.account-toggle .tip:hover .tooltip,
+.account-toggle .tip:focus .tooltip,
+.account-toggle .tip:focus-within .tooltip {
+    transform: translateY(0);
+}
+
+.account-toggle .tip .tooltip::after {
+    left: 0.6rem;
+}
+
 /* --- Account cards --- */
 .accounts-grid {
     display: grid;
@@ -476,6 +507,14 @@ h2 {
     justify-content: space-between;
     align-items: center;
     margin-top: 1rem;
+    position: sticky;
+    bottom: 0.75rem;
+    z-index: 30;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0.75rem 1rem;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
 }
 
 .form-actions .btn {

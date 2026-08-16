@@ -37,9 +37,9 @@ async function refreshSession() {
         show("authPanel", !email);
         show("simsPanel", !!email);
         if (email) {
-            $("sessionEmail").textContent = email;
             await loadSims();
         }
+        if (window.refreshSessionBar) refreshSessionBar();
     } catch (e) {
         console.error(e);
     }

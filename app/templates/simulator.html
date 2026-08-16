@@ -30,14 +30,6 @@
             <form id="simForm" novalidate>
                 <div id="stages-container">
                 </div>
-
-                <div class="form-actions">
-                    <button type="button" id="addRealizationBtn" class="btn btn-secondary">+ Dodaj etap realizacji</button>
-                    <div>
-                        <button type="button" id="saveSimBtn" class="btn btn-secondary" disabled>Zapisz symulację</button>
-                        <button type="submit" id="simulateBtn" class="btn btn-primary">Symuluj</button>
-                    </div>
-                </div>
             </form>
 
             <div id="results" class="results-section" style="display:none;">
@@ -76,6 +68,14 @@
                     </table>
                 </div>
             </div>
+
+            <div class="form-actions">
+                <button type="button" id="addRealizationBtn" class="btn btn-secondary">+ Dodaj etap realizacji</button>
+                <div>
+                    <button type="button" id="saveSimBtn" class="btn btn-secondary" disabled>Zapisz symulację</button>
+                    <button type="button" id="simulateBtn" class="btn btn-primary">Symuluj</button>
+                </div>
+            </div>
         </div>
 
         <!-- ====== KONFIGURACJA ====== -->
@@ -91,6 +91,7 @@
     const STAGE_TYPES = {{ stage_types | tojson }};
     const DEFAULTS = {{ defaults | tojson }};
     </script>
+    <script src="/static/js/session.js?v={{ asset_version }}"></script>
     <script src="/static/js/simulator.js?v={{ asset_version }}"></script>
 </body>
 </html>
