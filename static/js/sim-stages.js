@@ -732,9 +732,9 @@ function initStageEventHandlers(container) {
             if (result.error) {
                 alert("Błąd: " + result.error);
             } else {
-                renderResults(result);
                 lastInput = data;
                 lastResult = result;
+                renderResults(result);
                 document.getElementById("saveSimBtn").disabled = false;
             }
         } catch (err) {

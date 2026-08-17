@@ -155,10 +155,75 @@ function renderResults(data) {
     renderColumnToggles(accounts);
     applyColVisibility();
     applyDensity();
+    renderStageSummary(data);
     renderWealthChart(data);
 
     container.style.display = "block";
     container.scrollIntoView({ behavior: "smooth" });
+}
+
+function renderStageSummary(data) {
+    const el = document.getElementById("stageSummary");
+    if (!lastInput || !lastInput.stages) {
+        el.innerHTML = "";
+        return;
+    }
+    const stages = computeStageSummaries(lastInput, data);
+    if (stages.length === 0) {
+        el.innerHTML = "";
+        return;
+    }
+
+    let html = '<h3 class="section-heading">Podsumowanie etapów</h3>';
+    for (const st of stages) {
+        const isAccum = st.type === "akumulacja";
+        const kind = isAccum ? "accum" : "withdraw";
+
+        // Header
+        let metricLine = "";
+        if (isAccum && st.total_monthly > 0) {
+            metricLine = `Wkład miesięczny: <strong>${formatMoney(st.total_monthly)}</strong>`;
+            if (st.total_balance > 0) {
+                metricLine += `&nbsp;&nbsp;·&nbsp;&nbsp;Wartość końcowa: <strong>${formatMoney(st.total_balance)}</strong>`;
+            }
+        } else if (!isAccum) {
+            const parts = [];
+            if (st.avg_withdrawal > 0) parts.push(`Wypłata: <strong>${formatMoney(st.avg_withdrawal)}/mies.</strong>`);
+            if (st.total_withdrawn > 0) parts.push(`Wypłacono: <strong>${formatMoney(st.total_withdrawn)}</strong>`);
+            if (st.total_tax > 0) parts.push(`Podatki: <strong>${formatMoney(st.total_tax)}</strong>`);
+            if (st.total_balance > 0) parts.push(`Pozostało: <strong>${formatMoney(st.total_balance)}</strong>`);
+            metricLine = parts.join('&nbsp;&nbsp;·&nbsp;&nbsp;');
+        }
+
+        // Account rows
+        const accRows = st.accounts.map((a) => {
+            const icon = ACCOUNT_ICONS[a.key] || "";
+            const label = ACCOUNT_LABELS[a.key] || a.key;
+            let detail = "";
+            if (isAccum && a.monthly > 0) {
+                detail = `${formatMoney(a.monthly)}/mies. → ${formatMoney(a.balance)}`;
+            } else {
+                detail = formatMoney(a.balance);
+            }
+            return `<div class="stage-account">
+                <span class="stage-account-icon">${icon}</span>
+                <span class="stage-account-name">${escapeHtml(label)}</span>
+                <span class="stage-account-detail">${detail}</span>
+            </div>`;
+        }).join("");
+
+        html += `
+            <div class="stage-card ${kind}">
+                <div class="stage-card-header">
+                    <span class="stage-dot ${kind}"></span>
+                    <span class="stage-card-label">${escapeHtml(st.label)}</span>
+                    <span class="stage-card-age">${st.start_age}→${st.end_age} r.ż. (${st.duration} lat)</span>
+                </div>
+                ${metricLine ? `<div class="stage-card-metric">${metricLine}</div>` : ""}
+                ${accRows ? `<div class="stage-card-accounts">${accRows}</div>` : ""}
+            </div>`;
+    }
+    el.innerHTML = html;
 }
 
 // --- Init ---
