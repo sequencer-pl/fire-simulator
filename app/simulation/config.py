@@ -17,17 +17,17 @@ ACCOUNT_LABELS = {
 
 
 class AccountRules(BaseModel):
-    """Reguły podatkowe i dostępności konta (zależne od państwa/instytucji).
+    """Tax and availability rules for an account (varies by country/institution).
 
-    Reżimy:
-      - "none": brak podatku
-      - "flat": podatek ryczałtowy (tax_rate) od podstawy tax_basis
-      - "scale": dochód opodatkowany skalą PIT (od całości)
-      - "assets": coroczny podatek od wartości aktywów (OKI) — asset_tax_rate
-        od średniego stanu ponad asset_exemption; wypłaty bez Belki.
+    Regimes:
+      - "none": no tax
+      - "flat": flat-rate tax (tax_rate) on the tax_basis base
+      - "scale": income taxed on PIT scale (on the full amount)
+      - "assets": annual asset value tax (OKI) — asset_tax_rate
+        on average balance above asset_exemption; withdrawals exempt from Belka.
 
-    Przed min_withdrawal_age konto wypłaca w reżimie "early_*"
-    (np. IKZE przed 65 — skala; IKE przed 60 — Belka od zysku).
+    Before min_withdrawal_age the account withdraws under the "early_*"
+    regime (e.g. IKZE before 65 — scale; IKE before 60 — Belka on gains).
     """
 
     tax_model: str = "none"
@@ -38,16 +38,16 @@ class AccountRules(BaseModel):
     early_tax_rate: float = 0.0
     asset_tax_rate: float = 0.0
     asset_exemption: float = 0.0
-    asset_group: str | None = None  # konta z tym samym asset_group dzielą wspólny limit
+    asset_group: str | None = None  # accounts with the same asset_group share a common limit
     asset_class: str | None = None  # "inwestycyjne" | "oszczednosciowe" w ramach grupy
 
 
 class Limits(BaseModel):
-    """Roczne limity wpłat (obwieszczenia MRPiPS 2026).
+    """Annual contribution limits (MRPiPS announcement 2026).
 
-    oipe_annual (28 260 zł) = 3x przeciętne prognozowane wynagrodzenie (9 420 zł),
-    niezależne od IKE/IKZE. ppe_additional_annual (42 390 zł) = 4,5x przeciętne
-    (limit składki dodatkowej wnoszonej przez uczestnika PPE).
+    oipe_annual (28,260 PLN) = 3× projected average salary (9,420 PLN),
+    independent of IKE/IKZE. ppe_additional_annual (42,390 PLN) = 4.5× average
+    (limit for additional contributions by PPE participants).
     """
 
     ike_annual: float = 28_260
@@ -117,11 +117,11 @@ def default_account_rules() -> dict[str, AccountRules]:
 
 
 class ZusConfig(BaseModel):
-    """Parametry systemu emerytalnego (ZUS).
+    """Pension system parameters (ZUS).
 
-    Składka emerytalna: 19,52% podstawy (pracownik + pracodawca), dla członka
-    OFE 2,92 pkt przekazywane do OFE, reszta (16,6 pkt) waloryzowana w ZUS.
-    limit_base_annual = 30 x prognozowane przeciętne wynagrodzenie (0 = brak limitu).
+    Pension contribution: 19.52% of base (employee + employer); for OFE
+    members, 2.92 pp goes to OFE, the remainder (16.6 pp) is indexed in ZUS.
+    limit_base_annual = 30 × projected average salary (0 = no limit).
     """
 
     skladka_rate: float = 0.1952
@@ -135,10 +135,10 @@ class ZusConfig(BaseModel):
 
 
 class PpkConfig(BaseModel):
-    """Parametry PPK (ustawa o PPK, autozapis od 2019).
+    """PPK parameters (PPK Act, auto-enrolment since 2019).
 
-    Wpłaty podstawowe: pracownik 2%, pracodawca 1,5% podstawy (suma max 8%).
-    Państwo: 250 zł powitalne (jednorazowo) + 240 zł dopłaty rocznej.
+    Base contributions: employee 2%, employer 1.5% of base (total max 8%).
+    State: 250 PLN welcoming payment (one-time) + 240 PLN annual top-up.
     """
 
     employee_pct: float = 0.02
@@ -149,10 +149,10 @@ class PpkConfig(BaseModel):
 
 
 class PpeConfig(BaseModel):
-    """Parametry PPE (ustawa o PPE).
+    """PPE parameters (PPE Act).
 
-    Składka podstawowa finansowana przez pracodawcę — max 7% wynagrodzenia.
-    Składka dodatkowa uczestnika limitowana w Limits.ppe_additional_annual.
+    Base contribution funded by the employer — max 7% of salary.
+    Participant's additional contribution capped at Limits.ppe_additional_annual.
     """
 
     max_employer_pct: float = 0.07

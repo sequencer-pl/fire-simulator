@@ -23,7 +23,7 @@ STATIC_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "static")
 
 
 def _asset_version() -> str:
-    """Wersja statyków wg mtime — wymusza odświeżenie cache po zmianie plików."""
+    """Static asset version based on mtime — forces cache refresh after file changes."""
     mtimes = [
         os.path.getmtime(os.path.join(STATIC_DIR, rel))
         for rel in ("css/style.css", "js/simulator.js", "js/home.js", "js/compare.js")
@@ -90,7 +90,7 @@ def _simulation_response(row: sqlite3.Row) -> dict:
     }
 
 
-# --- Widoki ---
+# --- Views ---
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -124,7 +124,7 @@ async def compare_view(request: Request):
     )
 
 
-# --- API symulacji (istniejące) ---
+# --- Simulation API (existing) ---
 
 
 @router.post("/api/simulate")
@@ -151,7 +151,7 @@ async def api_config():
     return default_config().model_dump()
 
 
-# --- Autoryzacja ---
+# --- Authorization ---
 
 
 class AuthPayload(BaseModel):
@@ -204,7 +204,7 @@ async def api_session(request: Request):
     return {"email": user["email"]}
 
 
-# --- Zapisane symulacje ---
+# --- Saved simulations ---
 
 
 class SaveSimulationPayload(BaseModel):
@@ -292,7 +292,7 @@ async def api_delete_simulation(sim_id: int, request: Request):
     return {"ok": True}
 
 
-# --- Porównanie ---
+# --- Compare ---
 
 
 @router.get("/api/compare")

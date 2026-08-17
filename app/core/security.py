@@ -6,7 +6,7 @@ _ITERATIONS = 200_000
 
 
 def hash_password(password: str) -> str:
-    """Hashuje hasło PBKDF2-HMAC-SHA256 z losową solą (format samoopisujący)."""
+    """Hash a password with PBKDF2-HMAC-SHA256 and random salt (self-describing format)."""
     salt = os.urandom(16)
     dk = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, _ITERATIONS)
     return f"pbkdf2_sha256${_ITERATIONS}${salt.hex()}${dk.hex()}"

@@ -1,11 +1,11 @@
-"""Tablica średniego dalszego trwania życia (SDTZ).
+"""Average remaining life expectancy table (SDTZ).
 
-Źródło: Komunikat Prezesa GUS z 25 marca 2026 r. (M.P. 2026 poz. 319),
-obowiązuje od 2026-04-01 do 2027-03-31.
+Source: Announcement of the President of GUS dated 25 March 2026 (M.P. 2026 item 319),
+effective from 2026-04-01 to 2027-03-31.
 
-Wartości to dalsze trwanie życia w MIESIĄCACH wg "0 miesięcy ukończonych
-powyżej pełnego roku życia" (kolumna dla pełnych lat). Emerytura w nowym
-systemie = kapitał zgromadzony / SDTZ(age), np. 500 000 / 222,7 ≈ 2 245 zł.
+Values are remaining life expectancy in MONTHS for "0 completed months
+above a full year of life" (column for full years). Pension in the new
+system = accumulated capital / SDTZ(age), e.g. 500,000 / 222.7 ≈ 2,245 PLN.
 """
 
 # {wiek w latach: miesiące dalszego trwania życia}
@@ -28,7 +28,7 @@ MAX_AGE = max(TABLICA_SDTZ)
 
 
 def sdtz_months(age: int) -> float:
-    """Dalsze trwanie życia (miesiące) dla pełnego roku życia."""
+    """Remaining life expectancy (months) for a completed year of life."""
     if age <= MIN_AGE:
         return TABLICA_SDTZ[MIN_AGE]
     if age >= MAX_AGE:

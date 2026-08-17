@@ -3,7 +3,7 @@ from app.stages.base import BaseStage
 
 
 class RealizacjaStage(BaseStage):
-    """Etap realizacji zysków - wypłaty PMT ze wszystkich kont + ZUS."""
+    """Profit realization stage — PMT withdrawals from all accounts + ZUS."""
 
     name = "Realizacja"
     stage_type = "withdrawal"

@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 
 
 class BaseStage(ABC):
-    """Interfejs dla wszystkich etapów symulacji."""
+    """Interface for all simulation stages."""
 
     name: str
     stage_type: str

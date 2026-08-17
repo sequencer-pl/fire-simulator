@@ -32,7 +32,7 @@ CREATE INDEX IF NOT EXISTS idx_simulations_user ON simulations(user_id);
 
 
 def set_db_path(path: str) -> None:
-    """Nadpisuje ścieżkę bazy (do testów)."""
+    """Override the database path (for testing)."""
     global _db_path
     _db_path = path
 

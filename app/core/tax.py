@@ -1,4 +1,4 @@
-"""Podatki dochodowe — skala PIT i podatki ryczałtowe (Polska 2026)."""
+"""Income taxes — PIT scale and flat-rate taxes (Poland 2026)."""
 
 
 def scale_tax(
@@ -9,20 +9,20 @@ def scale_tax(
     rate_lower: float = 0.12,
     rate_upper: float = 0.32,
 ) -> float:
-    """Podatek PIT wg skali (art. 27 ustawy o PIT).
+    """PIT tax on scale (Art. 27 of the PIT Act).
 
-    Skala 2026: kwota wolna 30 000 zł, 12% do 120 000 zł, 32% ponad.
-    Kwota zmniejszająca podatek jest pochodną kwoty wolnej (kwota_wolna * rate_lower).
+    2026 scale: tax-free allowance 30,000 PLN, 12% up to 120,000 PLN, 32% above.
+    The tax-reducing amount is derived from the tax-free allowance (kwota_wolna * rate_lower).
 
     Args:
-        income: roczny dochód opodatkowany skalą.
-        kwota_wolna: roczna kwota wolna od podatku (0 zł podatku do tej kwoty).
-        prog: próg podatkowy, od którego obowiązuje stawka wyższa.
-        rate_lower: stawka w I progu.
-        rate_upper: stawka w II progu.
+        income: annual income taxed on scale.
+        kwota_wolna: annual tax-free allowance (0 tax up to this amount).
+        prog: tax threshold above which the higher rate applies.
+        rate_lower: rate in bracket I.
+        rate_upper: rate in bracket II.
 
     Returns:
-        Należny podatek (>= 0).
+        Tax due (>= 0).
     """
     if income <= 0:
         return 0.0

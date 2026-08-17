@@ -2,7 +2,7 @@ from app.stages.base import BaseStage
 
 
 class AkumulacjaStage(BaseStage):
-    """Etap akumulacji kapitału - wzrost + dopłaty."""
+    """Capital accumulation stage — growth + contributions."""
 
     name = "Akumulacja"
     stage_type = "accumulation"

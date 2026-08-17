@@ -6,9 +6,9 @@ _DEFAULT_SECRET_FILE = os.path.join(os.path.dirname(__file__), "..", "..", ".sec
 
 
 def get_secret_key() -> str:
-    """Klucz sesji: env FIRE_SECRET_KEY albo trwały losowy klucz w pliku.
+    """Session key: FIRE_SECRET_KEY env var or a persistent random key in a file.
 
-    Plik pozwala przetrwać restarty serwera bez wylogowania użytkowników.
+    The file allows the key to survive server restarts without logging users out.
     """
     key = os.environ.get("FIRE_SECRET_KEY")
     if key:

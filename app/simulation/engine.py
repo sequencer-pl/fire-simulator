@@ -15,7 +15,7 @@ MONTHS_PER_YEAR = 12
 
 
 def _validate_stage_order(stages: list[StageInput]) -> None:
-    """Etap realizacji nie może zaczynać się przed końcem ostatniej akumulacji."""
+    """The realization stage cannot start before the end of the last accumulation stage."""
     akum_end = max(
         (s.end_age for s in stages if s.stage_type == "akumulacja"),
         default=None,
@@ -32,7 +32,7 @@ def _validate_stage_order(stages: list[StageInput]) -> None:
 
 
 def _validate_roi(data: SimulationInput) -> None:
-    """ROI musi być większe od -100% (niższe wartości psują wzrost i PMT)."""
+    """ROI must be greater than -100% (lower values break growth and PMT calculations)."""
     for si in data.stages:
         for name, cfg in si.accounts.items():
             if cfg.roi <= -1:
@@ -51,8 +51,8 @@ def _init_state(data: SimulationInput) -> tuple:
     asset_exemptions: dict[str, float] = {}
     all_accounts: set[str] = set()
 
-    # Inicjalizacja sald i ROI niezależna od kolejności etapów
-    # (najwcześniejszy chronologicznie etap definiuje saldo startowe)
+    # Initialize balances and ROI independent of stage order
+    # (earliest chronological stage defines starting balance)
     for stage_input in sorted(data.stages, key=lambda s: s.start_age):
         all_accounts.update(stage_input.accounts.keys())
         for name, cfg in stage_input.accounts.items():
@@ -88,9 +88,9 @@ def _process_ikze_returns(
     config: TaxConfig,
     early_returned: set[str],
 ) -> dict[str, float]:
-    # Jednorazowy zwrot IKZE przed wiekiem uprawniającym (np. 65 r.ż.):
-    # podatek wg skali od CAŁOŚCI salda jest potrącany przed wyliczeniem PMT,
-    # więc wypłaty ratalne są liczone od kapitału netto (model "wypłata + lokata").
+    # One-time IKZE early return before qualifying age (e.g. 65):
+    # scale tax on ENTIRE balance is deducted before PMT calculation,
+    # so installment payments are based on net capital ("payout + deposit" model).
     early_return_tax: dict[str, float] = {}
     for si in active_stages:
         if si.stage_type != "realizacja" or age != si.start_age:
@@ -128,7 +128,7 @@ def _process_ppk_forfeits(
     forfeited: set[str],
     year_start_balances: dict[str, float],
 ) -> None:
-    # PPK: przepadek środków pracodawcy i państwa przy wypłacie przed 60 r.ż.
+    # PPK: employer and state contribution forfeit on early withdrawal before age 60.
     for si in active_stages:
         if si.stage_type != "realizacja" or age != si.start_age:
             continue
@@ -177,9 +177,9 @@ def _process_stages(
             name: cfg.model_dump() for name, cfg in stage_input.accounts.items()
         }
 
-        # ZUS — składki i waloryzacja kapitału (akumulacja) oraz konwersja
-        # kapitału na emeryturę (realizacja) są liczone przez silnik, bo
-        # różnią się od zwykłych kont (waloryzacja zamiast ROI, ŚDTŻ zamiast PMT).
+        # ZUS — contributions and capital indexation (accumulation) plus capital
+        # conversion to pension (realization) are handled by the engine because
+        # they differ from regular accounts (indexation instead of ROI, ŚDTŻ instead of PMT).
         if "zus" in accounts_config and not zus_handled:
             if stage_input.stage_type == "akumulacja":
                 _accumulate_zus(accounts_config["zus"], balances, config)
@@ -197,8 +197,8 @@ def _process_stages(
                 )
             zus_handled = True
 
-        # PPK / PPE — składki procentowe od podstawy (akumulacja).
-        # Wypłaty idą przez generyczny RealizacjaStage (jak IKE).
+        # PPK / PPE — percentage contributions from base (accumulation).
+        # Withdrawals go through generic RealizacjaStage (like IKE).
         if stage_input.stage_type == "akumulacja":
             if "ppk" in accounts_config:
                 _accumulate_ppk(
@@ -283,8 +283,8 @@ def _assemble_years(
         sb = c["starting_balances"]
         stage_withdrawal = sum(c["withdrawal"].values())
         stage_tax = sum(c["tax"].values())
-        # Podatek od jednorazowego zwrotu IKZE jest już potrącony z kapitału
-        # (model "wypłata + lokata") — nie zmniejsza dodatkowo rocznej wypłaty.
+        # IKZE early return tax is already deducted from capital
+        # ("payout + deposit" model) — it doesn't further reduce the annual withdrawal.
         annual_net_deduction = stage_tax - c.get("early_return_tax", 0.0)
         stage_withdrawal_net = max(0.0, stage_withdrawal - annual_net_deduction)
         total_withdrawn_net += stage_withdrawal_net
@@ -307,17 +307,17 @@ def _assemble_years(
 
 def simulate(data: SimulationInput) -> SimulationResult:
     """
-    Silnik symulacji — pętla po wiekach.
+    Simulation engine — loop over ages.
 
-    Dla każdego roku:
-    1. Znajdujemy aktywne etapy (start_age <= age < end_age)
-    2. Dla każdego aktywnego etapu: calculate_year z deduplikacją kont
+    For each year:
+    1. Find active stages (start_age <= age < end_age)
+    2. For each active stage: calculate_year with account deduplication
     3. Merge withdrawal (gross)
-    4. Podatki wg reguł kont (basis tracking, skala/ryczałt) — netto
-    5. Passive growth raz dla kont nieobsługiwanych przez żaden etap
-    6. Zapis computed[age]
+    4. Apply taxes per account rules (basis tracking, scale/flat) — net
+    5. Passive growth once for accounts not handled by any stage
+    6. Store computed[age]
 
-    end_age jest exclusive.
+    end_age is exclusive.
     """
     if not data.stages:
         return SimulationResult(
@@ -439,7 +439,7 @@ def simulate(data: SimulationInput) -> SimulationResult:
 
 
 def _accumulate_zus(cfg: dict, balances: dict, config: TaxConfig) -> None:
-    """Roczna składka i waloryzacja kapitału emerytalnego (akumulacja)."""
+    """Annual contribution and pension capital indexation (accumulation)."""
     zus_cfg = config.zus
     base_annual = cfg.get("monthly_base", 0.0) * MONTHS_PER_YEAR
     cap = zus_cfg.limit_base_annual
@@ -482,16 +482,17 @@ def _accumulate_ppk(
     config: TaxConfig,
     welcomed: set[str],
 ) -> None:
-    """Roczna wpłata % od podstawy + dopłaty państwa (akumulacja PPK).
+    """Annual % contribution from base + state top-ups (PPK accumulation).
 
-    Wpłata pracownika (employee_pct) i pracodawcy (employer_pct) jest naliczana
-    od rocznej podstawy. Dopłata roczna państwa (240 zł) wpada co roku, wpłata
-    powitalna (250 zł) tylko w pierwszym roku akumulacji. Całość wliczana do
-    podstawy kosztów (basis) — dla Belki przy wypłatach przed 60 r.ż.
+    Employee (employee_pct) and employer (employer_pct) contributions are
+    calculated on the annual base. Annual state top-up (240 PLN) is granted
+    every year, welcoming payment (250 PLN) only in the first year of
+    accumulation. Everything is included in the cost basis (basis) — for
+    Belka tax on withdrawals before age 60.
 
-    Przed 60 r.ż. pracownik otrzymuje z powrotem tylko własne wpłaty; środki
-    pracodawcy i dopłaty państwa przepadają. Dlatego śledzimy basis_employee
-    osobno, by obliczyć udział przepadkowy.
+    Before age 60 the employee only gets back their own contributions;
+    employer and state funds are forfeited. That's why we track
+    basis_employee separately to calculate the forfeitable share.
     """
     ppk_cfg = config.ppk
     base_annual = cfg.get("monthly_base", 0.0) * MONTHS_PER_YEAR
@@ -514,14 +515,14 @@ def _accumulate_ppk(
 
 
 def _accumulate_ppe(cfg: dict, balances: dict, basis: dict, config: TaxConfig) -> None:
-    """Roczna składka podstawowa (pracodawca, % podstawy) + dodatkowa (kwotowo).
+    """Annual base contribution (employer, % of base) + additional contribution (fixed amount).
 
-    Limit podstawowej (7%) jest kontrolowany ostrzeżeniem w _collect_warnings —
-    silnik liczy od podanej wartości.
+    The 7% base limit is enforced via a warning in _collect_warnings —
+    the engine calculates from the given value.
 
-    30% składek podstawowych pracodawcy trafia do ZUS (subkonto), a nie do
-    PPE — zgodnie z ustawą o PPE. Pozostałe 70% + składka dodatkowa uczestnika
-    wchodzą na rachunek PPE.
+    30% of the employer's base contributions go to ZUS (sub-account), not to
+    PPE — as required by the PPE Act. The remaining 70% plus the participant's
+    additional contribution are credited to the PPE account.
     """
     base_annual = cfg.get("monthly_base", 0.0) * MONTHS_PER_YEAR
     employer = base_annual * cfg.get("employer_pct", 0.0)
@@ -538,7 +539,7 @@ def _accumulate_ppe(cfg: dict, balances: dict, basis: dict, config: TaxConfig) -
 
 
 def _asset_class_of(rules) -> str:
-    """Klasyfikuje konto w grupie OKI: oszczędnościowe albo inwestycyjne."""
+    """Classifies an account within an OKI group: savings or investment."""
     if rules and rules.asset_class:
         return rules.asset_class
     return "inwestycyjne"
@@ -551,17 +552,18 @@ def _apply_asset_tax(
     asset_exemptions: dict[str, float],
     config: TaxConfig,
 ) -> None:
-    """Coroczny podatek od wartości aktywów (OKI) ponad próg zwolnienia.
+    """Annual asset value tax (OKI) above the exemption threshold.
 
-    Podstawa to średnia roczna wartość aktywów, stawka asset_tax_rate
-    (0,85% w 2027 r., od 2028 ok. 19% stopy NBP). Podatek płacony jest
-    niezależnie od wyniku inwestycyjnego — potrącany z salda i wliczany
-    do rocznego podatku (total_tax). Wypłaty z OKI nie podlegają Belce.
+    The base is the average annual asset value; the rate is asset_tax_rate
+    (0.85% in 2027, from 2028 approx. 19% of the NBP reference rate).
+    The tax is paid regardless of investment performance — deducted from
+    the balance and included in the annual tax (total_tax). OKI withdrawals
+    are not subject to Belka tax.
 
-    Konta oznaczone tym samym asset_group (np. OKI inwestycyjne + oszczęd-
-    nościowe) dzielą wspólny limit: 100 000 zł łącznie, z czego max
-    25 000 zł na część oszczędnościową (lokaty/obligacje). Każde samodzielne
-    konto OKI zachowuje swój niezależny próg.
+    Accounts marked with the same asset_group (e.g. OKI investment +
+    savings) share a common limit: 100,000 PLN total, of which max
+    25,000 PLN for the savings portion (deposits/bonds). Each standalone
+    OKI account retains its own independent threshold.
     """
     groups: dict[str, list[str]] = {}
     for account in balances:
@@ -596,7 +598,7 @@ def _apply_asset_tax(
         invested_avg = sum(_avg(a) for a in invested)
 
         if not invested:
-            # Samodzielne konto o charakterze oszczędnościowym (próg 25 000 zł).
+            # Standalone savings-type account (threshold 25 000 PLN).
             tax = (
                 max(
                     0.0,
@@ -632,7 +634,7 @@ def _apply_asset_tax(
 def _deduct_asset_tax(
     balances, merged_tax, account, total_tax, avg, group_avg
 ) -> None:
-    """Potrąca przypadającą na konto część podatku od wartości aktywów."""
+    """Deducts the account's share of the asset value tax."""
     if total_tax <= 0 or group_avg <= 0:
         return
     share = avg / group_avg
@@ -649,12 +651,12 @@ def _convert_zus(
     balances: dict,
     config: TaxConfig,
 ) -> None:
-    """Konwersja kapitału na emeryturę przy starcie etapu realizacji.
+    """Convert capital to pension at the start of the realization stage.
 
-    Emerytura = kapitał / ŚDTŻ(age). Wstrzyknięcie do config etapu jako
-    monthly_pension sprawia, że RealizacjaStage traktuje ją jak zwykłe
-    świadczenie. Po konwersji kapitał jest zerowany, a świadczenie corocznie
-    waloryzowane o waloryzacja_swiadczenia.
+    Pension = capital / SDTZ(age). Injecting it into the stage config as
+    monthly_pension causes RealizacjaStage to treat it as a regular
+    benefit. After conversion the capital is zeroed out, and the benefit
+    is annually adjusted by waloryzacja_swiadczenia.
     """
     cfg = accounts_config["zus"]
     if cfg.get("monthly_pension", 0.0) > 0:
@@ -682,7 +684,7 @@ def _apply_tax(
     config: TaxConfig,
     early_returned: set[str],
 ) -> dict[str, float]:
-    """Oblicza podatek za rok dla każdego konta i aktualizuje podstawę kosztów."""
+    """Calculate the annual tax for each account and update the cost basis."""
     tax: dict[str, float] = {}
     scale_income = 0.0
     scale_accounts: list[tuple[str, float]] = []
@@ -692,8 +694,8 @@ def _apply_tax(
         if not rules:
             continue
         if account in early_returned:
-            # Jednorazowy zwrot IKZE przed wiekiem — podatek pobrany przy zwrocie,
-            # dalsze wypłaty (raty z kapitału netto) nie są ponownie opodatkowane.
+            # One-time IKZE early return — tax already collected at return,
+            # subsequent withdrawals (installments from net capital) not re-taxed.
             continue
 
         early = rules.min_withdrawal_age > 0 and age < rules.min_withdrawal_age
@@ -703,8 +705,8 @@ def _apply_tax(
         if model == "none":
             continue
         if model == "assets":
-            # Podatek od wartości aktywów (OKI) liczony osobno w _apply_asset_tax —
-            # wypłaty nie podlegają Belce.
+            # Asset value tax (OKI) calculated separately in _apply_asset_tax —
+            # withdrawals not subject to capital gains tax.
             continue
         if model == "scale":
             scale_accounts.append((account, amount))
@@ -744,12 +746,12 @@ def _apply_tax(
 
 
 def _pension_age(config: TaxConfig, gender: str) -> int:
-    """Powszechny wiek emerytalny wg płci (kobiety 60, mężczyźni 65, od 1.10.2017)."""
+    """Statutory retirement age by gender (women 60, men 65, since 1.10.2017)."""
     return config.zus.wiek_emerytalny_k if gender == "k" else config.zus.wiek_emerytalny_m
 
 
 def _collect_warnings(data: SimulationInput) -> list[str]:
-    """Ostrzeżenia o suboptymalnej konfiguracji (wypłaty przed wiekiem, limity wpłat)."""
+    """Warnings about suboptimal configuration (premature withdrawals, contribution limits)."""
     warnings: list[str] = []
     config = data.config
     retirement_age = _pension_age(config, data.gender)
@@ -834,8 +836,8 @@ def _collect_warnings(data: SimulationInput) -> list[str]:
                             f"przekracza ustawowy limit 7%."
                         )
 
-    # Gotówka — ROI >= 0% oznacza brak inflacji lub deflację (mało prawdopodobne).
-    # Deduplikacja: gotówka występuje zwykle w akumulacji i realizacji naraz.
+    # Cash — ROI >= 0% means no inflation or deflation (unlikely).
+    # Deduplication: cash usually appears in both accumulation and realization.
     cash_warnings: set[str] = set()
     for si in data.stages:
         for name, cfg in si.accounts.items():
