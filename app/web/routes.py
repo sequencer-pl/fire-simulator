@@ -4,17 +4,14 @@ import sqlite3
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
-from pydantic import BaseModel, Field
 
-from app.core.security import hash_password, is_valid_password, verify_password
 from app.simulation.config import default_config
 from app.simulation.engine import simulate
 from app.simulation.schemas import SimulationInput, SimulationResult
 from app.stages.metadata import STAGE_META
 from app.stages.registry import get_all_stage_types
-from app.storage import db
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
@@ -95,33 +92,27 @@ def _simulation_response(row: sqlite3.Row) -> dict:
 
 @router.get("/", response_class=HTMLResponse)
 async def home(request: Request):
-    return templates.TemplateResponse(
-        request,
-        "home.html",
-        {"asset_version": _asset_version()},
-    )
+    return templates.TemplateResponse("home.html", {
+        "request": request,
+        "version": _asset_version(),
+    })
 
 
 @router.get("/sim", response_class=HTMLResponse)
-async def simulator(request: Request):
-    return templates.TemplateResponse(
-        request,
-        "simulator.html",
-        {
-            "stage_types": get_all_stage_types(),
-            "defaults": _get_defaults(),
-            "asset_version": _asset_version(),
-        },
-    )
+async def sim(request: Request):
+    return templates.TemplateResponse("simulator.html", {
+        "request": request,
+        "version": _asset_version(),
+        "stage_types": get_all_stage_types(),
+    })
 
 
 @router.get("/compare", response_class=HTMLResponse)
-async def compare_view(request: Request):
-    return templates.TemplateResponse(
-        request,
-        "compare.html",
-        {"asset_version": _asset_version()},
-    )
+async def compare(request: Request):
+    return templates.TemplateResponse("compare.html", {
+        "request": request,
+        "version": _asset_version(),
+    })
 
 
 # --- Simulation API (existing) ---
@@ -131,9 +122,9 @@ async def compare_view(request: Request):
 async def api_simulate(input_data: SimulationInput):
     try:
         result = simulate(input_data)
-        return result.model_dump()
     except Exception as e:
-        return JSONResponse(status_code=400, content={"error": str(e)})
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    return result
 
 
 @router.get("/api/stage-types")
@@ -151,180 +142,7 @@ async def api_config():
     return default_config().model_dump()
 
 
-# --- Authorization ---
-
-
-class AuthPayload(BaseModel):
-    email: str
-    password: str
-
-
-@router.post("/api/register")
-async def api_register(payload: AuthPayload, request: Request):
-    email = payload.email.strip().lower()
-    if not email or "@" not in email:
-        raise HTTPException(status_code=400, detail="Podaj poprawny adres e-mail.")
-    if not is_valid_password(payload.password):
-        raise HTTPException(
-            status_code=400, detail="Hasło musi mieć co najmniej 8 znaków."
-        )
-    try:
-        user_id = db.create_user(email, hash_password(payload.password), _now())
-    except sqlite3.IntegrityError:
-        raise HTTPException(status_code=409, detail="Konto z tym e-mailem już istnieje.") from None
-    request.session["user_id"] = user_id
-    return {"email": email}
-
-
-@router.post("/api/login")
-async def api_login(payload: AuthPayload, request: Request):
-    email = payload.email.strip().lower()
-    user = db.get_user_by_email(email)
-    if not user or not verify_password(payload.password, user["password_hash"]):
-        raise HTTPException(status_code=401, detail="Nieprawidłowy e-mail lub hasło.")
-    request.session["user_id"] = user["id"]
-    return {"email": email}
-
-
-@router.post("/api/logout")
-async def api_logout(request: Request):
-    request.session.clear()
-    return {"ok": True}
-
-
-@router.get("/api/session")
-async def api_session(request: Request):
-    user_id = _current_user_id(request)
-    if not user_id:
-        return {"email": None}
-    user = db.get_user_by_id(user_id)
-    if not user:
-        request.session.clear()
-        return {"email": None}
-    return {"email": user["email"]}
-
-
-# --- Saved simulations ---
-
-
-class SaveSimulationPayload(BaseModel):
-    name: str = Field(min_length=1, max_length=200)
-    input: SimulationInput
-
-
-class RenamePayload(BaseModel):
-    name: str = Field(min_length=1, max_length=200)
-
-
-@router.post("/api/simulations")
-async def api_save_simulation(payload: SaveSimulationPayload, request: Request):
-    user_id = _require_user(request)
-    try:
-        result = simulate(payload.input)
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e)) from e
-    now = _now()
-    summary = _summary_from_result(result)
-    summary["stages"] = _stages_summary(payload.input)
-    sim_id = db.insert_simulation(
-        user_id=user_id,
-        name=payload.name.strip(),
-        created_at=now,
-        input_json=json.dumps(payload.input.model_dump(mode="json")),
-        result_json=json.dumps(result.model_dump(mode="json")),
-        summary_json=json.dumps(summary),
-    )
-    row = db.get_simulation(sim_id, user_id)
-    return _simulation_response(row)
-
-
-@router.get("/api/simulations")
-async def api_list_simulations(request: Request):
-    user_id = _require_user(request)
-    rows = db.list_simulations(user_id)
-    return [_simulation_response(row) for row in rows]
-
-
-@router.get("/api/simulations/{sim_id}")
-async def api_get_simulation(sim_id: int, request: Request):
-    user_id = _require_user(request)
-    row = db.get_simulation(sim_id, user_id)
-    if not row:
-        raise HTTPException(status_code=404, detail="Symulacja nie znaleziona.")
-    return {
-        "id": row["id"],
-        "name": row["name"],
-        "created_at": row["created_at"],
-        "updated_at": row["updated_at"],
-        "input": json.loads(row["input_json"]),
-        "result": json.loads(row["result_json"]),
-        "summary": json.loads(row["summary_json"]),
-    }
-
-
-@router.patch("/api/simulations/{sim_id}")
-async def api_rename_simulation(sim_id: int, payload: RenamePayload, request: Request):
-    user_id = _require_user(request)
-    if not db.update_simulation_name(sim_id, user_id, payload.name.strip(), _now()):
-        raise HTTPException(status_code=404, detail="Symulacja nie znaleziona.")
-    row = db.get_simulation(sim_id, user_id)
-    return _simulation_response(row)
-
-
-@router.post("/api/simulations/{sim_id}/duplicate")
-async def api_duplicate_simulation(sim_id: int, request: Request):
-    user_id = _require_user(request)
-    row = db.get_simulation(sim_id, user_id)
-    if not row:
-        raise HTTPException(status_code=404, detail="Symulacja nie znaleziona.")
-    new_id = db.duplicate_simulation(
-        sim_id, user_id, f"Kopia: {row['name']}", _now()
-    )
-    new_row = db.get_simulation(new_id, user_id)
-    return _simulation_response(new_row)
-
-
-@router.delete("/api/simulations/{sim_id}")
-async def api_delete_simulation(sim_id: int, request: Request):
-    user_id = _require_user(request)
-    if not db.delete_simulation(sim_id, user_id):
-        raise HTTPException(status_code=404, detail="Symulacja nie znaleziona.")
-    return {"ok": True}
-
-
-# --- Compare ---
-
-
-@router.get("/api/compare")
-async def api_compare(ids: str, request: Request):
-    user_id = _require_user(request)
-    try:
-        sim_ids = [int(i) for i in ids.split(",") if i.strip()]
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Nieprawidłowe identyfikatory.") from None
-    if not 1 <= len(sim_ids) <= 4:
-        raise HTTPException(
-            status_code=400, detail="Porównaj od 1 do 4 symulacji naraz."
-        )
-    items = []
-    for sim_id in sim_ids:
-        row = db.get_simulation(sim_id, user_id)
-        if not row:
-            raise HTTPException(
-                status_code=404, detail=f"Symulacja o id {sim_id} nie znaleziona."
-            )
-        items.append(
-            {
-                "id": row["id"],
-                "name": row["name"],
-                "created_at": row["created_at"],
-                "updated_at": row["updated_at"],
-                "input": json.loads(row["input_json"]),
-                "result": json.loads(row["result_json"]),
-                "summary": json.loads(row["summary_json"]),
-            }
-        )
-    return items
+# --- Helpers ---
 
 
 def _get_defaults() -> dict:
