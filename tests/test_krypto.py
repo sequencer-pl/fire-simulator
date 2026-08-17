@@ -1,33 +1,9 @@
 import pytest
+from conftest import acc, accumulation_stage, realization_stage
 
 from app.simulation.config import default_config
 from app.simulation.engine import simulate
-from app.simulation.schemas import AccountConfig, SimulationInput, StageInput
-
-
-def acc(**kwargs):
-    return AccountConfig(**kwargs)
-
-
-def accumulation_stage(accounts, start=40, end=65):
-    return StageInput(
-        stage_type="akumulacja",
-        name="Akumulacja",
-        start_age=start,
-        end_age=end,
-        accounts=accounts,
-    )
-
-
-def realization_stage(name, accounts, start, end):
-    return StageInput(
-        stage_type="realizacja",
-        name=name,
-        start_age=start,
-        end_age=end,
-        accounts=accounts,
-    )
-
+from app.simulation.schemas import SimulationInput
 
 # --- Krypto: aktywo opodatkowane 19% Belki od zysku (jak broker) ---
 

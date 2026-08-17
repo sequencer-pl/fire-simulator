@@ -1,18 +1,16 @@
 import pytest
+from conftest import acc, accumulation_stage, realization_stage
 
 from app.simulation.engine import simulate
-from app.simulation.schemas import AccountConfig, SimulationInput, StageInput
-
-
-def acc(**kwargs):
-    return AccountConfig(**kwargs)
+from app.simulation.schemas import SimulationInput
 
 
 def test_stage_order_irrelevant_for_sequential():
     # Kolejność etapów w liście nie ma wpływu na wyniki dla etapów sekwencyjnych
     # (silnik przetwarza wieki chronologicznie)
     stage_a = accumulation_stage(
-        {"broker": acc(starting_balance=100000, roi=0.02, annual_contribution=24000)}
+        {"broker": acc(starting_balance=100000, roi=0.02, annual_contribution=24000)},
+        end=45,
     )
     stage_b = realization_stage("Broker", {"broker": acc(roi=0.02, buffer=100000)}, 45, 50)
 
@@ -21,26 +19,6 @@ def test_stage_order_irrelevant_for_sequential():
         return [(y.monthly_withdrawal, y.total_wealth) for y in r.years]
 
     assert months([stage_a, stage_b]) == months([stage_b, stage_a])
-
-
-def accumulation_stage(accounts, start=40, end=45):
-    return StageInput(
-        stage_type="akumulacja",
-        name="Akumulacja",
-        start_age=start,
-        end_age=end,
-        accounts=accounts,
-    )
-
-
-def realization_stage(name, accounts, start, end):
-    return StageInput(
-        stage_type="realizacja",
-        name=name,
-        start_age=start,
-        end_age=end,
-        accounts=accounts,
-    )
 
 
 # --- Akumulacja ---
@@ -94,7 +72,8 @@ def test_passive_growth_for_unhandled_accounts():
             {
                 "broker": acc(starting_balance=100000, roi=0.02),
                 "ike": acc(starting_balance=100000, roi=0.02),
-            }
+            },
+            end=45,
         ),
         realization_stage("Broker", {"broker": acc(roi=0.02, buffer=100000)}, 45, 50),
     ]
@@ -199,7 +178,7 @@ def test_zus_has_pension_flag():
 
 def test_no_pension_flag_without_zus():
     stages = [
-        accumulation_stage({"broker": acc(starting_balance=100000, roi=0.02)}),
+        accumulation_stage({"broker": acc(starting_balance=100000, roi=0.02)}, end=45),
         realization_stage("Broker", {"broker": acc(roi=0.02, buffer=0)}, 45, 50),
     ]
     result = simulate(SimulationInput(stages=stages, max_age=49))

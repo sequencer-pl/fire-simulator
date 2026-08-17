@@ -7,28 +7,13 @@ wg skali PIT jest potrącany od CAŁOŚCI salda, a wypłaty ratalne są liczone
 """
 
 import pytest
+from conftest import acc, accumulation_stage, realization_stage
 
 from app.core.pmt import pmt
 from app.core.tax import scale_tax
 from app.simulation.config import default_config
 from app.simulation.engine import simulate
-from app.simulation.schemas import AccountConfig, SimulationInput, StageInput
-
-
-def acc(**kwargs):
-    return AccountConfig(**kwargs)
-
-
-def accumulation_stage(accounts, start=40, end=50):
-    return StageInput(
-        stage_type="akumulacja", name="Akumulacja", start_age=start, end_age=end, accounts=accounts
-    )
-
-
-def realization_stage(name, accounts, start, end):
-    return StageInput(
-        stage_type="realizacja", name=name, start_age=start, end_age=end, accounts=accounts
-    )
+from app.simulation.schemas import SimulationInput
 
 
 def ikze_zwrot_scenario(balance, start=50, end=55, roi=0.0, buffer=0.0):
@@ -137,7 +122,7 @@ def test_zwrot_tax_respects_kwota_wolna(balance, expected_tax, expected_net):
 
 def test_zwrot_year_mixed_with_broker_belka_is_additive():
     broker_stages = [
-        accumulation_stage({"broker": acc(starting_balance=100_000, roi=0.02)}),
+        accumulation_stage({"broker": acc(starting_balance=100_000, roi=0.02)}, end=50),
         realization_stage("Broker", {"broker": acc(roi=0.2, buffer=0)}, 50, 55),
     ]
     solo = simulate(SimulationInput(stages=broker_stages, max_age=54))
@@ -146,7 +131,7 @@ def test_zwrot_year_mixed_with_broker_belka_is_additive():
         SimulationInput(
             stages=[
                 *broker_stages,
-                accumulation_stage({"ikze": acc(starting_balance=500_000, roi=0.0)}),
+                accumulation_stage({"ikze": acc(starting_balance=500_000, roi=0.0)}, end=50),
                 realization_stage("IKZE", {"ikze": acc(roi=0.0, buffer=0)}, 50, 55),
             ],
             max_age=54,
@@ -168,7 +153,7 @@ def test_zwrot_year_mixed_with_zus_scale_is_additive():
         SimulationInput(
             stages=[
                 *zus_stages,
-                accumulation_stage({"ikze": acc(starting_balance=500_000, roi=0.0)}),
+                accumulation_stage({"ikze": acc(starting_balance=500_000, roi=0.0)}, end=50),
                 realization_stage("IKZE", {"ikze": acc(roi=0.0, buffer=0)}, 50, 55),
             ],
             max_age=54,

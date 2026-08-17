@@ -1,26 +1,10 @@
 import pytest
+from conftest import acc, accumulation_stage, realization_stage
 
-from app.core.tax import flat_tax, scale_tax
+from app.core.tax import scale_tax
 from app.simulation.config import default_config
 from app.simulation.engine import simulate
-from app.simulation.schemas import AccountConfig, SimulationInput, StageInput
-
-
-def acc(**kwargs):
-    return AccountConfig(**kwargs)
-
-
-def accumulation_stage(accounts, start=40, end=45):
-    return StageInput(
-        stage_type="akumulacja", name="Akumulacja", start_age=start, end_age=end, accounts=accounts
-    )
-
-
-def realization_stage(name, accounts, start, end):
-    return StageInput(
-        stage_type="realizacja", name=name, start_age=start, end_age=end, accounts=accounts
-    )
-
+from app.simulation.schemas import SimulationInput
 
 # --- Skala PIT 2026 ---
 
@@ -37,11 +21,6 @@ def realization_stage(name, accounts, start, end):
 )
 def test_scale_tax(income, expected):
     assert scale_tax(income) == pytest.approx(expected)
-
-
-def test_flat_tax():
-    assert flat_tax(100_000, 0.19) == pytest.approx(19_000)
-    assert flat_tax(0, 0.19) == 0
 
 
 # --- IKZE po 65: 10% ryczałt od całości ---

@@ -33,10 +33,3 @@ def scale_tax(
         return max(0.0, income * rate_lower - kwota_zmniejszajaca)
     base = prog * rate_lower - kwota_zmniejszajaca
     return base + (income - prog) * rate_upper
-
-
-def flat_tax(amount: float, rate: float) -> float:
-    """Podatek ryczałtowy (np. Belka 19%, IKZE 10%)."""
-    if amount <= 0 or rate <= 0:
-        return 0.0
-    return amount * rate

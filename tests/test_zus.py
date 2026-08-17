@@ -1,42 +1,9 @@
 import pytest
+from conftest import acc, accumulation_stage, no_tax_config, realization_stage
 
-from app.simulation.config import default_config
 from app.simulation.engine import simulate
-from app.simulation.schemas import AccountConfig, SimulationInput, StageInput
+from app.simulation.schemas import SimulationInput
 from app.simulation.tablica_sdtz import sdtz_months
-
-
-def acc(**kwargs):
-    return AccountConfig(**kwargs)
-
-
-def accumulation_stage(accounts, start=40, end=65):
-    return StageInput(
-        stage_type="akumulacja",
-        name="Akumulacja",
-        start_age=start,
-        end_age=end,
-        accounts=accounts,
-    )
-
-
-def realization_stage(name, accounts, start, end):
-    return StageInput(
-        stage_type="realizacja",
-        name=name,
-        start_age=start,
-        end_age=end,
-        accounts=accounts,
-    )
-
-
-def no_tax_config():
-    cfg = default_config()
-    cfg.kwota_wolna = 0.0
-    cfg.rate_lower = 0.0
-    cfg.rate_upper = 0.0
-    return cfg
-
 
 # --- Składka i wzrost kapitału ---
 
