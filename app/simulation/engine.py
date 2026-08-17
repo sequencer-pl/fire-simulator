@@ -38,28 +38,7 @@ def _validate_roi(data: SimulationInput) -> None:
                 )
 
 
-def simulate(data: SimulationInput) -> SimulationResult:
-    """
-    Silnik symulacji — pętla po wiekach.
-
-    Dla każdego roku:
-    1. Znajdujemy aktywne etapy (start_age <= age < end_age)
-    2. Dla każdego aktywnego etapu: calculate_year z deduplikacją kont
-    3. Merge withdrawal (gross)
-    4. Podatki wg reguł kont (basis tracking, skala/ryczałt) — netto
-    5. Passive growth raz dla kont nieobsługiwanych przez żaden etap
-    6. Zapis computed[age]
-
-    end_age jest exclusive.
-    """
-    if not data.stages:
-        return SimulationResult(
-            years=[], accounts=[], final_wealth=0, peak_wealth=0, total_withdrawn=0, total_tax=0
-        )
-
-    _validate_stage_order(data.stages)
-    _validate_roi(data)
-
+def _init_state(data: SimulationInput) -> tuple:
     config = data.config
     balances: dict[str, float] = {}
     basis: dict[str, float] = {}
@@ -91,180 +70,205 @@ def simulate(data: SimulationInput) -> SimulationResult:
     zus_pensions: dict[str, float] = {}
     welcomed_ppk: set[str] = set()
 
-    min_age = min(si.start_age for si in data.stages)
-    max_age = data.max_age
+    return (
+        config, balances, basis, basis_employee, account_rois,
+        asset_exemptions, all_accounts, computed, zwrocone,
+        forfeited, zus_pensions, welcomed_ppk,
+    )
 
-    for age in range(min_age, max_age + 1):
-        active_stages = [si for si in data.stages if si.start_age <= age < si.end_age]
 
-        if not active_stages:
+def _process_ikze_returns(
+    active_stages: list[StageInput],
+    age: int,
+    balances: dict[str, float],
+    config,
+    zwrocone: set[str],
+) -> dict[str, float]:
+    # Jednorazowy zwrot IKZE przed wiekiem uprawniającym (np. 65 r.ż.):
+    # podatek wg skali od CAŁOŚCI salda jest potrącany przed wyliczeniem PMT,
+    # więc wypłaty ratalne są liczone od kapitału netto (model "wypłata + lokata").
+    zwrot_tax: dict[str, float] = {}
+    for si in active_stages:
+        if si.stage_type != "realizacja" or age != si.start_age:
             continue
-
-        starting = dict(balances)
-        processed_accounts: set[str] = set()
-        merged_withdrawal: dict[str, float] = {}
-        stage_label_parts: list[str] = []
-        seen_labels: set[str] = set()
-        zus_handled = False
-
-        # Jednorazowy zwrot IKZE przed wiekiem uprawniającym (np. 65 r.ż.):
-        # podatek wg skali od CAŁOŚCI salda jest potrącany przed wyliczeniem PMT,
-        # więc wypłaty ratalne są liczone od kapitału netto (model "wypłata + lokata").
-        zwrot_tax: dict[str, float] = {}
-        for si in active_stages:
-            if si.stage_type != "realizacja" or age != si.start_age:
+        for acc in si.accounts:
+            rules = config.accounts.get(acc)
+            if (
+                acc in zwrocone
+                or not rules
+                or rules.min_withdrawal_age <= 0
+                or age >= rules.min_withdrawal_age
+                or rules.early_tax_model != "scale"
+            ):
                 continue
-            for acc in si.accounts:
-                rules = config.accounts.get(acc)
-                if (
-                    acc in zwrocone
-                    or not rules
-                    or rules.min_withdrawal_age <= 0
-                    or age >= rules.min_withdrawal_age
-                    or rules.early_tax_model != "scale"
-                ):
-                    continue
-                full = balances.get(acc, 0.0)
-                zwrot_tax[acc] = scale_tax(
-                    full,
-                    kwota_wolna=config.kwota_wolna,
-                    prog=config.prog,
-                    rate_lower=config.rate_lower,
-                    rate_upper=config.rate_upper,
-                )
-                balances[acc] = max(0.0, full - zwrot_tax[acc])
-        zwrocone.update(zwrot_tax.keys())
-
-        # PPK: przepadek środków pracodawcy i państwa przy wypłacie przed 60 r.ż.
-        for si in active_stages:
-            if si.stage_type != "realizacja" or age != si.start_age:
-                continue
-            for acc in si.accounts:
-                rules = config.accounts.get(acc)
-                if (
-                    acc != "ppk"
-                    or acc in forfeited
-                    or not rules
-                    or rules.min_withdrawal_age <= 0
-                    or age >= rules.min_withdrawal_age
-                ):
-                    continue
-                total_basis = basis.get(acc, 0.0)
-                emp_basis = basis_employee.get(acc, 0.0)
-                if total_basis > 0 and emp_basis < total_basis:
-                    bal = balances.get(acc, 0.0)
-                    fraction = emp_basis / total_basis
-                    forfeited_amount = bal * (1.0 - fraction)
-                    balances[acc] = max(0.0, bal - forfeited_amount)
-                    basis[acc] = total_basis * fraction
-                    starting[acc] = balances[acc]
-                    forfeited.add(acc)
-
-        for stage_input in active_stages:
-            stage_obj = create_stage(stage_input.stage_type)
-            accounts_config = {name: cfg.model_dump() for name, cfg in stage_input.accounts.items()}
-
-            # ZUS — składki i waloryzacja kapitału (akumulacja) oraz konwersja
-            # kapitału na emeryturę (realizacja) są liczone przez silnik, bo
-            # różnią się od zwykłych kont (waloryzacja zamiast ROI, ŚDTŻ zamiast PMT).
-            if "zus" in accounts_config and not zus_handled:
-                if stage_input.stage_type == "akumulacja":
-                    _accumulate_zus(accounts_config["zus"], balances, config)
-                    processed_accounts.add("zus")
-                    if accounts_config["zus"].get("ofe_member"):
-                        processed_accounts.add("zus:ofe")
-                else:
-                    _convert_zus(
-                        zus_pensions=zus_pensions,
-                        age=age,
-                        start_age=stage_input.start_age,
-                        accounts_config=accounts_config,
-                        balances=balances,
-                        config=config,
-                    )
-                zus_handled = True
-
-            # PPK / PPE — składki procentowe od podstawy (akumulacja).
-            # Wypłaty idą przez generyczny RealizacjaStage (jak IKE).
-            if stage_input.stage_type == "akumulacja":
-                if "ppk" in accounts_config:
-                    _accumulate_ppk(
-                        accounts_config["ppk"], balances, basis,
-                        basis_employee, config, welcomed_ppk,
-                    )
-                    processed_accounts.add("ppk")
-                if "ppe" in accounts_config:
-                    _accumulate_ppe(accounts_config["ppe"], balances, basis, config)
-                    processed_accounts.add("ppe")
-
-            accounts_to_process = {
-                name: cfg for name, cfg in accounts_config.items() if name not in processed_accounts
-            }
-
-            if not accounts_to_process:
-                continue
-
-            result = stage_obj.calculate_year(
-                age=age,
-                end_age=stage_input.end_age,
-                balances=balances,
-                config=accounts_to_process,
+            full = balances.get(acc, 0.0)
+            zwrot_tax[acc] = scale_tax(
+                full,
+                kwota_wolna=config.kwota_wolna,
+                prog=config.prog,
+                rate_lower=config.rate_lower,
+                rate_upper=config.rate_upper,
             )
+            balances[acc] = max(0.0, full - zwrot_tax[acc])
+    zwrocone.update(zwrot_tax.keys())
+    return zwrot_tax
 
-            for k, v in result["withdrawal"].items():
-                merged_withdrawal[k] = merged_withdrawal.get(k, 0) + v
 
-            balances.update(result["balances"])
-            processed_accounts.update(accounts_to_process.keys())
-
-            if stage_input.stage_type == "akumulacja":
-                for name, cfg in accounts_to_process.items():
-                    basis[name] = basis.get(name, 0.0) + cfg.get("annual_contribution", 0.0)
-
-            label = stage_input.name or stage_obj.name
-            if label not in seen_labels:
-                stage_label_parts.append(label)
-                seen_labels.add(label)
-
-        merged_tax = _apply_tax(
-            withdrawals=merged_withdrawal,
-            starting=starting,
-            basis=basis,
-            age=age,
-            config=config,
-            zwrocone=zwrocone,
-        )
-        for acc, t in zwrot_tax.items():
-            merged_tax[acc] = merged_tax.get(acc, 0.0) + t
-
-        for acc_name in list(balances.keys()):
-            if acc_name in processed_accounts:
+def _process_ppk_forfeits(
+    active_stages: list[StageInput],
+    age: int,
+    balances: dict[str, float],
+    basis: dict[str, float],
+    basis_employee: dict[str, float],
+    config,
+    forfeited: set[str],
+    starting: dict[str, float],
+) -> None:
+    # PPK: przepadek środków pracodawcy i państwa przy wypłacie przed 60 r.ż.
+    for si in active_stages:
+        if si.stage_type != "realizacja" or age != si.start_age:
+            continue
+        for acc in si.accounts:
+            rules = config.accounts.get(acc)
+            if (
+                acc != "ppk"
+                or acc in forfeited
+                or not rules
+                or rules.min_withdrawal_age <= 0
+                or age >= rules.min_withdrawal_age
+            ):
                 continue
-            if acc_name == "zus":
-                balances[acc_name] = balances[acc_name] * (1 + config.zus.waloryzacja_skladek)
-            elif acc_name == "zus:ofe":
-                balances[acc_name] = balances[acc_name] * (1 + account_rois.get("zus", 0.02))
-            else:
-                roi = account_rois.get(acc_name, 0.02)
-                balances[acc_name] = balances[acc_name] * (1 + roi)
+            total_basis = basis.get(acc, 0.0)
+            emp_basis = basis_employee.get(acc, 0.0)
+            if total_basis > 0 and emp_basis < total_basis:
+                bal = balances.get(acc, 0.0)
+                fraction = emp_basis / total_basis
+                forfeited_amount = bal * (1.0 - fraction)
+                balances[acc] = max(0.0, bal - forfeited_amount)
+                basis[acc] = total_basis * fraction
+                starting[acc] = balances[acc]
+                forfeited.add(acc)
 
-        _apply_asset_tax(
-            balances=balances,
-            starting=starting,
-            merged_tax=merged_tax,
-            asset_exemptions=asset_exemptions,
-            config=config,
-        )
 
-        computed[age] = {
-            "starting_balances": starting,
-            "ending_balances": dict(balances),
-            "withdrawal": merged_withdrawal,
-            "tax": merged_tax,
-            "zwrot_tax": sum(zwrot_tax.values()),
-            "stage_name": "+".join(stage_label_parts),
+def _process_stages(
+    active_stages: list[StageInput],
+    age: int,
+    balances: dict[str, float],
+    basis: dict[str, float],
+    basis_employee: dict[str, float],
+    config,
+    account_rois: dict[str, float],
+    processed_accounts: set[str],
+    zus_pensions: dict[str, float],
+    welcomed_ppk: set[str],
+) -> tuple[dict[str, float], list[str]]:
+    merged_withdrawal: dict[str, float] = {}
+    stage_label_parts: list[str] = []
+    seen_labels: set[str] = set()
+    zus_handled = False
+
+    for stage_input in active_stages:
+        stage_obj = create_stage(stage_input.stage_type)
+        accounts_config = {
+            name: cfg.model_dump() for name, cfg in stage_input.accounts.items()
         }
 
+        # ZUS — składki i waloryzacja kapitału (akumulacja) oraz konwersja
+        # kapitału na emeryturę (realizacja) są liczone przez silnik, bo
+        # różnią się od zwykłych kont (waloryzacja zamiast ROI, ŚDTŻ zamiast PMT).
+        if "zus" in accounts_config and not zus_handled:
+            if stage_input.stage_type == "akumulacja":
+                _accumulate_zus(accounts_config["zus"], balances, config)
+                processed_accounts.add("zus")
+                if accounts_config["zus"].get("ofe_member"):
+                    processed_accounts.add("zus:ofe")
+            else:
+                _convert_zus(
+                    zus_pensions=zus_pensions,
+                    age=age,
+                    start_age=stage_input.start_age,
+                    accounts_config=accounts_config,
+                    balances=balances,
+                    config=config,
+                )
+            zus_handled = True
+
+        # PPK / PPE — składki procentowe od podstawy (akumulacja).
+        # Wypłaty idą przez generyczny RealizacjaStage (jak IKE).
+        if stage_input.stage_type == "akumulacja":
+            if "ppk" in accounts_config:
+                _accumulate_ppk(
+                    accounts_config["ppk"], balances, basis,
+                    basis_employee, config, welcomed_ppk,
+                )
+                processed_accounts.add("ppk")
+            if "ppe" in accounts_config:
+                _accumulate_ppe(
+                    accounts_config["ppe"], balances, basis, config
+                )
+                processed_accounts.add("ppe")
+
+        accounts_to_process = {
+            name: cfg
+            for name, cfg in accounts_config.items()
+            if name not in processed_accounts
+        }
+
+        if not accounts_to_process:
+            continue
+
+        result = stage_obj.calculate_year(
+            age=age,
+            end_age=stage_input.end_age,
+            balances=balances,
+            config=accounts_to_process,
+        )
+
+        for k, v in result["withdrawal"].items():
+            merged_withdrawal[k] = merged_withdrawal.get(k, 0) + v
+
+        balances.update(result["balances"])
+        processed_accounts.update(accounts_to_process.keys())
+
+        if stage_input.stage_type == "akumulacja":
+            for name, cfg in accounts_to_process.items():
+                basis[name] = basis.get(name, 0.0) + cfg.get(
+                    "annual_contribution", 0.0
+                )
+
+        label = stage_input.name or stage_obj.name
+        if label not in seen_labels:
+            stage_label_parts.append(label)
+            seen_labels.add(label)
+
+    return merged_withdrawal, stage_label_parts
+
+
+def _passive_growth(
+    balances: dict[str, float],
+    processed_accounts: set[str],
+    account_rois: dict[str, float],
+    config,
+) -> None:
+    for acc_name in list(balances.keys()):
+        if acc_name in processed_accounts:
+            continue
+        if acc_name == "zus":
+            balances[acc_name] = balances[acc_name] * (
+                1 + config.zus.waloryzacja_skladek
+            )
+        elif acc_name == "zus:ofe":
+            balances[acc_name] = balances[acc_name] * (
+                1 + account_rois.get("zus", 0.02)
+            )
+        else:
+            roi = account_rois.get(acc_name, 0.02)
+            balances[acc_name] = balances[acc_name] * (1 + roi)
+
+
+def _assemble_years(
+    computed: dict[int, dict],
+) -> tuple[list[YearResult], float, float]:
     sorted_ages = sorted(computed.keys())
     years: list[YearResult] = []
     total_withdrawn_net = 0.0
@@ -294,7 +298,107 @@ def simulate(data: SimulationInput) -> SimulationResult:
             )
         )
 
-    final_balances = computed[sorted_ages[-1]]["ending_balances"] if sorted_ages else {}
+    return years, total_withdrawn_net, total_tax
+
+
+def simulate(data: SimulationInput) -> SimulationResult:
+    """
+    Silnik symulacji — pętla po wiekach.
+
+    Dla każdego roku:
+    1. Znajdujemy aktywne etapy (start_age <= age < end_age)
+    2. Dla każdego aktywnego etapu: calculate_year z deduplikacją kont
+    3. Merge withdrawal (gross)
+    4. Podatki wg reguł kont (basis tracking, skala/ryczałt) — netto
+    5. Passive growth raz dla kont nieobsługiwanych przez żaden etap
+    6. Zapis computed[age]
+
+    end_age jest exclusive.
+    """
+    if not data.stages:
+        return SimulationResult(
+            years=[],
+            accounts=[],
+            final_wealth=0,
+            peak_wealth=0,
+            total_withdrawn=0,
+            total_tax=0,
+        )
+
+    _validate_stage_order(data.stages)
+    _validate_roi(data)
+
+    (
+        config, balances, basis, basis_employee, account_rois,
+        asset_exemptions, all_accounts, computed, zwrocone,
+        forfeited, zus_pensions, welcomed_ppk,
+    ) = _init_state(data)
+
+    min_age = min(si.start_age for si in data.stages)
+    max_age = data.max_age
+
+    for age in range(min_age, max_age + 1):
+        active_stages = [
+            si for si in data.stages if si.start_age <= age < si.end_age
+        ]
+
+        if not active_stages:
+            continue
+
+        starting = dict(balances)
+        processed_accounts: set[str] = set()
+
+        zwrot_tax = _process_ikze_returns(
+            active_stages, age, balances, config, zwrocone
+        )
+
+        _process_ppk_forfeits(
+            active_stages, age, balances, basis, basis_employee,
+            config, forfeited, starting,
+        )
+
+        merged_withdrawal, stage_label_parts = _process_stages(
+            active_stages, age, balances, basis, basis_employee,
+            config, account_rois, processed_accounts, zus_pensions,
+            welcomed_ppk,
+        )
+
+        merged_tax = _apply_tax(
+            withdrawals=merged_withdrawal,
+            starting=starting,
+            basis=basis,
+            age=age,
+            config=config,
+            zwrocone=zwrocone,
+        )
+        for acc, t in zwrot_tax.items():
+            merged_tax[acc] = merged_tax.get(acc, 0.0) + t
+
+        _passive_growth(balances, processed_accounts, account_rois, config)
+
+        _apply_asset_tax(
+            balances=balances,
+            starting=starting,
+            merged_tax=merged_tax,
+            asset_exemptions=asset_exemptions,
+            config=config,
+        )
+
+        computed[age] = {
+            "starting_balances": starting,
+            "ending_balances": dict(balances),
+            "withdrawal": merged_withdrawal,
+            "tax": merged_tax,
+            "zwrot_tax": sum(zwrot_tax.values()),
+            "stage_name": "+".join(stage_label_parts),
+        }
+
+    years, total_withdrawn_net, total_tax = _assemble_years(computed)
+
+    sorted_ages = sorted(computed.keys())
+    final_balances = (
+        computed[sorted_ages[-1]]["ending_balances"] if sorted_ages else {}
+    )
     peak_wealth = max((y.total_wealth for y in years), default=0.0)
 
     display_accounts = sorted(a for a in all_accounts if a != "zus")
@@ -304,15 +408,18 @@ def simulate(data: SimulationInput) -> SimulationResult:
     for name, pension in zus_pensions.items():
         if pension <= 0:
             warnings.append(
-                f"{ACCOUNT_LABELS.get(name, name)}: brak zgromadzonego kapitału — wyliczona "
-                f"emerytura wynosi 0 zł/mies. Uzupełnij kapitał i podstawę w etapie akumulacji "
+                f"{ACCOUNT_LABELS.get(name, name)}: brak zgromadzonego "
+                f"kapitału — wyliczona emerytura wynosi 0 zł/mies. "
+                f"Uzupełnij kapitał i podstawę w etapie akumulacji "
                 f"albo wpisz emeryturę ręcznie."
             )
         elif config.zus.min_emerytura > 0 and pension < config.zus.min_emerytura:
             warnings.append(
-                f"{ACCOUNT_LABELS.get(name, name)}: wyliczona emerytura {pension:,.0f} zł/mies. "
-                f"jest niższa od emerytury minimalnej ({config.zus.min_emerytura:,.0f} zł). "
-                f"ZUS podnosi świadczenie do minimum przy spełnieniu warunków stażowych."
+                f"{ACCOUNT_LABELS.get(name, name)}: wyliczona emerytura "
+                f"{pension:,.0f} zł/mies. jest niższa od emerytury "
+                f"minimalnej ({config.zus.min_emerytura:,.0f} zł). "
+                f"ZUS podnosi świadczenie do minimum przy spełnieniu "
+                f"warunków stażowych."
             )
 
     return SimulationResult(
@@ -349,7 +456,8 @@ def _accumulate_zus(cfg: dict, balances: dict, config) -> None:
             balances.get("zus", 0.0) * (1 + waloryzacja) + zus_contrib
         )
         balances["zus:ofe"] = (
-            balances.get("zus:ofe", 0.0) * (1 + cfg.get("roi", 0.02)) + ofe_contrib
+            balances.get("zus:ofe", 0.0) * (1 + cfg.get("roi", 0.02))
+            + ofe_contrib
         )
     else:
         waloryzacja = (
@@ -394,7 +502,9 @@ def _accumulate_ppk(
             state += ppk_cfg.state_welcoming
             welcomed.add("ppk")
     total = emp_contrib + employer_contrib + state
-    balances["ppk"] = balances.get("ppk", 0.0) * (1 + cfg.get("roi", 0.02)) + total
+    balances["ppk"] = (
+        balances.get("ppk", 0.0) * (1 + cfg.get("roi", 0.02)) + total
+    )
     basis["ppk"] = basis.get("ppk", 0.0) + total
     basis_employee["ppk"] = basis_employee.get("ppk", 0.0) + emp_contrib
 
@@ -415,7 +525,9 @@ def _accumulate_ppe(cfg: dict, balances: dict, basis: dict, config) -> None:
     employer_to_ppe = employer - employer_to_zus
     additional = cfg.get("annual_contribution", 0.0)
     total_ppe = employer_to_ppe + additional
-    balances["ppe"] = balances.get("ppe", 0.0) * (1 + cfg.get("roi", 0.02)) + total_ppe
+    balances["ppe"] = (
+        balances.get("ppe", 0.0) * (1 + cfg.get("roi", 0.02)) + total_ppe
+    )
     basis["ppe"] = basis.get("ppe", 0.0) + total_ppe
     if employer_to_zus > 0:
         balances["zus"] = balances.get("zus", 0.0) + employer_to_zus
@@ -456,14 +568,18 @@ def _apply_asset_tax(
 
     for members in groups.values():
         savings = [
-            a for a in members
+            a
+            for a in members
             if _asset_class_of(config.accounts.get(a)) == "oszczednosciowe"
         ]
         invested = [
-            a for a in members
+            a
+            for a in members
             if _asset_class_of(config.accounts.get(a)) != "oszczednosciowe"
         ]
-        rate = max((config.accounts[a].asset_tax_rate for a in members), default=0.0)
+        rate = max(
+            (config.accounts[a].asset_tax_rate for a in members), default=0.0
+        )
 
         def _avg(account: str) -> float:
             return (starting.get(account, 0.0) + balances[account]) / 2.0
@@ -477,24 +593,41 @@ def _apply_asset_tax(
 
         if not invested:
             # Samodzielne konto o charakterze oszczędnościowym (próg 25 000 zł).
-            tax = max(0.0, savings_avg - max((_exemption(a) for a in savings), default=0.0)) * rate
+            tax = (
+                max(
+                    0.0,
+                    savings_avg
+                    - max((_exemption(a) for a in savings), default=0.0),
+                )
+                * rate
+            )
             for a in savings:
-                _deduct_asset_tax(balances, merged_tax, a, tax, _avg(a), savings_avg)
+                _deduct_asset_tax(
+                    balances, merged_tax, a, tax, _avg(a), savings_avg
+                )
             continue
 
         savings_limit = max((_exemption(a) for a in savings), default=0.0)
-        total_limit = max((_exemption(a) for a in invested), default=savings_limit)
+        total_limit = max(
+            (_exemption(a) for a in invested), default=savings_limit
+        )
 
         s_tax = max(0.0, savings_avg - savings_limit) * rate
         used = min(savings_avg, savings_limit)
         i_tax = max(0.0, invested_avg - (total_limit - used)) * rate
         for a in savings:
-            _deduct_asset_tax(balances, merged_tax, a, s_tax, _avg(a), savings_avg)
+            _deduct_asset_tax(
+                balances, merged_tax, a, s_tax, _avg(a), savings_avg
+            )
         for a in invested:
-            _deduct_asset_tax(balances, merged_tax, a, i_tax, _avg(a), invested_avg)
+            _deduct_asset_tax(
+                balances, merged_tax, a, i_tax, _avg(a), invested_avg
+            )
 
 
-def _deduct_asset_tax(balances, merged_tax, account, total_tax, avg, group_avg) -> None:
+def _deduct_asset_tax(
+    balances, merged_tax, account, total_tax, avg, group_avg
+) -> None:
     """Potrąca przypadającą na konto część podatku od wartości aktywów."""
     if total_tax <= 0 or group_avg <= 0:
         return
@@ -581,7 +714,9 @@ def _apply_tax(
             start_balance = starting.get(account, 0.0)
             account_basis = basis.get(account, 0.0)
             if start_balance > 0:
-                gain_share = max(0.0, (start_balance - account_basis) / start_balance)
+                gain_share = max(
+                    0.0, (start_balance - account_basis) / start_balance
+                )
             else:
                 gain_share = 0.0
             tax[account] = tax.get(account, 0.0) + amount * gain_share * rate
@@ -597,7 +732,9 @@ def _apply_tax(
             rate_upper=config.rate_upper,
         )
         for account, amount in scale_accounts:
-            tax[account] = tax.get(account, 0.0) + total_scale * (amount / scale_income)
+            tax[account] = (
+                tax.get(account, 0.0) + total_scale * (amount / scale_income)
+            )
 
     return tax
 
