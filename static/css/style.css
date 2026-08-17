@@ -1355,7 +1355,7 @@ tr.highlight td {
 }
 
 .sim-timeline-finance.accum {
-    color: var(--accent);
+    color: var(--primary);
 }
 
 .sim-timeline-finance.withdraw {
