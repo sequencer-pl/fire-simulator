@@ -63,6 +63,7 @@ def simulate(data: SimulationInput) -> SimulationResult:
     config = data.config
     balances: dict[str, float] = {}
     basis: dict[str, float] = {}
+    basis_employee: dict[str, float] = {}
     account_rois: dict[str, float] = {}
     asset_exemptions: dict[str, float] = {}
     all_accounts: set[str] = set()
@@ -79,6 +80,8 @@ def simulate(data: SimulationInput) -> SimulationResult:
             if cfg.starting_balance > 0:
                 balances.setdefault(name, cfg.starting_balance)
                 basis.setdefault(name, cfg.starting_balance)
+                if name == "ppk":
+                    basis_employee.setdefault(name, cfg.starting_balance)
             if name == "zus" and cfg.starting_balance_ofe > 0 and cfg.ofe_member:
                 balances.setdefault("zus:ofe", cfg.starting_balance_ofe)
 
@@ -87,7 +90,6 @@ def simulate(data: SimulationInput) -> SimulationResult:
     forfeited: set[str] = set()
     zus_pensions: dict[str, float] = {}
     welcomed_ppk: set[str] = set()
-    basis_employee: dict[str, float] = {}
 
     min_age = min(si.start_age for si in data.stages)
     max_age = data.max_age

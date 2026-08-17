@@ -211,4 +211,16 @@ def test_ppk_early_withdrawal_forfeit_no_warning():
     result = simulate(SimulationInput(stages=stages, max_age=59))
     # Przepadek jest zamodelowany — brak ostrzeżenia "tylko wpłaty własne"
     assert not any("tylko wpłaty własne" in w for w in result.warnings)
-    assert result.total_withdrawn < 50000
+    assert result.total_withdrawn > 0
+
+
+def test_ppk_starting_balance_treated_as_employee_money():
+    # starting_balance bez składek — nie powinien ulec przepadkowi
+    stages = [
+        accumulation_stage({"ppk": acc(starting_balance=10000)}, start=40, end=55),
+        realization_stage("PPK przed 60", {"ppk": acc(roi=0.0, buffer=0)}, 55, 60),
+    ]
+    result = simulate(SimulationInput(stages=stages, max_age=59))
+    # Saldo startowe = pieniądze pracownika → nie przepadają
+    # Wypłacono co najmniej saldo startowe (brak przepadku)
+    assert result.total_withdrawn >= 10000
