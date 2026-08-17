@@ -101,16 +101,14 @@ def _simulation_response(row: sqlite3.Row) -> dict:
 
 @router.get("/", response_class=HTMLResponse)
 async def home(request: Request):
-    return templates.TemplateResponse("home.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "home.html", {
         "version": _asset_version(),
     })
 
 
 @router.get("/sim", response_class=HTMLResponse)
 async def sim(request: Request):
-    return templates.TemplateResponse("simulator.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "simulator.html", {
         "version": _asset_version(),
         "stage_types": get_all_stage_types(),
     })
@@ -118,8 +116,7 @@ async def sim(request: Request):
 
 @router.get("/compare", response_class=HTMLResponse)
 async def compare(request: Request):
-    return templates.TemplateResponse("compare.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "compare.html", {
         "version": _asset_version(),
     })
 
