@@ -109,12 +109,14 @@ function renderSims() {
             stagesHtml = `<div class="sim-card-stages"><div class="sim-timeline">`;
             stages.forEach((st) => {
                 const kind = /akumulacja/i.test(st.label) ? "accum" : "withdraw";
-                const accounts = (st.accounts || []).map(a => `<span class="sim-acc-pill">${escapeHtml(a)}</span>`).join("");
+                const accounts = (st.accounts || [])
+                    .map(a => `<span class="sim-acc-pill">${escapeHtml(a)}</span>`)
+                    .join("");
                 let financeHtml = "";
                 if (st.monthly_contribution) {
-                    financeHtml = `<div class="sim-timeline-finance accum">Wkład: ~${fmtMoney(st.monthly_contribution)} zł/mies.</div>`;
+                    financeHtml = `<span class="sim-timeline-finance accum">~${fmtMoney(st.monthly_contribution)} zł/mies.</span>`;
                 } else if (st.avg_monthly_withdrawal) {
-                    financeHtml = `<div class="sim-timeline-finance withdraw">Wypłata: ~${fmtMoney(st.avg_monthly_withdrawal)} zł/mies.</div>`;
+                    financeHtml = `<span class="sim-timeline-finance withdraw">~${fmtMoney(st.avg_monthly_withdrawal)} zł/mies.</span>`;
                 }
                 stagesHtml += `
                     <div class="sim-timeline-row">
@@ -123,11 +125,9 @@ function renderSims() {
                             <div class="sim-timeline-line"></div>
                         </div>
                         <div class="sim-timeline-body">
-                            <div class="sim-timeline-head">
-                                <span class="sim-timeline-label ${kind}">${escapeHtml(st.label)}</span>
-                                <span class="sim-timeline-age">${st.start_age}→${st.end_age} r.ż.</span>
-                            </div>
-                            <div class="sim-timeline-accounts">${accounts}</div>
+                            <span class="sim-timeline-label ${kind}">${escapeHtml(st.label)}</span>
+                            <span class="sim-timeline-age">${st.start_age}→${st.end_age} r.ż.</span>
+                            ${accounts}
                             ${financeHtml}
                         </div>
                     </div>`;

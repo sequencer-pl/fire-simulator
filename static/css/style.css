@@ -1307,24 +1307,22 @@ tr.highlight td {
 .sim-timeline-row:last-child .sim-timeline-line { display: none; }
 
 .sim-timeline-body {
-    padding: 0.3rem 0 0.3rem 0.5rem;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.2rem 0.5rem;
+    padding: 0.35rem 0 0.35rem 0.5rem;
     border-bottom: 1px solid var(--border);
     min-height: 36px;
 }
 
 .sim-timeline-row:last-child .sim-timeline-body { border-bottom: none; }
 
-.sim-timeline-head {
-    display: flex;
-    align-items: baseline;
-    gap: 0.5rem;
-    flex-wrap: wrap;
-}
-
 .sim-timeline-label {
     font-size: 0.8rem;
     font-weight: 600;
     color: var(--text);
+    white-space: nowrap;
 }
 
 .sim-timeline-label.accum { color: var(--primary); }
@@ -1334,13 +1332,7 @@ tr.highlight td {
     font-size: 0.72rem;
     color: var(--text-dim);
     font-variant-numeric: tabular-nums;
-}
-
-.sim-timeline-accounts {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.25rem;
-    margin-top: 0.25rem;
+    white-space: nowrap;
 }
 
 .sim-acc-pill {
@@ -1356,9 +1348,10 @@ tr.highlight td {
 }
 
 .sim-timeline-finance {
-    margin-top: 0.3rem;
     font-size: 0.7rem;
     font-weight: 600;
+    white-space: nowrap;
+    margin-left: auto;
 }
 
 .sim-timeline-finance.accum {
