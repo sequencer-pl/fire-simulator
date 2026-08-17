@@ -39,8 +39,8 @@ Symulator celowo jest **prostym modelem deterministycznym**, a nie symulacją Mo
 5. **Wypłaty przed wiekiem uprawniającym** kosztują i nie zawsze da się to zamodelować w 100%:
    - **IKE przed 60** — Belka 19% od zysku (zamodelowane);
    - **IKZE przed 65** — jednorazowy zwrot całości ze skalą PIT, potem wypłaty z kapitału netto (model "wypłata + lokata");
-   - **PPK przed 60** — środki pracodawcy i dopłaty państwa przepadają (tylko ostrzeżenie);
-   - **PPE przed 60** — 30% składek podstawowych trafia do ZUS subkonto (tylko ostrzeżenie).
+   - **PPK przed 60** — środki pracodawcy i dopłaty państwa przepadają, podatek Belka od zysku tylko na części pracownika;
+   - **PPE przed 60** — 30% składek podstawowych pracodawcy trafia do ZUS subkonto.
 
 6. **Bufor to nie "poduszka", tylko wartość końcowa.** PMT wylicza wypłatę tak, by na koniec etapu zostało dokładnie `bufor` złotych. Chcesz zachować kapitał na później → wpisz go w bufor; chcesz przejeść wszystko → 0.
 

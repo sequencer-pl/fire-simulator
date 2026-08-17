@@ -41,7 +41,8 @@ def no_tax_config():
 
 
 def test_ppe_contributions_from_employer_pct_and_additional():
-    # podstawa 8000 zł/mies. -> 3,5% * 96 000 = 3 360 + składka dodatkowa 6 000 = 9 360
+    # podstawa 8000 zł/mies. -> 3,5% * 96 000 = 3 360 -> 70% do PPE = 2 352
+    # + składka dodatkowa 6 000 = 8 352 do PPE; 30% pracodawcy (1 008) → ZUS
     stages = [
         accumulation_stage(
             {
@@ -55,7 +56,9 @@ def test_ppe_contributions_from_employer_pct_and_additional():
         )
     ]
     result = simulate(SimulationInput(stages=stages, max_age=41))
-    assert result.years[1].balances["ppe"] == pytest.approx(9360.0)
+    assert result.years[1].balances["ppe"] == pytest.approx(8352.0)
+    # 1 008 trafia do ZUS i rośnie z waloryzacją 1%/rok
+    assert result.years[1].balances["zus"] == pytest.approx(1008 * 1.01)
 
 
 def test_ppe_growth_and_contribution():
@@ -73,7 +76,8 @@ def test_ppe_growth_and_contribution():
         )
     ]
     result = simulate(SimulationInput(stages=stages, max_age=41))
-    assert result.years[1].balances["ppe"] == pytest.approx(50000 * 1.06 + 9360)
+    # 70% pracodawcy (2 352) + składka dodatkowa (6 000) = 8 352
+    assert result.years[1].balances["ppe"] == pytest.approx(50000 * 1.06 + 8352)
 
 
 # --- Wypłaty ---
@@ -102,7 +106,8 @@ def test_ppe_withdrawal_after_60_tax_free():
 
 
 def test_ppe_early_withdrawal_taxed_19pct_on_gains():
-    contribution = 8000 * 12 * 0.035 + 6000  # 9 360 zł/rok
+    # 70% pracodawcy + składka dodatkowa = 2 352 + 6 000 = 8 352 do PPE rocznie
+    ppe_contribution = 8000 * 12 * 0.035 * 0.70 + 6000
     accumulation = accumulation_stage(
         {
             "ppe": acc(
@@ -116,18 +121,19 @@ def test_ppe_early_withdrawal_taxed_19pct_on_gains():
         start=40,
         end=55,
     )
-    acc_only = simulate(SimulationInput(stages=[accumulation], max_age=54))
-    bal = acc_only.final_wealth
-    contributions = contribution * 15
-    assert bal > contributions
-
     stages = [
         accumulation,
         realization_stage("PPE przed 60", {"ppe": acc(roi=0.02, buffer=0)}, 55, 56),
     ]
     result = simulate(SimulationInput(stages=stages, max_age=55))
     y = result.years[-1]
-    assert y.tax_paid == pytest.approx((bal - contributions) * 0.19, abs=0.5)
+    # PPE balance at start of realization (age 55) — after 15 years of growth
+    ppe_bal = y.balances["ppe"]
+    contributions = ppe_contribution * 15
+    assert ppe_bal > contributions
+    # Tax 19% on gains: gain_share = (ppe_bal - basis) / ppe_bal
+    expected_tax = (ppe_bal - contributions) * 0.19
+    assert y.tax_paid == pytest.approx(expected_tax, abs=0.5)
 
 
 def test_ppe_in_accounts_list():
@@ -159,7 +165,8 @@ def test_ppe_warning_additional_over_limit():
     assert any("42,390" in w for w in result.warnings)
 
 
-def test_ppe_early_withdrawal_30pct_warning():
+def test_ppe_early_withdrawal_30pct_goes_to_zus():
+    # 30% składek podstawowych pracodawcy trafia do ZUS (subkonto)
     stages = [
         accumulation_stage(
             {
@@ -176,4 +183,9 @@ def test_ppe_early_withdrawal_30pct_warning():
         realization_stage("PPE przed 60", {"ppe": acc(roi=0.02, buffer=0)}, 55, 60),
     ]
     result = simulate(SimulationInput(stages=stages, max_age=59))
-    assert any("30% składek podstawowych" in w for w in result.warnings)
+    # Rok 1 (wiek 41): 1 008 trafia do ZUS i rośnie z waloryzacją 1%
+    zus_year1 = result.years[1].balances.get("zus", 0)
+    assert zus_year1 == pytest.approx(1008 * 1.01)
+    # PPE: 70% składek pracodawcy = 2 352
+    ppe_year1 = result.years[1].balances.get("ppe", 0)
+    assert ppe_year1 == pytest.approx(50000 * 1.02 + 2352)

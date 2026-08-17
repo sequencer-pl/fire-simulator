@@ -84,8 +84,10 @@ def simulate(data: SimulationInput) -> SimulationResult:
 
     computed: dict[int, dict] = {}
     zwrocone: set[str] = set()
+    forfeited: set[str] = set()
     zus_pensions: dict[str, float] = {}
     welcomed_ppk: set[str] = set()
+    basis_employee: dict[str, float] = {}
 
     min_age = min(si.start_age for si in data.stages)
     max_age = data.max_age
@@ -131,6 +133,31 @@ def simulate(data: SimulationInput) -> SimulationResult:
                 balances[acc] = max(0.0, full - zwrot_tax[acc])
         zwrocone.update(zwrot_tax.keys())
 
+        # PPK: przepadek środków pracodawcy i państwa przy wypłacie przed 60 r.ż.
+        for si in active_stages:
+            if si.stage_type != "realizacja" or age != si.start_age:
+                continue
+            for acc in si.accounts:
+                rules = config.accounts.get(acc)
+                if (
+                    acc != "ppk"
+                    or acc in forfeited
+                    or not rules
+                    or rules.min_withdrawal_age <= 0
+                    or age >= rules.min_withdrawal_age
+                ):
+                    continue
+                total_basis = basis.get(acc, 0.0)
+                emp_basis = basis_employee.get(acc, 0.0)
+                if total_basis > 0 and emp_basis < total_basis:
+                    bal = balances.get(acc, 0.0)
+                    fraction = emp_basis / total_basis
+                    forfeited_amount = bal * (1.0 - fraction)
+                    balances[acc] = max(0.0, bal - forfeited_amount)
+                    basis[acc] = total_basis * fraction
+                    starting[acc] = balances[acc]
+                    forfeited.add(acc)
+
         for stage_input in active_stages:
             stage_obj = create_stage(stage_input.stage_type)
             accounts_config = {name: cfg.model_dump() for name, cfg in stage_input.accounts.items()}
@@ -160,7 +187,8 @@ def simulate(data: SimulationInput) -> SimulationResult:
             if stage_input.stage_type == "akumulacja":
                 if "ppk" in accounts_config:
                     _accumulate_ppk(
-                        accounts_config["ppk"], balances, basis, config, welcomed_ppk
+                        accounts_config["ppk"], balances, basis,
+                        basis_employee, config, welcomed_ppk,
                     )
                     processed_accounts.add("ppk")
                 if "ppe" in accounts_config:
@@ -336,6 +364,7 @@ def _accumulate_ppk(
     cfg: dict,
     balances: dict,
     basis: dict,
+    basis_employee: dict,
     config,
     welcomed: set[str],
 ) -> None:
@@ -345,36 +374,49 @@ def _accumulate_ppk(
     od rocznej podstawy. Dopłata roczna państwa (240 zł) wpada co roku, wpłata
     powitalna (250 zł) tylko w pierwszym roku akumulacji. Całość wliczana do
     podstawy kosztów (basis) — dla Belki przy wypłatach przed 60 r.ż.
+
+    Przed 60 r.ż. pracownik otrzymuje z powrotem tylko własne wpłaty; środki
+    pracodawcy i dopłaty państwa przepadają. Dlatego śledzimy basis_employee
+    osobno, by obliczyć udział przepadkowy.
     """
     ppk_cfg = config.ppk
     base_annual = cfg.get("monthly_base", 0.0) * 12
-    contrib = base_annual * (
-        cfg.get("employee_pct", ppk_cfg.employee_pct)
-        + cfg.get("employer_pct", ppk_cfg.employer_pct)
-    )
+    emp_pct = cfg.get("employee_pct", ppk_cfg.employee_pct)
+    employer_pct = cfg.get("employer_pct", ppk_cfg.employer_pct)
+    emp_contrib = base_annual * emp_pct
+    employer_contrib = base_annual * employer_pct
     state = 0.0
     if cfg.get("state_topups", True):
         state += ppk_cfg.state_annual
         if "ppk" not in welcomed:
             state += ppk_cfg.state_welcoming
             welcomed.add("ppk")
-    total = contrib + state
+    total = emp_contrib + employer_contrib + state
     balances["ppk"] = balances.get("ppk", 0.0) * (1 + cfg.get("roi", 0.02)) + total
     basis["ppk"] = basis.get("ppk", 0.0) + total
+    basis_employee["ppk"] = basis_employee.get("ppk", 0.0) + emp_contrib
 
 
 def _accumulate_ppe(cfg: dict, balances: dict, basis: dict, config) -> None:
     """Roczna składka podstawowa (pracodawca, % podstawy) + dodatkowa (kwotowo).
 
     Limit podstawowej (7%) jest kontrolowany ostrzeżeniem w _collect_warnings —
-    silnik liczy od podanej wartości. Wpłaty wliczane do basis dla Belki.
+    silnik liczy od podanej wartości.
+
+    30% składek podstawowych pracodawcy trafia do ZUS (subkonto), a nie do
+    PPE — zgodnie z ustawą o PPE. Pozostałe 70% + składka dodatkowa uczestnika
+    wchodzą na rachunek PPE.
     """
     base_annual = cfg.get("monthly_base", 0.0) * 12
     employer = base_annual * cfg.get("employer_pct", 0.0)
+    employer_to_zus = employer * 0.30
+    employer_to_ppe = employer - employer_to_zus
     additional = cfg.get("annual_contribution", 0.0)
-    total = employer + additional
-    balances["ppe"] = balances.get("ppe", 0.0) * (1 + cfg.get("roi", 0.02)) + total
-    basis["ppe"] = basis.get("ppe", 0.0) + total
+    total_ppe = employer_to_ppe + additional
+    balances["ppe"] = balances.get("ppe", 0.0) * (1 + cfg.get("roi", 0.02)) + total_ppe
+    basis["ppe"] = basis.get("ppe", 0.0) + total_ppe
+    if employer_to_zus > 0:
+        balances["zus"] = balances.get("zus", 0.0) + employer_to_zus
 
 
 def _asset_class_of(rules) -> str:
@@ -607,17 +649,6 @@ def _collect_warnings(data: SimulationInput) -> list[str]:
                     warnings.append(
                         f"{label} wypłacane od {si.start_age} r.ż. ({before}) — podatek "
                         f"{early_pct:.0f}% od zysku; {after} {normal_pct:.0f}%."
-                    )
-                if name == "ppk":
-                    warnings.append(
-                        f"{label} przed 60 r.ż.: realnie zwracane są tylko wpłaty własne — "
-                        f"środki pracodawcy i dopłaty państwa przepadają. Wynik poglądowy."
-                    )
-                elif name == "ppe":
-                    warnings.append(
-                        f"{label} przed 60 r.ż.: dodatkowo 30% składek podstawowych "
-                        f"pracodawcy trafia do ZUS (subkonto), a nie do uczestnika. "
-                        f"Wynik poglądowy."
                     )
 
         if si.stage_type == "akumulacja":

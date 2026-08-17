@@ -143,10 +143,8 @@ def test_ppk_withdrawal_after_60_tax_free():
     assert result.total_withdrawn > 0
 
 
-def test_ppk_early_withdrawal_taxed_19pct_on_gains():
+def test_ppk_early_withdrawal_forfeits_employer_state():
     base = 8000
-    contrib_first = base * 12 * 0.035 + 250 + 240
-    contrib_next = base * 12 * 0.035 + 240
     accumulation = accumulation_stage(
         {
             "ppk": acc(
@@ -160,10 +158,10 @@ def test_ppk_early_withdrawal_taxed_19pct_on_gains():
         start=40,
         end=55,
     )
-    acc_only = simulate(SimulationInput(stages=[accumulation], max_age=54))
-    bal = acc_only.final_wealth
-    contributions = contrib_first + contrib_next * 14
-    assert bal > contributions
+
+    # basis_employee = 1920 * 15 = 28 800; basis_total = 54 250
+    emp_basis = base * 12 * 0.02 * 15  # 28 800
+    total_basis = (base * 12 * 0.035 + 250 + 240) + (base * 12 * 0.035 + 240) * 14  # 54 250
 
     stages = [
         accumulation,
@@ -171,8 +169,17 @@ def test_ppk_early_withdrawal_taxed_19pct_on_gains():
     ]
     result = simulate(SimulationInput(stages=stages, max_age=55))
     y = result.years[-1]
-    # jednookresowy annuitet wypłaca całość — Belka 19% od zysku
-    assert y.tax_paid == pytest.approx((bal - contributions) * 0.19, abs=0.5)
+    # PPK balance at start of realization — after forfeit, only employee portion remains
+    remaining = y.balances["ppk"]
+
+    # Po przepadku: gain_share = (remaining - emp_basis) / remaining
+    # PMT na 1 rok wypłaca remaining, podatek 19% od zysku
+    expected_tax = max(0.0, (remaining - emp_basis)) * 0.19
+    assert y.tax_paid == pytest.approx(expected_tax, abs=1.0)
+    assert result.total_withdrawn > 0
+    # Przepadek: oryginalne saldo było większe (fraction < 1)
+    total_original = remaining * total_basis / emp_basis
+    assert result.total_withdrawn < total_original
 
 
 def test_ppk_in_accounts_list():
@@ -194,7 +201,7 @@ def test_ppk_warning_sum_over_8pct():
     assert any("przekracza ustawowy limit 8%" in w for w in result.warnings)
 
 
-def test_ppk_early_withdrawal_own_contrib_warning():
+def test_ppk_early_withdrawal_forfeit_no_warning():
     stages = [
         accumulation_stage(
             {"ppk": acc(starting_balance=50000, monthly_base=8000)}, start=40, end=55
@@ -202,4 +209,6 @@ def test_ppk_early_withdrawal_own_contrib_warning():
         realization_stage("PPK przed 60", {"ppk": acc(roi=0.02, buffer=0)}, 55, 60),
     ]
     result = simulate(SimulationInput(stages=stages, max_age=59))
-    assert any("tylko wpłaty własne" in w for w in result.warnings)
+    # Przepadek jest zamodelowany — brak ostrzeżenia "tylko wpłaty własne"
+    assert not any("tylko wpłaty własne" in w for w in result.warnings)
+    assert result.total_withdrawn < 50000
