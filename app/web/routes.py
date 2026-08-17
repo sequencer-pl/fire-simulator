@@ -12,7 +12,8 @@ from app.core.security import hash_password, is_valid_password, verify_password
 from app.simulation.config import default_config
 from app.simulation.engine import simulate
 from app.simulation.schemas import SimulationInput, SimulationResult
-from app.stages.registry import STAGE_META, get_all_stage_types
+from app.stages.metadata import STAGE_META
+from app.stages.registry import get_all_stage_types
 from app.storage import db
 
 router = APIRouter()
