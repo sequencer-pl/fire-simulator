@@ -7,6 +7,7 @@
     --primary: #6c5ce7;
     --primary-hover: #5a4bd1;
     --accent: #00cec9;
+    --orange: #e17055;
     --danger: #d63031;
     --success: #00b894;
     --bg-elevated: #22253a;
@@ -760,18 +761,18 @@ h2 {
 .summary-card .value.accent { color: var(--accent); }
 .summary-card .value.green { color: var(--success); }
 .summary-card .value.red { color: var(--danger); }
-.summary-card .value.primary { color: var(--primary); }
+.summary-card .value.primary { color: var(--orange); }
 
 .summary-card.contribution {
-    border-left: 3px solid var(--primary);
+    border-left: 3px solid var(--orange);
 }
 
 .summary-badge {
     display: inline-block;
     font-size: 0.65rem;
     font-weight: 700;
-    color: var(--primary);
-    background: rgba(108, 92, 231, 0.12);
+    color: var(--orange);
+    background: rgba(225, 112, 85, 0.12);
     border-radius: 6px;
     padding: 0.1rem 0.4rem;
     margin-left: 0.4rem;
@@ -794,27 +795,21 @@ h2 {
     border-bottom: 1px solid var(--border);
 }
 
-.stage-card {
+.stage-summary {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.stage-line {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.3rem 0.5rem;
+    padding: 0.4rem 0.6rem;
     background: var(--surface);
     border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 0.9rem 1.1rem;
-    margin-bottom: 0.6rem;
-}
-
-.stage-card.accum {
-    border-left: 3px solid var(--primary);
-}
-
-.stage-card.withdraw {
-    border-left: 3px solid var(--accent);
-}
-
-.stage-card-header {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    margin-bottom: 0.4rem;
+    border-radius: 8px;
 }
 
 .stage-dot {
@@ -824,71 +819,42 @@ h2 {
     flex-shrink: 0;
 }
 
-.stage-dot.accum { background: var(--primary); }
+.stage-dot.accum { background: var(--orange); }
 .stage-dot.withdraw { background: var(--accent); }
 
-.stage-card-label {
-    font-size: 0.85rem;
+.stage-label {
+    font-size: 0.8rem;
     font-weight: 600;
-    color: var(--text);
 }
 
-.stage-card-age {
+.stage-label.accum { color: var(--orange); }
+.stage-label.withdraw { color: var(--accent); }
+
+.stage-age {
     font-size: 0.72rem;
     color: var(--text-dim);
-    margin-left: auto;
     font-variant-numeric: tabular-nums;
 }
 
-.stage-card-metric {
-    font-size: 0.78rem;
+.stage-pill {
+    font-size: 0.65rem;
+    padding: 0.1rem 0.4rem;
+    border-radius: 4px;
+    background: var(--bg);
+    border: 1px solid var(--border);
     color: var(--text-dim);
-    margin-bottom: 0.5rem;
-    line-height: 1.4;
-}
-
-.stage-card-metric strong {
-    color: var(--text);
-}
-
-.stage-card-accounts {
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-}
-
-.stage-account {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-    font-size: 0.75rem;
-    padding: 0.2rem 0;
-    border-top: 1px solid rgba(255, 255, 255, 0.04);
-}
-
-.stage-account:first-child {
-    border-top: none;
-}
-
-.stage-account-icon {
-    font-size: 0.85rem;
-    width: 1.2rem;
-    text-align: center;
-    flex-shrink: 0;
-}
-
-.stage-account-name {
-    font-weight: 500;
-    color: var(--text);
-    min-width: 5rem;
-}
-
-.stage-account-detail {
-    color: var(--text-dim);
-    margin-left: auto;
-    font-variant-numeric: tabular-nums;
     white-space: nowrap;
 }
+
+.stage-finance {
+    font-size: 0.75rem;
+    font-weight: 600;
+    white-space: nowrap;
+    margin-left: auto;
+}
+
+.stage-finance.accum { color: var(--orange); }
+.stage-finance.withdraw { color: var(--success); }
 
 .table-wrap {
     overflow-x: auto;
@@ -1454,7 +1420,7 @@ tr.highlight td {
     white-space: nowrap;
 }
 
-.sim-timeline-label.accum { color: var(--primary); }
+.sim-timeline-label.accum { color: var(--orange); }
 .sim-timeline-label.withdraw { color: var(--accent); }
 
 .sim-timeline-age {
@@ -1484,7 +1450,7 @@ tr.highlight td {
 }
 
 .sim-timeline-finance.accum {
-    color: var(--primary);
+    color: var(--orange);
 }
 
 .sim-timeline-finance.withdraw {
