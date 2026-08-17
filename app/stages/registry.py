@@ -101,7 +101,10 @@ FIELD_HINTS = {
     "annual_contribution": "Dopłata wnoszona co roku (równymi ratami przez cały etap).",
     "roi": "Roczna stopa zwrotu (kapitalizacja odsetek/zysków raz w roku).",
     "buffer": "Kwota, która zostaje na koncie po etapie (nie jest wypłacana).",
-    "monthly_base": "Miesięczna podstawa wymiaru składek (wynagrodzenie).",
+    "monthly_base": (
+        "Miesięczne wynagrodzenie brutto — podstawa wymiaru składek PPK i PPE. "
+        "Składki obliczane procentowo od tej kwoty."
+    ),
     "employee_pct": "Wpłata pracownika (% podstawy, ustawowo min. 2%).",
     "employer_pct": "Wpłata pracodawcy (% podstawy, min. 1,5%, max 4%).",
     "state_topups": (
@@ -282,7 +285,7 @@ STAGE_META = {
                         "hint": FIELD_HINTS["starting_balance"],
                     },
                     "monthly_base": {
-                        "label": "Podstawa (mies.)",
+                        "label": "Wynagrodzenie (brutto)",
                         "type": "number",
                         "step": 100,
                         "hint": FIELD_HINTS["monthly_base"],
@@ -320,7 +323,7 @@ STAGE_META = {
                         "hint": FIELD_HINTS["starting_balance"],
                     },
                     "monthly_base": {
-                        "label": "Podstawa (mies.)",
+                        "label": "Wynagrodzenie (brutto)",
                         "type": "number",
                         "step": 100,
                         "hint": FIELD_HINTS["monthly_base"],
@@ -402,7 +405,7 @@ STAGE_META = {
                         "hint": FIELD_HINTS["starting_balance_ofe"],
                     },
                     "monthly_base": {
-                        "label": "Podstawa (mies.)",
+                        "label": "Wynagrodzenie (brutto)",
                         "type": "number",
                         "step": 100,
                         "hint": FIELD_HINTS["monthly_base"],
