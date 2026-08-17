@@ -69,7 +69,25 @@ def _summary_from_result(result: SimulationResult) -> dict:
     }
 
 
-def _stages_summary(input_data: SimulationInput) -> list[dict]:
+def _monthly_contribution(stage) -> float | None:
+    """Employee's own monthly investment cost for an accumulation stage."""
+    total_annual = 0.0
+    for name, cfg in stage.accounts.items():
+        if name in ("gotowka", "lokata", "zus"):
+            continue
+        elif name == "ppk":
+            total_annual += cfg.employee_pct * cfg.monthly_base * 12
+        elif name == "ppe":
+            total_annual += cfg.annual_contribution
+        else:
+            total_annual += cfg.annual_contribution
+    return round(total_annual / 12, 2) if total_annual > 0 else None
+
+
+def _stages_summary(
+    input_data: SimulationInput, result: SimulationResult | None = None
+) -> list[dict]:
+    years_by_age = {y.age: y for y in result.years} if result else {}
     stages = []
     for stage in input_data.stages:
         meta = STAGE_META.get(stage.stage_type, {})
@@ -77,12 +95,25 @@ def _stages_summary(input_data: SimulationInput) -> list[dict]:
         for key in stage.accounts:
             acc_label = meta.get("available_accounts", {}).get(key, {}).get("label", key)
             accounts.append(acc_label)
-        stages.append({
+        info = {
             "label": meta.get("label", stage.stage_type),
             "start_age": stage.start_age,
             "end_age": stage.end_age,
             "accounts": accounts,
-        })
+        }
+        if stage.stage_type == "realizacja" and years_by_age:
+            withdrawals = [
+                years_by_age[a].monthly_withdrawal
+                for a in range(stage.start_age, stage.end_age)
+                if a in years_by_age and years_by_age[a].monthly_withdrawal > 0
+            ]
+            if withdrawals:
+                info["avg_monthly_withdrawal"] = round(sum(withdrawals) / len(withdrawals), 2)
+        elif stage.stage_type == "akumulacja":
+            mc = _monthly_contribution(stage)
+            if mc is not None:
+                info["monthly_contribution"] = mc
+        stages.append(info)
     return stages
 
 

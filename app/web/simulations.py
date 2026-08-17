@@ -30,7 +30,7 @@ async def api_save_simulation(payload: SaveSimulationPayload, request: Request):
         raise HTTPException(status_code=400, detail=str(e)) from e
     now = _now()
     summary = _summary_from_result(result)
-    summary["stages"] = _stages_summary(payload.input)
+    summary["stages"] = _stages_summary(payload.input, result)
     sim_id = db.insert_simulation(
         user_id=user_id,
         name=payload.name.strip(),

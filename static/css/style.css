@@ -1355,6 +1355,20 @@ tr.highlight td {
     line-height: 1.4;
 }
 
+.sim-timeline-finance {
+    margin-top: 0.3rem;
+    font-size: 0.7rem;
+    font-weight: 600;
+}
+
+.sim-timeline-finance.accum {
+    color: var(--accent);
+}
+
+.sim-timeline-finance.withdraw {
+    color: var(--success);
+}
+
 /* --- Stopka --- */
 .sim-card-foot {
     display: flex;

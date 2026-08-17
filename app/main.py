@@ -6,8 +6,8 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from app.core.secret import get_secret_key
 from app.storage.db import init_db
-from app.web.routes import router
 from app.web.auth import router as auth_router
+from app.web.routes import router
 from app.web.simulations import router as simulations_router
 
 

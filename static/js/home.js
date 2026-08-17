@@ -110,6 +110,12 @@ function renderSims() {
             stages.forEach((st) => {
                 const kind = /akumulacja/i.test(st.label) ? "accum" : "withdraw";
                 const accounts = (st.accounts || []).map(a => `<span class="sim-acc-pill">${escapeHtml(a)}</span>`).join("");
+                let financeHtml = "";
+                if (st.monthly_contribution) {
+                    financeHtml = `<div class="sim-timeline-finance accum">Wkład: ~${fmtMoney(st.monthly_contribution)} zł/mies.</div>`;
+                } else if (st.avg_monthly_withdrawal) {
+                    financeHtml = `<div class="sim-timeline-finance withdraw">Wypłata: ~${fmtMoney(st.avg_monthly_withdrawal)} zł/mies.</div>`;
+                }
                 stagesHtml += `
                     <div class="sim-timeline-row">
                         <div class="sim-timeline-marker">
@@ -122,6 +128,7 @@ function renderSims() {
                                 <span class="sim-timeline-age">${st.start_age}→${st.end_age} r.ż.</span>
                             </div>
                             <div class="sim-timeline-accounts">${accounts}</div>
+                            ${financeHtml}
                         </div>
                     </div>`;
             });
