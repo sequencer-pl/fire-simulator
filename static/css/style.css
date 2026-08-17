@@ -802,10 +802,7 @@ tr.highlight td {
 
 .amount { text-align: right; }
 
-/* --- Fade on last 3 rows --- */
-tr.fade-0 td { opacity: 0.65; }
-tr.fade-1 td { opacity: 0.4; }
-tr.fade-2 td { opacity: 0.2; }
+
 
 .plus-suffix {
     color: var(--text-dim);

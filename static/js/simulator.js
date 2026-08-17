@@ -124,14 +124,6 @@ function renderResults(data) {
         const tr = document.createElement("tr");
         if (y.annual_withdrawal > 0) tr.classList.add("highlight");
 
-        if (hasPension) {
-            const fadeIndex = total - 3;
-            if (i >= fadeIndex && total > 3) {
-                const fadeLevel = i - fadeIndex;
-                tr.classList.add(`fade-${fadeLevel}`);
-            }
-        }
-
         const balanceCells = accounts.map(a => {
             const val = y.balances?.[a] || 0;
             return `<td class="amount" data-col="${a}">${formatMoney(val)}</td>`;
