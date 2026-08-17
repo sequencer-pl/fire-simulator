@@ -111,6 +111,7 @@ async def sim(request: Request):
     return templates.TemplateResponse(request, "simulator.html", {
         "version": _asset_version(),
         "stage_types": get_all_stage_types(),
+        "defaults": _get_defaults(),
     })
 
 
