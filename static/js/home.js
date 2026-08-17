@@ -82,6 +82,7 @@ function renderSims() {
 
         /* --- metrics --- */
         let metricsHtml = `<div class="sim-card-metrics">
+            <div class="sim-metric"><span class="sim-metric-value primary">${fmtMoney(sum.total_user_contributions)}</span><span class="sim-metric-label">Wpłaty własne</span></div>
             <div class="sim-metric"><span class="sim-metric-value green">${fmtMoney(sum.peak_wealth)}</span><span class="sim-metric-label">Szczyt</span></div>
             <div class="sim-metric"><span class="sim-metric-value">${fmtMoney(sum.final_wealth)}</span><span class="sim-metric-label">Na koniec</span></div>
             <div class="sim-metric"><span class="sim-metric-value accent">${fmtMoney(sum.total_withdrawn)}</span><span class="sim-metric-label">Wypłaty netto</span></div>

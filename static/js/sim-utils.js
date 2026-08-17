@@ -69,8 +69,6 @@ function computeStageSummaries(input, result) {
     const yearsByAge = {};
     for (const y of result.years) yearsByAge[y.age] = y;
 
-    const SKIP = new Set(["gotowka", "lokata", "zus"]);
-
     return input.stages.map((stage) => {
         const isAccum = stage.stage_type === "akumulacja";
         const duration = Math.max(0, (stage.end_age || 0) - (stage.start_age || 0));
@@ -78,13 +76,12 @@ function computeStageSummaries(input, result) {
 
         // Per-account info from input config
         const accounts = Object.entries(stage.accounts || {})
-            .filter(([k]) => !SKIP.has(k))
             .map(([key, cfg]) => {
                 const monthly = _accountMonthly(key, cfg);
                 const bal = yearsByAge[endAge]?.balances?.[key] || 0;
                 return { key, monthly: Math.round(monthly), balance: Math.round(bal) };
             })
-            .filter((a) => a.monthly > 0 || a.balance > 0);
+            .filter((a) => a.balance > 0 || a.monthly > 0);
 
         // Result metrics from years in this age range
         const stageYears = [];

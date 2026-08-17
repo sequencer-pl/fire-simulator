@@ -1300,7 +1300,7 @@ tr.highlight td {
 /* --- Metryki --- */
 .sim-card-metrics {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(5, 1fr);
     gap: 1px;
     background: var(--border);
     margin: 0 1.25rem;
@@ -1328,6 +1328,7 @@ tr.highlight td {
 .sim-metric-value.green { color: var(--success); }
 .sim-metric-value.red { color: var(--danger); }
 .sim-metric-value.accent { color: var(--accent); }
+.sim-metric-value.primary { color: var(--orange); }
 
 .sim-metric-label {
     display: block;

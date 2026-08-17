@@ -84,6 +84,25 @@ def _monthly_contribution(stage) -> float | None:
     return round(total_annual / 12, 2) if total_annual > 0 else None
 
 
+def _total_user_contributions(input_data: SimulationInput) -> float:
+    """Total employee contributions across all stages (lifetime)."""
+    total = 0.0
+    for stage in input_data.stages:
+        years = max(0, (stage.end_age or 0) - (stage.start_age or 0))
+        if years <= 0:
+            continue
+        for name, cfg in stage.accounts.items():
+            if name in ("gotowka", "lokata", "zus"):
+                continue
+            if name == "ppk":
+                total += cfg.employee_pct * cfg.monthly_base * years * 12
+            elif name == "ppe":
+                total += cfg.annual_contribution * years
+            else:
+                total += cfg.annual_contribution * years
+    return round(total, 2)
+
+
 def _stages_summary(
     input_data: SimulationInput, result: SimulationResult | None = None
 ) -> list[dict]:
