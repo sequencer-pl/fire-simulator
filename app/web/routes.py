@@ -23,7 +23,16 @@ def _asset_version() -> str:
     """Static asset version based on mtime — forces cache refresh after file changes."""
     mtimes = [
         os.path.getmtime(os.path.join(STATIC_DIR, rel))
-        for rel in ("css/style.css", "js/simulator.js", "js/home.js", "js/compare.js")
+        for rel in (
+            "css/style.css",
+            "js/sim-utils.js",
+            "js/sim-metadata.js",
+            "js/sim-cards.js",
+            "js/sim-stages.js",
+            "js/simulator.js",
+            "js/home.js",
+            "js/compare.js",
+        )
         if os.path.exists(os.path.join(STATIC_DIR, rel))
     ]
     return str(int(max(mtimes))) if mtimes else "0"
