@@ -75,6 +75,7 @@ function renderSims() {
                     <span><b>${fmtMoney(sum.total_tax)}</b> podatki</span>
                 </div>
                 <p class="sim-meta">${sum.start_age != null ? "Wiek " + sum.start_age + "→" + sum.end_age : ""}${sum.years ? " · " + sum.years + " lat" : ""}${sum.warnings ? " · ⚠ " + sum.warnings : ""}</p>
+                ${sum.stages && sum.stages.length > 0 ? '<div class="sim-stages">' + sum.stages.map(st => '<span class="sim-stage-badge">' + escapeHtml(st.label) + ' ' + st.start_age + '→' + st.end_age + ': ' + st.accounts.join(', ') + '</span>').join('') + '</div>' : ''}
             </div>
             <div class="sim-actions">
                 <button type="button" class="btn btn-secondary sim-open" data-id="${s.id}" style="margin:0;">Otwórz</button>

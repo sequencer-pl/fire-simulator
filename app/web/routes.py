@@ -12,7 +12,7 @@ from app.core.security import hash_password, is_valid_password, verify_password
 from app.simulation.config import default_config
 from app.simulation.engine import simulate
 from app.simulation.schemas import SimulationInput, SimulationResult
-from app.stages.registry import get_all_stage_types
+from app.stages.registry import STAGE_META, get_all_stage_types
 from app.storage import db
 
 router = APIRouter()
@@ -60,6 +60,23 @@ def _summary_from_result(result: SimulationResult) -> dict:
         "end_age": years[-1].age if years else None,
         "has_pension": result.has_pension,
     }
+
+
+def _stages_summary(input_data: SimulationInput) -> list[dict]:
+    stages = []
+    for stage in input_data.stages:
+        meta = STAGE_META.get(stage.stage_type, {})
+        accounts = []
+        for key in stage.accounts:
+            acc_label = meta.get("available_accounts", {}).get(key, {}).get("label", key)
+            accounts.append(acc_label)
+        stages.append({
+            "label": meta.get("label", stage.stage_type),
+            "start_age": stage.start_age,
+            "end_age": stage.end_age,
+            "accounts": accounts,
+        })
+    return stages
 
 
 def _simulation_response(row: sqlite3.Row) -> dict:
@@ -206,13 +223,15 @@ async def api_save_simulation(payload: SaveSimulationPayload, request: Request):
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
     now = _now()
+    summary = _summary_from_result(result)
+    summary["stages"] = _stages_summary(payload.input)
     sim_id = db.insert_simulation(
         user_id=user_id,
         name=payload.name.strip(),
         created_at=now,
         input_json=json.dumps(payload.input.model_dump(mode="json")),
         result_json=json.dumps(result.model_dump(mode="json")),
-        summary_json=json.dumps(_summary_from_result(result)),
+        summary_json=json.dumps(summary),
     )
     row = db.get_simulation(sim_id, user_id)
     return _simulation_response(row)

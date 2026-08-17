@@ -153,3 +153,14 @@ def test_compare_bad_ids(client):
     register_and_login(client)
     assert client.get("/api/compare?ids=abc").status_code == 400
     assert client.get("/api/compare?ids=1,2,3,4,5").status_code == 400
+
+
+def test_summary_contains_stages(client):
+    register_and_login(client)
+    sim = save(client)
+    stages = sim["summary"]["stages"]
+    assert len(stages) == 1
+    assert stages[0]["label"] == "Akumulacja"
+    assert stages[0]["start_age"] == 40
+    assert stages[0]["end_age"] == 50
+    assert "Broker" in stages[0]["accounts"]
