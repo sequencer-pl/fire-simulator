@@ -80,8 +80,7 @@ function computeStageSummaries(input, result) {
                 const monthly = _accountMonthly(key, cfg);
                 const bal = yearsByAge[endAge]?.balances?.[key] || 0;
                 return { key, monthly: Math.round(monthly), balance: Math.round(bal) };
-            })
-            .filter((a) => a.balance > 0 || a.monthly > 0);
+            });
 
         // Result metrics from years in this age range
         const stageYears = [];
