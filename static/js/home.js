@@ -59,47 +59,103 @@ function renderSims() {
 
     sims.forEach((s) => {
         const sum = s.summary || {};
+        const stages = sum.stages || [];
         const card = document.createElement("div");
         card.className = "sim-card";
-        card.innerHTML = `
-            <label class="sim-select">
-                <input type="checkbox" class="sim-check" data-id="${s.id}" title="Wybierz do porównania">
-            </label>
-            <div class="sim-main" data-id="${s.id}" role="button" tabindex="0">
-                <h3>${escapeHtml(s.name)}</h3>
-                <p class="sim-meta">${s.updated_at ? new Date(s.updated_at).toLocaleString("pl-PL") : ""}${s.updated_at !== s.created_at && s.created_at ? " · zapisana " + new Date(s.created_at).toLocaleString("pl-PL") : ""}</p>
-                <div class="sim-metrics">
-                    <span><b>${fmtMoney(sum.peak_wealth)}</b> szczyt</span>
-                    <span><b>${fmtMoney(sum.final_wealth)}</b> koniec</span>
-                    <span><b>${fmtMoney(sum.total_withdrawn)}</b> wypłaty</span>
-                    <span><b>${fmtMoney(sum.total_tax)}</b> podatki</span>
+
+        /* --- header --- */
+        let headHtml = `
+            <div class="sim-card-head">
+                <label class="sim-card-check">
+                    <input type="checkbox" class="sim-check" data-id="${s.id}" title="Wybierz do porównania">
+                </label>
+                <div class="sim-card-title">
+                    <h3>${escapeHtml(s.name)}</h3>
+                    <span class="sim-card-date">${fmtDate(sum, s)}</span>
                 </div>
-                <p class="sim-meta">${sum.start_age != null ? "Wiek " + sum.start_age + "→" + sum.end_age : ""}${sum.years ? " · " + sum.years + " lat" : ""}${sum.warnings ? " · ⚠ " + sum.warnings : ""}</p>
-                ${sum.stages && sum.stages.length > 0 ? '<div class="sim-stages">' + sum.stages.map(st => '<span class="sim-stage-badge">' + escapeHtml(st.label) + ' ' + st.start_age + '→' + st.end_age + ': ' + st.accounts.join(', ') + '</span>').join('') + '</div>' : ''}
-            </div>
-            <div class="sim-actions">
-                <button type="button" class="btn btn-secondary sim-open" data-id="${s.id}" style="margin:0;">Otwórz</button>
-                <button type="button" class="btn btn-secondary sim-dup" data-id="${s.id}" style="margin:0;">Duplikuj</button>
-                <button type="button" class="btn btn-danger sim-del" data-id="${s.id}" style="margin:0;">Usuń</button>
-            </div>
-        `;
-        card.querySelector(".sim-main").addEventListener("click", () => openSim(s.id));
-        card.querySelector(".sim-main").addEventListener("keydown", (e) => {
-            if (e.key === "Enter") openSim(s.id);
-        });
+                <div class="sim-card-head-actions">
+                    <button type="button" class="btn btn-primary sim-open" data-id="${s.id}">Otwórz</button>
+                    <button type="button" class="btn btn-secondary sim-dup" data-id="${s.id}">Duplikuj</button>
+                    <button type="button" class="btn btn-danger sim-del" data-id="${s.id}">Usuń</button>
+                </div>
+            </div>`;
+
+        /* --- metrics --- */
+        let metricsHtml = `<div class="sim-card-metrics">
+            <div class="sim-metric"><span class="sim-metric-value green">${fmtMoney(sum.peak_wealth)}</span><span class="sim-metric-label">Szczyt</span></div>
+            <div class="sim-metric"><span class="sim-metric-value">${fmtMoney(sum.final_wealth)}</span><span class="sim-metric-label">Na koniec</span></div>
+            <div class="sim-metric"><span class="sim-metric-value accent">${fmtMoney(sum.total_withdrawn)}</span><span class="sim-metric-label">Wypłaty netto</span></div>
+            <div class="sim-metric"><span class="sim-metric-value red">${fmtMoney(sum.total_tax)}</span><span class="sim-metric-label">Podatki</span></div>
+        </div>`;
+
+        /* --- info line --- */
+        let infoParts = [];
+        if (sum.start_age != null && sum.end_age != null)
+            infoParts.push(`${sum.start_age}→${sum.end_age} r.ż.`);
+        if (sum.years) infoParts.push(`${sum.years} lat`);
+        if (sum.accounts && sum.accounts.length)
+            infoParts.push(`${sum.accounts.length} kont`);
+        if (sum.has_pension) infoParts.push("emerytura ZUS");
+        let infoHtml = "";
+        if (infoParts.length || sum.warnings) {
+            infoHtml = `<div class="sim-card-info"><span>${infoParts.join(" · ")}</span>`;
+            if (sum.warnings) infoHtml += `<span class="warn">⚠ ${sum.warnings} ostrzeż.</span>`;
+            infoHtml += `</div>`;
+        }
+
+        /* --- stages timeline --- */
+        let stagesHtml = "";
+        if (stages.length > 0) {
+            stagesHtml = `<div class="sim-card-stages"><div class="sim-timeline">`;
+            stages.forEach((st) => {
+                const kind = /akumulacja/i.test(st.label) ? "accum" : "withdraw";
+                const accounts = (st.accounts || []).map(a => `<span class="sim-acc-pill">${escapeHtml(a)}</span>`).join("");
+                stagesHtml += `
+                    <div class="sim-timeline-row">
+                        <div class="sim-timeline-marker">
+                            <div class="sim-timeline-dot ${kind === "withdraw" ? "realizacja" : ""}"></div>
+                            <div class="sim-timeline-line"></div>
+                        </div>
+                        <div class="sim-timeline-body">
+                            <div class="sim-timeline-head">
+                                <span class="sim-timeline-label ${kind}">${escapeHtml(st.label)}</span>
+                                <span class="sim-timeline-age">${st.start_age}→${st.end_age} r.ż.</span>
+                            </div>
+                            <div class="sim-timeline-accounts">${accounts}</div>
+                        </div>
+                    </div>`;
+            });
+            stagesHtml += `</div></div>`;
+        }
+
+        card.innerHTML = headHtml + metricsHtml + infoHtml + stagesHtml;
+
+        /* --- events --- */
         card.querySelector(".sim-open").addEventListener("click", () => openSim(s.id));
         card.querySelector(".sim-dup").addEventListener("click", async () => {
             await api(`/api/simulations/${s.id}/duplicate`, { method: "POST" });
             await loadSims();
         });
         card.querySelector(".sim-del").addEventListener("click", async () => {
-            if (!confirm(`Usunąć symulację „${s.name}”?`)) return;
+            if (!confirm(`Usunąć symulację „${s.name}"?`)) return;
             await api(`/api/simulations/${s.id}`, { method: "DELETE" });
             await loadSims();
         });
         card.querySelector(".sim-check").addEventListener("change", updateCompareBtn);
+        card.addEventListener("click", (e) => {
+            if (e.target.closest("button") || e.target.closest("input")) return;
+            openSim(s.id);
+        });
         list.appendChild(card);
     });
+}
+
+function fmtDate(sum, s) {
+    const parts = [];
+    if (s.updated_at) parts.push(new Date(s.updated_at).toLocaleString("pl-PL"));
+    if (s.created_at && s.updated_at !== s.created_at)
+        parts.push("utw. " + new Date(s.created_at).toLocaleString("pl-PL"));
+    return parts.join(" · ");
 }
 
 function escapeHtml(str) {
