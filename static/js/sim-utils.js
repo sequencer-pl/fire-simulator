@@ -39,3 +39,23 @@ function stepInputValue(input, dir) {
     input.value = places > 0 ? val.toFixed(places) : String(Math.round(val));
     input.dispatchEvent(new Event("input", { bubbles: true }));
 }
+
+function computeTotalUserContributions(input) {
+    if (!input || !input.stages) return 0;
+    let total = 0;
+    for (const stage of input.stages) {
+        const years = Math.max(0, (stage.end_age || 0) - (stage.start_age || 0));
+        if (years <= 0) continue;
+        for (const [name, cfg] of Object.entries(stage.accounts || {})) {
+            if (name === "gotowka" || name === "lokata" || name === "zus") continue;
+            if (name === "ppk") {
+                total += (cfg.employee_pct || 0) * (cfg.monthly_base || 0) * years * 12;
+            } else if (name === "ppe") {
+                total += (cfg.annual_contribution || 0) * years;
+            } else {
+                total += (cfg.annual_contribution || 0) * years;
+            }
+        }
+    }
+    return total;
+}

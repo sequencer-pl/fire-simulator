@@ -760,6 +760,24 @@ h2 {
 .summary-card .value.accent { color: var(--accent); }
 .summary-card .value.green { color: var(--success); }
 .summary-card .value.red { color: var(--danger); }
+.summary-card .value.primary { color: var(--primary); }
+
+.summary-card.contribution {
+    border-left: 3px solid var(--primary);
+}
+
+.summary-badge {
+    display: inline-block;
+    font-size: 0.65rem;
+    font-weight: 700;
+    color: var(--primary);
+    background: rgba(108, 92, 231, 0.12);
+    border-radius: 6px;
+    padding: 0.1rem 0.4rem;
+    margin-left: 0.4rem;
+    vertical-align: middle;
+    letter-spacing: 0.02em;
+}
 
 .table-wrap {
     overflow-x: auto;

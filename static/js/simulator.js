@@ -99,9 +99,19 @@ function renderResults(data) {
         warnings.appendChild(div);
     });
 
+    const totalContrib = computeTotalUserContributions(lastInput);
+    const multiplier = totalContrib > 0 ? (data.peak_wealth / totalContrib) : 0;
+    const multiplierBadge = multiplier > 0
+        ? `<span class="summary-badge">${multiplier.toFixed(1)}×</span>`
+        : "";
+
     summary.innerHTML = `
+        <div class="summary-card contribution">
+            <div class="label">Wpłaty własne</div>
+            <div class="value primary">${formatMoney(totalContrib)}</div>
+        </div>
         <div class="summary-card">
-            <div class="label">Majątek szczytowy</div>
+            <div class="label">Majątek szczytowy${multiplierBadge}</div>
             <div class="value accent">${formatMoney(data.peak_wealth)}</div>
         </div>
         <div class="summary-card">
