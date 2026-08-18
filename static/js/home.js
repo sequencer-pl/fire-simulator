@@ -115,9 +115,9 @@ function renderSims() {
                     .join("");
                 let financeHtml = "";
                 if (st.monthly_contribution) {
-                    financeHtml = `<span class="sim-timeline-finance accum">~${fmtMoney(st.monthly_contribution)} zł/mies.</span>`;
+                    financeHtml = `<span class="sim-timeline-finance accum">~${fmtMoney(st.monthly_contribution)}/mies.</span>`;
                 } else if (st.avg_monthly_withdrawal) {
-                    financeHtml = `<span class="sim-timeline-finance withdraw">~${fmtMoney(st.avg_monthly_withdrawal)} zł/mies.</span>`;
+                    financeHtml = `<span class="sim-timeline-finance withdraw">~${fmtMoney(st.avg_monthly_withdrawal)}/mies.</span>`;
                 }
                 stagesHtml += `
                     <div class="sim-timeline-row">

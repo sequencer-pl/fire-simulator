@@ -185,9 +185,9 @@ function renderStageSummary(data) {
 
         let finance = "";
         if (isAccum && st.total_monthly > 0) {
-            finance = `<span class="stage-finance ${kind}">~${formatMoney(st.total_monthly)} zł/mies.</span>`;
+            finance = `<span class="stage-finance ${kind}">~${formatMoney(st.total_monthly)}/mies.</span>`;
         } else if (!isAccum && st.avg_withdrawal > 0) {
-            finance = `<span class="stage-finance ${kind}">~${formatMoney(st.avg_withdrawal)} zł/mies.</span>`;
+            finance = `<span class="stage-finance ${kind}">~${formatMoney(st.avg_withdrawal)}/mies.</span>`;
         }
 
         html += `
