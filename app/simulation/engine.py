@@ -81,17 +81,50 @@ def _init_state(data: SimulationInput) -> tuple:
     )
 
 
+def _estimate_zus_pension(
+    active_stages: list[StageInput],
+    age: int,
+    balances: dict[str, float],
+    zus_pensions: dict[str, float],
+    config: TaxConfig,
+) -> float:
+    """Estimate the annual ZUS pension for this year without modifying state."""
+    for si in active_stages:
+        if si.stage_type != "realizacja" or "zus" not in si.accounts:
+            continue
+        cfg = si.accounts["zus"]
+        # Manual pension override — use it directly.
+        if cfg.monthly_pension > 0:
+            return cfg.monthly_pension * MONTHS_PER_YEAR
+        zus_cfg = config.zus
+        if age == si.start_age and "zus" not in zus_pensions:
+            # Capital-to-pension conversion: capital / SDTZ(age) * 12.
+            capital = balances.get("zus", 0.0) + balances.get("zus:ofe", 0.0)
+            months = sdtz_months(age)
+            return (capital / months * MONTHS_PER_YEAR) if months > 0 else 0.0
+        if "zus" in zus_pensions:
+            waloryzacja = (
+                cfg.waloryzacja_swiadczenia
+                if cfg.waloryzacja_swiadczenia is not None
+                else zus_cfg.waloryzacja_swiadczenia
+            )
+            return zus_pensions["zus"] * (1 + waloryzacja) * MONTHS_PER_YEAR
+    return 0.0
+
+
 def _process_ikze_returns(
     active_stages: list[StageInput],
     age: int,
     balances: dict[str, float],
     config: TaxConfig,
     early_returned: set[str],
-) -> dict[str, float]:
+    zus_pension: float = 0.0,
+) -> tuple[dict[str, float], set[str]]:
     # One-time IKZE early return before qualifying age (e.g. 65):
-    # scale tax on ENTIRE balance is deducted before PMT calculation,
-    # so installment payments are based on net capital ("payout + deposit" model).
-    early_return_tax: dict[str, float] = {}
+    # Combined scale tax on IKZE balance + ZUS pension for the year,
+    # prorated proportionally. IKZE share is deducted from capital
+    # before PMT, so installments are based on net capital.
+    ikze_accounts: list[tuple[str, float]] = []
     for si in active_stages:
         if si.stage_type != "realizacja" or age != si.start_age:
             continue
@@ -105,17 +138,36 @@ def _process_ikze_returns(
                 or rules.early_tax_model != "scale"
             ):
                 continue
-            full = balances.get(acc, 0.0)
-            early_return_tax[acc] = scale_tax(
-                full,
-                kwota_wolna=config.kwota_wolna,
-                prog=config.prog,
-                rate_lower=config.rate_lower,
-                rate_upper=config.rate_upper,
-            )
-            balances[acc] = max(0.0, full - early_return_tax[acc])
-    early_returned.update(early_return_tax.keys())
-    return early_return_tax
+            ikze_accounts.append((acc, balances.get(acc, 0.0)))
+
+    if not ikze_accounts:
+        return {}, set()
+
+    total_ikze = sum(bal for _, bal in ikze_accounts)
+    combined = total_ikze + zus_pension
+    combined_tax = scale_tax(
+        combined,
+        kwota_wolna=config.kwota_wolna,
+        prog=config.prog,
+        rate_lower=config.rate_lower,
+        rate_upper=config.rate_upper,
+    )
+
+    early_return_tax: dict[str, float] = {}
+    handled_scale: set[str] = set()
+
+    for acc, bal in ikze_accounts:
+        share = combined_tax * (bal / combined) if combined > 0 else 0.0
+        early_return_tax[acc] = share
+        balances[acc] = max(0.0, bal - share)
+        early_returned.add(acc)
+
+    if zus_pension > 0:
+        zus_share = combined_tax * (zus_pension / combined)
+        early_return_tax["zus"] = zus_share
+        handled_scale.add("zus")
+
+    return early_return_tax, handled_scale
 
 
 def _process_ppk_forfeits(
@@ -352,8 +404,12 @@ def simulate(data: SimulationInput) -> SimulationResult:
         year_start_balances = dict(balances)
         processed_accounts: set[str] = set()
 
-        early_return_tax = _process_ikze_returns(
-            active_stages, age, balances, config, early_returned
+        zus_pension = _estimate_zus_pension(
+            active_stages, age, balances, zus_pensions, config,
+        )
+
+        early_return_tax, yearly_scale_handled = _process_ikze_returns(
+            active_stages, age, balances, config, early_returned, zus_pension,
         )
 
         _process_ppk_forfeits(
@@ -374,6 +430,7 @@ def simulate(data: SimulationInput) -> SimulationResult:
             age=age,
             config=config,
             early_returned=early_returned,
+            yearly_scale_handled=yearly_scale_handled,
         )
         for acc, t in early_return_tax.items():
             merged_tax[acc] = merged_tax.get(acc, 0.0) + t
@@ -393,7 +450,9 @@ def simulate(data: SimulationInput) -> SimulationResult:
             "ending_balances": dict(balances),
             "withdrawal": merged_withdrawal,
             "tax": merged_tax,
-            "early_return_tax": sum(early_return_tax.values()),
+            "early_return_tax": sum(
+                v for k, v in early_return_tax.items() if k != "zus"
+            ),
             "stage_name": "+".join(stage_label_parts),
         }
 
@@ -683,8 +742,11 @@ def _apply_tax(
     age: int,
     config: TaxConfig,
     early_returned: set[str],
+    yearly_scale_handled: set[str] | None = None,
 ) -> dict[str, float]:
     """Calculate the annual tax for each account and update the cost basis."""
+    if yearly_scale_handled is None:
+        yearly_scale_handled = set()
     tax: dict[str, float] = {}
     scale_income = 0.0
     scale_accounts: list[tuple[str, float]] = []
@@ -693,9 +755,10 @@ def _apply_tax(
         rules = config.accounts.get(account)
         if not rules:
             continue
-        if account in early_returned:
+        if account in early_returned or account in yearly_scale_handled:
             # One-time IKZE early return — tax already collected at return,
             # subsequent withdrawals (installments from net capital) not re-taxed.
+            # ZUS pension — scale tax already merged with IKZE in _process_ikze_returns.
             continue
 
         early = rules.min_withdrawal_age > 0 and age < rules.min_withdrawal_age

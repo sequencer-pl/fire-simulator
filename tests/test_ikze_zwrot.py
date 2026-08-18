@@ -4,6 +4,9 @@ Model: w pierwszym roku etapu realizacji przed wiekiem uprawniającym podatek
 wg skali PIT jest potrącany od CAŁOŚCI salda, a wypłaty ratalne są liczone
 (PMT) od kapitału netto ("wypłata + lokata"). Konto jest oznaczane jako
 "zwrócone" — kolejne wypłaty (także po 65 r.ż.) nie są ponownie opodatkowane.
+
+Gdy w tym samym roku występuje też emerytura ZUS (skala), oba dochody są
+łączone w jednym wezwaniu scale_tax() ze wspólną kwotą wolną.
 """
 
 import pytest
@@ -161,10 +164,10 @@ def test_zwrot_year_mixed_with_zus_scale_is_additive():
     )
     solo_y = solo.years[0]  # ZUS zaczyna w 50 r.ż.
     combo_y = combined.years[10]
-    # 120k/rok -> podatek skali 10 800; zwrot 132 400 -> łącznie 143 200.
+    # 120k/rok + 500k IKZE -> scale_tax(620k) = 170 800, prorated.
     assert solo_y.tax_paid == pytest.approx(10_800, rel=1e-3)
-    assert combo_y.tax_paid == pytest.approx(143_200, rel=1e-3)
-    assert combo_y.annual_withdrawal == pytest.approx(solo_y.annual_withdrawal + 73_520, rel=1e-3)
+    assert combo_y.tax_paid == pytest.approx(170_800, rel=1e-3)
+    assert combo_y.annual_withdrawal == pytest.approx(solo_y.annual_withdrawal + 50_194, rel=1e-3)
 
 
 # --- Kolejny etap realizacji: brak podwójnego opodatkowania zwróconego kapitału ---
