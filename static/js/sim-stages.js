@@ -102,19 +102,18 @@ function createStageBlock(defaults) {
     block.className = "stage-block " + stageKindClass(stageType);
     block.dataset.index = idx;
     block.dataset.stageType = stageType;
-    block.draggable = true;
 
     block.innerHTML = `
-        <div class="stage-actions">
-            <button type="button" class="move-btn move-up" title="Przesuń w górę">&uarr;</button>
-            <button type="button" class="move-btn move-down" title="Przesuń w dół">&darr;</button>
-            <button type="button" class="remove-btn" title="Usuń etap">&times;</button>
+        <div class="stage-handle">
+            <span class="stage-grip" title="Przeciągnij, aby zmienić kolejność">⠿</span>
+            <span class="stage-type-badge ${stageKindClass(stageType)}">${cfg.label || stageType}</span>
+            <div class="stage-handle-actions">
+                <button type="button" class="move-btn move-up" title="Przesuń w górę">&uarr;</button>
+                <button type="button" class="move-btn move-down" title="Przesuń w dół">&darr;</button>
+                <button type="button" class="remove-btn" title="Usuń etap">&times;</button>
+            </div>
         </div>
         <div class="stage-header">
-            <div class="field-group">
-                <label>Typ etapu</label>
-                <span class="stage-type-badge ${stageKindClass(stageType)}">${cfg.label || stageType}</span>
-            </div>
             <div class="field-group">
                 <label>Nazwa</label>
                 <input type="text" class="stage-name" value="${defaults?.name || cfg.label || ""}" />
@@ -140,6 +139,9 @@ function createStageBlock(defaults) {
         <div class="accounts-grid"></div>
         <div class="stage-hint hidden"></div>
     `;
+
+    const handle = block.querySelector(".stage-handle");
+    handle.draggable = true;
 
     block.querySelector(".move-up").addEventListener("click", () => moveStage(block, "up"));
     block.querySelector(".move-down").addEventListener("click", () => moveStage(block, "down"));

@@ -54,13 +54,44 @@ h2 {
     position: relative;
 }
 
-/* --- Stage reordering --- */
-.stage-actions {
-    position: absolute;
-    top: 1rem;
-    right: 1rem;
+/* --- Stage handle (drag bar) --- */
+.stage-handle {
     display: flex;
-    gap: 0.4rem;
+    align-items: center;
+    gap: 0.5rem;
+    margin: -1.5rem -1.5rem 1rem -1.5rem;
+    padding: 0.5rem 1rem;
+    border-bottom: 1px solid var(--border);
+    border-radius: 12px 12px 0 0;
+    cursor: grab;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.stage-handle:active {
+    cursor: grabbing;
+}
+
+.stage-grip {
+    color: var(--text-dim);
+    font-size: 1.1rem;
+    line-height: 1;
+    opacity: 0.6;
+    transition: opacity 0.15s;
+}
+
+.stage-handle:hover .stage-grip {
+    opacity: 1;
+}
+
+.stage-handle .stage-type-badge {
+    margin-left: 0.25rem;
+}
+
+.stage-handle-actions {
+    display: flex;
+    gap: 0.3rem;
+    margin-left: auto;
 }
 
 .move-btn {
