@@ -152,7 +152,9 @@ function renderSims() {
         card.querySelector(".sim-check").addEventListener("change", updateCompareBtn);
         card.addEventListener("click", (e) => {
             if (e.target.closest("button") || e.target.closest("input")) return;
-            openSim(s.id);
+            const cb = card.querySelector(".sim-check");
+            cb.checked = !cb.checked;
+            cb.dispatchEvent(new Event("change"));
         });
         list.appendChild(card);
     });
@@ -175,8 +177,13 @@ function escapeHtml(str) {
 function updateCompareBtn() {
     const checked = document.querySelectorAll(".sim-check:checked");
     const count = checked.length;
+    const total = document.querySelectorAll(".sim-check").length;
     $("compareBtn").disabled = count === 0 || count > 4;
+    $("exportBtn").disabled = count === 0;
+    $("deleteBulkBtn").disabled = count === 0;
     $("compareCount").textContent = count === 0 ? "" : "zaznaczono: " + count;
+    $("selectAllCb").checked = total > 0 && count === total;
+    $("selectAllCb").indeterminate = count > 0 && count < total;
 }
 
 function openSim(id) {
@@ -238,6 +245,38 @@ document.addEventListener("DOMContentLoaded", () => {
             .map((c) => c.dataset.id)
             .join(",");
         if (ids) window.location.href = "/compare?ids=" + ids;
+    });
+    $("selectAllCb").addEventListener("change", (e) => {
+        document.querySelectorAll(".sim-check").forEach((c) => {
+            c.checked = e.target.checked;
+        });
+        updateCompareBtn();
+    });
+    $("deleteBulkBtn").addEventListener("click", async () => {
+        const ids = Array.from(document.querySelectorAll(".sim-check:checked"))
+            .map((c) => c.dataset.id);
+        if (!ids.length) return;
+        if (!confirm(`Usunąć ${ids.length} symulacji?`)) return;
+        await api("/api/simulations/delete-bulk", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ids }),
+        });
+        await loadSims();
+    });
+    $("exportBtn").addEventListener("click", () => {
+        const checked = document.querySelectorAll(".sim-check:checked");
+        const selected = sims.filter((s) =>
+            Array.from(checked).some((c) => c.dataset.id === String(s.id))
+        );
+        const blob = new Blob([JSON.stringify(selected, null, 2)], {
+            type: "application/json",
+        });
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = "symulacje_" + new Date().toISOString().slice(0, 10) + ".json";
+        a.click();
+        URL.revokeObjectURL(a.href);
     });
     refreshSession();
 });

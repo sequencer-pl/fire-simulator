@@ -28,6 +28,10 @@ class RenamePayload(BaseModel):
     name: str = Field(min_length=1, max_length=200)
 
 
+class DeleteBulkPayload(BaseModel):
+    ids: list[int]
+
+
 @router.post("/api/simulations")
 async def api_save_simulation(payload: SaveSimulationPayload, request: Request):
     user_id = _require_user(request)
@@ -103,6 +107,18 @@ async def api_delete_simulation(sim_id: int, request: Request):
     if not db.delete_simulation(sim_id, user_id):
         raise HTTPException(status_code=404, detail="Symulacja nie znaleziona.")
     return {"ok": True}
+
+
+@router.post("/api/simulations/delete-bulk")
+async def api_delete_simulations_bulk(payload: DeleteBulkPayload, request: Request):
+    user_id = _require_user(request)
+    if not payload.ids:
+        raise HTTPException(status_code=400, detail="Podaj identyfikatory.")
+    deleted = 0
+    for sim_id in payload.ids:
+        if db.delete_simulation(sim_id, user_id):
+            deleted += 1
+    return {"ok": True, "deleted": deleted}
 
 
 @router.get("/api/compare")
