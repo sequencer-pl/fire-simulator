@@ -35,9 +35,11 @@ function taxEfficiency(sim) {
 }
 
 function roiMultiple(sim) {
-    const contrib = sim.summary.total_user_contributions;
-    if (!contrib || contrib <= 0) return null;
-    return sim.result.total_withdrawn / contrib;
+    const contrib = sim.summary.total_user_contributions || 0;
+    const initCap = sim.summary.initial_capital || 0;
+    const totalInvested = initCap + contrib;
+    if (totalInvested <= 0) return null;
+    return sim.result.total_withdrawn / totalInvested;
 }
 
 function valueAt(sim, age) {
@@ -149,6 +151,7 @@ function renderCards(sims) {
 
         /* --- metrics (same 5-column grid as home page) --- */
         let metricsHtml = `<div class="sim-card-metrics">
+            <div class="sim-metric"><span class="sim-metric-value purple">${fmtMoney(sum.initial_capital)}</span><span class="sim-metric-label">Kapitał początkowy</span></div>
             <div class="sim-metric"><span class="sim-metric-value primary">${fmtMoney(sum.total_user_contributions)}</span><span class="sim-metric-label">Wpłaty własne</span></div>
             <div class="sim-metric"><span class="sim-metric-value green">${fmtMoney(sum.peak_wealth)}</span><span class="sim-metric-label">Szczyt</span></div>
             <div class="sim-metric"><span class="sim-metric-value">${fmtMoney(sum.final_wealth)}</span><span class="sim-metric-label">Na koniec</span></div>
@@ -231,8 +234,12 @@ const METRIC_GROUPS = [
           hint: "Udział wypłat netto w sumie wypłat brutto (netto + podatek). Im wyższy, tym mniej podatku." },
     ]},
     { label: "Inne", metrics: [
+        { key: "initial_capital", label: "Kapitał początkowy", money: true, better: "max",
+          hint: "Suma sald startowych wszystkich kont (pierwsze wystąpienie chronologicznie)." },
+        { key: "total_user_contributions", label: "Wpłaty własne", money: true, better: "max",
+          hint: "Suma wpłat własnych (roczne + PPK pracownicze) przez cały okres symulacji." },
         { key: "roi_mult", label: "Mnożnik", mult: true, better: "max",
-          hint: "Ile razy suma wypłat netto przewyższa łączne wpłaty własne." },
+          hint: "Ile razy suma wypłat netto przewyższa łączne zainwestowane środki (kapitał początkowy + wpłaty własne)." },
         { key: "years", label: "Lata symulacji", money: false, better: "max",
           hint: "Liczba lat objętych symulacją." },
         { key: "warnings", label: "Ostrzeżenia", money: false, better: "min",

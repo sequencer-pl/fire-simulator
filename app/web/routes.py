@@ -103,6 +103,18 @@ def _total_user_contributions(input_data: SimulationInput) -> float:
     return round(total, 2)
 
 
+def _initial_capital(input_data: SimulationInput) -> float:
+    """Sum of starting_balance for each unique account (first occurrence only)."""
+    seen: set[str] = set()
+    total = 0.0
+    for stage in sorted(input_data.stages, key=lambda s: s.start_age or 0):
+        for name, cfg in stage.accounts.items():
+            if name not in seen and cfg.starting_balance > 0:
+                total += cfg.starting_balance
+                seen.add(name)
+    return round(total, 2)
+
+
 def _stages_summary(
     input_data: SimulationInput, result: SimulationResult | None = None
 ) -> list[dict]:

@@ -8,6 +8,7 @@ from app.simulation.schemas import SimulationInput
 from app.storage import db
 
 from .routes import (
+    _initial_capital,
     _now,
     _require_user,
     _simulation_response,
@@ -43,6 +44,7 @@ async def api_save_simulation(payload: SaveSimulationPayload, request: Request):
     summary = _summary_from_result(result)
     summary["stages"] = _stages_summary(payload.input, result)
     summary["total_user_contributions"] = _total_user_contributions(payload.input)
+    summary["initial_capital"] = _initial_capital(payload.input)
     sim_id = db.insert_simulation(
         user_id=user_id,
         name=payload.name.strip(),

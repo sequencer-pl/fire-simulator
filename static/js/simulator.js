@@ -100,13 +100,19 @@ function renderResults(data) {
     });
 
     const totalContrib = computeTotalUserContributions(lastInput);
-    const multiplier = totalContrib > 0 ? (data.peak_wealth / totalContrib) : 0;
+    const initCap = computeInitialCapital(lastInput);
+    const totalInvested = initCap + totalContrib;
+    const multiplier = totalInvested > 0 ? (data.peak_wealth / totalInvested) : 0;
     const multiplierBadge = multiplier > 0
-        ? `<span class="summary-badge">${multiplier.toFixed(1)}×</span>`
+        ? `<span class="summary-badge" title="Majątek szczytowy / (kapitał początkowy + wpłaty własne)">${multiplier.toFixed(1)}×</span>`
         : "";
 
     summary.innerHTML = `
-        <div class="summary-card contribution">
+        <div class="summary-card">
+            <div class="label">Początkowy kapitał</div>
+            <div class="value purple">${formatMoney(initCap)}</div>
+        </div>
+        <div class="summary-card">
             <div class="label">Wpłaty własne</div>
             <div class="value primary">${formatMoney(totalContrib)}</div>
         </div>
@@ -157,6 +163,12 @@ function renderResults(data) {
     applyDensity();
     renderStageSummary(data);
     renderWealthChart(data);
+    renderWithdrawalChart(data);
+
+    /* show charts section if any chart is visible */
+    const hasCharts = !document.getElementById("wealthChart").classList.contains("hidden")
+        || !document.getElementById("withdrawalChart").classList.contains("hidden");
+    document.getElementById("chartsSection").classList.toggle("hidden", !hasCharts);
 
     container.style.display = "block";
     container.scrollIntoView({ behavior: "smooth" });
@@ -567,48 +579,240 @@ function applyDensity() {
 
 function renderWealthChart(data) {
     const container = document.getElementById("wealthChart");
+    const detail = document.getElementById("wealthDetail");
     const years = data.years || [];
     if (years.length < 2) {
         container.classList.add("hidden");
+        detail.classList.add("hidden");
         container.innerHTML = "";
+        detail.innerHTML = "";
         return;
     }
 
     const W = 1000;
     const H = 320;
-    const padX = 14;
+    const padX = 50;
     const padY = 26;
+    const padBottom = 36;
     const innerW = W - padX * 2;
-    const innerH = H - padY * 2;
+    const innerH = H - padY - padBottom;
 
-    const ages = years.map((y) => y.age);
-    const minAge = Math.min(...ages);
-    const maxAge = Math.max(...ages);
-    const maxWealth = Math.max(...years.map((y) => y.total_wealth));
+    const minAge = years[0].age;
+    const maxAge = years[years.length - 1].age;
+    const rawMax = Math.max(...years.map((y) => y.total_wealth));
+    const maxWealth = rawMax > 0 ? rawMax * 1.1 : 1;
     const x = (age) => padX + ((age - minAge) / Math.max(1, maxAge - minAge)) * innerW;
-    const y = (wealth) => H - padY - (wealth / Math.max(1, maxWealth)) * innerH;
+    const y = (val) => H - padBottom - (val / Math.max(1, maxWealth)) * innerH;
 
-    let svg = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" class="chart-svg"><g class="grid-lines">`;
-    const steps = 5;
-    for (let i = 0; i <= steps; i++) {
-        const gy = padY + (innerH * i) / steps;
-        const val = maxWealth * (1 - i / steps);
-        svg += `<line x1="${padX}" y1="${gy}" x2="${W - padX}" y2="${gy}"/>
-                <text x="${padX}" y="${gy - 4}" class="axis-text">${Math.round(val / 1000)}k</text>`;
+    let svg = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" class="chart-svg" id="wealthSvg">`;
+
+    /* grid lines + y-axis */
+    svg += `<g class="grid-lines">`;
+    const ySteps = 5;
+    for (let i = 0; i <= ySteps; i++) {
+        const gy = padY + (innerH * i) / ySteps;
+        const val = maxWealth * (1 - i / ySteps);
+        svg += `<line x1="${padX}" y1="${gy}" x2="${W - padX}" y2="${gy}"/>`;
+        svg += `<text x="${padX - 6}" y="${gy + 4}" class="axis-text" text-anchor="end">${Math.round(val / 1000).toLocaleString("pl-PL")}k</text>`;
     }
+
+    /* x-axis ticks — always step 5 */
+    const ageRange = maxAge - minAge;
+    const step = ageRange <= 15 ? 1 : 5;
+    for (let a = Math.ceil(minAge / step) * step; a <= maxAge; a += step) {
+        const tx = x(a);
+        svg += `<line x1="${tx}" y1="${H - padBottom}" x2="${tx}" y2="${H - padBottom + 5}" stroke="var(--text-dim)" stroke-width="1"/>`;
+        svg += `<text x="${tx}" y="${H - padBottom - 6}" class="axis-text" text-anchor="middle">${a}</text>`;
+    }
+    svg += `<text x="${padX - 6}" y="${padY - 8}" class="axis-text" text-anchor="end">zł</text>`;
+    svg += `<text x="${W / 2}" y="${H - 4}" class="axis-text" text-anchor="middle">Wiek (r.ż.)</text>`;
     svg += "</g>";
 
+    /* line */
     const points = years.map((yr) => `${x(yr.age).toFixed(1)},${y(yr.total_wealth).toFixed(1)}`);
     svg += `<polyline class="chart-line wealth-line" fill="none" points="${points.join(" ")}"/>`;
-    years.forEach((yr) => {
-        svg += `<circle class="chart-dot" cx="${x(yr.age).toFixed(1)}" cy="${y(yr.total_wealth).toFixed(1)}" r="3">
-            <title>${yr.age} r.ż. — ${formatMoney(yr.total_wealth)}</title>
-        </circle>`;
-    });
-    svg += `<text x="${padX}" y="${H - 4}" class="axis-text">${minAge} r.ż.</text>
-            <text x="${W - padX}" y="${H - 4}" text-anchor="end" class="axis-text">${maxAge} r.ż.</text>`;
-    svg += "</svg>";
 
+    /* clickable dots — sample if too many years */
+    const maxDots = 30;
+    const dotYears = years.length <= maxDots ? years : years.filter((_, i) => i % Math.ceil(years.length / maxDots) === 0 || i === years.length - 1);
+    dotYears.forEach((yr, i) => {
+        const cls = i === 0 ? "chart-dot chart-dot-wealth active" : "chart-dot chart-dot-wealth";
+        svg += `<circle class="${cls}" cx="${x(yr.age).toFixed(1)}" cy="${y(yr.total_wealth).toFixed(1)}" r="4" data-age="${yr.age}"/>`;
+    });
+
+    svg += "</svg>";
     container.innerHTML = svg;
+    container.classList.remove("hidden");
+
+    /* click handler on dots */
+    container.querySelectorAll(".chart-dot-wealth").forEach((dot) => {
+        dot.addEventListener("click", (e) => {
+            const age = parseInt(e.target.dataset.age, 10);
+            const yr = years.find((y) => y.age === age);
+            if (!yr) return;
+            container.querySelectorAll(".chart-dot-wealth").forEach((d) => d.classList.remove("active"));
+            e.target.classList.add("active");
+            renderWealthDetail(yr, detail);
+        });
+    });
+
+    /* auto-select first dot */
+    renderWealthDetail(years[0], detail);
+}
+
+function renderWealthDetail(yr, container) {
+    const fmt = formatMoney;
+
+    /* find the active stage for this age and determine pill class */
+    let pillClass = "";
+    const stageAccounts = new Set();
+    if (lastInput && lastInput.stages) {
+        for (const stage of lastInput.stages) {
+            if (yr.age >= stage.start_age && yr.age < stage.end_age) {
+                for (const name of Object.keys(stage.accounts || {})) {
+                    stageAccounts.add(name);
+                }
+                pillClass = stage.stage_type === "realizacja" ? "pill-active" : "pill-accum";
+                break;
+            }
+        }
+    }
+
+    const balEntries = Object.entries(yr.balances || {}).filter(([, v]) => v > 0);
+    const balHtml = balEntries.map(([k, v]) => {
+        const match = stageAccounts.has(k);
+        return `<span class="detail-pill${match ? " " + pillClass : ""}">${escapeHtml(k.toUpperCase())}: ${fmt(v)}</span>`;
+    }).join("");
+
+    container.innerHTML = `
+        <div class="detail-header">
+            <strong>${yr.age} r.ż.</strong> — ${escapeHtml(yr.stage_name || "")}
+        </div>
+        <div class="detail-grid">
+            <div class="detail-item"><span class="detail-label">Majątek łącznie</span><span class="detail-value">${fmt(yr.total_wealth)}</span></div>
+            <div class="detail-item"><span class="detail-label">Wypłata mies.</span><span class="detail-value green">${fmt(yr.monthly_withdrawal)}</span></div>
+            <div class="detail-item"><span class="detail-label">Wypłata roczna</span><span class="detail-value green">${fmt(yr.annual_withdrawal)}</span></div>
+            <div class="detail-item"><span class="detail-label">Podatek</span><span class="detail-value red">${fmt(yr.tax_paid)}</span></div>
+        </div>
+        ${balHtml ? `<div class="detail-balances">${balHtml}</div>` : ""}
+    `;
+    container.classList.remove("hidden");
+}
+
+function renderWithdrawalChart(data) {
+    const container = document.getElementById("withdrawalChart");
+    const detail = document.getElementById("withdrawalDetail");
+    const years = data.years || [];
+    const withWithdrawals = years.filter((y) => y.monthly_withdrawal > 0);
+    if (withWithdrawals.length < 2) {
+        container.classList.add("hidden");
+        detail.classList.add("hidden");
+        container.innerHTML = "";
+        detail.innerHTML = "";
+        return;
+    }
+
+    const W = 1000;
+    const H = 320;
+    const padX = 50;
+    const padY = 26;
+    const padBottom = 36;
+    const innerW = W - padX * 2;
+    const innerH = H - padY - padBottom;
+
+    const minAge = withWithdrawals[0].age;
+    const maxAge = withWithdrawals[withWithdrawals.length - 1].age;
+    const maxWithdrawal = Math.max(...withWithdrawals.map((y) => y.monthly_withdrawal));
+    const x = (age) => padX + ((age - minAge) / Math.max(1, maxAge - minAge)) * innerW;
+    const y = (val) => H - padBottom - (val / Math.max(1, maxWithdrawal)) * innerH;
+
+    let svg = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" class="chart-svg" id="withdrawalSvg">`;
+
+    /* grid lines */
+    svg += `<g class="grid-lines">`;
+    const ySteps = 5;
+    for (let i = 0; i <= ySteps; i++) {
+        const gy = padY + (innerH * i) / ySteps;
+        const val = maxWithdrawal * (1 - i / ySteps);
+        svg += `<line x1="${padX}" y1="${gy}" x2="${W - padX}" y2="${gy}"/>`;
+        svg += `<text x="${padX - 6}" y="${gy + 4}" class="axis-text" text-anchor="end">${Math.round(val).toLocaleString("pl-PL")}</text>`;
+    }
+
+    /* x-axis ticks — always step 5 */
+    const ageRange = maxAge - minAge;
+    const step = ageRange <= 15 ? 1 : 5;
+    for (let a = Math.ceil(minAge / step) * step; a <= maxAge; a += step) {
+        const tx = x(a);
+        svg += `<line x1="${tx}" y1="${H - padBottom}" x2="${tx}" y2="${H - padBottom + 5}" stroke="var(--text-dim)" stroke-width="1"/>`;
+        svg += `<text x="${tx}" y="${H - padBottom - 6}" class="axis-text" text-anchor="middle">${a}</text>`;
+    }
+    svg += `<text x="${padX - 6}" y="${padY - 8}" class="axis-text" text-anchor="end">zł/mies.</text>`;
+    svg += `<text x="${W / 2}" y="${H - 4}" class="axis-text" text-anchor="middle">Wiek (r.ż.)</text>`;
+    svg += "</g>";
+
+    /* line */
+    const points = withWithdrawals.map((yr) => `${x(yr.age).toFixed(1)},${y(yr.monthly_withdrawal).toFixed(1)}`);
+    svg += `<polyline class="chart-line withdrawal-line" fill="none" points="${points.join(" ")}"/>`;
+
+    /* clickable dots */
+    withWithdrawals.forEach((yr, i) => {
+        const cls = i === 0 ? "chart-dot chart-dot-green active" : "chart-dot chart-dot-green";
+        svg += `<circle class="${cls}" cx="${x(yr.age).toFixed(1)}" cy="${y(yr.monthly_withdrawal).toFixed(1)}" r="4" data-age="${yr.age}"/>`;
+    });
+
+    svg += "</svg>";
+    container.innerHTML = svg;
+    container.classList.remove("hidden");
+
+    /* click handler on dots */
+    container.querySelectorAll(".chart-dot-green").forEach((dot) => {
+        dot.addEventListener("click", (e) => {
+            const age = parseInt(e.target.dataset.age, 10);
+            const yr = years.find((y) => y.age === age);
+            if (!yr) return;
+            container.querySelectorAll(".chart-dot-green").forEach((d) => d.classList.remove("active"));
+            e.target.classList.add("active");
+            renderWithdrawalDetail(yr, detail);
+        });
+    });
+
+    /* auto-select first dot */
+    const firstYr = withWithdrawals[0];
+    renderWithdrawalDetail(firstYr, detail);
+}
+
+function renderWithdrawalDetail(yr, container) {
+    const fmt = formatMoney;
+
+    /* find which accounts belong to the active stage */
+    const activeAccounts = new Set();
+    if (lastInput && lastInput.stages) {
+        for (const stage of lastInput.stages) {
+            if (stage.stage_type === "realizacja" && yr.age >= stage.start_age && yr.age < stage.end_age) {
+                for (const name of Object.keys(stage.accounts || {})) {
+                    activeAccounts.add(name);
+                }
+            }
+        }
+    }
+
+    const balEntries = Object.entries(yr.balances || {}).filter(([, v]) => v > 0);
+    const balHtml = balEntries.map(([k, v]) => {
+        const isActive = activeAccounts.has(k);
+        return `<span class="detail-pill${isActive ? " pill-active" : ""}">${escapeHtml(k.toUpperCase())}: ${fmt(v)}</span>`;
+    }).join("");
+
+    container.innerHTML = `
+        <div class="detail-header">
+            <strong>${yr.age} r.ż.</strong> — ${escapeHtml(yr.stage_name || "")}
+        </div>
+        <div class="detail-grid">
+            <div class="detail-item"><span class="detail-label">Majątek łącznie</span><span class="detail-value">${fmt(yr.total_wealth)}</span></div>
+            <div class="detail-item"><span class="detail-label">Wypłata mies.</span><span class="detail-value green">${fmt(yr.monthly_withdrawal)}</span></div>
+            <div class="detail-item"><span class="detail-label">Wypłata roczna</span><span class="detail-value green">${fmt(yr.annual_withdrawal)}</span></div>
+            <div class="detail-item"><span class="detail-label">Podatek</span><span class="detail-value red">${fmt(yr.tax_paid)}</span></div>
+        </div>
+        ${balHtml ? `<div class="detail-balances">${balHtml}</div>` : ""}
+    `;
     container.classList.remove("hidden");
 }

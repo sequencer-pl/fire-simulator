@@ -58,6 +58,22 @@ function computeTotalUserContributions(input) {
     return total;
 }
 
+function computeInitialCapital(input) {
+    if (!input || !input.stages) return 0;
+    const seen = new Set();
+    let total = 0;
+    const sorted = [...input.stages].sort((a, b) => (a.start_age || 0) - (b.start_age || 0));
+    for (const stage of sorted) {
+        for (const [name, cfg] of Object.entries(stage.accounts || {})) {
+            if (!seen.has(name) && (cfg.starting_balance || 0) > 0) {
+                total += cfg.starting_balance;
+                seen.add(name);
+            }
+        }
+    }
+    return total;
+}
+
 function _accountMonthly(name, cfg) {
     if (name === "gotowka" || name === "lokata" || name === "zus") return 0;
     if (name === "ppk") return (cfg.employee_pct || 0) * (cfg.monthly_base || 0);
