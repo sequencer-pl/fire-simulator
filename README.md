@@ -59,6 +59,7 @@ Wszystkie kwoty w wynikach są **netto (po podatku)**. "Majątek" to suma sald n
 | Konto | Reżim podatkowy | Dostępność | Uwagi |
 |-------|-----------------|------------|-------|
 | Broker / krypto / lokata | Belka 19% od zysku | dowolna | podstawowe konta inwestycyjne |
+| Obligacje | Belka 19% od zysku | dowolna | realna marża ponad inflację |
 | Gotówka | brak | dowolna | domyślnie −2,5%/rok (inflacja) |
 | IKE | 0% po 60. r.ż. | od 60 | przed 60: Belka 19% od zysku |
 | IKZE | ryczałt 10% po 65. | od 65 | przed 65: skala PIT od całości zwrotu |
