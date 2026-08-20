@@ -139,6 +139,7 @@ function renderResults(data) {
     data.years.forEach((y, i) => {
         const tr = document.createElement("tr");
         if (y.annual_withdrawal > 0) tr.classList.add("highlight");
+        else tr.classList.add("stage-accum");
 
         const balanceCells = accounts.map(a => {
             const val = y.balances?.[a] || 0;

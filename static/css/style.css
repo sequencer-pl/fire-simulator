@@ -13,6 +13,8 @@
     --bg-elevated: #22253a;
 }
 
+html { overflow-x: hidden; }
+
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
 body {
@@ -20,6 +22,7 @@ body {
     background: var(--bg);
     color: var(--text);
     line-height: 1.6;
+    overflow-x: hidden;
 }
 
 .container {
@@ -921,8 +924,12 @@ tr:hover td {
 }
 
 tr.highlight td {
-    background: rgba(0, 206, 201, 0.08);
+    background: rgba(0, 206, 201, 0.06);
     font-weight: 600;
+}
+
+tr.stage-accum td {
+    background: rgba(225, 112, 85, 0.05);
 }
 
 .amount { text-align: right; }
@@ -1669,7 +1676,12 @@ tr.highlight td {
 
 #resultsTable tr.highlight td.col-age,
 #resultsTable tr.highlight td.col-stage {
-    background: rgba(0, 206, 201, 0.12);
+    background: linear-gradient(90deg, rgba(0, 206, 201, 0.12) 0%, var(--bg) 100%);
+}
+
+#resultsTable tr.stage-accum td.col-age,
+#resultsTable tr.stage-accum td.col-stage {
+    background: linear-gradient(90deg, rgba(225, 112, 85, 0.10) 0%, var(--bg) 100%);
 }
 
 #resultsTable td.col-hidden,
@@ -2174,4 +2186,120 @@ th.col-name { z-index: 3; }
     color: #fdcb6e;
     font-size: 0.85rem;
     margin-bottom: 1rem;
+}
+
+/* ========================================
+   RESPONSIVE — 768px (tablet)
+   ======================================== */
+@media (max-width: 768px) {
+    .container { padding: 1.25rem; }
+    .topbar { flex-wrap: wrap; }
+    .topnav { flex-wrap: wrap; }
+    .mode-toggle { flex-wrap: wrap; }
+    .sim-topbar { flex-wrap: wrap; gap: 0.5rem; }
+
+    #summary { flex-wrap: wrap; }
+    .summary-card { flex: 1 1 calc(50% - 0.5rem); min-width: 0; }
+
+    .sim-card-metrics { grid-template-columns: repeat(3, 1fr); }
+    .accounts-grid { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+
+    .chart-detail .detail-grid { grid-template-columns: 1fr 1fr; gap: 0.5rem 1rem; }
+
+    .cmp-gantt-row { grid-template-columns: 120px 1fr; }
+    .cmp-card-footer { flex-wrap: wrap; gap: 0.4rem; }
+
+    .sim-footer { gap: 0.5rem; padding: 0.6rem 0.75rem; }
+
+    .density-control { flex-wrap: wrap; }
+}
+
+/* ========================================
+   RESPONSIVE — 480px (phone)
+   ======================================== */
+@media (max-width: 480px) {
+    .container { padding: 0.75rem; }
+    h1 { font-size: 1.4rem; }
+    h2 { font-size: 1.15rem; }
+    .subtitle { margin-bottom: 1rem; }
+
+    /* --- topbar: stack --- */
+    .topbar { flex-direction: column; align-items: stretch; }
+    .brand { justify-content: center; }
+    .brand h1 { font-size: 1.2rem; }
+    .topnav { justify-content: center; gap: 0.5rem; }
+
+    /* --- mode toggle --- */
+    .mode-toggle { gap: 0.35rem; }
+    .mode-btn { padding: 0.4rem 0.9rem; font-size: 0.8rem; }
+
+    /* --- stage header: stack fields --- */
+    .stage-header { flex-wrap: wrap; }
+    .stage-header .field-group { flex: 1 1 100%; }
+
+    /* --- summary cards: 2-col --- */
+    #summary { gap: 0.5rem; flex-wrap: wrap; }
+    .summary-card { flex: 1 1 calc(50% - 0.35rem); padding: 0.6rem 0.75rem; }
+    .summary-card .value { font-size: 1rem; }
+
+    /* --- metrics: 2-col --- */
+    .sim-card-metrics { grid-template-columns: repeat(2, 1fr); margin: 0 0.75rem; }
+
+    /* --- accounts grid --- */
+    .accounts-grid { grid-template-columns: 1fr; }
+
+    /* --- config grids --- */
+    .config-fields, .config-accounts { grid-template-columns: 1fr; }
+    .cmp-cards { grid-template-columns: 1fr; }
+
+    /* --- sim card head: wrap --- */
+    .sim-card-head { flex-wrap: wrap; gap: 0.5rem; padding: 0.75rem 1rem 0.5rem; }
+
+    /* --- chart detail --- */
+    .chart-detail { padding: 0.75rem 1rem; }
+    .chart-detail .detail-grid { grid-template-columns: 1fr; gap: 0.4rem 0; }
+    .chart-detail .detail-balances { gap: 0.3rem; }
+
+    /* --- sticky columns: reduce width --- */
+    #resultsTable th.col-stage,
+    #resultsTable td.col-stage { min-width: 130px; max-width: 160px; left: 48px; }
+    #resultsTable th.col-age,
+    #resultsTable td.col-age { min-width: 48px; }
+
+    /* --- compare tables --- */
+    td.col-name, th.col-name { min-width: 120px; }
+
+    /* --- gantt --- */
+    .cmp-gantt-inner { min-width: 100%; }
+    .cmp-gantt-row { grid-template-columns: 100px 1fr; }
+    .cmp-gantt-label { font-size: 0.75rem; }
+    .cmp-gantt-pills { flex-wrap: wrap; }
+    .cmp-gantt-age-label { transform: translateX(50px); }
+
+    /* --- sim footer: compact --- */
+    .sim-footer {
+        width: calc(100% - 1.5rem);
+        gap: 0.4rem;
+        padding: 0.5rem 0.6rem;
+        flex-wrap: wrap;
+        overflow: hidden;
+    }
+    .sim-footer-left, .sim-footer-right { gap: 0.3rem; }
+    .sim-footer .btn { padding: 0.3rem 0.6rem; font-size: 0.75rem; }
+
+    /* --- tooltips: don't escape viewport --- */
+    .tip .tooltip { max-width: calc(100vw - 2rem); }
+
+    /* --- results toolbar --- */
+    .results-toolbar { flex-direction: column; gap: 0.5rem; }
+
+    /* --- auth panel --- */
+    .auth-panel { padding: 1rem; }
+
+    /* --- simulator form actions --- */
+    .form-actions { gap: 0.35rem; }
+    .form-actions .btn { padding: 0.4rem 0.8rem; font-size: 0.85rem; }
+
+    /* --- stage summary --- */
+    .cmp-card-metrics { gap: 0.25rem 0.5rem; }
 }
