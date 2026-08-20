@@ -21,6 +21,13 @@ ACCOUNT_INFO = {
             "pobieranym przez bank."
         ),
     },
+    "obligacje": {
+        "description": (
+            "Obligacje skarbowe. Zyski (odsetki) opodatkowane 19% podatkiem "
+            "Belki. Dla obligacji indeksowanych inflacją (EDO, COI) realna stopa "
+            "zwrotu to marża ponad inflację."
+        ),
+    },
     "gotowka": {
         "description": (
             "Gotówka na rachunku, bez oprocentowania. Realnie traci na wartości "
@@ -388,6 +395,31 @@ STAGE_META = {
                     },
                 },
             },
+            "obligacje": {
+                "label": "Obligacje",
+                "fields": {
+                    "starting_balance": {
+                        "label": "Saldo startowe", "type": "number", "step": 1000,
+                        "hint": FIELD_HINTS["starting_balance"],
+                    },
+                    "annual_contribution": {
+                        "label": "Dopłata roczna",
+                        "type": "number",
+                        "step": 1000,
+                        "hint": FIELD_HINTS["annual_contribution"],
+                    },
+                    "roi": {
+                        "label": "ROI",
+                        "type": "number",
+                        "step": 1,
+                        "percent": True,
+                        "hint": (
+                            "Roczna stopa zwrotu. Dla obligacji indeksowanych "
+                            "(EDO, COI) wpisz realną marżę ponad inflację (np. 2%)."
+                        ),
+                    },
+                },
+            },
             "zus": {
                 "label": "ZUS (składki)",
                 "fields": {
@@ -584,6 +616,25 @@ STAGE_META = {
                         "step": 1,
                         "percent": True,
                         "hint": "Roczne oprocentowanie lokaty; odsetki opodatkowane 19%.",
+                    },
+                    "buffer": {
+                        "label": "Bufor", "type": "number", "step": 1000,
+                        "hint": FIELD_HINTS["buffer"],
+                    },
+                },
+            },
+            "obligacje": {
+                "label": "Obligacje",
+                "fields": {
+                    "roi": {
+                        "label": "ROI",
+                        "type": "number",
+                        "step": 1,
+                        "percent": True,
+                        "hint": (
+                            "Roczna stopa zwrotu. Dla obligacji indeksowanych "
+                            "(EDO, COI) wpisz realną marżę ponad inflację (np. 2%)."
+                        ),
                     },
                     "buffer": {
                         "label": "Bufor", "type": "number", "step": 1000,

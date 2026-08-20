@@ -3,6 +3,7 @@
 const ACCOUNT_ICONS = {
     broker: "📈",
     lokata: "🏦",
+    obligacje: "📜",
     gotowka: "💵",
     ike: "🐷",
     ikze: "🧾",
@@ -22,6 +23,7 @@ const ACCOUNT_LABELS = {
     ikze: "IKZE",
     krypto: "Krypto",
     lokata: "Lokata",
+    obligacje: "Obligacje",
     oipe: "OIPE",
     oki_inw: "OKI inwestycyjne",
     oki_osk: "OKI oszczędnościowe",

@@ -7,6 +7,7 @@ ACCOUNT_LABELS = {
     "ikze": "IKZE",
     "krypto": "Krypto",
     "lokata": "Lokata",
+    "obligacje": "Obligacje",
     "oipe": "OIPE",
     "oki_inw": "OKI inwestycyjne",
     "oki_osk": "OKI oszczędnościowe",
@@ -62,6 +63,7 @@ def default_account_rules() -> dict[str, AccountRules]:
         "broker": AccountRules(tax_model="flat", tax_rate=0.19),
         "krypto": AccountRules(tax_model="flat", tax_rate=0.19),
         "lokata": AccountRules(tax_model="flat", tax_rate=0.19),
+        "obligacje": AccountRules(tax_model="flat", tax_rate=0.19),
         "gotowka": AccountRules(tax_model="none"),
         "ike": AccountRules(
             tax_model="flat",
