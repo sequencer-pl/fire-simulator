@@ -309,9 +309,13 @@ function switchMode(mode) {
 
 async function initConfig() {
     try {
-        const res = await fetch("/api/config");
-        DEFAULT_CONFIG = await res.json();
-        CONFIG = DEFAULT_CONFIG;
+        const [defaultsRes, userRes] = await Promise.all([
+            fetch("/api/config"),
+            fetch("/api/config/user"),
+        ]);
+        DEFAULT_CONFIG = await defaultsRes.json();
+        const userData = await userRes.json();
+        CONFIG = userData.config ? backfillConfig(userData.config) : structuredClone(DEFAULT_CONFIG);
         applyZusWaloryzacjaDefaults();
         renderConfigView();
         updateStageHints(document.getElementById("stages-container"));
@@ -341,6 +345,27 @@ function setConfigPath(path, value) {
     let obj = CONFIG;
     for (let i = 0; i < parts.length - 1; i++) obj = obj[parts[i]];
     obj[parts[parts.length - 1]] = value;
+    scheduleConfigSave();
+}
+
+function getConfigDefault(path) {
+    const parts = path.split(".");
+    let val = DEFAULT_CONFIG;
+    for (const p of parts) val = val?.[p];
+    return val;
+}
+
+let _configSaveTimeout = null;
+function scheduleConfigSave() {
+    if (!window.getCurrentUserEmail?.()) return;
+    clearTimeout(_configSaveTimeout);
+    _configSaveTimeout = setTimeout(() => {
+        fetch("/api/config/user", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(CONFIG),
+        }).catch((err) => console.error("Błąd zapisu konfiguracji:", err));
+    }, 500);
 }
 
 function renderConfigView() {
@@ -419,14 +444,33 @@ function configField(path, label, value, percent, hint) {
             <button type="button" class="stepper stepper-down" tabindex="-1" aria-label="Zmniejsz">&minus;</button>
             <input type="number" class="acc-field" min="0" step="any" value="${displayVal}" />
             <button type="button" class="stepper stepper-up" tabindex="-1" aria-label="Zwiększ">+</button>
+            <button type="button" class="field-reset" title="Przywróć wartość domyślną" hidden>&#x21ba;</button>
         </div>
     `;
     const input = wrap.querySelector("input");
+    const resetBtn = wrap.querySelector(".field-reset");
+
+    function updateIndicator() {
+        const cur = percent ? (parseFloat(input.value) || 0) / 100 : (parseFloat(input.value) || 0);
+        const def = getConfigDefault(path);
+        resetBtn.hidden = Math.abs(cur - def) < 1e-9;
+    }
+
     input.addEventListener("input", () => {
         const parsed = parseFloat(input.value) || 0;
         setConfigPath(path, percent ? parsed / 100 : parsed);
         updateStageHints(document.getElementById("stages-container"));
+        updateIndicator();
     });
+
+    resetBtn.addEventListener("click", () => {
+        const def = getConfigDefault(path);
+        setConfigPath(path, def);
+        input.value = percent ? def * 100 : def;
+        updateIndicator();
+    });
+
+    updateIndicator();
     return wrap;
 }
 
@@ -460,7 +504,10 @@ function configSelect(path, label, value, options, hint) {
     const wrap = document.createElement("div");
     wrap.className = "field-group";
     wrap.innerHTML = `<label>${label}${hint ? tipHtml(hint) : ""}</label>`;
+    const row = document.createElement("div");
+    row.style.cssText = "display:flex;align-items:center;gap:0.25rem;";
     const select = document.createElement("select");
+    select.style.flex = "1";
     for (const [val, text] of Object.entries(options)) {
         const opt = document.createElement("option");
         opt.value = val;
@@ -468,19 +515,44 @@ function configSelect(path, label, value, options, hint) {
         if (val === value) opt.selected = true;
         select.appendChild(opt);
     }
+
+    const resetBtn = document.createElement("button");
+    resetBtn.type = "button";
+    resetBtn.className = "field-reset";
+    resetBtn.title = "Przywróć wartość domyślną";
+    resetBtn.innerHTML = "&#x21ba;";
+
+    function updateIndicator() {
+        resetBtn.hidden = select.value === getConfigDefault(path);
+    }
+
     select.addEventListener("change", () => {
         setConfigPath(path, select.value);
         updateStageHints(document.getElementById("stages-container"));
+        updateIndicator();
     });
-    wrap.appendChild(select);
+
+    resetBtn.addEventListener("click", () => {
+        const def = getConfigDefault(path);
+        setConfigPath(path, def);
+        select.value = def;
+        updateIndicator();
+    });
+
+    row.appendChild(select);
+    row.appendChild(resetBtn);
+    wrap.appendChild(row);
+    updateIndicator();
     return wrap;
 }
 
 async function resetConfig() {
-    const res = await fetch("/api/config");
-    CONFIG = await res.json();
+    CONFIG = structuredClone(DEFAULT_CONFIG);
     renderConfigView();
     updateStageHints(document.getElementById("stages-container"));
+    if (window.getCurrentUserEmail?.()) {
+        fetch("/api/config/user", { method: "DELETE" }).catch(() => {});
+    }
 }
 
 // --- Sesja i zapis symulacji ---

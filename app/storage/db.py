@@ -28,6 +28,12 @@ CREATE TABLE IF NOT EXISTS simulations (
 );
 
 CREATE INDEX IF NOT EXISTS idx_simulations_user ON simulations(user_id);
+
+CREATE TABLE IF NOT EXISTS configs (
+    user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    config_json TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
 """
 
 
@@ -173,3 +179,29 @@ def duplicate_simulation(
             ),
         )
         return cur.lastrowid
+
+
+def get_user_config(user_id: int) -> str | None:
+    with connect() as conn:
+        row = conn.execute(
+            "SELECT config_json FROM configs WHERE user_id = ?",
+            (user_id,),
+        ).fetchone()
+        return row["config_json"] if row else None
+
+
+def save_user_config(user_id: int, config_json: str, updated_at: str) -> None:
+    with connect() as conn:
+        conn.execute(
+            "INSERT OR REPLACE INTO configs (user_id, config_json, updated_at) VALUES (?, ?, ?)",
+            (user_id, config_json, updated_at),
+        )
+
+
+def delete_user_config(user_id: int) -> bool:
+    with connect() as conn:
+        cur = conn.execute(
+            "DELETE FROM configs WHERE user_id = ?",
+            (user_id,),
+        )
+        return cur.rowcount > 0

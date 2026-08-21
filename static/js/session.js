@@ -1,10 +1,15 @@
 // Wspólny pasek sesji (e-mail + Wyloguj / Zaloguj) dla wszystkich widoków.
+let currentUserEmail = null;
+function getCurrentUserEmail() { return currentUserEmail; }
+window.getCurrentUserEmail = getCurrentUserEmail;
+
 async function refreshSessionBar() {
     const bar = document.getElementById("sessionBar");
     if (!bar) return;
     try {
         const res = await fetch("/api/session");
         const session = await res.json();
+        currentUserEmail = session.email || null;
         if (session.email) {
             bar.innerHTML = `
                 <span class="session-email">${escapeHtml(session.email)}</span>

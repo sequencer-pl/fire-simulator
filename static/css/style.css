@@ -1215,6 +1215,49 @@ tr.stage-accum td {
     letter-spacing: 0.04em;
 }
 
+.config-section .field-group {
+    position: relative;
+}
+
+.num-control .field-reset {
+    flex-shrink: 0;
+    width: 2rem;
+    border: none;
+    background: transparent;
+    color: var(--orange);
+    font-size: 1.05rem;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.15s;
+    line-height: 1;
+}
+.num-control .field-reset[hidden] {
+    display: none !important;
+}
+.num-control .field-reset:hover {
+    color: var(--danger);
+}
+
+.field-reset {
+    flex-shrink: 0;
+    background: none;
+    border: none;
+    color: var(--orange);
+    font-size: 1.1rem;
+    cursor: pointer;
+    padding: 0.15rem 0.3rem;
+    line-height: 1;
+    transition: color 0.15s;
+}
+.field-reset[hidden] {
+    display: none !important;
+}
+.field-reset:hover {
+    color: var(--danger);
+}
+
 /* --- Górny pasek nawigacji --- */
 .topbar {
     display: flex;

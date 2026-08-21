@@ -12,6 +12,7 @@ from app.simulation.engine import _resolve_base, simulate
 from app.simulation.schemas import SimulationInput, SimulationResult
 from app.stages.metadata import STAGE_META
 from app.stages.registry import get_all_stage_types
+from app.storage import db
 
 router = APIRouter()
 templates = Jinja2Templates(directory="app/templates")
@@ -209,6 +210,32 @@ async def api_defaults():
 @router.get("/api/config")
 async def api_config():
     return default_config().model_dump()
+
+
+@router.get("/api/config/user")
+async def api_user_config(request: Request):
+    user_id = _current_user_id(request)
+    if not user_id:
+        return {"config": None}
+    saved = db.get_user_config(user_id)
+    if not saved:
+        return {"config": None}
+    return {"config": json.loads(saved)}
+
+
+@router.put("/api/config/user")
+async def api_save_user_config(request: Request):
+    user_id = _require_user(request)
+    body = await request.json()
+    db.save_user_config(user_id, json.dumps(body, separators=(",", ":")), _now())
+    return {"ok": True}
+
+
+@router.delete("/api/config/user")
+async def api_delete_user_config(request: Request):
+    user_id = _require_user(request)
+    db.delete_user_config(user_id)
+    return {"ok": True}
 
 
 # --- Helpers ---
