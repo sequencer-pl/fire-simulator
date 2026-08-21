@@ -7,7 +7,11 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
-from app.simulation.config import default_config
+from app.simulation.config import (
+    BUILTIN_PRESETS,
+    default_config,
+    get_builtin_preset,
+)
 from app.simulation.engine import _resolve_base, simulate
 from app.simulation.schemas import SimulationInput, SimulationResult
 from app.stages.metadata import STAGE_META
@@ -235,6 +239,61 @@ async def api_save_user_config(request: Request):
 async def api_delete_user_config(request: Request):
     user_id = _require_user(request)
     db.delete_user_config(user_id)
+    return {"ok": True}
+
+
+# --- Presets ---
+
+@router.get("/api/presets")
+async def api_list_presets(request: Request):
+    user_id = _current_user_id(request)
+    result: list[dict] = []
+
+    for name in BUILTIN_PRESETS:
+        result.append({"id": None, "name": name, "is_builtin": True})
+
+    if user_id is not None:
+        for row in db.list_user_presets(user_id):
+            result.append({
+                "id": row["id"],
+                "name": row["name"],
+                "is_builtin": False,
+            })
+
+    return {"presets": result}
+
+
+@router.get("/api/presets/{preset_id}")
+async def api_get_preset(preset_id: int, request: Request):
+    user_id = _require_user(request)
+    row = db.get_preset(preset_id, user_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Preset not found")
+    return {"config": json.loads(row["config_json"])}
+
+
+@router.post("/api/presets")
+async def api_create_preset(request: Request):
+    user_id = _require_user(request)
+    data = await request.json()
+    name = data.get("name", "").strip()
+    if not name:
+        raise HTTPException(status_code=400, detail="Name required")
+    if name in BUILTIN_PRESETS:
+        raise HTTPException(status_code=400, detail="Cannot overwrite builtin preset")
+    config = data.get("config")
+    if config is None:
+        raise HTTPException(status_code=400, detail="Config required")
+    now = datetime.now(UTC).isoformat()
+    preset_id = db.save_preset(user_id, name, json.dumps(config), now)
+    return {"id": preset_id, "name": name, "is_builtin": False}
+
+
+@router.delete("/api/presets/{preset_id}")
+async def api_delete_preset(preset_id: int, request: Request):
+    user_id = _require_user(request)
+    if not db.delete_preset(preset_id, user_id):
+        raise HTTPException(status_code=404, detail="Preset not found")
     return {"ok": True}
 
 

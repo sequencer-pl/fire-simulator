@@ -134,6 +134,19 @@
         <div id="configView" class="hidden">
             <h2>Konfiguracja</h2>
             <p class="subtitle">Parametry zależne od państwa i instytucji (domyślnie 2026 r.). Wpływa na wyliczenie podatków, limitów wiekowych i wpłat.</p>
+            <div id="presetBar" class="preset-bar">
+                <div class="preset-left">
+                    <label>Preset:</label>
+                    <select id="presetSelect"></select>
+                    <button type="button" id="presetSaveBtn" class="preset-btn" title="Zapisz bieżącą konfigurację jako preset">💾 Zapisz jako</button>
+                    <button type="button" id="presetDeleteBtn" class="preset-btn preset-btn-danger" title="Usuń zaznaczony preset" hidden>🗑️ Usuń</button>
+                </div>
+                <div class="preset-right">
+                    <button type="button" id="presetExportBtn" class="preset-btn" title="Eksportuj preset do pliku JSON">📤 Eksportuj</button>
+                    <label for="presetImportInput" class="preset-btn" title="Importuj preset z pliku JSON">📥 Importuj</label>
+                    <input type="file" id="presetImportInput" accept=".json" hidden />
+                </div>
+            </div>
             <div id="config-content"></div>
             <button type="button" id="configResetBtn" class="btn btn-secondary">Przywróć domyślne</button>
         </div>

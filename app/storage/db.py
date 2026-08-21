@@ -34,6 +34,17 @@ CREATE TABLE IF NOT EXISTS configs (
     config_json TEXT NOT NULL,
     updated_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS presets (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    config_json TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    UNIQUE(user_id, name)
+);
+
+CREATE INDEX IF NOT EXISTS idx_presets_user ON presets(user_id);
 """
 
 
@@ -203,5 +214,39 @@ def delete_user_config(user_id: int) -> bool:
         cur = conn.execute(
             "DELETE FROM configs WHERE user_id = ?",
             (user_id,),
+        )
+        return cur.rowcount > 0
+
+
+def list_user_presets(user_id: int) -> list[sqlite3.Row]:
+    with connect() as conn:
+        return conn.execute(
+            "SELECT id, name, config_json, created_at FROM presets WHERE user_id = ? ORDER BY name",
+            (user_id,),
+        ).fetchall()
+
+
+def get_preset(preset_id: int, user_id: int) -> sqlite3.Row | None:
+    with connect() as conn:
+        return conn.execute(
+            "SELECT id, name, config_json FROM presets WHERE id = ? AND user_id = ?",
+            (preset_id, user_id),
+        ).fetchone()
+
+
+def save_preset(user_id: int, name: str, config_json: str, created_at: str) -> int:
+    with connect() as conn:
+        cur = conn.execute(
+            "INSERT INTO presets (user_id, name, config_json, created_at) VALUES (?, ?, ?, ?)",
+            (user_id, name, config_json, created_at),
+        )
+        return cur.lastrowid
+
+
+def delete_preset(preset_id: int, user_id: int) -> bool:
+    with connect() as conn:
+        cur = conn.execute(
+            "DELETE FROM presets WHERE id = ? AND user_id = ?",
+            (preset_id, user_id),
         )
         return cur.rowcount > 0

@@ -4,6 +4,9 @@ const TAX_MODEL_LABELS = { none: "Brak", flat: "Ryczałt", scale: "Skala PIT", a
 const TAX_BASIS_LABELS = { gains: "od zysku", full: "od całości" };
 let CONFIG = null;
 let DEFAULT_CONFIG = null;
+let PRESETS = [];
+let _currentPresetId = null;
+let _currentPresetName = "Domyślne 2026";
 
 let lastInput = null;
 let lastResult = null;
@@ -309,17 +312,21 @@ function switchMode(mode) {
 
 async function initConfig() {
     try {
-        const [defaultsRes, userRes] = await Promise.all([
+        const [defaultsRes, userRes, presetsRes] = await Promise.all([
             fetch("/api/config"),
             fetch("/api/config/user"),
+            fetch("/api/presets"),
         ]);
         DEFAULT_CONFIG = await defaultsRes.json();
         const userData = await userRes.json();
         CONFIG = userData.config ? backfillConfig(userData.config) : structuredClone(DEFAULT_CONFIG);
+        const presetsData = await presetsRes.json();
+        PRESETS = presetsData.presets || [];
         applyZusWaloryzacjaDefaults();
         renderConfigView();
         updateStageHints(document.getElementById("stages-container"));
         document.getElementById("configResetBtn").addEventListener("click", resetConfig);
+        initPresetBar();
     } catch (err) {
         console.error("Nie udało się wczytać konfiguracji:", err);
     }
@@ -548,10 +555,212 @@ function configSelect(path, label, value, options, hint) {
 
 async function resetConfig() {
     CONFIG = structuredClone(DEFAULT_CONFIG);
+    _currentPresetId = null;
+    _currentPresetName = "Domyślne 2026";
     renderConfigView();
     updateStageHints(document.getElementById("stages-container"));
+    refreshPresetBar();
     if (window.getCurrentUserEmail?.()) {
         fetch("/api/config/user", { method: "DELETE" }).catch(() => {});
+    }
+}
+
+// --- Presety ---
+
+function initPresetBar() {
+    const select = document.getElementById("presetSelect");
+    const saveBtn = document.getElementById("presetSaveBtn");
+    const deleteBtn = document.getElementById("presetDeleteBtn");
+    const exportBtn = document.getElementById("presetExportBtn");
+    const importInput = document.getElementById("presetImportInput");
+
+    select.addEventListener("change", () => {
+        const opt = select.selectedOptions[0];
+        if (!opt) return;
+        const presetId = opt.dataset.presetId;
+        const presetName = opt.dataset.presetName;
+        const isBuiltin = opt.dataset.isBuiltin === "true";
+        if (isBuiltin) {
+            applyPresetByName(presetName);
+        } else if (presetId) {
+            applyPresetById(parseInt(presetId));
+        }
+    });
+
+    saveBtn.addEventListener("click", async () => {
+        const name = prompt("Nazwa nowego presetu:");
+        if (!name) return;
+        try {
+            const res = await fetch("/api/presets", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ name: name.trim(), config: CONFIG }),
+            });
+            if (!res.ok) {
+                const err = await res.json();
+                alert(err.detail || "Błąd zapisu presetu");
+                return;
+            }
+            const saved = await res.json();
+            _currentPresetId = saved.id;
+            _currentPresetName = null;
+            await refreshPresets();
+            refreshPresetBar();
+        } catch (err) {
+            console.error("Błąd zapisu presetu:", err);
+        }
+    });
+
+    deleteBtn.addEventListener("click", async () => {
+        if (_currentPresetId === null || !confirm("Na pewno usunąć ten preset?")) return;
+        try {
+            await fetch(`/api/presets/${_currentPresetId}`, { method: "DELETE" });
+            _currentPresetId = null;
+            _currentPresetName = "Domyślne 2026";
+            await refreshPresets();
+            refreshPresetBar();
+        } catch (err) {
+            console.error("Błąd usuwania presetu:", err);
+        }
+    });
+
+    exportBtn.addEventListener("click", () => {
+        const name = _currentPresetId !== null
+            ? (PRESETS.find(p => p.id === _currentPresetId)?.name || "preset")
+            : (_currentPresetName || "preset");
+        const blob = new Blob([JSON.stringify(CONFIG, null, 2)], { type: "application/json" });
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = `${name}.json`;
+        a.click();
+        URL.revokeObjectURL(a.href);
+    });
+
+    importInput.addEventListener("change", async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        try {
+            const text = await file.text();
+            const config = JSON.parse(text);
+            const name = prompt("Nazwa dla zaimportowanego presetu:", file.name.replace(/\.json$/, ""));
+            if (!name) return;
+            const res = await fetch("/api/presets", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ name: name.trim(), config }),
+            });
+            if (!res.ok) {
+                const err = await res.json();
+                alert(err.detail || "Błąd importu presetu");
+                return;
+            }
+            const saved = await res.json();
+            _currentPresetId = saved.id;
+            await refreshPresets();
+            applyPresetById(saved.id);
+        } catch (err) {
+            alert("Nieprawidłowy plik JSON: " + err.message);
+        }
+        importInput.value = "";
+    });
+
+    refreshPresetBar();
+}
+
+function refreshPresetBar() {
+    const select = document.getElementById("presetSelect");
+    const deleteBtn = document.getElementById("presetDeleteBtn");
+    select.innerHTML = "";
+
+    for (const p of PRESETS) {
+        const opt = document.createElement("option");
+        opt.textContent = p.name;
+        opt.dataset.presetId = p.id ?? "";
+        opt.dataset.presetName = p.name;
+        opt.dataset.isBuiltin = p.is_builtin;
+        if (p.is_builtin && p.name === _currentPresetName) opt.selected = true;
+        else if (_currentPresetId !== null && p.id === _currentPresetId) opt.selected = true;
+        select.appendChild(opt);
+    }
+
+    // If no option is selected, mark "Domyślne 2026"
+    if (!select.value && select.options.length > 0) {
+        select.selectedIndex = 0;
+    }
+
+    deleteBtn.hidden = _currentPresetId === null;
+}
+
+async function refreshPresets() {
+    try {
+        const res = await fetch("/api/presets");
+        const data = await res.json();
+        PRESETS = data.presets || [];
+    } catch (err) {
+        console.error("Błąd odświeżania presetów:", err);
+    }
+}
+
+async function applyPresetByName(name) {
+    try {
+        const res = await fetch("/api/config");
+        const defaults = await res.json();
+        const overrides = BUILTIN_PRESETS_CLIENT[name];
+        if (overrides) {
+            CONFIG = deepMerge(structuredClone(defaults), overrides);
+        } else {
+            CONFIG = backfillConfig(defaults);
+        }
+        _currentPresetId = null;
+        _currentPresetName = name;
+        applyZusWaloryzacjaDefaults();
+        renderConfigView();
+        updateStageHints(document.getElementById("stages-container"));
+        scheduleConfigSave();
+        refreshPresetBar();
+    } catch (err) {
+        console.error("Błąd wczytywania presetu:", err);
+    }
+}
+
+const BUILTIN_PRESETS_CLIENT = {
+    "Domyślne 2026": {},
+    "Konserwatywne": {
+        zus: { waloryzacja_skladek: 0.005, waloryzacja_swiadczenia: 0.005 },
+    },
+    "Realne": {
+        zus: { waloryzacja_skladek: 0.015, waloryzacja_swiadczenia: 0.015 },
+    },
+    "Optymistyczne": {
+        zus: { waloryzacja_skladek: 0.025, waloryzacja_swiadczenia: 0.025 },
+    },
+};
+
+function deepMerge(base, overrides) {
+    for (const [key, val] of Object.entries(overrides)) {
+        if (val && typeof val === "object" && !Array.isArray(val) && base[key] && typeof base[key] === "object") {
+            deepMerge(base[key], val);
+        } else {
+            base[key] = val;
+        }
+    }
+    return base;
+}
+
+async function applyPresetById(presetId) {
+    try {
+        const res = await fetch(`/api/presets/${presetId}`);
+        const data = await res.json();
+        CONFIG = backfillConfig(data.config);
+        _currentPresetId = presetId;
+        _currentPresetName = null;
+        applyZusWaloryzacjaDefaults();
+        renderConfigView();
+        updateStageHints(document.getElementById("stages-container"));
+        scheduleConfigSave();
+        refreshPresetBar();
+    } catch (err) {
+        console.error("Błąd wczytywania presetu:", err);
     }
 }
 

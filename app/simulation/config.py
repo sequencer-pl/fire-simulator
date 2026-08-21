@@ -180,3 +180,34 @@ class TaxConfig(BaseModel):
 
 def default_config() -> TaxConfig:
     return TaxConfig()
+
+
+BUILTIN_PRESETS: dict[str, dict] = {
+    "Domyślne 2026": {},
+    "Konserwatywne": {
+        "zus": {"waloryzacja_skladek": 0.005, "waloryzacja_swiadczenia": 0.005},
+    },
+    "Realne": {
+        "zus": {"waloryzacja_skladek": 0.015, "waloryzacja_swiadczenia": 0.015},
+    },
+    "Optymistyczne": {
+        "zus": {"waloryzacja_skladek": 0.025, "waloryzacja_swiadczenia": 0.025},
+    },
+}
+
+
+def get_builtin_preset(name: str) -> dict | None:
+    overrides = BUILTIN_PRESETS.get(name)
+    if overrides is None:
+        return None
+    base = default_config().model_dump()
+    _deep_merge(base, overrides)
+    return base
+
+
+def _deep_merge(base: dict, overrides: dict) -> None:
+    for key, val in overrides.items():
+        if isinstance(val, dict) and isinstance(base.get(key), dict):
+            _deep_merge(base[key], val)
+        else:
+            base[key] = val

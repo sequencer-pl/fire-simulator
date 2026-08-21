@@ -759,6 +759,67 @@ h2 {
     background: rgba(108, 92, 231, 0.1);
 }
 
+/* --- Preset bar --- */
+.preset-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+    padding: 0.5rem 0.85rem;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+}
+
+.preset-left,
+.preset-right {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.preset-bar label {
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    white-space: nowrap;
+}
+
+.preset-bar select {
+    padding: 0.35rem 0.5rem;
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 0.85rem;
+    min-width: 140px;
+}
+
+.preset-btn {
+    padding: 0.35rem 0.6rem;
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.preset-btn:hover {
+    background: var(--border);
+}
+
+.preset-btn-danger {
+    color: var(--danger);
+}
+
+.preset-btn-danger:hover {
+    background: rgba(255, 99, 95, 0.15);
+}
+
 /* --- Global config bar (above stages) --- */
 .global-config-bar {
     display: flex;
@@ -2304,6 +2365,7 @@ th.col-name { z-index: 3; }
     .topnav { flex-wrap: wrap; }
     .mode-toggle { flex-wrap: wrap; }
     .sim-topbar { flex-wrap: wrap; gap: 0.5rem; }
+    .preset-bar { flex-wrap: wrap; gap: 0.5rem; }
     .global-config-bar { flex-wrap: wrap; gap: 0.5rem; }
 
     #summary { flex-wrap: wrap; }
