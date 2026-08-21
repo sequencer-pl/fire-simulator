@@ -47,6 +47,24 @@
         <!-- ====== SYMULATOR ====== -->
         <div id="simulatorView">
             <form id="simForm" novalidate>
+                <div id="globalConfig" class="global-config-bar">
+                    <div class="gender-toggle" title="Płeć wpływa na powszechny wiek emerytalny ZUS (60 r.ż. kobiety / 65 r.ż. mężczyźni).">
+                        <label>Płeć</label>
+                        <div class="gender-options">
+                            <label class="gender-option"><input type="radio" name="gender" value="k" /> K</label>
+                            <label class="gender-option"><input type="radio" name="gender" value="m" checked /> M</label>
+                        </div>
+                    </div>
+                    <div class="bar-sep"></div>
+                    <div class="gross-field" title="Miesięczne wynagrodzenie brutto — podstawa do obliczeń składek (ZUS/PPK/PPE) i oszczędności podatkowej (IKZE).">
+                        <label>Wynagrodzenie mies.<br />(brutto)</label>
+                        <div class="num-control">
+                            <button type="button" class="stepper" data-dir="-1">−</button>
+                            <input type="number" id="monthlyGross" class="acc-field" min="0" step="100" value="0" />
+                            <button type="button" class="stepper" data-dir="1">+</button>
+                        </div>
+                    </div>
+                </div>
                 <div id="stages-container">
                 </div>
             </form>
@@ -103,20 +121,6 @@
                     <button type="button" id="addRealizationBtn" class="btn btn-secondary btn-add-realization">+ Dodaj etap realizacji</button>
                 </div>
                 <div class="form-actions-right">
-                    <div class="gender-toggle" title="Płeć wpływa na powszechny wiek emerytalny ZUS (60 r.ż. kobiety / 65 r.ż. mężczyźni).">
-                        <label>Płeć</label>
-                        <div class="gender-options">
-                            <label class="gender-option"><input type="radio" name="gender" value="k" /> K</label>
-                            <label class="gender-option"><input type="radio" name="gender" value="m" checked /> M</label>
-                        </div>
-                    </div>
-                    <div class="income-field" title="Roczny dochód brutto z pracy najemnej. Wpływa na obliczenie oszczędności podatkowej z IKZE (odliczenie od dochodu).">
-                        <label for="annualIncome">Dochód roczny</label>
-                        <div class="income-input-wrap">
-                            <input type="number" id="annualIncome" min="0" step="1000" value="0" class="input-inline" />
-                            <span class="input-suffix">zł</span>
-                        </div>
-                    </div>
                     <button type="button" id="saveSimBtn" class="btn btn-secondary" disabled>Zapisz symulację</button>
                     <button type="button" id="simulateBtn" class="btn btn-primary">Symuluj</button>
                 </div>

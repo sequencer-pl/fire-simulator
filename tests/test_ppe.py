@@ -14,6 +14,7 @@ def test_ppe_contributions_from_employer_pct_and_additional():
         accumulation_stage(
             {
                 "ppe": acc(
+                    base_override_enabled=True,
                     monthly_base=8000,
                     employer_pct=0.035,
                     annual_contribution=6000,
@@ -33,6 +34,7 @@ def test_ppe_growth_and_contribution():
         accumulation_stage(
             {
                 "ppe": acc(
+                    base_override_enabled=True,
                     starting_balance=50000,
                     monthly_base=8000,
                     employer_pct=0.035,
@@ -55,6 +57,7 @@ def test_ppe_withdrawal_after_60_tax_free():
         accumulation_stage(
             {
                 "ppe": acc(
+                    base_override_enabled=True,
                     starting_balance=200000,
                     monthly_base=8000,
                     employer_pct=0.035,
@@ -77,8 +80,9 @@ def test_ppe_early_withdrawal_taxed_19pct_on_gains():
     ppe_contribution = 8000 * 12 * 0.035 * 0.70 + 6000
     accumulation = accumulation_stage(
         {
-            "ppe": acc(
-                starting_balance=0,
+                "ppe": acc(
+                    base_override_enabled=True,
+                    starting_balance=0,
                 monthly_base=8000,
                 employer_pct=0.035,
                 annual_contribution=6000,
@@ -104,7 +108,7 @@ def test_ppe_early_withdrawal_taxed_19pct_on_gains():
 
 
 def test_ppe_in_accounts_list():
-    stages = [accumulation_stage({"ppe": acc(monthly_base=8000, employer_pct=0.035)})]
+    stages = [accumulation_stage({"ppe": acc(base_override_enabled=True, monthly_base=8000, employer_pct=0.035)})]
     result = simulate(SimulationInput(stages=stages, max_age=40))
     assert "ppe" in result.accounts
 
@@ -115,7 +119,7 @@ def test_ppe_in_accounts_list():
 def test_ppe_warning_employer_pct_over_7():
     stages = [
         accumulation_stage(
-            {"ppe": acc(monthly_base=8000, employer_pct=0.08, annual_contribution=0)}
+            {"ppe": acc(base_override_enabled=True, monthly_base=8000, employer_pct=0.08, annual_contribution=0)}
         )
     ]
     result = simulate(SimulationInput(stages=stages, max_age=40))
@@ -125,7 +129,7 @@ def test_ppe_warning_employer_pct_over_7():
 def test_ppe_warning_additional_over_limit():
     stages = [
         accumulation_stage(
-            {"ppe": acc(monthly_base=0, employer_pct=0.0, annual_contribution=50000)}
+            {"ppe": acc(base_override_enabled=True, monthly_base=0, employer_pct=0.0, annual_contribution=50000)}
         )
     ]
     result = simulate(SimulationInput(stages=stages, max_age=40))
@@ -138,6 +142,7 @@ def test_ppe_early_withdrawal_30pct_goes_to_zus():
         accumulation_stage(
             {
                 "ppe": acc(
+                    base_override_enabled=True,
                     starting_balance=50000,
                     monthly_base=8000,
                     employer_pct=0.035,

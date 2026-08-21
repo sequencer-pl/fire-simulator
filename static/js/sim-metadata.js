@@ -38,6 +38,7 @@ const FIELD_ORDER = [
     "cost_basis_enabled",
     "cost_basis",
     "ofe_member",
+    "base_override_enabled",
     "monthly_base",
     "annual_contribution",
     "employee_pct",

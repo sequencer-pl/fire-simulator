@@ -49,7 +49,7 @@ function gatherFormData() {
         stages: stages,
         max_age: 100,
         gender: currentGender(),
-        annual_income: parseFloat(document.getElementById("annualIncome")?.value) || 0,
+        monthly_gross: parseFloat(document.getElementById("monthlyGross")?.value) || 0,
         config: CONFIG,
     };
 }
@@ -234,9 +234,25 @@ document.addEventListener("DOMContentLoaded", () => {
     initResultsControls();
     initStageEventHandlers(container);
 
+    // Steppery w globalConfig (brutto mies.)
+    const globalConfig = document.getElementById("globalConfig");
+    if (globalConfig) {
+        globalConfig.addEventListener("click", (e) => {
+            const btn = e.target.closest(".stepper");
+            if (!btn) return;
+            const input = btn.closest(".num-control")?.querySelector("input");
+            if (!input) return;
+            stepInputValue(input, parseInt(btn.dataset.dir) || 0);
+        });
+    }
+
     if (simId) {
         loadSimulation(simId, container);
     } else {
+        if (DEFAULTS.monthly_gross) {
+            const grossInput = document.getElementById("monthlyGross");
+            if (grossInput) grossInput.value = DEFAULTS.monthly_gross;
+        }
         (DEFAULTS.stages || []).forEach((s) => container.appendChild(createStageBlock(s)));
         updateStageButtons(container);
         updateStageHints(container);
@@ -490,8 +506,8 @@ function populateStages(inputData) {
     const container = document.getElementById("stages-container");
     if (inputData.config) CONFIG = backfillConfig(inputData.config);
     if (inputData.gender) setGender(inputData.gender);
-    const incomeInput = document.getElementById("annualIncome");
-    if (incomeInput && inputData.annual_income) incomeInput.value = inputData.annual_income;
+    const grossInput = document.getElementById("monthlyGross");
+    if (grossInput && inputData.monthly_gross) grossInput.value = inputData.monthly_gross;
     container.innerHTML = "";
     (inputData.stages || []).forEach((stage) => {
         migrateLegacyAccounts(stage);

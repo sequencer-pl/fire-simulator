@@ -42,6 +42,21 @@ def _compute_ikze_tax_saving(
     return max(0.0, tax_without - tax_with)
 
 
+def _resolve_base(cfg: dict, global_monthly_gross: float) -> float:
+    """Per-account override if enabled, otherwise global gross salary."""
+    if cfg.get("base_override_enabled"):
+        return cfg.get("monthly_base", 0.0)
+    return global_monthly_gross
+
+
+def _compute_monthly_gross_dochod(monthly_gross: float, config: TaxConfig) -> float:
+    """Annual dochód (after ZUS contributions and KUP) from monthly gross."""
+    annual = monthly_gross * MONTHS_PER_YEAR
+    skladki = annual * config.zus.skladka_rate
+    kup = 3600.0
+    return max(0.0, annual - skladki - kup)
+
+
 def _validate_stage_order(stages: list[StageInput]) -> None:
     """The realization stage cannot start before the end of the last accumulation stage."""
     akum_end = max(
@@ -248,6 +263,7 @@ def _process_stages(
     processed_accounts: set[str],
     zus_pensions: dict[str, float],
     welcomed_ppk: set[str],
+    monthly_gross: float = 0.0,
 ) -> tuple[dict[str, float], list[str]]:
     merged_withdrawal: dict[str, float] = {}
     stage_label_parts: list[str] = []
@@ -265,7 +281,7 @@ def _process_stages(
         # they differ from regular accounts (indexation instead of ROI, ŚDTŻ instead of PMT).
         if "zus" in accounts_config and not zus_handled:
             if stage_input.stage_type == "akumulacja":
-                _accumulate_zus(accounts_config["zus"], balances, config)
+                _accumulate_zus(accounts_config["zus"], balances, config, monthly_gross)
                 processed_accounts.add("zus")
                 if accounts_config["zus"].get("ofe_member"):
                     processed_accounts.add("zus:ofe")
@@ -286,12 +302,12 @@ def _process_stages(
             if "ppk" in accounts_config:
                 _accumulate_ppk(
                     accounts_config["ppk"], balances, basis,
-                    basis_employee, config, welcomed_ppk,
+                    basis_employee, config, welcomed_ppk, monthly_gross,
                 )
                 processed_accounts.add("ppk")
             if "ppe" in accounts_config:
                 _accumulate_ppe(
-                    accounts_config["ppe"], balances, basis, config
+                    accounts_config["ppe"], balances, basis, config, monthly_gross
                 )
                 processed_accounts.add("ppe")
 
@@ -451,7 +467,7 @@ def simulate(data: SimulationInput) -> SimulationResult:
         merged_withdrawal, stage_label_parts = _process_stages(
             active_stages, age, balances, basis, basis_employee,
             config, account_rois, processed_accounts, zus_pensions,
-            welcomed_ppk,
+            welcomed_ppk, data.monthly_gross,
         )
 
         merged_tax = _apply_tax(
@@ -467,7 +483,8 @@ def simulate(data: SimulationInput) -> SimulationResult:
             merged_tax[acc] = merged_tax.get(acc, 0.0) + t
 
         # IKZE tax saving (odliczenie od dochodu) — shown as negative tax
-        if data.annual_income > 0:
+        if data.monthly_gross > 0:
+            dochód = _compute_monthly_gross_dochod(data.monthly_gross, config)
             for si in active_stages:
                 if si.stage_type != "akumulacja":
                     continue
@@ -478,7 +495,7 @@ def simulate(data: SimulationInput) -> SimulationResult:
                     if contribution <= 0:
                         continue
                     saving = _compute_ikze_tax_saving(
-                        contribution, data.annual_income, config,
+                        contribution, dochód, config,
                     )
                     if saving > 0:
                         merged_tax[name] = merged_tax.get(name, 0.0) - saving
@@ -545,10 +562,10 @@ def simulate(data: SimulationInput) -> SimulationResult:
     )
 
 
-def _accumulate_zus(cfg: dict, balances: dict, config: TaxConfig) -> None:
+def _accumulate_zus(cfg: dict, balances: dict, config: TaxConfig, monthly_gross: float = 0.0) -> None:
     """Annual contribution and pension capital indexation (accumulation)."""
     zus_cfg = config.zus
-    base_annual = cfg.get("monthly_base", 0.0) * MONTHS_PER_YEAR
+    base_annual = _resolve_base(cfg, monthly_gross) * MONTHS_PER_YEAR
     cap = zus_cfg.limit_base_annual
     capped = min(base_annual, cap) if cap and cap > 0 else base_annual
     total_contrib = capped * zus_cfg.skladka_rate
@@ -588,6 +605,7 @@ def _accumulate_ppk(
     basis_employee: dict,
     config: TaxConfig,
     welcomed: set[str],
+    monthly_gross: float = 0.0,
 ) -> None:
     """Annual % contribution from base + state top-ups (PPK accumulation).
 
@@ -602,7 +620,7 @@ def _accumulate_ppk(
     basis_employee separately to calculate the forfeitable share.
     """
     ppk_cfg = config.ppk
-    base_annual = cfg.get("monthly_base", 0.0) * MONTHS_PER_YEAR
+    base_annual = _resolve_base(cfg, monthly_gross) * MONTHS_PER_YEAR
     emp_pct = cfg.get("employee_pct", ppk_cfg.employee_pct)
     employer_pct = cfg.get("employer_pct", ppk_cfg.employer_pct)
     emp_contrib = base_annual * emp_pct
@@ -621,7 +639,7 @@ def _accumulate_ppk(
     basis_employee["ppk"] = basis_employee.get("ppk", 0.0) + emp_contrib
 
 
-def _accumulate_ppe(cfg: dict, balances: dict, basis: dict, config: TaxConfig) -> None:
+def _accumulate_ppe(cfg: dict, balances: dict, basis: dict, config: TaxConfig, monthly_gross: float = 0.0) -> None:
     """Annual base contribution (employer, % of base) + additional contribution (fixed amount).
 
     The 7% base limit is enforced via a warning in _collect_warnings —
@@ -631,7 +649,7 @@ def _accumulate_ppe(cfg: dict, balances: dict, basis: dict, config: TaxConfig) -
     PPE — as required by the PPE Act. The remaining 70% plus the participant's
     additional contribution are credited to the PPE account.
     """
-    base_annual = cfg.get("monthly_base", 0.0) * MONTHS_PER_YEAR
+    base_annual = _resolve_base(cfg, monthly_gross) * MONTHS_PER_YEAR
     employer = base_annual * cfg.get("employer_pct", 0.0)
     employer_to_zus = employer * PPE_ZUS_FRACTION
     employer_to_ppe = employer - employer_to_zus

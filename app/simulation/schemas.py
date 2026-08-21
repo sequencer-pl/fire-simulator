@@ -14,6 +14,7 @@ class AccountConfig(BaseModel):
     buffer: float = 0.0
     monthly_pension: float = 0.0
     ikze_limit: str = "etat"
+    base_override_enabled: bool = False
     monthly_base: float = 0.0
     ofe_member: bool = False
     starting_balance_ofe: float = 0.0
@@ -37,7 +38,7 @@ class SimulationInput(BaseModel):
     stages: list[StageInput]
     max_age: int = 100
     gender: Literal["k", "m"] = "m"
-    annual_income: float = 0.0
+    monthly_gross: float = 0.0
     config: TaxConfig = Field(default_factory=default_config)
 
 

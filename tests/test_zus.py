@@ -12,7 +12,7 @@ def test_zus_skladka_19_52_from_monthly_base():
     # podstawa 8000 zł/mies. -> składka 19,52% * 96 000 = 18 739,20 zł/rok
     stages = [
         accumulation_stage(
-            {"zus": acc(starting_balance=100000, monthly_base=8000, ofe_member=False)}
+            {"zus": acc(base_override_enabled=True, starting_balance=100000, monthly_base=8000, ofe_member=False)}
         )
     ]
     result = simulate(SimulationInput(stages=stages, max_age=40))
@@ -25,7 +25,7 @@ def test_zus_skladka_19_52_from_monthly_base():
 def test_zus_skladka_capped_at_30x_base():
     # podstawa 40 000 zł/mies. -> 480 000 zł/rok > limit 270 000 -> składka z 270 000
     stages = [
-        accumulation_stage({"zus": acc(monthly_base=40000, ofe_member=False)})
+        accumulation_stage({"zus": acc(base_override_enabled=True, monthly_base=40000, ofe_member=False)})
     ]
     result = simulate(SimulationInput(stages=stages, max_age=41))
     y = result.years[1]
@@ -37,6 +37,7 @@ def test_zus_ofe_split_two_growth_rates():
         accumulation_stage(
             {
                 "zus": acc(
+                    base_override_enabled=True,
                     starting_balance_ofe=10000,
                     monthly_base=8000,
                     ofe_member=True,
@@ -58,6 +59,7 @@ def test_zus_ofe_capital_ignored_when_not_member():
         accumulation_stage(
             {
                 "zus": acc(
+                    base_override_enabled=True,
                     starting_balance=100000,
                     starting_balance_ofe=50000,
                     monthly_base=8000,
@@ -77,6 +79,7 @@ def test_zus_ofe_subaccount_grows_at_market_roi_passively():
         accumulation_stage(
             {
                 "zus": acc(
+                    base_override_enabled=True,
                     starting_balance_ofe=10000,
                     monthly_base=8000,
                     ofe_member=True,
@@ -143,7 +146,7 @@ def test_zus_conversion_ignores_manual_override():
     cfg = no_tax_config()
     stages = [
         accumulation_stage(
-            {"zus": acc(starting_balance=500000, monthly_base=8000, ofe_member=False)},
+            {"zus": acc(base_override_enabled=True, starting_balance=500000, monthly_base=8000, ofe_member=False)},
             start=40,
             end=65,
         ),
@@ -181,7 +184,7 @@ def test_zus_warning_below_min_emerytura():
 def test_zus_warning_before_retirement_age():
     stages = [
         accumulation_stage(
-            {"zus": acc(starting_balance=500000, monthly_base=8000, ofe_member=False)},
+            {"zus": acc(base_override_enabled=True, starting_balance=500000, monthly_base=8000, ofe_member=False)},
             start=40,
             end=55,
         ),
@@ -197,7 +200,7 @@ def test_zus_warning_before_retirement_age():
 def test_zus_warning_male_below_65():
     stages = [
         accumulation_stage(
-            {"zus": acc(starting_balance=500000, monthly_base=8000, ofe_member=False)},
+            {"zus": acc(base_override_enabled=True, starting_balance=500000, monthly_base=8000, ofe_member=False)},
             start=40,
             end=62,
         ),
@@ -210,7 +213,7 @@ def test_zus_warning_male_below_65():
 def test_zus_no_warning_female_from_62():
     stages = [
         accumulation_stage(
-            {"zus": acc(starting_balance=500000, monthly_base=8000, ofe_member=False)},
+            {"zus": acc(base_override_enabled=True, starting_balance=500000, monthly_base=8000, ofe_member=False)},
             start=40,
             end=62,
         ),
@@ -223,7 +226,7 @@ def test_zus_no_warning_female_from_62():
 def test_zus_warning_female_below_60():
     stages = [
         accumulation_stage(
-            {"zus": acc(starting_balance=500000, monthly_base=8000, ofe_member=False)},
+            {"zus": acc(base_override_enabled=True, starting_balance=500000, monthly_base=8000, ofe_member=False)},
             start=40,
             end=58,
         ),
@@ -237,7 +240,7 @@ def test_zus_pension_independent_of_gender():
     # Emerytura = kapitał / ŚDTŻ(wiek) — wspólna tablica dla obu płci.
     stages = [
         accumulation_stage(
-            {"zus": acc(starting_balance=400000, monthly_base=8000, ofe_member=False)},
+            {"zus": acc(base_override_enabled=True, starting_balance=400000, monthly_base=8000, ofe_member=False)},
             start=40,
             end=65,
         ),
@@ -260,6 +263,7 @@ def test_zus_waloryzacja_skladek_override_accumulation():
         accumulation_stage(
             {
                 "zus": acc(
+                    base_override_enabled=True,
                     starting_balance=100000,
                     monthly_base=8000,
                     ofe_member=False,
@@ -299,7 +303,7 @@ def test_zus_waloryzacja_falls_back_to_global():
     cfg.zus.waloryzacja_skladek = 0.02
     stages = [
         accumulation_stage(
-            {"zus": acc(starting_balance=100000, monthly_base=8000, ofe_member=False)}
+            {"zus": acc(base_override_enabled=True, starting_balance=100000, monthly_base=8000, ofe_member=False)}
         )
     ]
     result = simulate(SimulationInput(stages=stages, max_age=41, config=cfg))

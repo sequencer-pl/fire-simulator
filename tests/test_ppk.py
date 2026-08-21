@@ -13,6 +13,7 @@ def test_ppk_contributions_from_pct_of_base():
         accumulation_stage(
             {
                 "ppk": acc(
+                    base_override_enabled=True,
                     monthly_base=8000,
                     employee_pct=0.02,
                     employer_pct=0.015,
@@ -32,6 +33,7 @@ def test_ppk_state_welcoming_one_time():
         accumulation_stage(
             {
                 "ppk": acc(
+                    base_override_enabled=True,
                     monthly_base=8000,
                     employee_pct=0.02,
                     employer_pct=0.015,
@@ -52,6 +54,7 @@ def test_ppk_state_topups_optional():
         accumulation_stage(
             {
                 "ppk": acc(
+                    base_override_enabled=True,
                     monthly_base=8000,
                     employee_pct=0.02,
                     employer_pct=0.015,
@@ -70,6 +73,7 @@ def test_ppk_growth_and_contribution():
         accumulation_stage(
             {
                 "ppk": acc(
+                    base_override_enabled=True,
                     starting_balance=10000,
                     monthly_base=8000,
                     employee_pct=0.02,
@@ -92,6 +96,7 @@ def test_ppk_withdrawal_after_60_tax_free():
         accumulation_stage(
             {
                 "ppk": acc(
+                    base_override_enabled=True,
                     starting_balance=200000,
                     monthly_base=8000,
                     employee_pct=0.02,
@@ -115,6 +120,7 @@ def test_ppk_early_withdrawal_forfeits_employer_state():
     accumulation = accumulation_stage(
         {
             "ppk": acc(
+                base_override_enabled=True,
                 monthly_base=base,
                 employee_pct=0.02,
                 employer_pct=0.015,
@@ -149,7 +155,7 @@ def test_ppk_early_withdrawal_forfeits_employer_state():
 
 
 def test_ppk_in_accounts_list():
-    stages = [accumulation_stage({"ppk": acc(monthly_base=8000)})]
+    stages = [accumulation_stage({"ppk": acc(base_override_enabled=True, monthly_base=8000)})]
     result = simulate(SimulationInput(stages=stages, max_age=40))
     assert "ppk" in result.accounts
 
@@ -160,7 +166,7 @@ def test_ppk_in_accounts_list():
 def test_ppk_warning_sum_over_8pct():
     stages = [
         accumulation_stage(
-            {"ppk": acc(monthly_base=8000, employee_pct=0.06, employer_pct=0.04)}
+            {"ppk": acc(base_override_enabled=True, monthly_base=8000, employee_pct=0.06, employer_pct=0.04)}
         )
     ]
     result = simulate(SimulationInput(stages=stages, max_age=40))
@@ -170,7 +176,7 @@ def test_ppk_warning_sum_over_8pct():
 def test_ppk_early_withdrawal_forfeit_no_warning():
     stages = [
         accumulation_stage(
-            {"ppk": acc(starting_balance=50000, monthly_base=8000)}, start=40, end=55
+            {"ppk": acc(base_override_enabled=True, starting_balance=50000, monthly_base=8000)}, start=40, end=55
         ),
         realization_stage("PPK przed 60", {"ppk": acc(roi=0.02, buffer=0)}, 55, 60),
     ]

@@ -261,8 +261,11 @@ function updateStageHints(container) {
             block.querySelectorAll(".account-card").forEach((card) => {
                 const acc = card.dataset.account;
                 if (acc === "zus") {
-                    const baseInput = card.querySelector('[data-key="monthly_base"]');
-                    const base = parseFloat(baseInput?.value) || 0;
+                    const overrideCb = card.querySelector('[data-key="base_override_enabled"]');
+                    const override = overrideCb && overrideCb.checked;
+                    const base = override
+                        ? parseFloat(card.querySelector('[data-key="monthly_base"]')?.value) || 0
+                        : parseFloat(document.getElementById("monthlyGross")?.value) || 0;
                     if (CONFIG.zus && base > 0) {
                         const cap = CONFIG.zus.limit_base_annual;
                         const annual = Math.min(base * 12, cap && cap > 0 ? cap : Infinity);
@@ -288,7 +291,11 @@ function updateStageHints(container) {
                     return;
                 }
                 if (acc === "ppk") {
-                    const base = parseFloat(card.querySelector('[data-key="monthly_base"]')?.value) || 0;
+                    const overrideCb = card.querySelector('[data-key="base_override_enabled"]');
+                    const override = overrideCb && overrideCb.checked;
+                    const base = override
+                        ? parseFloat(card.querySelector('[data-key="monthly_base"]')?.value) || 0
+                        : parseFloat(document.getElementById("monthlyGross")?.value) || 0;
                     if (base > 0) {
                         const empPct = (parseFloat(card.querySelector('[data-key="employee_pct"]')?.value) || 0) / 100;
                         const emp = (parseFloat(card.querySelector('[data-key="employer_pct"]')?.value) || 0) / 100;
@@ -314,7 +321,11 @@ function updateStageHints(container) {
                     return;
                 }
                 if (acc === "ppe") {
-                    const base = parseFloat(card.querySelector('[data-key="monthly_base"]')?.value) || 0;
+                    const overrideCb = card.querySelector('[data-key="base_override_enabled"]');
+                    const override = overrideCb && overrideCb.checked;
+                    const base = override
+                        ? parseFloat(card.querySelector('[data-key="monthly_base"]')?.value) || 0
+                        : parseFloat(document.getElementById("monthlyGross")?.value) || 0;
                     const empPct = (parseFloat(card.querySelector('[data-key="employer_pct"]')?.value) || 0) / 100;
                     const add = parseFloat(card.querySelector('[data-key="annual_contribution"]')?.value) || 0;
                     const employer = base * 12 * empPct;

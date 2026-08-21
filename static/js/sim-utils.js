@@ -40,8 +40,14 @@ function stepInputValue(input, dir) {
     input.dispatchEvent(new Event("input", { bubbles: true }));
 }
 
+function resolveBase(cfg, monthlyGross) {
+    if (cfg.base_override_enabled) return cfg.monthly_base || 0;
+    return monthlyGross || 0;
+}
+
 function computeTotalUserContributions(input) {
     if (!input || !input.stages) return 0;
+    const monthlyGross = input.monthly_gross || 0;
     let total = 0;
     for (const stage of input.stages) {
         const years = Math.max(0, (stage.end_age || 0) - (stage.start_age || 0));
@@ -49,7 +55,7 @@ function computeTotalUserContributions(input) {
         for (const [name, cfg] of Object.entries(stage.accounts || {})) {
             if (name === "gotowka" || name === "lokata" || name === "zus") continue;
             if (name === "ppk") {
-                total += (cfg.employee_pct || 0) * (cfg.monthly_base || 0) * years * 12;
+                total += (cfg.employee_pct || 0) * resolveBase(cfg, monthlyGross) * years * 12;
             } else {
                 total += (cfg.annual_contribution || 0) * years;
             }
@@ -74,9 +80,9 @@ function computeInitialCapital(input) {
     return total;
 }
 
-function _accountMonthly(name, cfg) {
+function _accountMonthly(name, cfg, monthlyGross) {
     if (name === "gotowka" || name === "lokata" || name === "zus") return 0;
-    if (name === "ppk") return (cfg.employee_pct || 0) * (cfg.monthly_base || 0);
+    if (name === "ppk") return (cfg.employee_pct || 0) * resolveBase(cfg, monthlyGross);
     return (cfg.annual_contribution || 0) / 12;
 }
 
@@ -117,7 +123,7 @@ function computeStageSummaries(input, result) {
             const endAge = Math.min(b - 1, result.years[result.years.length - 1]?.age ?? b - 1);
             return {
                 key,
-                monthly: Math.round(_accountMonthly(key, cfg)),
+                monthly: Math.round(_accountMonthly(key, cfg, input.monthly_gross || 0)),
                 balance: Math.round(yearsByAge[endAge]?.balances?.[key] || 0),
             };
         });

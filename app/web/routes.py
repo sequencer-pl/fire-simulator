@@ -8,7 +8,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
 from app.simulation.config import default_config
-from app.simulation.engine import simulate
+from app.simulation.engine import _resolve_base, simulate
 from app.simulation.schemas import SimulationInput, SimulationResult
 from app.stages.metadata import STAGE_META
 from app.stages.registry import get_all_stage_types
@@ -69,14 +69,14 @@ def _summary_from_result(result: SimulationResult) -> dict:
     }
 
 
-def _monthly_contribution(stage) -> float | None:
+def _monthly_contribution(stage, monthly_gross: float = 0.0) -> float | None:
     """Employee's own monthly investment cost for an accumulation stage."""
     total_annual = 0.0
     for name, cfg in stage.accounts.items():
         if name in ("gotowka", "lokata", "zus"):
             continue
         elif name == "ppk":
-            total_annual += cfg.employee_pct * cfg.monthly_base * 12
+            total_annual += cfg.employee_pct * _resolve_base(cfg.model_dump(), monthly_gross) * 12
         elif name == "ppe":
             total_annual += cfg.annual_contribution
         else:
@@ -95,7 +95,7 @@ def _total_user_contributions(input_data: SimulationInput) -> float:
             if name in ("gotowka", "lokata", "zus"):
                 continue
             if name == "ppk":
-                total += cfg.employee_pct * cfg.monthly_base * years * 12
+                total += cfg.employee_pct * _resolve_base(cfg.model_dump(), input_data.monthly_gross) * years * 12
             elif name == "ppe":
                 total += cfg.annual_contribution * years
             else:
@@ -141,7 +141,7 @@ def _stages_summary(
             if withdrawals:
                 info["avg_monthly_withdrawal"] = round(sum(withdrawals) / len(withdrawals), 2)
         elif stage.stage_type == "akumulacja":
-            mc = _monthly_contribution(stage)
+            mc = _monthly_contribution(stage, input_data.monthly_gross)
             if mc is not None:
                 info["monthly_contribution"] = mc
         stages.append(info)
@@ -216,6 +216,7 @@ async def api_config():
 
 def _get_defaults() -> dict:
     return {
+        "monthly_gross": 8700,
         "stages": [
             {
                 "stage_type": "akumulacja",
@@ -240,7 +241,6 @@ def _get_defaults() -> dict:
                     },
                     "ppk": {
                         "starting_balance": 30000,
-                        "monthly_base": 8000,
                         "employee_pct": 0.02,
                         "employer_pct": 0.015,
                         "state_topups": True,
@@ -248,7 +248,6 @@ def _get_defaults() -> dict:
                     },
                     "ppe": {
                         "starting_balance": 50000,
-                        "monthly_base": 8000,
                         "employer_pct": 0.035,
                         "annual_contribution": 6000,
                         "roi": 0.06,
@@ -275,7 +274,6 @@ def _get_defaults() -> dict:
                     "zus": {
                         "starting_balance": 150000,
                         "starting_balance_ofe": 50000,
-                        "monthly_base": 8000,
                         "ofe_member": False,
                         "roi": 0.06,
                     },

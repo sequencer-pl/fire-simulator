@@ -109,8 +109,9 @@ FIELD_HINTS = {
     "roi": "Roczna stopa zwrotu (kapitalizacja odsetek/zysków raz w roku).",
     "buffer": "Kwota, która zostaje na koncie po etapie (nie jest wypłacana).",
     "monthly_base": (
-        "Miesięczne wynagrodzenie brutto — podstawa wymiaru składek PPK i PPE. "
-        "Składki obliczane procentowo od tej kwoty."
+        "Miesięczne wynagrodzenie brutto — podstawa wymiaru składek "
+        "(ZUS/PPK/PPE) lub obliczania oszczędności podatkowej (IKZE). "
+        "Domyślnie pobierane z globalnego pola \"Brutto mies.\""
     ),
     "employee_pct": "Wpłata pracownika (% podstawy, ustawowo min. 2%).",
     "employer_pct": "Wpłata pracodawcy (% podstawy, min. 1,5%, max 4%).",
@@ -136,6 +137,10 @@ FIELD_HINTS = {
     "cost_basis": (
         "Łączny koszt zakupu (wpłacony kapitał) — "
         "podatek zapłacisz tylko od różnicy."
+    ),
+    "base_override_enabled": (
+        "Nadpisz globalne brutto dla tego konta. "
+        "Zaznacz, jeśli używasz innej podstawy niż wpisana globalnie."
     ),
 }
 
@@ -213,6 +218,21 @@ STAGE_META = {
                             "Dopłata wnoszona co roku. Limit roczny zależy od formy "
                             "zatrudnienia: etat 11 304 zł, przedsiębiorca 16 956 zł."
                         ),
+                    },
+                    "base_override_enabled": {
+                        "label": "Niestandardowy dochód",
+                        "type": "checkbox",
+                        "hint": (
+                            "Nadpisz globalne brutto do obliczenia oszczędności "
+                            "podatkowej IKZE (odliczenie od dochodu)."
+                        ),
+                    },
+                    "monthly_base": {
+                        "label": "Miesięczne brutto",
+                        "type": "number",
+                        "step": 100,
+                        "hint": FIELD_HINTS["monthly_base"],
+                        "visible_when": "base_override_enabled",
                     },
                     "roi": {
                         "label": "ROI", "type": "number", "step": 1, "percent": True,
@@ -329,6 +349,12 @@ STAGE_META = {
                         "type": "number",
                         "step": 100,
                         "hint": FIELD_HINTS["monthly_base"],
+                        "visible_when": "base_override_enabled",
+                    },
+                    "base_override_enabled": {
+                        "label": "Niestandardowa podstawa",
+                        "type": "checkbox",
+                        "hint": FIELD_HINTS["base_override_enabled"],
                     },
                     "employee_pct": {
                         "label": "Wpłata pracownika",
@@ -367,6 +393,12 @@ STAGE_META = {
                         "type": "number",
                         "step": 100,
                         "hint": FIELD_HINTS["monthly_base"],
+                        "visible_when": "base_override_enabled",
+                    },
+                    "base_override_enabled": {
+                        "label": "Niestandardowa podstawa",
+                        "type": "checkbox",
+                        "hint": FIELD_HINTS["base_override_enabled"],
                     },
                     "employer_pct": {
                         "label": "Składka pracodawcy",
@@ -498,6 +530,12 @@ STAGE_META = {
                         "type": "number",
                         "step": 100,
                         "hint": FIELD_HINTS["monthly_base"],
+                        "visible_when": "base_override_enabled",
+                    },
+                    "base_override_enabled": {
+                        "label": "Niestandardowa podstawa",
+                        "type": "checkbox",
+                        "hint": FIELD_HINTS["base_override_enabled"],
                     },
                     "ofe_member": {
                         "label": "Członek OFE",
