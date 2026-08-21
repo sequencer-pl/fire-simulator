@@ -37,6 +37,7 @@ class AccountRules(BaseModel):
     min_withdrawal_age: int = 0
     early_tax_model: str = "none"
     early_tax_rate: float = 0.0
+    early_tax_basis: str = "full"  # "gains" | "full" (tylko dla "flat")
     asset_tax_rate: float = 0.0
     asset_exemption: float = 0.0
     asset_group: str | None = None  # accounts with the same asset_group share a common limit
@@ -72,6 +73,7 @@ def default_account_rules() -> dict[str, AccountRules]:
             min_withdrawal_age=60,
             early_tax_model="flat",
             early_tax_rate=0.19,
+            early_tax_basis="full",
         ),
         "ikze": AccountRules(
             tax_model="flat",
@@ -85,12 +87,14 @@ def default_account_rules() -> dict[str, AccountRules]:
             min_withdrawal_age=60,
             early_tax_model="flat",
             early_tax_rate=0.19,
+            early_tax_basis="full",
         ),
         "ppe": AccountRules(
             tax_model="none",
             min_withdrawal_age=60,
             early_tax_model="flat",
             early_tax_rate=0.19,
+            early_tax_basis="full",
         ),
         "oipe": AccountRules(
             tax_model="flat",
@@ -99,6 +103,7 @@ def default_account_rules() -> dict[str, AccountRules]:
             min_withdrawal_age=60,
             early_tax_model="flat",
             early_tax_rate=0.19,
+            early_tax_basis="full",
         ),
         "oki_inw": AccountRules(
             tax_model="assets",

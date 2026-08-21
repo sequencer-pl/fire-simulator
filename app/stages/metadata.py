@@ -128,6 +128,15 @@ FIELD_HINTS = {
         "w jego ramach część oszczędnościowa (lokaty/obligacje) do 25 000 zł."
     ),
     "asset_tax_rate": "Roczny podatek od wartości aktywów ponad próg (OKI: 0,85%).",
+    "cost_basis_enabled": (
+        "Zaznacz, jeśli znasz koszty zakupu (cenę nabycia). "
+        "Dzięki temu podatek 19% naliczany jest tylko od zysku, "
+        "a nie od całej kwoty wypłaty."
+    ),
+    "cost_basis": (
+        "Łączny koszt zakupu (wpłacony kapitał) — "
+        "podatek zapłacisz tylko od różnicy."
+    ),
 }
 
 STAGE_META = {
@@ -152,6 +161,18 @@ STAGE_META = {
                     "roi": {
                         "label": "ROI", "type": "number", "step": 1, "percent": True,
                         "hint": FIELD_HINTS["roi"],
+                    },
+                    "cost_basis_enabled": {
+                        "label": "Koszty zakupu",
+                        "type": "checkbox",
+                        "hint": FIELD_HINTS["cost_basis_enabled"],
+                    },
+                    "cost_basis": {
+                        "label": "Koszt zakupu (zł)",
+                        "type": "number",
+                        "step": 1000,
+                        "visible_when": "cost_basis_enabled",
+                        "hint": FIELD_HINTS["cost_basis"],
                     },
                 },
             },
@@ -282,6 +303,18 @@ STAGE_META = {
                         "label": "ROI", "type": "number", "step": 1, "percent": True,
                         "hint": FIELD_HINTS["roi"],
                     },
+                    "cost_basis_enabled": {
+                        "label": "Koszty zakupu",
+                        "type": "checkbox",
+                        "hint": FIELD_HINTS["cost_basis_enabled"],
+                    },
+                    "cost_basis": {
+                        "label": "Koszt zakupu (zł)",
+                        "type": "number",
+                        "step": 1000,
+                        "visible_when": "cost_basis_enabled",
+                        "hint": FIELD_HINTS["cost_basis"],
+                    },
                 },
             },
             "ppk": {
@@ -393,6 +426,18 @@ STAGE_META = {
                         "percent": True,
                         "hint": "Roczne oprocentowanie lokaty; odsetki opodatkowane 19%.",
                     },
+                    "cost_basis_enabled": {
+                        "label": "Koszty zakupu",
+                        "type": "checkbox",
+                        "hint": FIELD_HINTS["cost_basis_enabled"],
+                    },
+                    "cost_basis": {
+                        "label": "Koszt zakupu (zł)",
+                        "type": "number",
+                        "step": 1000,
+                        "visible_when": "cost_basis_enabled",
+                        "hint": FIELD_HINTS["cost_basis"],
+                    },
                 },
             },
             "obligacje": {
@@ -417,6 +462,18 @@ STAGE_META = {
                             "Roczna stopa zwrotu. Dla obligacji indeksowanych "
                             "(EDO, COI) wpisz realną marżę ponad inflację (np. 2%)."
                         ),
+                    },
+                    "cost_basis_enabled": {
+                        "label": "Koszty zakupu",
+                        "type": "checkbox",
+                        "hint": FIELD_HINTS["cost_basis_enabled"],
+                    },
+                    "cost_basis": {
+                        "label": "Koszt zakupu (zł)",
+                        "type": "number",
+                        "step": 1000,
+                        "visible_when": "cost_basis_enabled",
+                        "hint": FIELD_HINTS["cost_basis"],
                     },
                 },
             },

@@ -98,8 +98,8 @@ def test_ppe_early_withdrawal_taxed_19pct_on_gains():
     ppe_bal = y.balances["ppe"]
     contributions = ppe_contribution * 15
     assert ppe_bal > contributions
-    # Tax 19% on gains: gain_share = (ppe_bal - basis) / ppe_bal
-    expected_tax = (ppe_bal - contributions) * 0.19
+    # Tax 19% on full amount (early_tax_basis="full")
+    expected_tax = ppe_bal * 0.19
     assert y.tax_paid == pytest.approx(expected_tax, abs=0.5)
 
 

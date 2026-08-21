@@ -139,9 +139,8 @@ def test_ppk_early_withdrawal_forfeits_employer_state():
     # PPK balance at start of realization — after forfeit, only employee portion remains
     remaining = y.balances["ppk"]
 
-    # Po przepadku: gain_share = (remaining - emp_basis) / remaining
-    # PMT na 1 rok wypłaca remaining, podatek 19% od zysku
-    expected_tax = max(0.0, (remaining - emp_basis)) * 0.19
+    # Po przepadku: early_tax_basis="full" — podatek 19% od CAŁEJ kwoty
+    expected_tax = remaining * 0.19
     assert y.tax_paid == pytest.approx(expected_tax, abs=1.0)
     assert result.total_withdrawn > 0
     # Przepadek: oryginalne saldo było większe (fraction < 1)

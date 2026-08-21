@@ -62,7 +62,10 @@ def _init_state(data: SimulationInput) -> tuple:
                 asset_exemptions[name] = cfg.asset_exemption
             if cfg.starting_balance > 0:
                 balances.setdefault(name, cfg.starting_balance)
-                basis.setdefault(name, cfg.starting_balance)
+                initial_basis = cfg.starting_balance
+                if cfg.cost_basis_enabled and cfg.cost_basis is not None:
+                    initial_basis = cfg.cost_basis
+                basis.setdefault(name, initial_basis)
                 if name == "ppk":
                     basis_employee.setdefault(name, cfg.starting_balance)
             if name == "zus" and cfg.starting_balance_ofe > 0 and cfg.ofe_member:
@@ -764,6 +767,7 @@ def _apply_tax(
         early = rules.min_withdrawal_age > 0 and age < rules.min_withdrawal_age
         model = rules.early_tax_model if early else rules.tax_model
         rate = rules.early_tax_rate if early else rules.tax_rate
+        basis_key = rules.early_tax_basis if early else rules.tax_basis
 
         if model == "none":
             continue
@@ -777,7 +781,7 @@ def _apply_tax(
             continue
 
         # model == "flat"
-        if rules.tax_basis == "full":
+        if basis_key == "full":
             tax[account] = tax.get(account, 0.0) + amount * rate
         else:  # "gains" — podatek tylko od zysku (Belka)
             start_balance = year_start_balances.get(account, 0.0)

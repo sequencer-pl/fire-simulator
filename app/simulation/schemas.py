@@ -7,6 +7,8 @@ from app.simulation.config import TaxConfig, default_config
 
 class AccountConfig(BaseModel):
     starting_balance: float = 0.0
+    cost_basis_enabled: bool = False
+    cost_basis: float | None = None
     roi: float = 0.02
     annual_contribution: float = 0.0
     buffer: float = 0.0

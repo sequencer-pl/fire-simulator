@@ -35,6 +35,8 @@ const ACCOUNT_LABELS = {
 const FIELD_ORDER = [
     "starting_balance",
     "starting_balance_ofe",
+    "cost_basis_enabled",
+    "cost_basis",
     "ofe_member",
     "monthly_base",
     "annual_contribution",
