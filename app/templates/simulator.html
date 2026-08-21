@@ -41,31 +41,32 @@
         <div class="mode-toggle">
             <button type="button" id="modeSimBtn" class="mode-btn active">Symulator</button>
             <button type="button" id="modeConfigBtn" class="mode-btn">Konfiguracja</button>
-            <button type="button" id="clearStagesBtn" class="btn btn-danger">Wyczyść etapy</button>
         </div>
 
         <!-- ====== SYMULATOR ====== -->
         <div id="simulatorView">
             <form id="simForm" novalidate>
-                <div id="globalConfig" class="global-config-bar">
-                    <div class="gender-toggle" title="Płeć wpływa na powszechny wiek emerytalny ZUS (60 r.ż. kobiety / 65 r.ż. mężczyźni).">
-                        <label>Płeć</label>
-                        <div class="gender-options">
-                            <label class="gender-option"><input type="radio" name="gender" value="k" /> K</label>
-                            <label class="gender-option"><input type="radio" name="gender" value="m" checked /> M</label>
+                <div id="simConfigSection" class="sim-config-section">
+                    <div id="globalConfig" class="global-config-bar">
+                        <div class="gender-toggle" title="Płeć wpływa na powszechny wiek emerytalny ZUS (60 r.ż. kobiety / 65 r.ż. mężczyźni).">
+                            <label>Płeć</label>
+                            <div class="gender-options">
+                                <label class="gender-option"><input type="radio" name="gender" value="k" /> K</label>
+                                <label class="gender-option"><input type="radio" name="gender" value="m" checked /> M</label>
+                            </div>
+                        </div>
+                        <div class="bar-sep"></div>
+                        <div class="gross-field" title="Miesięczne wynagrodzenie brutto — podstawa do obliczeń składek (ZUS/PPK/PPE) i oszczędności podatkowej (IKZE).">
+                            <label>Wynagrodzenie mies.<br />(brutto)</label>
+                            <div class="num-control">
+                                <button type="button" class="stepper" data-dir="-1">−</button>
+                                <input type="number" id="monthlyGross" class="acc-field" min="0" step="100" value="0" />
+                                <button type="button" class="stepper" data-dir="1">+</button>
+                            </div>
                         </div>
                     </div>
-                    <div class="bar-sep"></div>
-                    <div class="gross-field" title="Miesięczne wynagrodzenie brutto — podstawa do obliczeń składek (ZUS/PPK/PPE) i oszczędności podatkowej (IKZE).">
-                        <label>Wynagrodzenie mies.<br />(brutto)</label>
-                        <div class="num-control">
-                            <button type="button" class="stepper" data-dir="-1">−</button>
-                            <input type="number" id="monthlyGross" class="acc-field" min="0" step="100" value="0" />
-                            <button type="button" class="stepper" data-dir="1">+</button>
-                        </div>
+                    <div id="stages-container">
                     </div>
-                </div>
-                <div id="stages-container">
                 </div>
             </form>
 
@@ -121,8 +122,10 @@
                     <button type="button" id="addRealizationBtn" class="btn btn-secondary btn-add-realization">+ Dodaj etap realizacji</button>
                 </div>
                 <div class="form-actions-right">
-                    <button type="button" id="saveSimBtn" class="btn btn-secondary" disabled>Zapisz symulację</button>
+                    <button type="button" id="clearStagesBtn" class="btn btn-danger">Wyczyść etapy</button>
+                    <button type="button" id="saveSimBtn" class="btn btn-secondary" hidden>Zapisz symulację</button>
                     <button type="button" id="simulateBtn" class="btn btn-primary">Symuluj</button>
+                    <button type="button" id="editConfigBtn" class="btn btn-primary" title="Wróć do edycji etapów i konfiguracji" hidden>Edytuj</button>
                 </div>
             </div>
         </div>

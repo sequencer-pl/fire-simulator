@@ -797,9 +797,34 @@ h2 {
     flex-shrink: 0;
 }
 
+/* --- Config / Results toggle --- */
+.sim-config-section {
+    transition: opacity 0.15s ease;
+}
+.sim-config-section.collapsed {
+    display: none;
+}
+
+/* STAN 0 (default): saveSimBtn and editConfigBtn hidden */
+#saveSimBtn[hidden],
+#editConfigBtn[hidden] {
+    display: none;
+}
+
+/* STAN 1 (config-collapsed): swap buttons */
+.form-actions.config-collapsed .add-stage-btns,
+.form-actions.config-collapsed #clearStagesBtn,
+.form-actions.config-collapsed #simulateBtn {
+    display: none;
+}
+.form-actions.config-collapsed #saveSimBtn,
+.form-actions.config-collapsed #editConfigBtn {
+    display: inline-flex;
+}
+
 /* --- Results --- */
 .results-section {
-    margin-top: 3rem;
+    margin-top: 1.5rem;
 }
 
 #summary {

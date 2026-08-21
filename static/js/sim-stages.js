@@ -683,8 +683,7 @@ function initStageEventHandlers(container) {
     document.getElementById("clearStagesBtn").addEventListener("click", () => {
         if (!confirm("Na pewno wyczyścić wszystkie etapy?")) return;
         container.querySelectorAll(".stage-block").forEach((b) => b.remove());
-        const results = document.getElementById("results");
-        if (results) results.style.display = "none";
+        if (typeof switchToConfig === "function") switchToConfig();
         updateStageButtons(container);
         updateStageHints(container);
     });
@@ -748,7 +747,6 @@ function initStageEventHandlers(container) {
                 lastInput = data;
                 lastResult = result;
                 renderResults(result);
-                document.getElementById("saveSimBtn").disabled = false;
             }
         } catch (err) {
             alert("Błąd połączenia: " + err.message);

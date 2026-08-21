@@ -177,8 +177,21 @@ function renderResults(data) {
         || !document.getElementById("withdrawalChart").classList.contains("hidden");
     document.getElementById("chartsSection").classList.toggle("hidden", !hasCharts);
 
-    container.style.display = "block";
-    container.scrollIntoView({ behavior: "smooth" });
+    switchToResults();
+}
+
+function switchToResults() {
+    document.getElementById("simConfigSection").classList.add("collapsed");
+    document.getElementById("results").style.display = "block";
+    document.querySelector(".form-actions")?.classList.add("config-collapsed");
+    document.getElementById("results").scrollIntoView({ behavior: "smooth" });
+}
+
+function switchToConfig() {
+    document.getElementById("simConfigSection").classList.remove("collapsed");
+    document.getElementById("results").style.display = "none";
+    document.querySelector(".form-actions")?.classList.remove("config-collapsed");
+    document.getElementById("simConfigSection").scrollIntoView({ behavior: "smooth" });
 }
 
 function renderStageSummary(data) {
@@ -233,6 +246,12 @@ document.addEventListener("DOMContentLoaded", () => {
     initSaveButton();
     initResultsControls();
     initStageEventHandlers(container);
+
+    // "Edytuj" button — switch from results back to config
+    const editBtn = document.getElementById("editConfigBtn");
+    if (editBtn) {
+        editBtn.addEventListener("click", () => switchToConfig());
+    }
 
     // Steppery w globalConfig (brutto mies.)
     const globalConfig = document.getElementById("globalConfig");
