@@ -265,6 +265,18 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
+    // Steppery w konfiguracji
+    const configContent = document.getElementById("config-content");
+    if (configContent) {
+        configContent.addEventListener("click", (e) => {
+            const btn = e.target.closest(".num-control .stepper");
+            if (!btn) return;
+            const input = btn.parentElement.querySelector(".acc-field");
+            if (!input) return;
+            stepInputValue(input, btn.classList.contains("stepper-up") ? 1 : -1);
+        });
+    }
+
     if (simId) {
         loadSimulation(simId, container);
     } else {
@@ -399,19 +411,22 @@ function configSection(title, fields) {
 function configField(path, label, value, percent, hint) {
     const wrap = document.createElement("div");
     wrap.className = "field-group";
-    wrap.innerHTML = `<label>${label}${hint ? tipHtml(hint) : ""}</label>`;
-    const input = document.createElement("input");
-    input.type = "number";
-    input.min = "0";
-    input.step = "any";
     const raw = percent ? value * 100 : value;
-    input.value = Math.round(raw * 1e4) / 1e4;
+    const displayVal = Math.round(raw * 1e4) / 1e4;
+    wrap.innerHTML = `
+        <label>${label}${hint ? tipHtml(hint) : ""}</label>
+        <div class="num-control">
+            <button type="button" class="stepper stepper-down" tabindex="-1" aria-label="Zmniejsz">&minus;</button>
+            <input type="number" class="acc-field" min="0" step="any" value="${displayVal}" />
+            <button type="button" class="stepper stepper-up" tabindex="-1" aria-label="Zwiększ">+</button>
+        </div>
+    `;
+    const input = wrap.querySelector("input");
     input.addEventListener("input", () => {
         const parsed = parseFloat(input.value) || 0;
         setConfigPath(path, percent ? parsed / 100 : parsed);
         updateStageHints(document.getElementById("stages-container"));
     });
-    wrap.appendChild(input);
     return wrap;
 }
 

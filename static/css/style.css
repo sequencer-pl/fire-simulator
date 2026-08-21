@@ -181,6 +181,7 @@ h2 {
     width: 100%;
     border: none;
     background: transparent;
+    color: var(--text);
     padding: 0.45rem 0.5rem;
     border-radius: 0;
 }
@@ -1189,7 +1190,7 @@ tr.stage-accum td {
     font-size: 0.95rem;
 }
 
-.config-section input,
+.config-section input:not(.acc-field),
 .config-section select {
     background: var(--surface);
     border: 1px solid var(--border);
