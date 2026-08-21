@@ -14,6 +14,34 @@ PPE_ZUS_FRACTION = 0.30
 MONTHS_PER_YEAR = 12
 
 
+def _compute_ikze_tax_saving(
+    ikze_contribution: float,
+    annual_income: float,
+    config: TaxConfig,
+) -> float:
+    """Tax saving from IKZE contribution (odliczenie od dochodu).
+
+    Compares PIT on full income vs income reduced by the IKZE contribution.
+    """
+    if ikze_contribution <= 0 or annual_income <= 0:
+        return 0.0
+    tax_without = scale_tax(
+        annual_income,
+        kwota_wolna=config.kwota_wolna,
+        prog=config.prog,
+        rate_lower=config.rate_lower,
+        rate_upper=config.rate_upper,
+    )
+    tax_with = scale_tax(
+        max(0.0, annual_income - ikze_contribution),
+        kwota_wolna=config.kwota_wolna,
+        prog=config.prog,
+        rate_lower=config.rate_lower,
+        rate_upper=config.rate_upper,
+    )
+    return max(0.0, tax_without - tax_with)
+
+
 def _validate_stage_order(stages: list[StageInput]) -> None:
     """The realization stage cannot start before the end of the last accumulation stage."""
     akum_end = max(
@@ -437,6 +465,23 @@ def simulate(data: SimulationInput) -> SimulationResult:
         )
         for acc, t in early_return_tax.items():
             merged_tax[acc] = merged_tax.get(acc, 0.0) + t
+
+        # IKZE tax saving (odliczenie od dochodu) — shown as negative tax
+        if data.annual_income > 0:
+            for si in active_stages:
+                if si.stage_type != "akumulacja":
+                    continue
+                for name, cfg in si.accounts.items():
+                    if name != "ikze":
+                        continue
+                    contribution = cfg.annual_contribution
+                    if contribution <= 0:
+                        continue
+                    saving = _compute_ikze_tax_saving(
+                        contribution, data.annual_income, config,
+                    )
+                    if saving > 0:
+                        merged_tax[name] = merged_tax.get(name, 0.0) - saving
 
         _passive_growth(balances, processed_accounts, account_rois, config)
 

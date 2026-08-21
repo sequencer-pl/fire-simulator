@@ -110,6 +110,13 @@
                             <label class="gender-option"><input type="radio" name="gender" value="m" checked /> M</label>
                         </div>
                     </div>
+                    <div class="income-field" title="Roczny dochód brutto z pracy najemnej. Wpływa na obliczenie oszczędności podatkowej z IKZE (odliczenie od dochodu).">
+                        <label for="annualIncome">Dochód roczny</label>
+                        <div class="income-input-wrap">
+                            <input type="number" id="annualIncome" min="0" step="1000" value="0" class="input-inline" />
+                            <span class="input-suffix">zł</span>
+                        </div>
+                    </div>
                     <button type="button" id="saveSimBtn" class="btn btn-secondary" disabled>Zapisz symulację</button>
                     <button type="button" id="simulateBtn" class="btn btn-primary">Symuluj</button>
                 </div>

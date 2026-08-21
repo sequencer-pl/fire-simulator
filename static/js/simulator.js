@@ -45,7 +45,13 @@ function gatherFormData() {
         });
     });
 
-    return { stages: stages, max_age: 100, gender: currentGender(), config: CONFIG };
+    return {
+        stages: stages,
+        max_age: 100,
+        gender: currentGender(),
+        annual_income: parseFloat(document.getElementById("annualIncome")?.value) || 0,
+        config: CONFIG,
+    };
 }
 
 function currentGender() {
@@ -130,7 +136,7 @@ function renderResults(data) {
         </div>
         <div class="summary-card">
             <div class="label">Suma podatków</div>
-            <div class="value red">${formatMoney(data.total_tax)}</div>
+            <div class="value ${data.total_tax < 0 ? 'green' : 'red'}">${formatMoney(data.total_tax)}</div>
         </div>
     `;
 
@@ -154,7 +160,7 @@ function renderResults(data) {
             <td class="amount" data-col="wealth"><strong>${formatMoney(y.total_wealth)}</strong></td>
             <td class="amount" data-col="annual">${formatMoney(y.annual_withdrawal)}</td>
             <td class="amount" data-col="monthly">${formatMoney(y.monthly_withdrawal)}</td>
-            <td class="amount" data-col="tax">${formatMoney(y.tax_paid)}</td>
+            <td class="amount ${y.tax_paid < 0 ? 'green' : ''}" data-col="tax">${formatMoney(y.tax_paid)}</td>
         `;
         tbody.appendChild(tr);
     });
@@ -484,6 +490,8 @@ function populateStages(inputData) {
     const container = document.getElementById("stages-container");
     if (inputData.config) CONFIG = backfillConfig(inputData.config);
     if (inputData.gender) setGender(inputData.gender);
+    const incomeInput = document.getElementById("annualIncome");
+    if (incomeInput && inputData.annual_income) incomeInput.value = inputData.annual_income;
     container.innerHTML = "";
     (inputData.stages || []).forEach((stage) => {
         migrateLegacyAccounts(stage);
@@ -693,7 +701,7 @@ function renderWealthDetail(yr, container) {
             <div class="detail-item"><span class="detail-label">Majątek łącznie</span><span class="detail-value">${fmt(yr.total_wealth)}</span></div>
             <div class="detail-item"><span class="detail-label">Wypłata mies.</span><span class="detail-value green">${fmt(yr.monthly_withdrawal)}</span></div>
             <div class="detail-item"><span class="detail-label">Wypłata roczna</span><span class="detail-value green">${fmt(yr.annual_withdrawal)}</span></div>
-            <div class="detail-item"><span class="detail-label">Podatek</span><span class="detail-value red">${fmt(yr.tax_paid)}</span></div>
+            <div class="detail-item"><span class="detail-label">Podatek</span><span class="detail-value ${yr.tax_paid < 0 ? 'green' : 'red'}">${fmt(yr.tax_paid)}</span></div>
         </div>
         ${balHtml ? `<div class="detail-balances">${balHtml}</div>` : ""}
     `;
@@ -811,7 +819,7 @@ function renderWithdrawalDetail(yr, container) {
             <div class="detail-item"><span class="detail-label">Majątek łącznie</span><span class="detail-value">${fmt(yr.total_wealth)}</span></div>
             <div class="detail-item"><span class="detail-label">Wypłata mies.</span><span class="detail-value green">${fmt(yr.monthly_withdrawal)}</span></div>
             <div class="detail-item"><span class="detail-label">Wypłata roczna</span><span class="detail-value green">${fmt(yr.annual_withdrawal)}</span></div>
-            <div class="detail-item"><span class="detail-label">Podatek</span><span class="detail-value red">${fmt(yr.tax_paid)}</span></div>
+            <div class="detail-item"><span class="detail-label">Podatek</span><span class="detail-value ${yr.tax_paid < 0 ? 'green' : 'red'}">${fmt(yr.tax_paid)}</span></div>
         </div>
         ${balHtml ? `<div class="detail-balances">${balHtml}</div>` : ""}
     `;

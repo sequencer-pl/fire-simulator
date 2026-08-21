@@ -31,7 +31,9 @@ function avgMonthly(sim) {
 
 function taxEfficiency(sim) {
     const { total_withdrawn: w, total_tax: t } = sim.result;
-    return (w + t) > 0 ? (w / (w + t)) * 100 : null;
+    const denom = w + t;
+    if (denom <= 0) return null;
+    return Math.min(100, (w / denom) * 100);
 }
 
 function roiMultiple(sim) {
@@ -156,7 +158,7 @@ function renderCards(sims) {
             <div class="sim-metric"><span class="sim-metric-value green">${fmtMoney(sum.peak_wealth)}</span><span class="sim-metric-label">Szczyt</span></div>
             <div class="sim-metric"><span class="sim-metric-value">${fmtMoney(sum.final_wealth)}</span><span class="sim-metric-label">Na koniec</span></div>
             <div class="sim-metric"><span class="sim-metric-value accent">${fmtMoney(sum.total_withdrawn)}</span><span class="sim-metric-label">Wypłaty netto</span></div>
-            <div class="sim-metric"><span class="sim-metric-value red">${fmtMoney(sum.total_tax)}</span><span class="sim-metric-label">Podatki</span></div>
+            <div class="sim-metric"><span class="sim-metric-value ${sum.total_tax < 0 ? 'green' : 'red'}">${fmtMoney(sum.total_tax)}</span><span class="sim-metric-label">Podatki</span></div>
         </div>`;
 
         /* --- info line --- */
@@ -229,7 +231,7 @@ const METRIC_GROUPS = [
     ]},
     { label: "Podatki", metrics: [
         { key: "total_tax", label: "Suma podatków", money: true, better: "min",
-          hint: "Łączna kwota zapłaconych podatków od wypłat." },
+          hint: "Łączna kwota podatków. Ujemna wartość oznacza oszczędności z odliczenia IKZE od dochodu." },
         { key: "tax_eff", label: "Efektywność", pct: true, better: "max",
           hint: "Udział wypłat netto w sumie wypłat brutto (netto + podatek). Im wyższy, tym mniej podatku." },
     ]},

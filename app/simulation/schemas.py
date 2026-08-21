@@ -37,6 +37,7 @@ class SimulationInput(BaseModel):
     stages: list[StageInput]
     max_age: int = 100
     gender: Literal["k", "m"] = "m"
+    annual_income: float = 0.0
     config: TaxConfig = Field(default_factory=default_config)
 
 
