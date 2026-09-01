@@ -326,7 +326,7 @@ h2 {
     gap: 0.2rem;
     min-width: 0;
     width: 100%;
-    padding: 0.45rem 0.5rem;
+    padding: 0.45rem 0.6rem;
     border: 1px solid var(--border);
     border-radius: 10px;
     background: var(--surface);
@@ -334,6 +334,7 @@ h2 {
     font-size: 0.78rem;
     cursor: pointer;
     text-align: center;
+    position: relative;
     transition: border-color 0.15s, color 0.15s, background 0.15s;
 }
 
@@ -349,6 +350,13 @@ h2 {
     background: rgba(108, 92, 231, 0.12);
 }
 
+.account-icon {
+    font-size: 1.3rem;
+    line-height: 1;
+    user-select: none;
+    pointer-events: none;
+}
+
 .account-toggle-label {
     font-size: 0.78rem;
     line-height: 1.3;
@@ -356,15 +364,18 @@ h2 {
 }
 
 .account-toggle .tip {
-    width: auto;
-    height: auto;
+    position: absolute;
+    top: 0.25rem;
+    right: 0.25rem;
+    width: 1.05rem;
+    height: 1.05rem;
     background: none;
     border: none;
     color: inherit;
-    font-size: 1.05rem;
+    font-size: 0.85rem;
+    font-weight: 700;
     line-height: 1;
-    margin-right: 0;
-    vertical-align: middle;
+    cursor: help;
 }
 
 .account-toggle[data-account="krypto"] .tip {
@@ -372,18 +383,21 @@ h2 {
 }
 
 .account-toggle .tip .tooltip {
-    left: 0;
+    left: auto;
+    right: 0.2rem;
     transform: translateY(4px);
+}
+
+.account-toggle .tip .tooltip::after {
+    left: auto;
+    right: 0.35rem;
+    transform: translateX(-50%);
 }
 
 .account-toggle .tip:hover .tooltip,
 .account-toggle .tip:focus .tooltip,
 .account-toggle .tip:focus-within .tooltip {
     transform: translateY(0);
-}
-
-.account-toggle .tip .tooltip::after {
-    left: 0.6rem;
 }
 
 /* --- Account cards --- */

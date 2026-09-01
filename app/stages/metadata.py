@@ -437,9 +437,9 @@ STAGE_META = {
                         "type": "number",
                         "step": 1,
                         "percent": True,
+                        "noNetto": True,
                         "hint": (
-                            "Roczny spadek realnej wartości gotówki. Przy inflacji "
-                            "2,5% wpisz -2,5."
+                            "Roczna inflacja. Przy inflacji 2,5% wpisz 2,5."
                         ),
                     },
                 },
@@ -451,24 +451,38 @@ STAGE_META = {
                         "label": "Saldo startowe", "type": "number", "step": 1000,
                         "hint": FIELD_HINTS["starting_balance"],
                     },
+                    "annual_contribution": {
+                        "label": "Dopłata roczna",
+                        "type": "number",
+                        "step": 1000,
+                        "hint": FIELD_HINTS["annual_contribution"],
+                    },
                     "roi": {
                         "label": "Oprocentowanie",
                         "type": "number",
                         "step": 1,
                         "percent": True,
-                        "hint": "Roczne oprocentowanie lokaty; odsetki opodatkowane 19%.",
+                        "hint": (
+                            "Roczne oprocentowanie lokaty; odsetki opodatkowane "
+                            "podatkiem Belki (19%) na koniec każdego okresu."
+                        ),
                     },
-                    "cost_basis_enabled": {
-                        "label": "Koszty zakupu",
-                        "type": "checkbox",
-                        "hint": FIELD_HINTS["cost_basis_enabled"],
-                    },
-                    "cost_basis": {
-                        "label": "Koszt zakupu (zł)",
-                        "type": "number",
-                        "step": 1000,
-                        "visible_when": "cost_basis_enabled",
-                        "hint": FIELD_HINTS["cost_basis"],
+                    "lokata_term_months": {
+                        "label": "Czas lokaty",
+                        "type": "select",
+                        "options": [
+                            {"value": 1, "label": "1 mies."},
+                            {"value": 2, "label": "2 mies."},
+                            {"value": 3, "label": "3 mies."},
+                            {"value": 4, "label": "4 mies."},
+                            {"value": 6, "label": "6 mies."},
+                            {"value": 12, "label": "12 mies."},
+                        ],
+                        "hint": (
+                            "Długość pojedynczej lokaty. Belka jest pobierana "
+                            "na koniec każdego okresu, a odsetki doliczane do "
+                            "kapitału (kapitalizacja)."
+                        ),
                     },
                 },
             },
@@ -691,9 +705,9 @@ STAGE_META = {
                         "type": "number",
                         "step": 1,
                         "percent": True,
+                        "noNetto": True,
                         "hint": (
-                            "Roczny spadek realnej wartości gotówki. Przy inflacji "
-                            "2,5% wpisz -2,5."
+                            "Roczna inflacja. Przy inflacji 2,5% wpisz 2,5."
                         ),
                     },
                     "buffer": {
@@ -710,7 +724,27 @@ STAGE_META = {
                         "type": "number",
                         "step": 1,
                         "percent": True,
-                        "hint": "Roczne oprocentowanie lokaty; odsetki opodatkowane 19%.",
+                        "hint": (
+                            "Roczne oprocentowanie lokaty; odsetki opodatkowane "
+                            "podatkiem Belki (19%) na koniec każdego okresu."
+                        ),
+                    },
+                    "lokata_term_months": {
+                        "label": "Czas lokaty",
+                        "type": "select",
+                        "options": [
+                            {"value": 1, "label": "1 mies."},
+                            {"value": 2, "label": "2 mies."},
+                            {"value": 3, "label": "3 mies."},
+                            {"value": 4, "label": "4 mies."},
+                            {"value": 6, "label": "6 mies."},
+                            {"value": 12, "label": "12 mies."},
+                        ],
+                        "hint": (
+                            "Długość pojedynczej lokaty. Belka jest pobierana "
+                            "na koniec każdego okresu, a odsetki doliczane do "
+                            "kapitału (kapitalizacja)."
+                        ),
                     },
                     "buffer": {
                         "label": "Bufor", "type": "number", "step": 1000,

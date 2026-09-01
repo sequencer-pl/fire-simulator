@@ -62,10 +62,11 @@ function renderAccountToggles(stageBlock) {
         btn.type = "button";
         btn.className = "account-toggle" + (activeAccounts.has(key) ? " active" : "");
         btn.dataset.account = key;
+        const icon = `<span class="account-icon">${ACCOUNT_ICONS[key] || "?"}</span>`;
         const tip = meta.description
-            ? tipHtml(meta.description, meta.url, ACCOUNT_ICONS[key] || "?")
+            ? tipHtml(meta.description, meta.url, "?")
             : "";
-        btn.innerHTML = `${tip}<span class="account-toggle-label">${meta.label}</span>`;
+        btn.innerHTML = `${icon}<span class="account-toggle-label">${meta.label}</span>${tip}`;
 
         btn.addEventListener("click", () => {
             if (btn.classList.contains("active")) {

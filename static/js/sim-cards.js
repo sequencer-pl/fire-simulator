@@ -1,7 +1,7 @@
 // sim-cards.js — Account card creation and field rendering
 
 function fieldLabelHtml(fieldDef) {
-    const suffix = fieldDef.percent ? " (%)" : "";
+    const suffix = fieldDef.percent ? (fieldDef.noNetto ? " (%)" : " (netto, %)") : "";
     const tip = fieldDef.hint ? tipHtml(fieldDef.hint) : "";
     return `${fieldDef.label}${suffix}${tip}`;
 }
@@ -48,7 +48,10 @@ function fieldDefault(accountKey, key) {
         return 0.035;
     }
     if (accountKey === "gotowka" && key === "roi") {
-        return -0.025;
+        return 0.025;
+    }
+    if (accountKey === "lokata" && key === "lokata_term_months") {
+        return 12;
     }
     return 0;
 }

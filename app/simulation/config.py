@@ -34,6 +34,7 @@ class AccountRules(BaseModel):
     tax_model: str = "none"
     tax_rate: float = 0.0
     tax_basis: str = "gains"  # "gains" | "full" (tylko dla "flat")
+    tax_periodic: bool = False  # tax deducted during accumulation on each interval
     min_withdrawal_age: int = 0
     early_tax_model: str = "none"
     early_tax_rate: float = 0.0
@@ -63,7 +64,9 @@ def default_account_rules() -> dict[str, AccountRules]:
     return {
         "broker": AccountRules(tax_model="flat", tax_rate=0.19),
         "krypto": AccountRules(tax_model="flat", tax_rate=0.19),
-        "lokata": AccountRules(tax_model="flat", tax_rate=0.19),
+        "lokata": AccountRules(
+            tax_model="flat", tax_rate=0.19, tax_periodic=True
+        ),
         "obligacje": AccountRules(tax_model="flat", tax_rate=0.19),
         "gotowka": AccountRules(tax_model="none"),
         "ike": AccountRules(

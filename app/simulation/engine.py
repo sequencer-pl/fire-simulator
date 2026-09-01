@@ -1,5 +1,5 @@
 from app.core.tax import scale_tax
-from app.simulation.config import ACCOUNT_LABELS, TaxConfig
+from app.simulation.config import ACCOUNT_LABELS, AccountRules, TaxConfig
 from app.simulation.schemas import (
     SimulationInput,
     SimulationResult,
@@ -264,8 +264,9 @@ def _process_stages(
     zus_pensions: dict[str, float],
     welcomed_ppk: set[str],
     monthly_gross: float = 0.0,
-) -> tuple[dict[str, float], list[str]]:
+) -> tuple[dict[str, float], list[str], dict[str, float]]:
     merged_withdrawal: dict[str, float] = {}
+    periodic_tax: dict[str, float] = {}
     stage_label_parts: list[str] = []
     seen_labels: set[str] = set()
     zus_handled = False
@@ -311,6 +312,25 @@ def _process_stages(
                 )
                 processed_accounts.add("ppe")
 
+        # Periodic-tax accounts (lokata) — Belka deducted on each term.
+        # During accumulation growth is net-of-tax, computed here (like ZUS).
+        # During realization the ROI is replaced by the net rate so the money
+        # keeps growing after tax; _apply_tax skips such accounts entirely.
+        for name in list(accounts_config.keys()):
+            rules = config.accounts.get(name)
+            if not rules or not rules.tax_periodic:
+                continue
+            if stage_input.stage_type == "akumulacja":
+                periodic_tax[name] = _accumulate_periodic(
+                    name, accounts_config[name], balances, config,
+                )
+                processed_accounts.add(name)
+                accounts_config.pop(name)
+            else:
+                accounts_config[name]["roi"] = _periodic_net_roi(
+                    name, rules, accounts_config[name]
+                )
+
         accounts_to_process = {
             name: cfg
             for name, cfg in accounts_config.items()
@@ -344,7 +364,71 @@ def _process_stages(
             stage_label_parts.append(label)
             seen_labels.add(label)
 
-    return merged_withdrawal, stage_label_parts
+    return merged_withdrawal, stage_label_parts, periodic_tax
+
+
+def _effective_roi(account: str, roi: float) -> float:
+    """Return the effective ROI for an account during growth.
+
+    Gotówka ROI represents inflation, entered as a positive value that reduces
+    the real value of cash — negate it so balances shrink.
+    """
+    if account == "gotowka" and roi > 0:
+        return -roi
+    return roi
+
+
+def _accumulate_periodic(
+    name: str,
+    cfg: dict,
+    balances: dict[str, float],
+    config: TaxConfig,
+) -> float:
+    """Accumulate an account whose gains are taxed every term (lokata).
+
+    Interest accrues at the nominal annual ROI and Belka (rules.tax_rate) is
+    deducted at the end of each term of lokata_term_months. The annual
+    contribution is added after growth. Returns the tax collected this year.
+    """
+    rules = config.accounts.get(name)
+    tax_rate = rules.tax_rate if rules else 0.0
+    balance = balances.get(name, 0.0)
+    roi = _effective_roi(name, cfg.get("roi", DEFAULT_ROI))
+    contribution = cfg.get("annual_contribution", 0.0)
+    term_months = max(1, int(cfg.get("lokata_term_months", 12)))
+    intervals = MONTHS_PER_YEAR / term_months
+    tax_paid = 0.0
+
+    if roi <= 0:
+        balances[name] = balance * (1 + roi) + contribution
+        return 0.0
+
+    rate = roi / intervals
+    if rate > 1:
+        balances[name] = balance * (1 + roi) + contribution
+        return 0.0
+
+    for _ in range(int(intervals)):
+        gross = balance * (1 + rate)
+        interest = gross - balance
+        tax_paid += interest * tax_rate
+        balance = gross - interest * tax_rate
+    balances[name] = balance + contribution
+    return tax_paid
+
+
+def _periodic_net_roi(name: str, rules: AccountRules, cfg: dict) -> float:
+    """Annual net-of-tax effective rate for a periodic-tax account (lokata)."""
+    roi = _effective_roi(name, cfg.get("roi", DEFAULT_ROI))
+    if roi <= 0:
+        return roi
+    term_months = max(1, int(cfg.get("lokata_term_months", 12)))
+    intervals = MONTHS_PER_YEAR / term_months
+    rate = roi / intervals
+    if rate > 1:
+        return roi
+    net_mult = (1 + rate * (1 - rules.tax_rate)) ** intervals
+    return net_mult - 1
 
 
 def _passive_growth(
@@ -365,8 +449,16 @@ def _passive_growth(
                 1 + account_rois.get("zus", DEFAULT_ROI)
             )
         else:
-            roi = account_rois.get(acc_name, DEFAULT_ROI)
-            balances[acc_name] = balances[acc_name] * (1 + roi)
+            rules = config.accounts.get(acc_name)
+            if rules and rules.tax_periodic:
+                roi = account_rois.get(acc_name, DEFAULT_ROI)
+                net = _periodic_net_roi(acc_name, rules, {"roi": roi})
+                balances[acc_name] = balances[acc_name] * (1 + net)
+            else:
+                roi = account_rois.get(acc_name, DEFAULT_ROI)
+                balances[acc_name] = balances[acc_name] * (
+                    1 + _effective_roi(acc_name, roi)
+                )
 
 
 def _assemble_years(
@@ -464,7 +556,7 @@ def simulate(data: SimulationInput) -> SimulationResult:
             config, forfeited, year_start_balances,
         )
 
-        merged_withdrawal, stage_label_parts = _process_stages(
+        merged_withdrawal, stage_label_parts, periodic_tax = _process_stages(
             active_stages, age, balances, basis, basis_employee,
             config, account_rois, processed_accounts, zus_pensions,
             welcomed_ppk, data.monthly_gross,
@@ -479,6 +571,8 @@ def simulate(data: SimulationInput) -> SimulationResult:
             early_returned=early_returned,
             yearly_scale_handled=yearly_scale_handled,
         )
+        for acc, t in periodic_tax.items():
+            merged_tax[acc] = merged_tax.get(acc, 0.0) + t
         for acc, t in early_return_tax.items():
             merged_tax[acc] = merged_tax.get(acc, 0.0) + t
 
@@ -562,7 +656,12 @@ def simulate(data: SimulationInput) -> SimulationResult:
     )
 
 
-def _accumulate_zus(cfg: dict, balances: dict, config: TaxConfig, monthly_gross: float = 0.0) -> None:
+def _accumulate_zus(
+    cfg: dict,
+    balances: dict,
+    config: TaxConfig,
+    monthly_gross: float = 0.0,
+) -> None:
     """Annual contribution and pension capital indexation (accumulation)."""
     zus_cfg = config.zus
     base_annual = _resolve_base(cfg, monthly_gross) * MONTHS_PER_YEAR
@@ -639,7 +738,13 @@ def _accumulate_ppk(
     basis_employee["ppk"] = basis_employee.get("ppk", 0.0) + emp_contrib
 
 
-def _accumulate_ppe(cfg: dict, balances: dict, basis: dict, config: TaxConfig, monthly_gross: float = 0.0) -> None:
+def _accumulate_ppe(
+    cfg: dict,
+    balances: dict,
+    basis: dict,
+    config: TaxConfig,
+    monthly_gross: float = 0.0,
+) -> None:
     """Annual base contribution (employer, % of base) + additional contribution (fixed amount).
 
     The 7% base limit is enforced via a warning in _collect_warnings —
@@ -820,6 +925,9 @@ def _apply_tax(
     for account, amount in withdrawals.items():
         rules = config.accounts.get(account)
         if not rules:
+            continue
+        if rules.tax_periodic:
+            # Gains already taxed on each term during accumulation (lokata).
             continue
         if account in early_returned or account in yearly_scale_handled:
             # One-time IKZE early return — tax already collected at return,

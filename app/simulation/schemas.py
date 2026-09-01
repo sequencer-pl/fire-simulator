@@ -10,6 +10,7 @@ class AccountConfig(BaseModel):
     cost_basis_enabled: bool = False
     cost_basis: float | None = None
     roi: float = 0.02
+    lokata_term_months: int = 12
     annual_contribution: float = 0.0
     buffer: float = 0.0
     monthly_pension: float = 0.0

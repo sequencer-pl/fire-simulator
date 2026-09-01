@@ -45,6 +45,7 @@ const FIELD_ORDER = [
     "employer_pct",
     "state_topups",
     "roi",
+    "lokata_term_months",
     "waloryzacja_skladek",
     "waloryzacja_swiadczenia",
     "buffer",

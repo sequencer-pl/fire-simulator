@@ -10,7 +10,6 @@ from fastapi.templating import Jinja2Templates
 from app.simulation.config import (
     BUILTIN_PRESETS,
     default_config,
-    get_builtin_preset,
 )
 from app.simulation.engine import _resolve_base, simulate
 from app.simulation.schemas import SimulationInput, SimulationResult
@@ -78,7 +77,7 @@ def _monthly_contribution(stage, monthly_gross: float = 0.0) -> float | None:
     """Employee's own monthly investment cost for an accumulation stage."""
     total_annual = 0.0
     for name, cfg in stage.accounts.items():
-        if name in ("gotowka", "lokata", "zus"):
+        if name in ("gotowka", "zus"):
             continue
         elif name == "ppk":
             total_annual += cfg.employee_pct * _resolve_base(cfg.model_dump(), monthly_gross) * 12
@@ -97,10 +96,13 @@ def _total_user_contributions(input_data: SimulationInput) -> float:
         if years <= 0:
             continue
         for name, cfg in stage.accounts.items():
-            if name in ("gotowka", "lokata", "zus"):
+            if name in ("gotowka", "zus"):
                 continue
             if name == "ppk":
-                total += cfg.employee_pct * _resolve_base(cfg.model_dump(), input_data.monthly_gross) * years * 12
+                base_annual = (
+                    _resolve_base(cfg.model_dump(), input_data.monthly_gross) * 12
+                )
+                total += cfg.employee_pct * base_annual * years
             elif name == "ppe":
                 total += cfg.annual_contribution * years
             else:
@@ -355,7 +357,7 @@ def _get_defaults() -> dict:
                     },
                     "gotowka": {
                         "starting_balance": 20000,
-                        "roi": -0.025,
+                        "roi": 0.025,
                     },
                     "zus": {
                         "starting_balance": 150000,
