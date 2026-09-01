@@ -750,6 +750,7 @@ async function applyPresetByName(name) {
         _currentPresetName = name;
         applyZusWaloryzacjaDefaults();
         renderConfigView();
+        updateSimInflationHint();
         updateStageHints(document.getElementById("stages-container"));
         scheduleConfigSave();
         refreshPresetBar();
@@ -759,14 +760,17 @@ async function applyPresetByName(name) {
 }
 
 const BUILTIN_PRESETS_CLIENT = {
-    "Domyślne 2026": {},
+    "Domyślne 2026": { inflation: 0.025 },
     "Konserwatywne": {
+        inflation: 0.015,
         zus: { waloryzacja_skladek: 0.005, waloryzacja_swiadczenia: 0.005 },
     },
     "Realne": {
+        inflation: 0.025,
         zus: { waloryzacja_skladek: 0.015, waloryzacja_swiadczenia: 0.015 },
     },
     "Optymistyczne": {
+        inflation: 0.035,
         zus: { waloryzacja_skladek: 0.025, waloryzacja_swiadczenia: 0.025 },
     },
 };
