@@ -20,11 +20,7 @@ def test_oipe_accumulation_like_ike():
 def test_oipe_withdrawal_after_60_tax_free():
     stages = [
         accumulation_stage(
-            {
-                "oipe": acc(
-                    starting_balance=200000, annual_contribution=10000, roi=0.02
-                )
-            },
+            {"oipe": acc(starting_balance=200000, annual_contribution=10000, roi=0.02)},
             start=40,
             end=65,
         ),

@@ -22,6 +22,10 @@ def get_secret_key() -> str:
     key = secrets.token_hex(32)
     try:
         path.write_text(key)
+        try:
+            path.chmod(0o600)
+        except OSError:
+            pass
     except OSError:
         return key
     return key

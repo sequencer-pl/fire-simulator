@@ -1,5 +1,26 @@
 """Income taxes — PIT scale and flat-rate taxes (Poland 2026)."""
 
+from functools import lru_cache
+
+
+@lru_cache(maxsize=2048)
+def _scale_tax_cached(
+    income: float,
+    kwota_wolna: float,
+    prog: float,
+    rate_lower: float,
+    rate_upper: float,
+) -> float:
+    if income <= 0:
+        return 0.0
+    kwota_zmniejszajaca = kwota_wolna * rate_lower
+    if income <= kwota_wolna:
+        return 0.0
+    if income <= prog:
+        return max(0.0, income * rate_lower - kwota_zmniejszajaca)
+    base = prog * rate_lower - kwota_zmniejszajaca
+    return base + (income - prog) * rate_upper
+
 
 def scale_tax(
     income: float,
@@ -24,12 +45,4 @@ def scale_tax(
     Returns:
         Tax due (>= 0).
     """
-    if income <= 0:
-        return 0.0
-    kwota_zmniejszajaca = kwota_wolna * rate_lower
-    if income <= kwota_wolna:
-        return 0.0
-    if income <= prog:
-        return max(0.0, income * rate_lower - kwota_zmniejszajaca)
-    base = prog * rate_lower - kwota_zmniejszajaca
-    return base + (income - prog) * rate_upper
+    return _scale_tax_cached(round(income, 2), kwota_wolna, prog, rate_lower, rate_upper)

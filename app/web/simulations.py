@@ -96,9 +96,7 @@ async def api_duplicate_simulation(sim_id: int, request: Request):
     row = db.get_simulation(sim_id, user_id)
     if not row:
         raise HTTPException(status_code=404, detail="Symulacja nie znaleziona.")
-    new_id = db.duplicate_simulation(
-        sim_id, user_id, f"Kopia: {row['name']}", _now()
-    )
+    new_id = db.duplicate_simulation(sim_id, user_id, f"Kopia: {row['name']}", _now())
     new_row = db.get_simulation(new_id, user_id)
     return _simulation_response(new_row)
 
@@ -131,16 +129,12 @@ async def api_compare(ids: str, request: Request):
     except ValueError:
         raise HTTPException(status_code=400, detail="Nieprawidłowe identyfikatory.") from None
     if not 1 <= len(sim_ids) <= 4:
-        raise HTTPException(
-            status_code=400, detail="Porównaj od 1 do 4 symulacji naraz."
-        )
+        raise HTTPException(status_code=400, detail="Porównaj od 1 do 4 symulacji naraz.")
     items = []
     for sim_id in sim_ids:
         row = db.get_simulation(sim_id, user_id)
         if not row:
-            raise HTTPException(
-                status_code=404, detail=f"Symulacja o id {sim_id} nie znaleziona."
-            )
+            raise HTTPException(status_code=404, detail=f"Symulacja o id {sim_id} nie znaleziona.")
         items.append(
             {
                 "id": row["id"],

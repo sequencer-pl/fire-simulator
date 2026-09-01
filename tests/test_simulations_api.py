@@ -30,9 +30,7 @@ def register_and_login(client, email="a@b.pl"):
 
 
 def save(client, name="Test", roi=0.05):
-    r = client.post(
-        "/api/simulations", json={"name": name, "input": valid_input(roi)}
-    )
+    r = client.post("/api/simulations", json={"name": name, "input": valid_input(roi)})
     assert r.status_code == 200, r.text
     return r.json()
 

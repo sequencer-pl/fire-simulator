@@ -2,16 +2,19 @@ import json
 import os
 import sqlite3
 from datetime import UTC, datetime
+from functools import lru_cache
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
+from app.core.base import resolve_base
 from app.simulation.config import (
     BUILTIN_PRESETS,
+    TaxConfig,
     default_config,
 )
-from app.simulation.engine import _resolve_base, simulate
+from app.simulation.engine import simulate
 from app.simulation.schemas import SimulationInput, SimulationResult
 from app.stages.metadata import STAGE_META
 from app.stages.registry import get_all_stage_types
@@ -23,7 +26,7 @@ templates = Jinja2Templates(directory="app/templates")
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "static")
 
 
-def _asset_version() -> str:
+def _asset_version_uncached() -> str:
     """Static asset version based on mtime — forces cache refresh after file changes."""
     mtimes = [
         os.path.getmtime(os.path.join(STATIC_DIR, rel))
@@ -40,6 +43,11 @@ def _asset_version() -> str:
         if os.path.exists(os.path.join(STATIC_DIR, rel))
     ]
     return str(int(max(mtimes))) if mtimes else "0"
+
+
+@lru_cache(maxsize=1)
+def _asset_version() -> str:
+    return _asset_version_uncached()
 
 
 def _now() -> str:
@@ -80,7 +88,7 @@ def _monthly_contribution(stage, monthly_gross: float = 0.0) -> float | None:
         if name in ("gotowka", "zus"):
             continue
         elif name == "ppk":
-            total_annual += cfg.employee_pct * _resolve_base(cfg.model_dump(), monthly_gross) * 12
+            total_annual += cfg.employee_pct * resolve_base(cfg.model_dump(), monthly_gross) * 12
         elif name == "ppe":
             total_annual += cfg.annual_contribution
         else:
@@ -99,9 +107,7 @@ def _total_user_contributions(input_data: SimulationInput) -> float:
             if name in ("gotowka", "zus"):
                 continue
             if name == "ppk":
-                base_annual = (
-                    _resolve_base(cfg.model_dump(), input_data.monthly_gross) * 12
-                )
+                base_annual = resolve_base(cfg.model_dump(), input_data.monthly_gross) * 12
                 total += cfg.employee_pct * base_annual * years
             elif name == "ppe":
                 total += cfg.annual_contribution * years
@@ -170,25 +176,37 @@ def _simulation_response(row: sqlite3.Row) -> dict:
 
 @router.get("/", response_class=HTMLResponse)
 async def home(request: Request):
-    return templates.TemplateResponse(request, "home.html", {
-        "version": _asset_version(),
-    })
+    return templates.TemplateResponse(
+        request,
+        "home.html",
+        {
+            "version": _asset_version(),
+        },
+    )
 
 
 @router.get("/sim", response_class=HTMLResponse)
 async def sim(request: Request):
-    return templates.TemplateResponse(request, "simulator.html", {
-        "version": _asset_version(),
-        "stage_types": get_all_stage_types(),
-        "defaults": _get_defaults(),
-    })
+    return templates.TemplateResponse(
+        request,
+        "simulator.html",
+        {
+            "version": _asset_version(),
+            "stage_types": get_all_stage_types(),
+            "defaults": _get_defaults(),
+        },
+    )
 
 
 @router.get("/compare", response_class=HTMLResponse)
 async def compare(request: Request):
-    return templates.TemplateResponse(request, "compare.html", {
-        "version": _asset_version(),
-    })
+    return templates.TemplateResponse(
+        request,
+        "compare.html",
+        {
+            "version": _asset_version(),
+        },
+    )
 
 
 # --- Simulation API (existing) ---
@@ -233,6 +251,10 @@ async def api_user_config(request: Request):
 async def api_save_user_config(request: Request):
     user_id = _require_user(request)
     body = await request.json()
+    try:
+        TaxConfig.model_validate(body)
+    except Exception as e:
+        raise HTTPException(status_code=422, detail=f"Invalid config: {e}") from e
     db.save_user_config(user_id, json.dumps(body, separators=(",", ":")), _now())
     return {"ok": True}
 
@@ -246,6 +268,7 @@ async def api_delete_user_config(request: Request):
 
 # --- Presets ---
 
+
 @router.get("/api/presets")
 async def api_list_presets(request: Request):
     user_id = _current_user_id(request)
@@ -256,11 +279,13 @@ async def api_list_presets(request: Request):
 
     if user_id is not None:
         for row in db.list_user_presets(user_id):
-            result.append({
-                "id": row["id"],
-                "name": row["name"],
-                "is_builtin": False,
-            })
+            result.append(
+                {
+                    "id": row["id"],
+                    "name": row["name"],
+                    "is_builtin": False,
+                }
+            )
 
     return {"presets": result}
 
@@ -281,13 +306,26 @@ async def api_create_preset(request: Request):
     name = data.get("name", "").strip()
     if not name:
         raise HTTPException(status_code=400, detail="Name required")
+    if len(name) > 100:
+        raise HTTPException(status_code=400, detail="Name too long (max 100)")
     if name in BUILTIN_PRESETS:
         raise HTTPException(status_code=400, detail="Cannot overwrite builtin preset")
     config = data.get("config")
     if config is None:
         raise HTTPException(status_code=400, detail="Config required")
+    try:
+        TaxConfig.model_validate(config)
+    except Exception as e:
+        raise HTTPException(status_code=422, detail=f"Invalid config: {e}") from e
     now = datetime.now(UTC).isoformat()
-    preset_id = db.save_preset(user_id, name, json.dumps(config), now)
+    try:
+        preset_id = db.save_preset(user_id, name, json.dumps(config), now)
+    except sqlite3.IntegrityError as e:
+        if "UNIQUE" in str(e):
+            raise HTTPException(
+                status_code=409, detail="Preset with this name already exists"
+            ) from e
+        raise
     return {"id": preset_id, "name": name, "is_builtin": False}
 
 

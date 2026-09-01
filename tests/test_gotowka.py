@@ -14,9 +14,7 @@ def test_gotowka_accumulation_negative_roi():
 
 
 def test_gotowka_no_contributions():
-    stages = [
-        accumulation_stage({"gotowka": acc(starting_balance=100000, roi=-0.025)})
-    ]
+    stages = [accumulation_stage({"gotowka": acc(starting_balance=100000, roi=-0.025)})]
     result = simulate(SimulationInput(stages=stages, max_age=42))
     # brak dopłat — po 2 latach tylko sama erozja
     assert result.years[2].balances["gotowka"] == pytest.approx(100000 * 0.975**2)

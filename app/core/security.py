@@ -24,9 +24,7 @@ def verify_password(password: str, stored: str) -> bool:
         expected = bytes.fromhex(hash_hex)
     except ValueError:
         return False
-    dk = hashlib.pbkdf2_hmac(
-        "sha256", password.encode("utf-8"), salt, int(iterations)
-    )
+    dk = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, int(iterations))
     return hmac.compare_digest(dk, expected)
 
 

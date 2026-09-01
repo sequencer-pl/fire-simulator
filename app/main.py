@@ -1,3 +1,4 @@
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -22,7 +23,7 @@ app = FastAPI(title="FIRE Simulator", lifespan=lifespan)
 app.add_middleware(
     SessionMiddleware,
     secret_key=get_secret_key(),
-    https_only=False,
+    https_only=os.environ.get("FIRE_ENV") == "production",
     same_site="lax",
 )
 

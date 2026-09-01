@@ -64,9 +64,7 @@ def default_account_rules() -> dict[str, AccountRules]:
     return {
         "broker": AccountRules(tax_model="flat", tax_rate=0.19),
         "krypto": AccountRules(tax_model="flat", tax_rate=0.19),
-        "lokata": AccountRules(
-            tax_model="flat", tax_rate=0.19, tax_periodic=True
-        ),
+        "lokata": AccountRules(tax_model="flat", tax_rate=0.19, tax_periodic=True),
         "obligacje": AccountRules(tax_model="flat", tax_rate=0.19),
         "gotowka": AccountRules(tax_model="none"),
         "ike": AccountRules(
@@ -174,6 +172,7 @@ class TaxConfig(BaseModel):
     prog: float = 120_000
     rate_lower: float = 0.12
     rate_upper: float = 0.32
+    kup: float = 3600.0
     limits: Limits = Field(default_factory=Limits)
     accounts: dict[str, AccountRules] = Field(default_factory=default_account_rules)
     zus: ZusConfig = Field(default_factory=ZusConfig)

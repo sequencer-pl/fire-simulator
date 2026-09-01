@@ -49,9 +49,7 @@ def test_oki_no_tax_below_limit_full_cycle():
 
 def test_oki_asset_tax_above_100k():
     stages = [
-        accumulation_stage(
-            {"oki_inw": acc(starting_balance=200000, roi=0.02)}, start=40, end=41
-        )
+        accumulation_stage({"oki_inw": acc(starting_balance=200000, roi=0.02)}, start=40, end=41)
     ]
     result = simulate(SimulationInput(stages=stages, max_age=40))
     assert result.total_tax == pytest.approx((202000 - 100000) * 0.0085, abs=0.01)

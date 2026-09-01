@@ -384,6 +384,7 @@ function renderConfigView() {
         configNumberField("prog", "Próg podatkowy", CONFIG.prog, "Próg dochodowy: powyżej kwoty obowiązuje wyższa stawka (2026 r.: 120 000 zł)."),
         configPercentField("rate_lower", "Stawka niższa", CONFIG.rate_lower, "Stawka podatku do progu (2026 r.: 12%)."),
         configPercentField("rate_upper", "Stawka wyższa", CONFIG.rate_upper, "Stawka podatku powyżej progu (2026 r.: 32%)."),
+        configNumberField("kup", "Koszty uzyskania przychodu", CONFIG.kup, "Roczne koszty uzyskania przychodu (2026 r.: 3 000–3 600 zł)."),
     ]));
 
     root.appendChild(configSection("Limity rocznych wpłat", [

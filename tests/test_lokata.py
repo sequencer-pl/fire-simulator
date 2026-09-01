@@ -21,17 +21,13 @@ def net_balance_after(intervals_in_year, years):
 def test_lokata_annual_term_no_contribution():
     stages = [accumulation_stage({"lokata": acc(starting_balance=BAL, roi=ROI)})]
     result = simulate(SimulationInput(stages=stages, max_age=41))
-    assert result.years[1].balances["lokata"] == pytest.approx(
-        net_balance_after(1, 1)
-    )
+    assert result.years[1].balances["lokata"] == pytest.approx(net_balance_after(1, 1))
 
 
 def test_lokata_annual_term_two_years():
     stages = [accumulation_stage({"lokata": acc(starting_balance=BAL, roi=ROI)})]
     result = simulate(SimulationInput(stages=stages, max_age=42))
-    assert result.years[2].balances["lokata"] == pytest.approx(
-        net_balance_after(1, 2)
-    )
+    assert result.years[2].balances["lokata"] == pytest.approx(net_balance_after(1, 2))
 
 
 def test_lokata_quarterly_term_compounds_more():
@@ -39,15 +35,15 @@ def test_lokata_quarterly_term_compounds_more():
         accumulation_stage(
             {
                 "lokata": acc(
-                    starting_balance=BAL, roi=ROI, lokata_term_months=3,
+                    starting_balance=BAL,
+                    roi=ROI,
+                    lokata_term_months=3,
                 )
             }
         ),
     ]
     result = simulate(SimulationInput(stages=stages, max_age=41))
-    assert result.years[1].balances["lokata"] == pytest.approx(
-        net_balance_after(4, 1)
-    )
+    assert result.years[1].balances["lokata"] == pytest.approx(net_balance_after(4, 1))
 
 
 def test_lokata_monthly_term_compounds_more():
@@ -55,15 +51,15 @@ def test_lokata_monthly_term_compounds_more():
         accumulation_stage(
             {
                 "lokata": acc(
-                    starting_balance=BAL, roi=ROI, lokata_term_months=1,
+                    starting_balance=BAL,
+                    roi=ROI,
+                    lokata_term_months=1,
                 )
             }
         ),
     ]
     result = simulate(SimulationInput(stages=stages, max_age=41))
-    assert result.years[1].balances["lokata"] == pytest.approx(
-        net_balance_after(12, 1)
-    )
+    assert result.years[1].balances["lokata"] == pytest.approx(net_balance_after(12, 1))
 
 
 def test_lokata_shorter_term_greater_balance():
@@ -79,7 +75,9 @@ def test_lokata_shorter_term_greater_balance():
                 accumulation_stage(
                     {
                         "lokata": acc(
-                            starting_balance=BAL, roi=ROI, lokata_term_months=3,
+                            starting_balance=BAL,
+                            roi=ROI,
+                            lokata_term_months=3,
                         )
                     }
                 )
@@ -87,10 +85,7 @@ def test_lokata_shorter_term_greater_balance():
             max_age=41,
         )
     )
-    assert (
-        quarterly.years[1].balances["lokata"]
-        > annual.years[1].balances["lokata"]
-    )
+    assert quarterly.years[1].balances["lokata"] > annual.years[1].balances["lokata"]
 
 
 def test_lokata_tax_paid_equals_interest_tax():
@@ -128,7 +123,9 @@ def test_lokata_no_positive_roi_no_tax():
 def test_lokata_realization_not_double_taxed():
     stages = [
         accumulation_stage(
-            {"lokata": acc(starting_balance=BAL, roi=ROI)}, start=40, end=50,
+            {"lokata": acc(starting_balance=BAL, roi=ROI)},
+            start=40,
+            end=50,
         ),
         realization_stage("Lokata", {"lokata": acc(roi=ROI, buffer=0)}, 50, 55),
     ]

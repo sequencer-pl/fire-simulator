@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS simulations (
 );
 
 CREATE INDEX IF NOT EXISTS idx_simulations_user ON simulations(user_id);
+CREATE INDEX IF NOT EXISTS idx_simulations_user_updated ON simulations(user_id, updated_at DESC);
 
 CREATE TABLE IF NOT EXISTS configs (
     user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
@@ -59,15 +60,18 @@ def get_db_path() -> str:
 
 
 def connect() -> sqlite3.Connection:
-    conn = sqlite3.connect(_db_path)
+    conn = sqlite3.connect(_db_path, timeout=10.0)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
+    conn.execute("PRAGMA journal_mode = WAL")
+    conn.execute("PRAGMA busy_timeout = 5000")
     return conn
 
 
 def init_db() -> None:
     with connect() as conn:
         conn.executescript(_SCHEMA)
+        conn.execute("PRAGMA user_version = 1")
 
 
 def create_user(email: str, password_hash: str, created_at: str) -> int:

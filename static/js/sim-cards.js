@@ -34,26 +34,20 @@ function limitButtonsHtml(accountKey, fieldKey) {
         .join("");
 }
 
+const FIELD_DEFAULTS = {
+    zus: { waloryzacja_skladek: () => CONFIG?.zus?.waloryzacja_skladek ?? 0, waloryzacja_swiadczenia: () => CONFIG?.zus?.waloryzacja_swiadczenia ?? 0 },
+    ppk: { employee_pct: () => CONFIG?.ppk?.employee_pct ?? 0, employer_pct: () => CONFIG?.ppk?.employer_pct ?? 0 },
+    ppe: { employer_pct: 0.035 },
+    gotowka: { roi: 0.025 },
+    lokata: { lokata_term_months: 12 },
+};
+
 function fieldDefault(accountKey, key) {
-    if (accountKey === "zus" && CONFIG && CONFIG.zus) {
-        if (key === "waloryzacja_skladek" || key === "waloryzacja_swiadczenia") {
-            return CONFIG.zus[key] ?? 0;
-        }
-    }
-    if (accountKey === "ppk" && CONFIG && CONFIG.ppk) {
-        if (key === "employee_pct") return CONFIG.ppk.employee_pct ?? 0;
-        if (key === "employer_pct") return CONFIG.ppk.employer_pct ?? 0;
-    }
-    if (accountKey === "ppe" && key === "employer_pct") {
-        return 0.035;
-    }
-    if (accountKey === "gotowka" && key === "roi") {
-        return 0.025;
-    }
-    if (accountKey === "lokata" && key === "lokata_term_months") {
-        return 12;
-    }
-    return 0;
+    const table = FIELD_DEFAULTS[accountKey];
+    if (!table) return 0;
+    const val = table[key];
+    if (val === undefined) return 0;
+    return typeof val === "function" ? val() : val;
 }
 
 function applyZusWaloryzacjaDefaults() {

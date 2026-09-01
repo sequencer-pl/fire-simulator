@@ -1,3 +1,7 @@
+from dataclasses import dataclass, field
+
+from app.core.base import resolve_base
+from app.core.roi import effective_roi, periodic_net_roi
 from app.core.tax import scale_tax
 from app.simulation.config import ACCOUNT_LABELS, AccountRules, TaxConfig
 from app.simulation.schemas import (
@@ -12,6 +16,36 @@ from app.stages.registry import create_stage
 DEFAULT_ROI = 0.02
 PPE_ZUS_FRACTION = 0.30
 MONTHS_PER_YEAR = 12
+
+
+@dataclass
+class SimulationState:
+    config: TaxConfig
+    balances: dict[str, float] = field(default_factory=dict)
+    basis: dict[str, float] = field(default_factory=dict)
+    basis_employee: dict[str, float] = field(default_factory=dict)
+    account_rois: dict[str, float] = field(default_factory=dict)
+    asset_exemptions: dict[str, float] = field(default_factory=dict)
+    all_accounts: set[str] = field(default_factory=set)
+    computed: dict[int, dict] = field(default_factory=dict)
+    early_returned: set[str] = field(default_factory=set)
+    forfeited: set[str] = field(default_factory=set)
+    zus_pensions: dict[str, float] = field(default_factory=dict)
+    welcomed_ppk: set[str] = field(default_factory=set)
+
+    def __iter__(self):
+        yield self.config
+        yield self.balances
+        yield self.basis
+        yield self.basis_employee
+        yield self.account_rois
+        yield self.asset_exemptions
+        yield self.all_accounts
+        yield self.computed
+        yield self.early_returned
+        yield self.forfeited
+        yield self.zus_pensions
+        yield self.welcomed_ppk
 
 
 def _compute_ikze_tax_saving(
@@ -42,18 +76,14 @@ def _compute_ikze_tax_saving(
     return max(0.0, tax_without - tax_with)
 
 
-def _resolve_base(cfg: dict, global_monthly_gross: float) -> float:
-    """Per-account override if enabled, otherwise global gross salary."""
-    if cfg.get("base_override_enabled"):
-        return cfg.get("monthly_base", 0.0)
-    return global_monthly_gross
+_resolve_base = resolve_base
 
 
 def _compute_monthly_gross_dochod(monthly_gross: float, config: TaxConfig) -> float:
     """Annual dochód (after ZUS contributions and KUP) from monthly gross."""
     annual = monthly_gross * MONTHS_PER_YEAR
     skladki = annual * config.zus.skladka_rate
-    kup = 3600.0
+    kup = config.kup
     return max(0.0, annual - skladki - kup)
 
 
@@ -85,7 +115,7 @@ def _validate_roi(data: SimulationInput) -> None:
                 )
 
 
-def _init_state(data: SimulationInput) -> tuple:
+def _init_state(data: SimulationInput) -> SimulationState:
     config = data.config
     balances: dict[str, float] = {}
     basis: dict[str, float] = {}
@@ -120,10 +150,19 @@ def _init_state(data: SimulationInput) -> tuple:
     zus_pensions: dict[str, float] = {}
     welcomed_ppk: set[str] = set()
 
-    return (
-        config, balances, basis, basis_employee, account_rois,
-        asset_exemptions, all_accounts, computed, early_returned,
-        forfeited, zus_pensions, welcomed_ppk,
+    return SimulationState(
+        config=config,
+        balances=balances,
+        basis=basis,
+        basis_employee=basis_employee,
+        account_rois=account_rois,
+        asset_exemptions=asset_exemptions,
+        all_accounts=all_accounts,
+        computed=computed,
+        early_returned=early_returned,
+        forfeited=forfeited,
+        zus_pensions=zus_pensions,
+        welcomed_ppk=welcomed_ppk,
     )
 
 
@@ -273,9 +312,7 @@ def _process_stages(
 
     for stage_input in active_stages:
         stage_obj = create_stage(stage_input.stage_type)
-        accounts_config = {
-            name: cfg.model_dump() for name, cfg in stage_input.accounts.items()
-        }
+        accounts_config = {name: cfg.model_dump() for name, cfg in stage_input.accounts.items()}
 
         # ZUS — contributions and capital indexation (accumulation) plus capital
         # conversion to pension (realization) are handled by the engine because
@@ -302,14 +339,17 @@ def _process_stages(
         if stage_input.stage_type == "akumulacja":
             if "ppk" in accounts_config:
                 _accumulate_ppk(
-                    accounts_config["ppk"], balances, basis,
-                    basis_employee, config, welcomed_ppk, monthly_gross,
+                    accounts_config["ppk"],
+                    balances,
+                    basis,
+                    basis_employee,
+                    config,
+                    welcomed_ppk,
+                    monthly_gross,
                 )
                 processed_accounts.add("ppk")
             if "ppe" in accounts_config:
-                _accumulate_ppe(
-                    accounts_config["ppe"], balances, basis, config, monthly_gross
-                )
+                _accumulate_ppe(accounts_config["ppe"], balances, basis, config, monthly_gross)
                 processed_accounts.add("ppe")
 
         # Periodic-tax accounts (lokata) — Belka deducted on each term.
@@ -322,19 +362,18 @@ def _process_stages(
                 continue
             if stage_input.stage_type == "akumulacja":
                 periodic_tax[name] = _accumulate_periodic(
-                    name, accounts_config[name], balances, config,
+                    name,
+                    accounts_config[name],
+                    balances,
+                    config,
                 )
                 processed_accounts.add(name)
                 accounts_config.pop(name)
             else:
-                accounts_config[name]["roi"] = _periodic_net_roi(
-                    name, rules, accounts_config[name]
-                )
+                accounts_config[name]["roi"] = _periodic_net_roi(name, rules, accounts_config[name])
 
         accounts_to_process = {
-            name: cfg
-            for name, cfg in accounts_config.items()
-            if name not in processed_accounts
+            name: cfg for name, cfg in accounts_config.items() if name not in processed_accounts
         }
 
         if not accounts_to_process:
@@ -355,9 +394,7 @@ def _process_stages(
 
         if stage_input.stage_type == "akumulacja":
             for name, cfg in accounts_to_process.items():
-                basis[name] = basis.get(name, 0.0) + cfg.get(
-                    "annual_contribution", 0.0
-                )
+                basis[name] = basis.get(name, 0.0) + cfg.get("annual_contribution", 0.0)
 
         label = stage_input.name or stage_obj.name
         if label not in seen_labels:
@@ -365,17 +402,6 @@ def _process_stages(
             seen_labels.add(label)
 
     return merged_withdrawal, stage_label_parts, periodic_tax
-
-
-def _effective_roi(account: str, roi: float) -> float:
-    """Return the effective ROI for an account during growth.
-
-    Gotówka ROI represents inflation, entered as a positive value that reduces
-    the real value of cash — negate it so balances shrink.
-    """
-    if account == "gotowka" and roi > 0:
-        return -roi
-    return roi
 
 
 def _accumulate_periodic(
@@ -393,7 +419,7 @@ def _accumulate_periodic(
     rules = config.accounts.get(name)
     tax_rate = rules.tax_rate if rules else 0.0
     balance = balances.get(name, 0.0)
-    roi = _effective_roi(name, cfg.get("roi", DEFAULT_ROI))
+    roi = effective_roi(name, cfg.get("roi", DEFAULT_ROI))
     contribution = cfg.get("annual_contribution", 0.0)
     term_months = max(1, int(cfg.get("lokata_term_months", 12)))
     intervals = MONTHS_PER_YEAR / term_months
@@ -418,17 +444,9 @@ def _accumulate_periodic(
 
 
 def _periodic_net_roi(name: str, rules: AccountRules, cfg: dict) -> float:
-    """Annual net-of-tax effective rate for a periodic-tax account (lokata)."""
-    roi = _effective_roi(name, cfg.get("roi", DEFAULT_ROI))
-    if roi <= 0:
-        return roi
-    term_months = max(1, int(cfg.get("lokata_term_months", 12)))
-    intervals = MONTHS_PER_YEAR / term_months
-    rate = roi / intervals
-    if rate > 1:
-        return roi
-    net_mult = (1 + rate * (1 - rules.tax_rate)) ** intervals
-    return net_mult - 1
+    return periodic_net_roi(
+        name, rules.tax_rate, cfg.get("roi", DEFAULT_ROI), int(cfg.get("lokata_term_months", 12))
+    )
 
 
 def _passive_growth(
@@ -441,13 +459,9 @@ def _passive_growth(
         if acc_name in processed_accounts:
             continue
         if acc_name == "zus":
-            balances[acc_name] = balances[acc_name] * (
-                1 + config.zus.waloryzacja_skladek
-            )
+            balances[acc_name] = balances[acc_name] * (1 + config.zus.waloryzacja_skladek)
         elif acc_name == "zus:ofe":
-            balances[acc_name] = balances[acc_name] * (
-                1 + account_rois.get("zus", DEFAULT_ROI)
-            )
+            balances[acc_name] = balances[acc_name] * (1 + account_rois.get("zus", DEFAULT_ROI))
         else:
             rules = config.accounts.get(acc_name)
             if rules and rules.tax_periodic:
@@ -456,9 +470,7 @@ def _passive_growth(
                 balances[acc_name] = balances[acc_name] * (1 + net)
             else:
                 roi = account_rois.get(acc_name, DEFAULT_ROI)
-                balances[acc_name] = balances[acc_name] * (
-                    1 + _effective_roi(acc_name, roi)
-                )
+                balances[acc_name] = balances[acc_name] * (1 + effective_roi(acc_name, roi))
 
 
 def _assemble_years(
@@ -523,19 +535,25 @@ def simulate(data: SimulationInput) -> SimulationResult:
     _validate_stage_order(data.stages)
     _validate_roi(data)
 
-    (
-        config, balances, basis, basis_employee, account_rois,
-        asset_exemptions, all_accounts, computed, early_returned,
-        forfeited, zus_pensions, welcomed_ppk,
-    ) = _init_state(data)
+    state = _init_state(data)
+    config = state.config
+    balances = state.balances
+    basis = state.basis
+    basis_employee = state.basis_employee
+    account_rois = state.account_rois
+    asset_exemptions = state.asset_exemptions
+    all_accounts = state.all_accounts
+    computed = state.computed
+    early_returned = state.early_returned
+    forfeited = state.forfeited
+    zus_pensions = state.zus_pensions
+    welcomed_ppk = state.welcomed_ppk
 
     min_age = min(si.start_age for si in data.stages)
     max_age = data.max_age
 
     for age in range(min_age, max_age + 1):
-        active_stages = [
-            si for si in data.stages if si.start_age <= age < si.end_age
-        ]
+        active_stages = [si for si in data.stages if si.start_age <= age < si.end_age]
 
         if not active_stages:
             continue
@@ -544,22 +562,45 @@ def simulate(data: SimulationInput) -> SimulationResult:
         processed_accounts: set[str] = set()
 
         zus_pension = _estimate_zus_pension(
-            active_stages, age, balances, zus_pensions, config,
+            active_stages,
+            age,
+            balances,
+            zus_pensions,
+            config,
         )
 
         early_return_tax, yearly_scale_handled = _process_ikze_returns(
-            active_stages, age, balances, config, early_returned, zus_pension,
+            active_stages,
+            age,
+            balances,
+            config,
+            early_returned,
+            zus_pension,
         )
 
         _process_ppk_forfeits(
-            active_stages, age, balances, basis, basis_employee,
-            config, forfeited, year_start_balances,
+            active_stages,
+            age,
+            balances,
+            basis,
+            basis_employee,
+            config,
+            forfeited,
+            year_start_balances,
         )
 
         merged_withdrawal, stage_label_parts, periodic_tax = _process_stages(
-            active_stages, age, balances, basis, basis_employee,
-            config, account_rois, processed_accounts, zus_pensions,
-            welcomed_ppk, data.monthly_gross,
+            active_stages,
+            age,
+            balances,
+            basis,
+            basis_employee,
+            config,
+            account_rois,
+            processed_accounts,
+            zus_pensions,
+            welcomed_ppk,
+            data.monthly_gross,
         )
 
         merged_tax = _apply_tax(
@@ -589,7 +630,9 @@ def simulate(data: SimulationInput) -> SimulationResult:
                     if contribution <= 0:
                         continue
                     saving = _compute_ikze_tax_saving(
-                        contribution, dochód, config,
+                        contribution,
+                        dochód,
+                        config,
                     )
                     if saving > 0:
                         merged_tax[name] = merged_tax.get(name, 0.0) - saving
@@ -609,18 +652,14 @@ def simulate(data: SimulationInput) -> SimulationResult:
             "ending_balances": dict(balances),
             "withdrawal": merged_withdrawal,
             "tax": merged_tax,
-            "early_return_tax": sum(
-                v for k, v in early_return_tax.items() if k != "zus"
-            ),
+            "early_return_tax": sum(v for k, v in early_return_tax.items() if k != "zus"),
             "stage_name": "+".join(stage_label_parts),
         }
 
     years, total_withdrawn_net, total_tax = _assemble_years(computed)
 
     sorted_ages = sorted(computed.keys())
-    final_balances = (
-        computed[sorted_ages[-1]]["ending_balances"] if sorted_ages else {}
-    )
+    final_balances = computed[sorted_ages[-1]]["ending_balances"] if sorted_ages else {}
     peak_wealth = max((y.total_wealth for y in years), default=0.0)
 
     display_accounts = sorted(a for a in all_accounts if a != "zus")
@@ -679,12 +718,9 @@ def _accumulate_zus(
             if cfg.get("waloryzacja_skladek") is not None
             else zus_cfg.waloryzacja_skladek
         )
-        balances["zus"] = (
-            balances.get("zus", 0.0) * (1 + waloryzacja) + zus_contrib
-        )
+        balances["zus"] = balances.get("zus", 0.0) * (1 + waloryzacja) + zus_contrib
         balances["zus:ofe"] = (
-            balances.get("zus:ofe", 0.0) * (1 + cfg.get("roi", DEFAULT_ROI))
-            + ofe_contrib
+            balances.get("zus:ofe", 0.0) * (1 + cfg.get("roi", DEFAULT_ROI)) + ofe_contrib
         )
     else:
         waloryzacja = (
@@ -692,9 +728,7 @@ def _accumulate_zus(
             if cfg.get("waloryzacja_skladek") is not None
             else zus_cfg.waloryzacja_skladek
         )
-        balances["zus"] = (
-            balances.get("zus", 0.0) * (1 + waloryzacja) + total_contrib
-        )
+        balances["zus"] = balances.get("zus", 0.0) * (1 + waloryzacja) + total_contrib
 
 
 def _accumulate_ppk(
@@ -731,9 +765,7 @@ def _accumulate_ppk(
             state += ppk_cfg.state_welcoming
             welcomed.add("ppk")
     total = emp_contrib + employer_contrib + state
-    balances["ppk"] = (
-        balances.get("ppk", 0.0) * (1 + cfg.get("roi", DEFAULT_ROI)) + total
-    )
+    balances["ppk"] = balances.get("ppk", 0.0) * (1 + cfg.get("roi", DEFAULT_ROI)) + total
     basis["ppk"] = basis.get("ppk", 0.0) + total
     basis_employee["ppk"] = basis_employee.get("ppk", 0.0) + emp_contrib
 
@@ -760,9 +792,7 @@ def _accumulate_ppe(
     employer_to_ppe = employer - employer_to_zus
     additional = cfg.get("annual_contribution", 0.0)
     total_ppe = employer_to_ppe + additional
-    balances["ppe"] = (
-        balances.get("ppe", 0.0) * (1 + cfg.get("roi", DEFAULT_ROI)) + total_ppe
-    )
+    balances["ppe"] = balances.get("ppe", 0.0) * (1 + cfg.get("roi", DEFAULT_ROI)) + total_ppe
     basis["ppe"] = basis.get("ppe", 0.0) + total_ppe
     if employer_to_zus > 0:
         balances["zus"] = balances.get("zus", 0.0) + employer_to_zus
@@ -804,18 +834,12 @@ def _apply_asset_tax(
 
     for members in groups.values():
         savings = [
-            a
-            for a in members
-            if _asset_class_of(config.accounts.get(a)) == "oszczednosciowe"
+            a for a in members if _asset_class_of(config.accounts.get(a)) == "oszczednosciowe"
         ]
         invested = [
-            a
-            for a in members
-            if _asset_class_of(config.accounts.get(a)) != "oszczednosciowe"
+            a for a in members if _asset_class_of(config.accounts.get(a)) != "oszczednosciowe"
         ]
-        rate = max(
-            (config.accounts[a].asset_tax_rate for a in members), default=0.0
-        )
+        rate = max((config.accounts[a].asset_tax_rate for a in members), default=0.0)
 
         def _avg(account: str) -> float:
             return (year_start_balances.get(account, 0.0) + balances[account]) / 2.0
@@ -832,38 +856,27 @@ def _apply_asset_tax(
             tax = (
                 max(
                     0.0,
-                    savings_avg
-                    - max((_exemption(a) for a in savings), default=0.0),
+                    savings_avg - max((_exemption(a) for a in savings), default=0.0),
                 )
                 * rate
             )
             for a in savings:
-                _deduct_asset_tax(
-                    balances, merged_tax, a, tax, _avg(a), savings_avg
-                )
+                _deduct_asset_tax(balances, merged_tax, a, tax, _avg(a), savings_avg)
             continue
 
         savings_limit = max((_exemption(a) for a in savings), default=0.0)
-        total_limit = max(
-            (_exemption(a) for a in invested), default=savings_limit
-        )
+        total_limit = max((_exemption(a) for a in invested), default=savings_limit)
 
         s_tax = max(0.0, savings_avg - savings_limit) * rate
         used = min(savings_avg, savings_limit)
         i_tax = max(0.0, invested_avg - (total_limit - used)) * rate
         for a in savings:
-            _deduct_asset_tax(
-                balances, merged_tax, a, s_tax, _avg(a), savings_avg
-            )
+            _deduct_asset_tax(balances, merged_tax, a, s_tax, _avg(a), savings_avg)
         for a in invested:
-            _deduct_asset_tax(
-                balances, merged_tax, a, i_tax, _avg(a), invested_avg
-            )
+            _deduct_asset_tax(balances, merged_tax, a, i_tax, _avg(a), invested_avg)
 
 
-def _deduct_asset_tax(
-    balances, merged_tax, account, total_tax, avg, group_avg
-) -> None:
+def _deduct_asset_tax(balances, merged_tax, account, total_tax, avg, group_avg) -> None:
     """Deducts the account's share of the asset value tax."""
     if total_tax <= 0 or group_avg <= 0:
         return
@@ -958,9 +971,7 @@ def _apply_tax(
             start_balance = year_start_balances.get(account, 0.0)
             account_basis = basis.get(account, 0.0)
             if start_balance > 0:
-                gain_share = max(
-                    0.0, (start_balance - account_basis) / start_balance
-                )
+                gain_share = max(0.0, (start_balance - account_basis) / start_balance)
             else:
                 gain_share = 0.0
             tax[account] = tax.get(account, 0.0) + amount * gain_share * rate
@@ -976,9 +987,7 @@ def _apply_tax(
             rate_upper=config.rate_upper,
         )
         for account, amount in scale_accounts:
-            tax[account] = (
-                tax.get(account, 0.0) + total_scale * (amount / scale_income)
-            )
+            tax[account] = tax.get(account, 0.0) + total_scale * (amount / scale_income)
 
     return tax
 

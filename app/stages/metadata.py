@@ -17,8 +17,7 @@ ACCOUNT_INFO = {
     },
     "lokata": {
         "description": (
-            "Lokata bankowa. Odsetki (zysk) są opodatkowane 19% ryczałtem "
-            "pobieranym przez bank."
+            "Lokata bankowa. Odsetki (zysk) są opodatkowane 19% ryczałtem pobieranym przez bank."
         ),
     },
     "obligacje": {
@@ -111,13 +110,12 @@ FIELD_HINTS = {
     "monthly_base": (
         "Miesięczne wynagrodzenie brutto — podstawa wymiaru składek "
         "(ZUS/PPK/PPE) lub obliczania oszczędności podatkowej (IKZE). "
-        "Domyślnie pobierane z globalnego pola \"Brutto mies.\""
+        'Domyślnie pobierane z globalnego pola "Brutto mies."'
     ),
     "employee_pct": "Wpłata pracownika (% podstawy, ustawowo min. 2%).",
     "employer_pct": "Wpłata pracodawcy (% podstawy, min. 1,5%, max 4%).",
     "state_topups": (
-        "Dopłaty państwa: 240 zł rocznie + 250 zł powitalne "
-        "w pierwszym roku akumulacji."
+        "Dopłaty państwa: 240 zł rocznie + 250 zł powitalne w pierwszym roku akumulacji."
     ),
     "starting_balance_ofe": "Zgromadzony kapitał w OFE.",
     "ofe_member": "Członek OFE: część składki (2,92 pkt) trafia do OFE i rośnie wg ROI.",
@@ -134,10 +132,7 @@ FIELD_HINTS = {
         "Dzięki temu podatek 19% naliczany jest tylko od zysku, "
         "a nie od całej kwoty wypłaty."
     ),
-    "cost_basis": (
-        "Łączny koszt zakupu (wpłacony kapitał) — "
-        "podatek zapłacisz tylko od różnicy."
-    ),
+    "cost_basis": ("Łączny koszt zakupu (wpłacony kapitał) — podatek zapłacisz tylko od różnicy."),
     "base_override_enabled": (
         "Nadpisz globalne brutto dla tego konta. "
         "Zaznacz, jeśli używasz innej podstawy niż wpisana globalnie."
@@ -154,7 +149,9 @@ STAGE_META = {
                 "label": "Broker",
                 "fields": {
                     "starting_balance": {
-                        "label": "Saldo startowe", "type": "number", "step": 1000,
+                        "label": "Saldo startowe",
+                        "type": "number",
+                        "step": 1000,
                         "hint": FIELD_HINTS["starting_balance"],
                     },
                     "annual_contribution": {
@@ -164,7 +161,10 @@ STAGE_META = {
                         "hint": FIELD_HINTS["annual_contribution"],
                     },
                     "roi": {
-                        "label": "ROI", "type": "number", "step": 1, "percent": True,
+                        "label": "ROI",
+                        "type": "number",
+                        "step": 1,
+                        "percent": True,
                         "hint": FIELD_HINTS["roi"],
                     },
                     "cost_basis_enabled": {
@@ -185,7 +185,9 @@ STAGE_META = {
                 "label": "IKE",
                 "fields": {
                     "starting_balance": {
-                        "label": "Saldo startowe", "type": "number", "step": 1000,
+                        "label": "Saldo startowe",
+                        "type": "number",
+                        "step": 1000,
                         "hint": FIELD_HINTS["starting_balance"],
                     },
                     "annual_contribution": {
@@ -198,7 +200,10 @@ STAGE_META = {
                         ),
                     },
                     "roi": {
-                        "label": "ROI", "type": "number", "step": 1, "percent": True,
+                        "label": "ROI",
+                        "type": "number",
+                        "step": 1,
+                        "percent": True,
                         "hint": FIELD_HINTS["roi"],
                     },
                 },
@@ -207,7 +212,9 @@ STAGE_META = {
                 "label": "IKZE",
                 "fields": {
                     "starting_balance": {
-                        "label": "Saldo startowe", "type": "number", "step": 1000,
+                        "label": "Saldo startowe",
+                        "type": "number",
+                        "step": 1000,
                         "hint": FIELD_HINTS["starting_balance"],
                     },
                     "annual_contribution": {
@@ -235,7 +242,10 @@ STAGE_META = {
                         "visible_when": "base_override_enabled",
                     },
                     "roi": {
-                        "label": "ROI", "type": "number", "step": 1, "percent": True,
+                        "label": "ROI",
+                        "type": "number",
+                        "step": 1,
+                        "percent": True,
                         "hint": FIELD_HINTS["roi"],
                     },
                 },
@@ -244,7 +254,9 @@ STAGE_META = {
                 "label": "OIPE",
                 "fields": {
                     "starting_balance": {
-                        "label": "Saldo startowe", "type": "number", "step": 1000,
+                        "label": "Saldo startowe",
+                        "type": "number",
+                        "step": 1000,
                         "hint": FIELD_HINTS["starting_balance"],
                     },
                     "annual_contribution": {
@@ -257,7 +269,10 @@ STAGE_META = {
                         ),
                     },
                     "roi": {
-                        "label": "ROI", "type": "number", "step": 1, "percent": True,
+                        "label": "ROI",
+                        "type": "number",
+                        "step": 1,
+                        "percent": True,
                         "hint": FIELD_HINTS["roi"],
                     },
                 },
@@ -266,7 +281,9 @@ STAGE_META = {
                 "label": "OKI inwestycyjne",
                 "fields": {
                     "starting_balance": {
-                        "label": "Saldo startowe", "type": "number", "step": 1000,
+                        "label": "Saldo startowe",
+                        "type": "number",
+                        "step": 1000,
                         "hint": FIELD_HINTS["starting_balance"],
                     },
                     "annual_contribution": {
@@ -279,7 +296,10 @@ STAGE_META = {
                         ),
                     },
                     "roi": {
-                        "label": "ROI", "type": "number", "step": 1, "percent": True,
+                        "label": "ROI",
+                        "type": "number",
+                        "step": 1,
+                        "percent": True,
                         "hint": FIELD_HINTS["roi"],
                     },
                 },
@@ -288,7 +308,9 @@ STAGE_META = {
                 "label": "OKI oszczędnościowe",
                 "fields": {
                     "starting_balance": {
-                        "label": "Saldo startowe", "type": "number", "step": 1000,
+                        "label": "Saldo startowe",
+                        "type": "number",
+                        "step": 1000,
                         "hint": FIELD_HINTS["starting_balance"],
                     },
                     "annual_contribution": {
@@ -301,7 +323,10 @@ STAGE_META = {
                         ),
                     },
                     "roi": {
-                        "label": "ROI", "type": "number", "step": 1, "percent": True,
+                        "label": "ROI",
+                        "type": "number",
+                        "step": 1,
+                        "percent": True,
                         "hint": FIELD_HINTS["roi"],
                     },
                 },
@@ -310,7 +335,9 @@ STAGE_META = {
                 "label": "Krypto",
                 "fields": {
                     "starting_balance": {
-                        "label": "Saldo startowe", "type": "number", "step": 1000,
+                        "label": "Saldo startowe",
+                        "type": "number",
+                        "step": 1000,
                         "hint": FIELD_HINTS["starting_balance"],
                     },
                     "annual_contribution": {
@@ -320,7 +347,10 @@ STAGE_META = {
                         "hint": "Dopłata roczna (kupno kryptowalut za złotówki).",
                     },
                     "roi": {
-                        "label": "ROI", "type": "number", "step": 1, "percent": True,
+                        "label": "ROI",
+                        "type": "number",
+                        "step": 1,
+                        "percent": True,
                         "hint": FIELD_HINTS["roi"],
                     },
                     "cost_basis_enabled": {
@@ -341,7 +371,9 @@ STAGE_META = {
                 "label": "PPK",
                 "fields": {
                     "starting_balance": {
-                        "label": "Saldo startowe", "type": "number", "step": 1000,
+                        "label": "Saldo startowe",
+                        "type": "number",
+                        "step": 1000,
                         "hint": FIELD_HINTS["starting_balance"],
                     },
                     "monthly_base": {
@@ -376,7 +408,10 @@ STAGE_META = {
                         "hint": FIELD_HINTS["state_topups"],
                     },
                     "roi": {
-                        "label": "ROI", "type": "number", "step": 1, "percent": True,
+                        "label": "ROI",
+                        "type": "number",
+                        "step": 1,
+                        "percent": True,
                         "hint": FIELD_HINTS["roi"],
                     },
                 },
@@ -385,7 +420,9 @@ STAGE_META = {
                 "label": "PPE",
                 "fields": {
                     "starting_balance": {
-                        "label": "Saldo startowe", "type": "number", "step": 1000,
+                        "label": "Saldo startowe",
+                        "type": "number",
+                        "step": 1000,
                         "hint": FIELD_HINTS["starting_balance"],
                     },
                     "monthly_base": {
@@ -415,12 +452,14 @@ STAGE_META = {
                         "type": "number",
                         "step": 1000,
                         "hint": (
-                            "Dodatkowa składka uczestnika wnoszona rocznie "
-                            "(limit 2026: 42 390 zł)."
+                            "Dodatkowa składka uczestnika wnoszona rocznie (limit 2026: 42 390 zł)."
                         ),
                     },
                     "roi": {
-                        "label": "ROI", "type": "number", "step": 1, "percent": True,
+                        "label": "ROI",
+                        "type": "number",
+                        "step": 1,
+                        "percent": True,
                         "hint": FIELD_HINTS["roi"],
                     },
                 },
@@ -429,7 +468,9 @@ STAGE_META = {
                 "label": "Gotówka",
                 "fields": {
                     "starting_balance": {
-                        "label": "Saldo startowe", "type": "number", "step": 1000,
+                        "label": "Saldo startowe",
+                        "type": "number",
+                        "step": 1000,
                         "hint": FIELD_HINTS["starting_balance"],
                     },
                     "roi": {
@@ -438,9 +479,7 @@ STAGE_META = {
                         "step": 1,
                         "percent": True,
                         "noNetto": True,
-                        "hint": (
-                            "Roczna inflacja. Przy inflacji 2,5% wpisz 2,5."
-                        ),
+                        "hint": ("Roczna inflacja. Przy inflacji 2,5% wpisz 2,5."),
                     },
                 },
             },
@@ -448,7 +487,9 @@ STAGE_META = {
                 "label": "Lokata",
                 "fields": {
                     "starting_balance": {
-                        "label": "Saldo startowe", "type": "number", "step": 1000,
+                        "label": "Saldo startowe",
+                        "type": "number",
+                        "step": 1000,
                         "hint": FIELD_HINTS["starting_balance"],
                     },
                     "annual_contribution": {
@@ -490,7 +531,9 @@ STAGE_META = {
                 "label": "Obligacje",
                 "fields": {
                     "starting_balance": {
-                        "label": "Saldo startowe", "type": "number", "step": 1000,
+                        "label": "Saldo startowe",
+                        "type": "number",
+                        "step": 1000,
                         "hint": FIELD_HINTS["starting_balance"],
                     },
                     "annual_contribution": {
@@ -584,11 +627,16 @@ STAGE_META = {
                 "label": "Broker",
                 "fields": {
                     "roi": {
-                        "label": "ROI", "type": "number", "step": 1, "percent": True,
+                        "label": "ROI",
+                        "type": "number",
+                        "step": 1,
+                        "percent": True,
                         "hint": FIELD_HINTS["roi"],
                     },
                     "buffer": {
-                        "label": "Bufor", "type": "number", "step": 1000,
+                        "label": "Bufor",
+                        "type": "number",
+                        "step": 1000,
                         "hint": FIELD_HINTS["buffer"],
                     },
                 },
@@ -597,11 +645,16 @@ STAGE_META = {
                 "label": "IKE",
                 "fields": {
                     "roi": {
-                        "label": "ROI", "type": "number", "step": 1, "percent": True,
+                        "label": "ROI",
+                        "type": "number",
+                        "step": 1,
+                        "percent": True,
                         "hint": FIELD_HINTS["roi"],
                     },
                     "buffer": {
-                        "label": "Bufor", "type": "number", "step": 1000,
+                        "label": "Bufor",
+                        "type": "number",
+                        "step": 1000,
                         "hint": FIELD_HINTS["buffer"],
                     },
                 },
@@ -610,11 +663,16 @@ STAGE_META = {
                 "label": "IKZE",
                 "fields": {
                     "roi": {
-                        "label": "ROI", "type": "number", "step": 1, "percent": True,
+                        "label": "ROI",
+                        "type": "number",
+                        "step": 1,
+                        "percent": True,
                         "hint": FIELD_HINTS["roi"],
                     },
                     "buffer": {
-                        "label": "Bufor", "type": "number", "step": 1000,
+                        "label": "Bufor",
+                        "type": "number",
+                        "step": 1000,
                         "hint": FIELD_HINTS["buffer"],
                     },
                 },
@@ -623,11 +681,16 @@ STAGE_META = {
                 "label": "OIPE",
                 "fields": {
                     "roi": {
-                        "label": "ROI", "type": "number", "step": 1, "percent": True,
+                        "label": "ROI",
+                        "type": "number",
+                        "step": 1,
+                        "percent": True,
                         "hint": FIELD_HINTS["roi"],
                     },
                     "buffer": {
-                        "label": "Bufor", "type": "number", "step": 1000,
+                        "label": "Bufor",
+                        "type": "number",
+                        "step": 1000,
                         "hint": FIELD_HINTS["buffer"],
                     },
                 },
@@ -636,11 +699,16 @@ STAGE_META = {
                 "label": "OKI inwestycyjne",
                 "fields": {
                     "roi": {
-                        "label": "ROI", "type": "number", "step": 1, "percent": True,
+                        "label": "ROI",
+                        "type": "number",
+                        "step": 1,
+                        "percent": True,
                         "hint": FIELD_HINTS["roi"],
                     },
                     "buffer": {
-                        "label": "Bufor", "type": "number", "step": 1000,
+                        "label": "Bufor",
+                        "type": "number",
+                        "step": 1000,
                         "hint": FIELD_HINTS["buffer"],
                     },
                 },
@@ -649,11 +717,16 @@ STAGE_META = {
                 "label": "OKI oszczędnościowe",
                 "fields": {
                     "roi": {
-                        "label": "ROI", "type": "number", "step": 1, "percent": True,
+                        "label": "ROI",
+                        "type": "number",
+                        "step": 1,
+                        "percent": True,
                         "hint": FIELD_HINTS["roi"],
                     },
                     "buffer": {
-                        "label": "Bufor", "type": "number", "step": 1000,
+                        "label": "Bufor",
+                        "type": "number",
+                        "step": 1000,
                         "hint": FIELD_HINTS["buffer"],
                     },
                 },
@@ -662,11 +735,16 @@ STAGE_META = {
                 "label": "Krypto",
                 "fields": {
                     "roi": {
-                        "label": "ROI", "type": "number", "step": 1, "percent": True,
+                        "label": "ROI",
+                        "type": "number",
+                        "step": 1,
+                        "percent": True,
                         "hint": FIELD_HINTS["roi"],
                     },
                     "buffer": {
-                        "label": "Bufor", "type": "number", "step": 1000,
+                        "label": "Bufor",
+                        "type": "number",
+                        "step": 1000,
                         "hint": FIELD_HINTS["buffer"],
                     },
                 },
@@ -675,11 +753,16 @@ STAGE_META = {
                 "label": "PPK",
                 "fields": {
                     "roi": {
-                        "label": "ROI", "type": "number", "step": 1, "percent": True,
+                        "label": "ROI",
+                        "type": "number",
+                        "step": 1,
+                        "percent": True,
                         "hint": FIELD_HINTS["roi"],
                     },
                     "buffer": {
-                        "label": "Bufor", "type": "number", "step": 1000,
+                        "label": "Bufor",
+                        "type": "number",
+                        "step": 1000,
                         "hint": FIELD_HINTS["buffer"],
                     },
                 },
@@ -688,11 +771,16 @@ STAGE_META = {
                 "label": "PPE",
                 "fields": {
                     "roi": {
-                        "label": "ROI", "type": "number", "step": 1, "percent": True,
+                        "label": "ROI",
+                        "type": "number",
+                        "step": 1,
+                        "percent": True,
                         "hint": FIELD_HINTS["roi"],
                     },
                     "buffer": {
-                        "label": "Bufor", "type": "number", "step": 1000,
+                        "label": "Bufor",
+                        "type": "number",
+                        "step": 1000,
                         "hint": FIELD_HINTS["buffer"],
                     },
                 },
@@ -706,12 +794,12 @@ STAGE_META = {
                         "step": 1,
                         "percent": True,
                         "noNetto": True,
-                        "hint": (
-                            "Roczna inflacja. Przy inflacji 2,5% wpisz 2,5."
-                        ),
+                        "hint": ("Roczna inflacja. Przy inflacji 2,5% wpisz 2,5."),
                     },
                     "buffer": {
-                        "label": "Bufor", "type": "number", "step": 1000,
+                        "label": "Bufor",
+                        "type": "number",
+                        "step": 1000,
                         "hint": FIELD_HINTS["buffer"],
                     },
                 },
@@ -747,7 +835,9 @@ STAGE_META = {
                         ),
                     },
                     "buffer": {
-                        "label": "Bufor", "type": "number", "step": 1000,
+                        "label": "Bufor",
+                        "type": "number",
+                        "step": 1000,
                         "hint": FIELD_HINTS["buffer"],
                     },
                 },
@@ -766,7 +856,9 @@ STAGE_META = {
                         ),
                     },
                     "buffer": {
-                        "label": "Bufor", "type": "number", "step": 1000,
+                        "label": "Bufor",
+                        "type": "number",
+                        "step": 1000,
                         "hint": FIELD_HINTS["buffer"],
                     },
                 },
