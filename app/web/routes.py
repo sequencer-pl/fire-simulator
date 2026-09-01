@@ -10,6 +10,7 @@ from fastapi.templating import Jinja2Templates
 
 from app.core.base import resolve_base
 from app.simulation.config import (
+    ACCOUNT_LABELS,
     BUILTIN_PRESETS,
     TaxConfig,
     default_config,
@@ -229,6 +230,11 @@ async def api_stage_types():
 @router.get("/api/defaults")
 async def api_defaults():
     return _get_defaults()
+
+
+@router.get("/api/metadata")
+async def api_metadata():
+    return {"account_labels": ACCOUNT_LABELS, "builtin_presets": list(BUILTIN_PRESETS.keys())}
 
 
 @router.get("/api/config")
