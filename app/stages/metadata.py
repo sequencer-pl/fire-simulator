@@ -504,8 +504,9 @@ STAGE_META = {
                         "step": 1,
                         "percent": True,
                         "hint": (
-                            "Roczne oprocentowanie lokaty; odsetki opodatkowane "
-                            "podatkiem Belki (19%) na koniec każdego okresu."
+                            "Roczne oprocentowanie netto realne (po Belce i inflacji) "
+                            "w dzisiejszych zł; Belka liczona na nominalnym odpowiedniku "
+                            "z inflacji globalnej."
                         ),
                     },
                     "lokata_term_months": {
@@ -813,8 +814,9 @@ STAGE_META = {
                         "step": 1,
                         "percent": True,
                         "hint": (
-                            "Roczne oprocentowanie lokaty; odsetki opodatkowane "
-                            "podatkiem Belki (19%) na koniec każdego okresu."
+                            "Roczne oprocentowanie netto realne (po Belce i inflacji) "
+                            "w dzisiejszych zł; Belka liczona na nominalnym odpowiedniku "
+                            "z inflacji globalnej."
                         ),
                     },
                     "lokata_term_months": {

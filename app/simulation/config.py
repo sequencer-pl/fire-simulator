@@ -173,6 +173,7 @@ class TaxConfig(BaseModel):
     rate_lower: float = 0.12
     rate_upper: float = 0.32
     kup: float = 3600.0
+    inflation: float = 0.0
     limits: Limits = Field(default_factory=Limits)
     accounts: dict[str, AccountRules] = Field(default_factory=default_account_rules)
     zus: ZusConfig = Field(default_factory=ZusConfig)
@@ -185,14 +186,17 @@ def default_config() -> TaxConfig:
 
 
 BUILTIN_PRESETS: dict[str, dict] = {
-    "Domyślne 2026": {},
+    "Domyślne 2026": {"inflation": 0.025},
     "Konserwatywne": {
+        "inflation": 0.015,
         "zus": {"waloryzacja_skladek": 0.005, "waloryzacja_swiadczenia": 0.005},
     },
     "Realne": {
+        "inflation": 0.025,
         "zus": {"waloryzacja_skladek": 0.015, "waloryzacja_swiadczenia": 0.015},
     },
     "Optymistyczne": {
+        "inflation": 0.035,
         "zus": {"waloryzacja_skladek": 0.025, "waloryzacja_swiadczenia": 0.025},
     },
 }

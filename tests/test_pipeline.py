@@ -13,7 +13,7 @@ def test_state_iter_order():
     assert isinstance(parts[7], dict)
     assert parts[1] is s.balances
     assert parts[7] is s.computed
-    assert len(parts) == 12
+    assert len(parts) == 14
 
 
 def test_state_defaults_independence():

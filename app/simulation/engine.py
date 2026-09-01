@@ -1,7 +1,8 @@
 from dataclasses import dataclass, field
 
 from app.core.base import resolve_base
-from app.core.roi import effective_roi, periodic_net_roi
+from app.core.inflation import cumulative_factor, deflate, fisher_nominal
+from app.core.roi import effective_roi
 from app.core.tax import scale_tax
 from app.simulation.config import ACCOUNT_LABELS, AccountRules, TaxConfig
 from app.simulation.schemas import (
@@ -32,6 +33,8 @@ class SimulationState:
     forfeited: set[str] = field(default_factory=set)
     zus_pensions: dict[str, float] = field(default_factory=dict)
     welcomed_ppk: set[str] = field(default_factory=set)
+    start_age: int = 0
+    basis_vintages: dict[str, list[tuple[int, float]]] = field(default_factory=dict)
 
     def __iter__(self):
         yield self.config
@@ -46,6 +49,8 @@ class SimulationState:
         yield self.forfeited
         yield self.zus_pensions
         yield self.welcomed_ppk
+        yield self.start_age
+        yield self.basis_vintages
 
 
 def _compute_ikze_tax_saving(
@@ -149,6 +154,24 @@ def _init_state(data: SimulationInput) -> SimulationState:
     forfeited: set[str] = set()
     zus_pensions: dict[str, float] = {}
     welcomed_ppk: set[str] = set()
+    start_age = min((s.start_age for s in data.stages), default=0)
+    basis_vintages: dict[str, list[tuple[int, float]]] = {}
+    for stage_input in sorted(data.stages, key=lambda s: s.start_age):
+        for name, cfg in stage_input.accounts.items():
+            if cfg.starting_balance > 0 and name not in basis_vintages:
+                initial_basis = cfg.starting_balance
+                if cfg.cost_basis_enabled and cfg.cost_basis is not None:
+                    initial_basis = cfg.cost_basis
+                basis_vintages.setdefault(name, []).append((stage_input.start_age, initial_basis))
+            if (
+                name == "zus"
+                and cfg.starting_balance_ofe > 0
+                and cfg.ofe_member
+                and "zus:ofe" not in basis_vintages
+            ):
+                basis_vintages.setdefault("zus:ofe", []).append(
+                    (stage_input.start_age, cfg.starting_balance_ofe)
+                )
 
     return SimulationState(
         config=config,
@@ -163,6 +186,8 @@ def _init_state(data: SimulationInput) -> SimulationState:
         forfeited=forfeited,
         zus_pensions=zus_pensions,
         welcomed_ppk=welcomed_ppk,
+        start_age=start_age,
+        basis_vintages=basis_vintages,
     )
 
 
@@ -242,13 +267,26 @@ def _process_ikze_returns(
 
     total_ikze = sum(bal for _, bal in ikze_accounts)
     combined = total_ikze + zus_pension
-    combined_tax = scale_tax(
-        combined,
-        kwota_wolna=config.kwota_wolna,
-        prog=config.prog,
-        rate_lower=config.rate_lower,
-        rate_upper=config.rate_upper,
-    )
+    inflation = getattr(config, "inflation", 0.0) or 0.0
+    if inflation and state is not None:
+        factor = cumulative_factor(inflation, age - state.start_age)
+        combined_nom = combined * factor
+        combined_tax_nom = scale_tax(
+            combined_nom,
+            kwota_wolna=config.kwota_wolna,
+            prog=config.prog,
+            rate_lower=config.rate_lower,
+            rate_upper=config.rate_upper,
+        )
+        combined_tax = combined_tax_nom / factor
+    else:
+        combined_tax = scale_tax(
+            combined,
+            kwota_wolna=config.kwota_wolna,
+            prog=config.prog,
+            rate_lower=config.rate_lower,
+            rate_upper=config.rate_upper,
+        )
 
     early_return_tax: dict[str, float] = {}
     handled_scale: set[str] = set()
@@ -260,7 +298,7 @@ def _process_ikze_returns(
         early_returned.add(acc)
 
     if zus_pension > 0:
-        zus_share = combined_tax * (zus_pension / combined)
+        zus_share = combined_tax * (zus_pension / combined) if combined > 0 else 0.0
         early_return_tax["zus"] = zus_share
         handled_scale.add("zus")
 
@@ -407,12 +445,22 @@ def _process_stages(
             if not rules or not rules.tax_periodic:
                 continue
             if stage_input.stage_type == "akumulacja":
-                periodic_tax[name] = _accumulate_periodic(
-                    name,
-                    accounts_config[name],
-                    balances,
-                    config,
-                )
+                if state is not None:
+                    periodic_tax[name] = _accumulate_periodic(
+                        name,
+                        accounts_config[name],
+                        balances,
+                        config,
+                        age,
+                        state.start_age,
+                    )
+                else:
+                    periodic_tax[name] = _accumulate_periodic(
+                        name,
+                        accounts_config[name],
+                        balances,
+                        config,
+                    )
                 processed_accounts.add(name)
                 accounts_config.pop(name)
             else:
@@ -440,7 +488,11 @@ def _process_stages(
 
         if stage_input.stage_type == "akumulacja":
             for name, cfg in accounts_to_process.items():
-                basis[name] = basis.get(name, 0.0) + cfg.get("annual_contribution", 0.0)
+                contrib = cfg.get("annual_contribution", 0.0)
+                if contrib:
+                    basis[name] = basis.get(name, 0.0) + contrib
+                    if state is not None:
+                        state.basis_vintages.setdefault(name, []).append((age, contrib))
 
         label = stage_input.name or stage_obj.name
         if label not in seen_labels:
@@ -455,44 +507,80 @@ def _accumulate_periodic(
     cfg: dict,
     balances: dict[str, float],
     config: TaxConfig,
+    age: int | None = None,
+    start_age: int | None = None,
 ) -> float:
     """Accumulate an account whose gains are taxed every term (lokata).
 
-    Interest accrues at the nominal annual ROI and Belka (rules.tax_rate) is
-    deducted at the end of each term of lokata_term_months. The annual
-    contribution is added after growth. Returns the tax collected this year.
+    ROI is REAL netto (po Belce i po inflacji) w dzisiejszych zł.
+    Podatek Belki liczony jest na nominalnym oprocentowaniu brutto
+    wyprowadzonym z realnego ROI + inflacji, co pozwala pokazać
+    periodyczny drag lokaty vs IKE. Zwraca podatek w wartościach REALNYCH.
     """
     rules = config.accounts.get(name)
     tax_rate = rules.tax_rate if rules else 0.0
     balance = balances.get(name, 0.0)
-    roi = effective_roi(name, cfg.get("roi", DEFAULT_ROI))
+    roi_real = effective_roi(name, cfg.get("roi", DEFAULT_ROI))
     contribution = cfg.get("annual_contribution", 0.0)
+    inflation = getattr(config, "inflation", 0.0) or 0.0
     term_months = max(1, int(cfg.get("lokata_term_months", 12)))
     intervals = MONTHS_PER_YEAR / term_months
     tax_paid = 0.0
 
-    if roi <= 0:
-        balances[name] = balance * (1 + roi) + contribution
+    if roi_real <= 0:
+        balances[name] = balance * (1 + roi_real) + contribution
         return 0.0
 
-    rate = roi / intervals
-    if rate > 1:
-        balances[name] = balance * (1 + roi) + contribution
-        return 0.0
+    if inflation == 0:
+        nominal_net = roi_real
+        brutto = nominal_net / (1 - tax_rate) if 0 < tax_rate < 1 else nominal_net
+        if brutto / intervals > 1:
+            balances[name] = balance * (1 + roi_real) + contribution
+            return 0.0
+        for _ in range(int(intervals)):
+            gross = balance * (1 + brutto / intervals)
+            interest = gross - balance
+            tax_paid += interest * tax_rate
+            balance = gross - interest * tax_rate
+        balances[name] = balance + contribution
+        return tax_paid
 
+    # per-interval real -> nominal
+    inflation_per_interval = (1 + inflation) ** (1 / intervals) - 1 if intervals else inflation
+    real_per_interval = roi_real / intervals
+    nominal_net_per_interval = fisher_nominal(real_per_interval, inflation_per_interval)
+    if 0 < tax_rate < 1:
+        brutto_per_interval = (
+            nominal_net_per_interval / (1 - tax_rate)
+            if nominal_net_per_interval > -1
+            else nominal_net_per_interval
+        )
+    else:
+        brutto_per_interval = nominal_net_per_interval
+    if brutto_per_interval > 1:
+        balances[name] = balance * (1 + roi_real) + contribution
+        return 0.0
+    if age is not None and start_age is not None:
+        factor_start = cumulative_factor(inflation, age - start_age)
+        factor_end = cumulative_factor(inflation, age - start_age + 1)
+    else:
+        factor_start = 1.0
+        factor_end = 1 + inflation
+    b_nom = balance * factor_start
+    tax_nom = 0.0
     for _ in range(int(intervals)):
-        gross = balance * (1 + rate)
-        interest = gross - balance
-        tax_paid += interest * tax_rate
-        balance = gross - interest * tax_rate
-    balances[name] = balance + contribution
+        interest_nom = b_nom * brutto_per_interval
+        tax_nom += interest_nom * tax_rate
+        b_nom = b_nom + interest_nom * (1 - tax_rate)
+    contrib_nom = contribution * factor_end
+    b_nom = b_nom + contrib_nom
+    balances[name] = b_nom / factor_end
+    tax_paid = tax_nom / factor_end if factor_end else tax_nom
     return tax_paid
 
 
 def _periodic_net_roi(name: str, rules: AccountRules, cfg: dict) -> float:
-    return periodic_net_roi(
-        name, rules.tax_rate, cfg.get("roi", DEFAULT_ROI), int(cfg.get("lokata_term_months", 12))
-    )
+    return effective_roi(name, cfg.get("roi", DEFAULT_ROI))
 
 
 def _passive_growth(
@@ -570,10 +658,12 @@ def _apply_ikze_savings(
     active_stages: list[StageInput],
     monthly_gross: float,
     merged_tax: dict[str, float],
+    age: int | None = None,
 ) -> None:
     if monthly_gross <= 0:
         return
     dochód = _compute_monthly_gross_dochod(monthly_gross, state.config)
+    inflation = getattr(state.config, "inflation", 0.0) or 0.0
     for si in active_stages:
         if si.stage_type != "akumulacja":
             continue
@@ -583,7 +673,14 @@ def _apply_ikze_savings(
             contribution = cfg.annual_contribution
             if contribution <= 0:
                 continue
-            saving = _compute_ikze_tax_saving(contribution, dochód, state.config)
+            if inflation and age is not None and state.start_age is not None:
+                factor = cumulative_factor(inflation, age - state.start_age + 1)
+                dochód_nom = dochód * factor
+                contrib_nom = contribution * factor
+                saving_nom = _compute_ikze_tax_saving(contrib_nom, dochód_nom, state.config)
+                saving = saving_nom / factor if factor else saving_nom
+            else:
+                saving = _compute_ikze_tax_saving(contribution, dochód, state.config)
             if saving > 0:
                 merged_tax[name] = merged_tax.get(name, 0.0) - saving
 
@@ -628,7 +725,7 @@ def _run_year(
     for acc, t in early_return_tax.items():
         merged_tax[acc] = merged_tax.get(acc, 0.0) + t
 
-    _apply_ikze_savings(state, active_stages, monthly_gross, merged_tax)
+    _apply_ikze_savings(state, active_stages, monthly_gross, merged_tax, age)
 
     _passive_growth(state=state, processed_accounts=processed_accounts)
 
@@ -1020,22 +1117,84 @@ def _apply_tax(
         else:  # "gains" — podatek tylko od zysku (Belka)
             start_balance = year_start_balances.get(account, 0.0)
             account_basis = basis.get(account, 0.0)
-            if start_balance > 0:
-                gain_share = max(0.0, (start_balance - account_basis) / start_balance)
+            inflation = getattr(config, "inflation", 0.0) or 0.0
+            if (
+                inflation
+                and state is not None
+                and state.start_age is not None
+                and account in state.basis_vintages
+            ):
+                factor_now = cumulative_factor(inflation, age - state.start_age)
+                factor_next = cumulative_factor(inflation, age - state.start_age + 1)
+                start_nom = start_balance * factor_now
+                # basis nominal as sum of vintaged nominal historic
+                vintages = state.basis_vintages.get(account, [])
+                basis_nom = 0.0
+                for v_age, v_amt in vintages:
+                    v_factor = cumulative_factor(inflation, v_age - state.start_age)
+                    basis_nom += v_amt * v_factor
+                if start_nom > 0:
+                    gain_share_nom = max(0.0, (start_nom - basis_nom) / start_nom)
+                else:
+                    gain_share_nom = 0.0
+                amount_nom = amount * factor_next
+                tax_nom = amount_nom * gain_share_nom * rate
+                tax[account] = (
+                    tax.get(account, 0.0) + deflate(tax_nom, inflation, 1)
+                    if False
+                    else tax_nom / factor_next
+                )
+                # FIFO reduce vintages and basis
+                principal_nom = amount_nom * (1 - gain_share_nom)
+                # reduce vintages FIFO
+                remaining = principal_nom
+                new_vintages: list[tuple[int, float]] = []
+                for v_age, v_amt in vintages:
+                    v_nom = v_amt * cumulative_factor(inflation, v_age - state.start_age)
+                    if remaining <= 0:
+                        new_vintages.append((v_age, v_amt))
+                    elif v_nom <= remaining + 1e-9:
+                        remaining -= v_nom
+                    else:
+                        # partial
+                        remaining_nom = v_nom - remaining
+                        remaining = 0
+                        v_factor = cumulative_factor(inflation, v_age - state.start_age)
+                        new_amt_real = remaining_nom / v_factor
+                        new_vintages.append((v_age, new_amt_real))
+                state.basis_vintages[account] = new_vintages
+                # update real basis as sum of remaining vintages real
+                basis[account] = sum(amt for _, amt in new_vintages)
             else:
-                gain_share = 0.0
-            tax[account] = tax.get(account, 0.0) + amount * gain_share * rate
-            principal = amount * (1 - gain_share)
-            basis[account] = max(0.0, account_basis - principal)
+                if start_balance > 0:
+                    gain_share = max(0.0, (start_balance - account_basis) / start_balance)
+                else:
+                    gain_share = 0.0
+                tax[account] = tax.get(account, 0.0) + amount * gain_share * rate
+                principal = amount * (1 - gain_share)
+                basis[account] = max(0.0, account_basis - principal)
 
     if scale_income > 0:
-        total_scale = scale_tax(
-            scale_income,
-            kwota_wolna=config.kwota_wolna,
-            prog=config.prog,
-            rate_lower=config.rate_lower,
-            rate_upper=config.rate_upper,
-        )
+        inflation = getattr(config, "inflation", 0.0) or 0.0
+        if inflation and state is not None and age is not None:
+            factor = cumulative_factor(inflation, age - state.start_age + 1)
+            scale_income_nom = scale_income * factor
+            total_scale_nom = scale_tax(
+                scale_income_nom,
+                kwota_wolna=config.kwota_wolna,
+                prog=config.prog,
+                rate_lower=config.rate_lower,
+                rate_upper=config.rate_upper,
+            )
+            total_scale = total_scale_nom / factor
+        else:
+            total_scale = scale_tax(
+                scale_income,
+                kwota_wolna=config.kwota_wolna,
+                prog=config.prog,
+                rate_lower=config.rate_lower,
+                rate_upper=config.rate_upper,
+            )
         for account, amount in scale_accounts:
             tax[account] = tax.get(account, 0.0) + total_scale * (amount / scale_income)
 

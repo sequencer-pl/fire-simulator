@@ -12,9 +12,9 @@ BAL = 100_000
 
 
 def net_balance_after(intervals_in_year, years):
-    """Compound balance after full years with periodic Belka."""
+    """Compound balance after full years with periodic Belka — ROI is REAL netto."""
     rate = ROI / intervals_in_year
-    mult = (1 + rate * (1 - TAX)) ** intervals_in_year
+    mult = (1 + rate) ** intervals_in_year
     return BAL * mult**years
 
 
@@ -91,8 +91,9 @@ def test_lokata_shorter_term_greater_balance():
 def test_lokata_tax_paid_equals_interest_tax():
     stages = [accumulation_stage({"lokata": acc(starting_balance=BAL, roi=ROI)})]
     result = simulate(SimulationInput(stages=stages, max_age=41))
-    interest = BAL * ROI
-    assert result.years[0].tax_paid == pytest.approx(interest * TAX)
+    brutto = ROI / (1 - TAX)
+    interest_nom = BAL * brutto
+    assert result.years[0].tax_paid == pytest.approx(interest_nom * TAX)
 
 
 def test_lokata_annual_contribution_added_after_growth():
@@ -139,4 +140,5 @@ def test_lokata_accumulation_tax_recorded_across_years():
     stages = [accumulation_stage({"lokata": acc(starting_balance=BAL, roi=ROI)})]
     result = simulate(SimulationInput(stages=stages, max_age=43))
     assert result.total_tax > 0
-    assert result.years[0].tax_paid == pytest.approx(BAL * ROI * TAX)
+    brutto = ROI / (1 - TAX)
+    assert result.years[0].tax_paid == pytest.approx(BAL * brutto * TAX)

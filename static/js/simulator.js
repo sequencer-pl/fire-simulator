@@ -385,6 +385,7 @@ function renderConfigView() {
         configPercentField("rate_lower", "Stawka niższa", CONFIG.rate_lower, "Stawka podatku do progu (2026 r.: 12%)."),
         configPercentField("rate_upper", "Stawka wyższa", CONFIG.rate_upper, "Stawka podatku powyżej progu (2026 r.: 32%)."),
         configNumberField("kup", "Koszty uzyskania przychodu", CONFIG.kup, "Roczne koszty uzyskania przychodu (2026 r.: 3 000–3 600 zł)."),
+        configPercentField("inflation", "Inflacja roczna", CONFIG.inflation, "Roczna inflacja — używana tylko do wyliczenia nominalnego podatku Belki/OKI z realnego ROI (wyniki zawsze w dzisiejszych zł)."),
     ]));
 
     root.appendChild(configSection("Limity rocznych wpłat", [
