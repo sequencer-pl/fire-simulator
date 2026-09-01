@@ -169,11 +169,17 @@ def _init_state(data: SimulationInput) -> SimulationState:
 def _estimate_zus_pension(
     active_stages: list[StageInput],
     age: int,
-    balances: dict[str, float],
-    zus_pensions: dict[str, float],
-    config: TaxConfig,
+    balances: dict[str, float] | None = None,
+    zus_pensions: dict[str, float] | None = None,
+    config: TaxConfig | None = None,
+    state: SimulationState | None = None,
 ) -> float:
     """Estimate the annual ZUS pension for this year without modifying state."""
+    if state is not None:
+        balances = state.balances
+        zus_pensions = state.zus_pensions
+        config = state.config
+    assert balances is not None and zus_pensions is not None and config is not None
     for si in active_stages:
         if si.stage_type != "realizacja" or "zus" not in si.accounts:
             continue
@@ -200,11 +206,17 @@ def _estimate_zus_pension(
 def _process_ikze_returns(
     active_stages: list[StageInput],
     age: int,
-    balances: dict[str, float],
-    config: TaxConfig,
-    early_returned: set[str],
+    balances: dict[str, float] | None = None,
+    config: TaxConfig | None = None,
+    early_returned: set[str] | None = None,
     zus_pension: float = 0.0,
+    state: SimulationState | None = None,
 ) -> tuple[dict[str, float], set[str]]:
+    if state is not None:
+        balances = state.balances
+        config = state.config
+        early_returned = state.early_returned
+    assert balances is not None and config is not None and early_returned is not None
     # One-time IKZE early return before qualifying age (e.g. 65):
     # Combined scale tax on IKZE balance + ZUS pension for the year,
     # prorated proportionally. IKZE share is deducted from capital
@@ -258,13 +270,28 @@ def _process_ikze_returns(
 def _process_ppk_forfeits(
     active_stages: list[StageInput],
     age: int,
-    balances: dict[str, float],
-    basis: dict[str, float],
-    basis_employee: dict[str, float],
-    config: TaxConfig,
-    forfeited: set[str],
-    year_start_balances: dict[str, float],
+    balances: dict[str, float] | None = None,
+    basis: dict[str, float] | None = None,
+    basis_employee: dict[str, float] | None = None,
+    config: TaxConfig | None = None,
+    forfeited: set[str] | None = None,
+    year_start_balances: dict[str, float] | None = None,
+    state: SimulationState | None = None,
 ) -> None:
+    if state is not None:
+        balances = state.balances
+        basis = state.basis
+        basis_employee = state.basis_employee
+        config = state.config
+        forfeited = state.forfeited
+    assert (
+        balances is not None
+        and basis is not None
+        and basis_employee is not None
+        and config is not None
+        and forfeited is not None
+        and year_start_balances is not None
+    )
     # PPK: employer and state contribution forfeit on early withdrawal before age 60.
     for si in active_stages:
         if si.stage_type != "realizacja" or age != si.start_age:
@@ -294,16 +321,35 @@ def _process_ppk_forfeits(
 def _process_stages(
     active_stages: list[StageInput],
     age: int,
-    balances: dict[str, float],
-    basis: dict[str, float],
-    basis_employee: dict[str, float],
-    config: TaxConfig,
-    account_rois: dict[str, float],
-    processed_accounts: set[str],
-    zus_pensions: dict[str, float],
-    welcomed_ppk: set[str],
+    balances: dict[str, float] | None = None,
+    basis: dict[str, float] | None = None,
+    basis_employee: dict[str, float] | None = None,
+    config: TaxConfig | None = None,
+    account_rois: dict[str, float] | None = None,
+    processed_accounts: set[str] | None = None,
+    zus_pensions: dict[str, float] | None = None,
+    welcomed_ppk: set[str] | None = None,
     monthly_gross: float = 0.0,
+    state: SimulationState | None = None,
 ) -> tuple[dict[str, float], list[str], dict[str, float]]:
+    if state is not None:
+        balances = state.balances
+        basis = state.basis
+        basis_employee = state.basis_employee
+        config = state.config
+        account_rois = state.account_rois
+        zus_pensions = state.zus_pensions
+        welcomed_ppk = state.welcomed_ppk
+    assert (
+        balances is not None
+        and basis is not None
+        and basis_employee is not None
+        and config is not None
+        and account_rois is not None
+        and processed_accounts is not None
+        and zus_pensions is not None
+        and welcomed_ppk is not None
+    )
     merged_withdrawal: dict[str, float] = {}
     periodic_tax: dict[str, float] = {}
     stage_label_parts: list[str] = []
@@ -450,11 +496,22 @@ def _periodic_net_roi(name: str, rules: AccountRules, cfg: dict) -> float:
 
 
 def _passive_growth(
-    balances: dict[str, float],
-    processed_accounts: set[str],
-    account_rois: dict[str, float],
-    config: TaxConfig,
+    balances: dict[str, float] | None = None,
+    processed_accounts: set[str] | None = None,
+    account_rois: dict[str, float] | None = None,
+    config: TaxConfig | None = None,
+    state: SimulationState | None = None,
 ) -> None:
+    if state is not None:
+        balances = state.balances
+        account_rois = state.account_rois
+        config = state.config
+    assert (
+        balances is not None
+        and processed_accounts is not None
+        and account_rois is not None
+        and config is not None
+    )
     for acc_name in list(balances.keys()):
         if acc_name in processed_accounts:
             continue
@@ -508,9 +565,124 @@ def _assemble_years(
     return years, total_withdrawn_net, total_tax
 
 
+def _apply_ikze_savings(
+    state: SimulationState,
+    active_stages: list[StageInput],
+    monthly_gross: float,
+    merged_tax: dict[str, float],
+) -> None:
+    if monthly_gross <= 0:
+        return
+    dochód = _compute_monthly_gross_dochod(monthly_gross, state.config)
+    for si in active_stages:
+        if si.stage_type != "akumulacja":
+            continue
+        for name, cfg in si.accounts.items():
+            if name != "ikze":
+                continue
+            contribution = cfg.annual_contribution
+            if contribution <= 0:
+                continue
+            saving = _compute_ikze_tax_saving(contribution, dochód, state.config)
+            if saving > 0:
+                merged_tax[name] = merged_tax.get(name, 0.0) - saving
+
+
+def _run_year(
+    state: SimulationState, age: int, monthly_gross: float, all_stages: list[StageInput]
+) -> None:
+    active_stages = [si for si in all_stages if si.start_age <= age < si.end_age]
+    if not active_stages:
+        return
+
+    year_start_balances = dict(state.balances)
+    processed_accounts: set[str] = set()
+
+    zus_pension = _estimate_zus_pension(state=state, active_stages=active_stages, age=age)
+
+    early_return_tax, yearly_scale_handled = _process_ikze_returns(
+        state=state, active_stages=active_stages, age=age, zus_pension=zus_pension
+    )
+
+    _process_ppk_forfeits(
+        state=state, active_stages=active_stages, age=age, year_start_balances=year_start_balances
+    )
+
+    merged_withdrawal, stage_label_parts, periodic_tax = _process_stages(
+        state=state,
+        active_stages=active_stages,
+        age=age,
+        processed_accounts=processed_accounts,
+        monthly_gross=monthly_gross,
+    )
+
+    merged_tax = _apply_tax(
+        state=state,
+        withdrawals=merged_withdrawal,
+        year_start_balances=year_start_balances,
+        age=age,
+        yearly_scale_handled=yearly_scale_handled,
+    )
+    for acc, t in periodic_tax.items():
+        merged_tax[acc] = merged_tax.get(acc, 0.0) + t
+    for acc, t in early_return_tax.items():
+        merged_tax[acc] = merged_tax.get(acc, 0.0) + t
+
+    _apply_ikze_savings(state, active_stages, monthly_gross, merged_tax)
+
+    _passive_growth(state=state, processed_accounts=processed_accounts)
+
+    _apply_asset_tax(state=state, year_start_balances=year_start_balances, merged_tax=merged_tax)
+
+    state.computed[age] = {
+        "starting_balances": year_start_balances,
+        "ending_balances": dict(state.balances),
+        "withdrawal": merged_withdrawal,
+        "tax": merged_tax,
+        "early_return_tax": sum(v for k, v in early_return_tax.items() if k != "zus"),
+        "stage_name": "+".join(stage_label_parts),
+    }
+
+
+def _finalize_result(data: SimulationInput, state: SimulationState) -> SimulationResult:
+    years, total_withdrawn_net, total_tax = _assemble_years(state.computed)
+    sorted_ages = sorted(state.computed.keys())
+    final_balances = state.computed[sorted_ages[-1]]["ending_balances"] if sorted_ages else {}
+    peak_wealth = max((y.total_wealth for y in years), default=0.0)
+    display_accounts = sorted(a for a in state.all_accounts if a != "zus")
+    has_pension = any("zus" in si.accounts for si in data.stages)
+    warnings = _collect_warnings(data)
+    for name, pension in state.zus_pensions.items():
+        if pension <= 0:
+            warnings.append(
+                f"{ACCOUNT_LABELS.get(name, name)}: brak zgromadzonego "
+                f"kapitału — wyliczona emerytura wynosi 0 zł/mies. "
+                f"Uzupełnij kapitał i podstawę w etapie akumulacji "
+                f"albo wpisz emeryturę ręcznie."
+            )
+        elif state.config.zus.min_emerytura > 0 and pension < state.config.zus.min_emerytura:
+            warnings.append(
+                f"{ACCOUNT_LABELS.get(name, name)}: wyliczona emerytura "
+                f"{pension:,.0f} zł/mies. jest niższa od emerytury "
+                f"minimalnej ({state.config.zus.min_emerytura:,.0f} zł). "
+                f"ZUS podnosi świadczenie do minimum przy spełnieniu "
+                f"warunków stażowych."
+            )
+    return SimulationResult(
+        years=years,
+        accounts=display_accounts,
+        final_wealth=round(sum(final_balances.values()), 2),
+        peak_wealth=round(peak_wealth, 2),
+        total_withdrawn=round(total_withdrawn_net, 2),
+        total_tax=round(total_tax, 2),
+        has_pension=has_pension,
+        warnings=warnings,
+    )
+
+
 def simulate(data: SimulationInput) -> SimulationResult:
     """
-    Simulation engine — loop over ages.
+    Simulation engine — pipeline over ages.
 
     For each year:
     1. Find active stages (start_age <= age < end_age)
@@ -536,163 +708,14 @@ def simulate(data: SimulationInput) -> SimulationResult:
     _validate_roi(data)
 
     state = _init_state(data)
-    config = state.config
-    balances = state.balances
-    basis = state.basis
-    basis_employee = state.basis_employee
-    account_rois = state.account_rois
-    asset_exemptions = state.asset_exemptions
-    all_accounts = state.all_accounts
-    computed = state.computed
-    early_returned = state.early_returned
-    forfeited = state.forfeited
-    zus_pensions = state.zus_pensions
-    welcomed_ppk = state.welcomed_ppk
 
     min_age = min(si.start_age for si in data.stages)
     max_age = data.max_age
 
     for age in range(min_age, max_age + 1):
-        active_stages = [si for si in data.stages if si.start_age <= age < si.end_age]
+        _run_year(state, age, data.monthly_gross, data.stages)
 
-        if not active_stages:
-            continue
-
-        year_start_balances = dict(balances)
-        processed_accounts: set[str] = set()
-
-        zus_pension = _estimate_zus_pension(
-            active_stages,
-            age,
-            balances,
-            zus_pensions,
-            config,
-        )
-
-        early_return_tax, yearly_scale_handled = _process_ikze_returns(
-            active_stages,
-            age,
-            balances,
-            config,
-            early_returned,
-            zus_pension,
-        )
-
-        _process_ppk_forfeits(
-            active_stages,
-            age,
-            balances,
-            basis,
-            basis_employee,
-            config,
-            forfeited,
-            year_start_balances,
-        )
-
-        merged_withdrawal, stage_label_parts, periodic_tax = _process_stages(
-            active_stages,
-            age,
-            balances,
-            basis,
-            basis_employee,
-            config,
-            account_rois,
-            processed_accounts,
-            zus_pensions,
-            welcomed_ppk,
-            data.monthly_gross,
-        )
-
-        merged_tax = _apply_tax(
-            withdrawals=merged_withdrawal,
-            year_start_balances=year_start_balances,
-            basis=basis,
-            age=age,
-            config=config,
-            early_returned=early_returned,
-            yearly_scale_handled=yearly_scale_handled,
-        )
-        for acc, t in periodic_tax.items():
-            merged_tax[acc] = merged_tax.get(acc, 0.0) + t
-        for acc, t in early_return_tax.items():
-            merged_tax[acc] = merged_tax.get(acc, 0.0) + t
-
-        # IKZE tax saving (odliczenie od dochodu) — shown as negative tax
-        if data.monthly_gross > 0:
-            dochód = _compute_monthly_gross_dochod(data.monthly_gross, config)
-            for si in active_stages:
-                if si.stage_type != "akumulacja":
-                    continue
-                for name, cfg in si.accounts.items():
-                    if name != "ikze":
-                        continue
-                    contribution = cfg.annual_contribution
-                    if contribution <= 0:
-                        continue
-                    saving = _compute_ikze_tax_saving(
-                        contribution,
-                        dochód,
-                        config,
-                    )
-                    if saving > 0:
-                        merged_tax[name] = merged_tax.get(name, 0.0) - saving
-
-        _passive_growth(balances, processed_accounts, account_rois, config)
-
-        _apply_asset_tax(
-            balances=balances,
-            year_start_balances=year_start_balances,
-            merged_tax=merged_tax,
-            asset_exemptions=asset_exemptions,
-            config=config,
-        )
-
-        computed[age] = {
-            "starting_balances": year_start_balances,
-            "ending_balances": dict(balances),
-            "withdrawal": merged_withdrawal,
-            "tax": merged_tax,
-            "early_return_tax": sum(v for k, v in early_return_tax.items() if k != "zus"),
-            "stage_name": "+".join(stage_label_parts),
-        }
-
-    years, total_withdrawn_net, total_tax = _assemble_years(computed)
-
-    sorted_ages = sorted(computed.keys())
-    final_balances = computed[sorted_ages[-1]]["ending_balances"] if sorted_ages else {}
-    peak_wealth = max((y.total_wealth for y in years), default=0.0)
-
-    display_accounts = sorted(a for a in all_accounts if a != "zus")
-    has_pension = any("zus" in si.accounts for si in data.stages)
-
-    warnings = _collect_warnings(data)
-    for name, pension in zus_pensions.items():
-        if pension <= 0:
-            warnings.append(
-                f"{ACCOUNT_LABELS.get(name, name)}: brak zgromadzonego "
-                f"kapitału — wyliczona emerytura wynosi 0 zł/mies. "
-                f"Uzupełnij kapitał i podstawę w etapie akumulacji "
-                f"albo wpisz emeryturę ręcznie."
-            )
-        elif config.zus.min_emerytura > 0 and pension < config.zus.min_emerytura:
-            warnings.append(
-                f"{ACCOUNT_LABELS.get(name, name)}: wyliczona emerytura "
-                f"{pension:,.0f} zł/mies. jest niższa od emerytury "
-                f"minimalnej ({config.zus.min_emerytura:,.0f} zł). "
-                f"ZUS podnosi świadczenie do minimum przy spełnieniu "
-                f"warunków stażowych."
-            )
-
-    return SimulationResult(
-        years=years,
-        accounts=display_accounts,
-        final_wealth=round(sum(final_balances.values()), 2),
-        peak_wealth=round(peak_wealth, 2),
-        total_withdrawn=round(total_withdrawn_net, 2),
-        total_tax=round(total_tax, 2),
-        has_pension=has_pension,
-        warnings=warnings,
-    )
+    return _finalize_result(data, state)
 
 
 def _accumulate_zus(
@@ -806,11 +829,12 @@ def _asset_class_of(rules) -> str:
 
 
 def _apply_asset_tax(
-    balances: dict[str, float],
-    year_start_balances: dict[str, float],
-    merged_tax: dict[str, float],
-    asset_exemptions: dict[str, float],
-    config: TaxConfig,
+    balances: dict[str, float] | None = None,
+    year_start_balances: dict[str, float] | None = None,
+    merged_tax: dict[str, float] | None = None,
+    asset_exemptions: dict[str, float] | None = None,
+    config: TaxConfig | None = None,
+    state: SimulationState | None = None,
 ) -> None:
     """Annual asset value tax (OKI) above the exemption threshold.
 
@@ -825,6 +849,17 @@ def _apply_asset_tax(
     25,000 PLN for the savings portion (deposits/bonds). Each standalone
     OKI account retains its own independent threshold.
     """
+    if state is not None:
+        balances = state.balances
+        asset_exemptions = state.asset_exemptions
+        config = state.config
+    assert (
+        balances is not None
+        and year_start_balances is not None
+        and merged_tax is not None
+        and asset_exemptions is not None
+        and config is not None
+    )
     groups: dict[str, list[str]] = {}
     for account in balances:
         rules = config.accounts.get(account)
@@ -920,15 +955,30 @@ def _convert_zus(
 
 
 def _apply_tax(
-    withdrawals: dict[str, float],
-    year_start_balances: dict[str, float],
-    basis: dict[str, float],
-    age: int,
-    config: TaxConfig,
-    early_returned: set[str],
+    withdrawals: dict[str, float] | None = None,
+    year_start_balances: dict[str, float] | None = None,
+    basis: dict[str, float] | None = None,
+    age: int | None = None,
+    config: TaxConfig | None = None,
+    early_returned: set[str] | None = None,
     yearly_scale_handled: set[str] | None = None,
+    state: SimulationState | None = None,
 ) -> dict[str, float]:
     """Calculate the annual tax for each account and update the cost basis."""
+    if state is not None:
+        assert withdrawals is not None
+        assert year_start_balances is not None
+        basis = state.basis
+        config = state.config
+        early_returned = state.early_returned
+    assert (
+        withdrawals is not None
+        and year_start_balances is not None
+        and basis is not None
+        and age is not None
+        and config is not None
+        and early_returned is not None
+    )
     if yearly_scale_handled is None:
         yearly_scale_handled = set()
     tax: dict[str, float] = {}
