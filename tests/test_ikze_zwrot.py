@@ -14,9 +14,11 @@ from conftest import acc, accumulation_stage, realization_stage
 
 from app.core.pmt import pmt
 from app.core.tax import scale_tax
-from app.simulation.config import default_config
+from app.simulation.config import TaxConfig, default_config
 from app.simulation.engine import simulate
 from app.simulation.schemas import SimulationInput
+
+CFG_NOINFL = TaxConfig(inflation=0.0)
 
 
 def ikze_zwrot_scenario(balance, start=50, end=55, roi=0.0, buffer=0.0):
@@ -30,6 +32,7 @@ def ikze_zwrot_scenario(balance, start=50, end=55, roi=0.0, buffer=0.0):
                 realization_stage("IKZE", {"ikze": acc(roi=roi, buffer=buffer)}, start, end),
             ],
             max_age=end - 1,
+            config=CFG_NOINFL,
         )
     )
 
@@ -65,7 +68,7 @@ def test_zwrot_boundary_at_65_no_lump():
         accumulation_stage({"ikze": acc(starting_balance=500_000, roi=0.0)}, start=40, end=65),
         realization_stage("IKZE", {"ikze": acc(roi=0.0, buffer=0)}, 65, 70),
     ]
-    result = simulate(SimulationInput(stages=stages_after, max_age=69))
+    result = simulate(SimulationInput(stages=stages_after, max_age=69, config=CFG_NOINFL))
     assert result.total_tax == pytest.approx(50_000, rel=1e-3)  # 10% od każdej raty
     assert result.years[25].tax_paid == pytest.approx(10_000, rel=1e-3)
     assert result.years[25].annual_withdrawal == pytest.approx(90_000, rel=1e-3)
@@ -77,7 +80,7 @@ def test_zwrot_boundary_one_year_early():
         accumulation_stage({"ikze": acc(starting_balance=500_000, roi=0.0)}, start=40, end=64),
         realization_stage("IKZE", {"ikze": acc(roi=0.0, buffer=0)}, 64, 70),
     ]
-    result = simulate(SimulationInput(stages=stages, max_age=69))
+    result = simulate(SimulationInput(stages=stages, max_age=69, config=CFG_NOINFL))
     # Rok wcześniej (64 r.ż.) — pełny zwrot: skala od 500k = 132 400; PMT na 6 lat.
     assert result.years[24].tax_paid == pytest.approx(132_400, rel=1e-3)
     assert result.years[24].annual_withdrawal == pytest.approx(367_600 / 6, rel=1e-3)
@@ -128,7 +131,7 @@ def test_zwrot_year_mixed_with_broker_belka_is_additive():
         accumulation_stage({"broker": acc(starting_balance=100_000, roi=0.02)}, end=50),
         realization_stage("Broker", {"broker": acc(roi=0.2, buffer=0)}, 50, 55),
     ]
-    solo = simulate(SimulationInput(stages=broker_stages, max_age=54))
+    solo = simulate(SimulationInput(stages=broker_stages, max_age=54, config=CFG_NOINFL))
 
     combined = simulate(
         SimulationInput(
@@ -138,6 +141,7 @@ def test_zwrot_year_mixed_with_broker_belka_is_additive():
                 realization_stage("IKZE", {"ikze": acc(roi=0.0, buffer=0)}, 50, 55),
             ],
             max_age=54,
+            config=CFG_NOINFL,
         )
     )
     solo_y = solo.years[10]
@@ -150,7 +154,7 @@ def test_zwrot_year_mixed_with_broker_belka_is_additive():
 
 def test_zwrot_year_mixed_with_zus_scale_is_additive():
     zus_stages = [realization_stage("ZUS", {"zus": acc(monthly_pension=10_000)}, 50, 55)]
-    solo = simulate(SimulationInput(stages=zus_stages, max_age=54))
+    solo = simulate(SimulationInput(stages=zus_stages, max_age=54, config=CFG_NOINFL))
 
     combined = simulate(
         SimulationInput(
@@ -160,6 +164,7 @@ def test_zwrot_year_mixed_with_zus_scale_is_additive():
                 realization_stage("IKZE", {"ikze": acc(roi=0.0, buffer=0)}, 50, 55),
             ],
             max_age=54,
+            config=CFG_NOINFL,
         )
     )
     solo_y = solo.years[0]  # ZUS zaczyna w 50 r.ż.
@@ -181,7 +186,7 @@ def test_zwrot_second_stage_no_double_taxation():
         realization_stage("IKZE A", {"ikze": acc(roi=0.02, buffer=100_000)}, 50, 55),
         realization_stage("IKZE B", {"ikze": acc(roi=0.02, buffer=0)}, 55, 70),
     ]
-    result = simulate(SimulationInput(stages=stages, max_age=69))
+    result = simulate(SimulationInput(stages=stages, max_age=69, config=CFG_NOINFL))
 
     assert result.years[10].tax_paid == pytest.approx(scale_tax(grown), rel=1e-3)
     # Od 51 r.ż. aż do końca (także w etapie B) — zero podatku.
@@ -232,7 +237,7 @@ def test_zwrot_not_triggered_when_early_model_none():
 
 def test_zwrot_with_starting_balance_on_realization_stage():
     stages = [realization_stage("IKZE", {"ikze": acc(starting_balance=500_000, roi=0.0)}, 50, 55)]
-    result = simulate(SimulationInput(stages=stages, max_age=54))
+    result = simulate(SimulationInput(stages=stages, max_age=54, config=CFG_NOINFL))
     assert result.years[0].tax_paid == pytest.approx(132_400, rel=1e-3)
     assert result.years[0].annual_withdrawal == pytest.approx(73_520, rel=1e-3)
     assert result.total_tax + result.total_withdrawn == pytest.approx(500_000, rel=1e-3)

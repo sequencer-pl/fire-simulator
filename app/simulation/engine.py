@@ -121,7 +121,8 @@ def _validate_roi(data: SimulationInput) -> None:
 
 
 def _init_state(data: SimulationInput) -> SimulationState:
-    config = data.config
+    eff_inflation = data.inflation if data.inflation is not None else data.config.inflation
+    config = data.config.model_copy(update={"inflation": eff_inflation})
     balances: dict[str, float] = {}
     basis: dict[str, float] = {}
     basis_employee: dict[str, float] = {}

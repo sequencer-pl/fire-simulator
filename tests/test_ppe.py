@@ -1,8 +1,11 @@
 import pytest
 from conftest import acc, accumulation_stage, realization_stage
 
+from app.simulation.config import TaxConfig
 from app.simulation.engine import simulate
 from app.simulation.schemas import SimulationInput
+
+CFG_NOINFL = TaxConfig(inflation=0.0)
 
 # --- Składki: podstawowa (pracodawca) + dodatkowa (uczestnik) ---
 
@@ -23,7 +26,7 @@ def test_ppe_contributions_from_employer_pct_and_additional():
             }
         )
     ]
-    result = simulate(SimulationInput(stages=stages, max_age=41))
+    result = simulate(SimulationInput(stages=stages, max_age=41, config=CFG_NOINFL))
     assert result.years[1].balances["ppe"] == pytest.approx(8352.0)
     # 1 008 trafia do ZUS i rośnie z waloryzacją 1%/rok
     assert result.years[1].balances["zus"] == pytest.approx(1008 * 1.01)
@@ -44,7 +47,7 @@ def test_ppe_growth_and_contribution():
             }
         )
     ]
-    result = simulate(SimulationInput(stages=stages, max_age=41))
+    result = simulate(SimulationInput(stages=stages, max_age=41, config=CFG_NOINFL))
     # 70% pracodawcy (2 352) + składka dodatkowa (6 000) = 8 352
     assert result.years[1].balances["ppe"] == pytest.approx(50000 * 1.06 + 8352)
 
@@ -70,7 +73,7 @@ def test_ppe_withdrawal_after_60_tax_free():
         ),
         realization_stage("PPE", {"ppe": acc(roi=0.02, buffer=0)}, 65, 70),
     ]
-    result = simulate(SimulationInput(stages=stages, max_age=69))
+    result = simulate(SimulationInput(stages=stages, max_age=69, config=CFG_NOINFL))
     assert result.total_tax == 0.0
     assert result.total_withdrawn > 0
 
@@ -96,7 +99,7 @@ def test_ppe_early_withdrawal_taxed_19pct_on_gains():
         accumulation,
         realization_stage("PPE przed 60", {"ppe": acc(roi=0.02, buffer=0)}, 55, 56),
     ]
-    result = simulate(SimulationInput(stages=stages, max_age=55))
+    result = simulate(SimulationInput(stages=stages, max_age=55, config=CFG_NOINFL))
     y = result.years[-1]
     # PPE balance at start of realization (age 55) — after 15 years of growth
     ppe_bal = y.balances["ppe"]
@@ -113,7 +116,7 @@ def test_ppe_in_accounts_list():
             {"ppe": acc(base_override_enabled=True, monthly_base=8000, employer_pct=0.035)}
         )
     ]
-    result = simulate(SimulationInput(stages=stages, max_age=40))
+    result = simulate(SimulationInput(stages=stages, max_age=40, config=CFG_NOINFL))
     assert "ppe" in result.accounts
 
 
@@ -133,7 +136,7 @@ def test_ppe_warning_employer_pct_over_7():
             }
         )
     ]
-    result = simulate(SimulationInput(stages=stages, max_age=40))
+    result = simulate(SimulationInput(stages=stages, max_age=40, config=CFG_NOINFL))
     assert any("przekracza ustawowy limit 7%" in w for w in result.warnings)
 
 
@@ -150,7 +153,7 @@ def test_ppe_warning_additional_over_limit():
             }
         )
     ]
-    result = simulate(SimulationInput(stages=stages, max_age=40))
+    result = simulate(SimulationInput(stages=stages, max_age=40, config=CFG_NOINFL))
     assert any("42,390" in w for w in result.warnings)
 
 
@@ -172,7 +175,7 @@ def test_ppe_early_withdrawal_30pct_goes_to_zus():
         ),
         realization_stage("PPE przed 60", {"ppe": acc(roi=0.02, buffer=0)}, 55, 60),
     ]
-    result = simulate(SimulationInput(stages=stages, max_age=59))
+    result = simulate(SimulationInput(stages=stages, max_age=59, config=CFG_NOINFL))
     # Rok 1 (wiek 41): 1 008 trafia do ZUS i rośnie z waloryzacją 1%
     zus_year1 = result.years[1].balances.get("zus", 0)
     assert zus_year1 == pytest.approx(1008 * 1.01)

@@ -1,8 +1,11 @@
 import pytest
 from conftest import acc, accumulation_stage, realization_stage
 
+from app.simulation.config import TaxConfig
 from app.simulation.engine import simulate
 from app.simulation.schemas import SimulationInput
+
+CFG_NOINFL = TaxConfig(inflation=0.0)
 
 # --- Lokata: Belka naliczana co interwał (tax_periodic) ---
 
@@ -20,13 +23,13 @@ def net_balance_after(intervals_in_year, years):
 
 def test_lokata_annual_term_no_contribution():
     stages = [accumulation_stage({"lokata": acc(starting_balance=BAL, roi=ROI)})]
-    result = simulate(SimulationInput(stages=stages, max_age=41))
+    result = simulate(SimulationInput(stages=stages, max_age=41, config=CFG_NOINFL))
     assert result.years[1].balances["lokata"] == pytest.approx(net_balance_after(1, 1))
 
 
 def test_lokata_annual_term_two_years():
     stages = [accumulation_stage({"lokata": acc(starting_balance=BAL, roi=ROI)})]
-    result = simulate(SimulationInput(stages=stages, max_age=42))
+    result = simulate(SimulationInput(stages=stages, max_age=42, config=CFG_NOINFL))
     assert result.years[2].balances["lokata"] == pytest.approx(net_balance_after(1, 2))
 
 
@@ -42,7 +45,7 @@ def test_lokata_quarterly_term_compounds_more():
             }
         ),
     ]
-    result = simulate(SimulationInput(stages=stages, max_age=41))
+    result = simulate(SimulationInput(stages=stages, max_age=41, config=CFG_NOINFL))
     assert result.years[1].balances["lokata"] == pytest.approx(net_balance_after(4, 1))
 
 
@@ -58,7 +61,7 @@ def test_lokata_monthly_term_compounds_more():
             }
         ),
     ]
-    result = simulate(SimulationInput(stages=stages, max_age=41))
+    result = simulate(SimulationInput(stages=stages, max_age=41, config=CFG_NOINFL))
     assert result.years[1].balances["lokata"] == pytest.approx(net_balance_after(12, 1))
 
 
@@ -90,7 +93,7 @@ def test_lokata_shorter_term_greater_balance():
 
 def test_lokata_tax_paid_equals_interest_tax():
     stages = [accumulation_stage({"lokata": acc(starting_balance=BAL, roi=ROI)})]
-    result = simulate(SimulationInput(stages=stages, max_age=41))
+    result = simulate(SimulationInput(stages=stages, max_age=41, config=CFG_NOINFL))
     brutto = ROI / (1 - TAX)
     interest_nom = BAL * brutto
     assert result.years[0].tax_paid == pytest.approx(interest_nom * TAX)
@@ -109,14 +112,14 @@ def test_lokata_annual_contribution_added_after_growth():
             }
         ),
     ]
-    result = simulate(SimulationInput(stages=stages, max_age=41))
+    result = simulate(SimulationInput(stages=stages, max_age=41, config=CFG_NOINFL))
     expected = net_balance_after(1, 1) + contribution
     assert result.years[1].balances["lokata"] == pytest.approx(expected)
 
 
 def test_lokata_no_positive_roi_no_tax():
     stages = [accumulation_stage({"lokata": acc(starting_balance=BAL, roi=0)})]
-    result = simulate(SimulationInput(stages=stages, max_age=41))
+    result = simulate(SimulationInput(stages=stages, max_age=41, config=CFG_NOINFL))
     assert result.years[1].balances["lokata"] == pytest.approx(BAL)
     assert result.years[1].tax_paid == 0.0
 
@@ -130,7 +133,7 @@ def test_lokata_realization_not_double_taxed():
         ),
         realization_stage("Lokata", {"lokata": acc(roi=ROI, buffer=0)}, 50, 55),
     ]
-    result = simulate(SimulationInput(stages=stages, max_age=54))
+    result = simulate(SimulationInput(stages=stages, max_age=54, config=CFG_NOINFL))
     # Tax was paid annually during accumulation — no additional Belka at withdrawal.
     balance_45 = net_balance_after(1, 5)
     assert result.years[5].balances["lokata"] == pytest.approx(balance_45)
@@ -138,7 +141,7 @@ def test_lokata_realization_not_double_taxed():
 
 def test_lokata_accumulation_tax_recorded_across_years():
     stages = [accumulation_stage({"lokata": acc(starting_balance=BAL, roi=ROI)})]
-    result = simulate(SimulationInput(stages=stages, max_age=43))
+    result = simulate(SimulationInput(stages=stages, max_age=43, config=CFG_NOINFL))
     assert result.total_tax > 0
     brutto = ROI / (1 - TAX)
     assert result.years[0].tax_paid == pytest.approx(BAL * brutto * TAX)

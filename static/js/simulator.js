@@ -53,8 +53,38 @@ function gatherFormData() {
         max_age: 100,
         gender: currentGender(),
         monthly_gross: parseFloat(document.getElementById("monthlyGross")?.value) || 0,
+        inflation: getSimInflation(),
         config: CONFIG,
     };
+}
+
+function getSimInflation() {
+    const el = document.getElementById("simInflation");
+    if (!el || el.value === "") return null;
+    const v = parseFloat(el.value);
+    return Number.isFinite(v) ? v / 100 : null;
+}
+
+function setSimInflation(value) {
+    const el = document.getElementById("simInflation");
+    if (!el) return;
+    if (typeof value === "number" && Number.isFinite(value)) {
+        el.value = (Math.round(value * 1000) / 10).toString();
+    } else {
+        el.value = "";
+    }
+    updateSimInflationHint();
+}
+
+function updateSimInflationHint() {
+    const hint = document.getElementById("simInflationHint");
+    const el = document.getElementById("simInflation");
+    if (!hint || !el) return;
+    if (el.value === "" && CONFIG && typeof CONFIG.inflation === "number") {
+        hint.textContent = `globalnie ${(CONFIG.inflation * 100).toFixed(1)}%`;
+    } else {
+        hint.textContent = "";
+    }
 }
 
 function currentGender() {
@@ -324,9 +354,11 @@ async function initConfig() {
         PRESETS = presetsData.presets || [];
         applyZusWaloryzacjaDefaults();
         renderConfigView();
+        updateSimInflationHint();
         updateStageHints(document.getElementById("stages-container"));
         document.getElementById("configResetBtn").addEventListener("click", resetConfig);
         initPresetBar();
+        document.getElementById("simInflation")?.addEventListener("input", updateSimInflationHint);
     } catch (err) {
         console.error("Nie udało się wczytać konfiguracji:", err);
     }
@@ -825,7 +857,8 @@ function populateStages(inputData) {
     if (inputData.config) CONFIG = backfillConfig(inputData.config);
     if (inputData.gender) setGender(inputData.gender);
     const grossInput = document.getElementById("monthlyGross");
-    if (grossInput && inputData.monthly_gross) grossInput.value = inputData.monthly_gross;
+    if (grossInput && inputData.monthly_gross != null) grossInput.value = inputData.monthly_gross;
+    if ("inflation" in inputData) setSimInflation(inputData.inflation);
     container.innerHTML = "";
     (inputData.stages || []).forEach((stage) => {
         migrateLegacyAccounts(stage);

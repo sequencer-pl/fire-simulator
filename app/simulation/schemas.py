@@ -40,6 +40,12 @@ class SimulationInput(BaseModel):
     max_age: int = 100
     gender: Literal["k", "m"] = "m"
     monthly_gross: float = 0.0
+    inflation: float | None = Field(
+        default=None,
+        ge=-0.99,
+        le=2.0,
+        description="Per-sim inflation override; None = use config.inflation",
+    )
     config: TaxConfig = Field(default_factory=default_config)
 
 

@@ -93,3 +93,32 @@ def test_run_year_pipeline_isolation():
     assert 40 in state.computed
     assert state.computed[40]["starting_balances"]["broker"] == 100000
     assert state.balances["broker"] > 100000
+
+
+def test_per_sim_inflation_override():
+    from app.simulation.config import TaxConfig
+    from app.simulation.engine import simulate
+
+    cfg = TaxConfig(inflation=0.025)
+    base = accumulation_stage(
+        {"lokata": acc(starting_balance=100000, roi=0.05, lokata_term_months=12)}, start=40, end=41
+    )
+    r_global = simulate(SimulationInput(stages=[base], max_age=41, config=cfg))
+    r_over0 = simulate(SimulationInput(stages=[base], max_age=41, inflation=0.0, config=cfg))
+    r_over4 = simulate(SimulationInput(stages=[base], max_age=41, inflation=0.04, config=cfg))
+    assert r_global.years[0].tax_paid != r_over0.years[0].tax_paid
+    assert r_over4.years[0].tax_paid > r_global.years[0].tax_paid
+    assert r_over0.years[0].tax_paid < r_global.years[0].tax_paid
+
+
+def test_per_sim_inflation_uses_config_when_none():
+    from app.simulation.config import TaxConfig
+    from app.simulation.engine import _init_state
+
+    cfg = TaxConfig(inflation=0.03)
+    data = SimulationInput(stages=[], config=cfg)
+    state = _init_state(data)
+    assert state.config.inflation == 0.03
+    data2 = SimulationInput(stages=[], inflation=0.01, config=cfg)
+    state2 = _init_state(data2)
+    assert state2.config.inflation == 0.01

@@ -169,6 +169,14 @@ function renderCards(sims) {
         if (sum.accounts && sum.accounts.length)
             infoParts.push(`${sum.accounts.length} kont`);
         if (sum.has_pension) infoParts.push("emerytura ZUS");
+        const effInfl = s.input?.inflation ?? s.input?.config?.inflation;
+        if (effInfl != null) {
+            const isOverride = s.input?.inflation != null;
+            infoParts.push(`inflacja ${(effInfl*100).toFixed(1)}%${isOverride ? "" : " (global)"}`);
+        }
+        const gender = s.input?.gender;
+        if (gender) infoParts.push(`płeć ${gender === "k" ? "K" : "M"}`);
+        if (s.input?.monthly_gross) infoParts.push(`${Math.round(s.input.monthly_gross).toLocaleString("pl-PL")} zł brutto`);
         let infoHtml = "";
         if (infoParts.length || sum.warnings) {
             infoHtml = `<div class="sim-card-info"><span>${infoParts.join(" · ")}</span>`;

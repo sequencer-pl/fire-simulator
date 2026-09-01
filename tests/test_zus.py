@@ -1,9 +1,12 @@
 import pytest
 from conftest import acc, accumulation_stage, no_tax_config, realization_stage
 
+from app.simulation.config import TaxConfig
 from app.simulation.engine import simulate
 from app.simulation.schemas import SimulationInput
 from app.simulation.tablica_sdtz import sdtz_months
+
+CFG_NOINFL = TaxConfig(inflation=0.0)
 
 # --- Składka i wzrost kapitału ---
 
@@ -22,10 +25,12 @@ def test_zus_skladka_19_52_from_monthly_base():
             }
         )
     ]
-    result = simulate(SimulationInput(stages=stages, max_age=40))
+    result = simulate(SimulationInput(stages=stages, max_age=40, config=CFG_NOINFL))
     y = result.years[0]
     assert y.balances["zus"] == pytest.approx(100000)
-    after_one_year = simulate(SimulationInput(stages=stages, max_age=41)).years[1]
+    after_one_year = simulate(SimulationInput(stages=stages, max_age=41, config=CFG_NOINFL)).years[
+        1
+    ]
     assert after_one_year.balances["zus"] == pytest.approx(100000 * 1.01 + 18739.2)
 
 
@@ -36,7 +41,7 @@ def test_zus_skladka_capped_at_30x_base():
             {"zus": acc(base_override_enabled=True, monthly_base=40000, ofe_member=False)}
         )
     ]
-    result = simulate(SimulationInput(stages=stages, max_age=41))
+    result = simulate(SimulationInput(stages=stages, max_age=41, config=CFG_NOINFL))
     y = result.years[1]
     assert y.balances["zus"] == pytest.approx(270000 * 0.1952)
 
@@ -55,7 +60,7 @@ def test_zus_ofe_split_two_growth_rates():
             }
         )
     ]
-    result = simulate(SimulationInput(stages=stages, max_age=41))
+    result = simulate(SimulationInput(stages=stages, max_age=41, config=CFG_NOINFL))
     y = result.years[1]
     # 19,52% * 96 000 = 18 739,20; OFE 2,92% * 96 000 = 2 803,20; reszta do ZUS
     assert y.balances["zus"] == pytest.approx(18739.2 - 2803.2)
@@ -77,7 +82,7 @@ def test_zus_ofe_capital_ignored_when_not_member():
             }
         )
     ]
-    result = simulate(SimulationInput(stages=stages, max_age=41))
+    result = simulate(SimulationInput(stages=stages, max_age=41, config=CFG_NOINFL))
     y = result.years[1]
     assert y.balances["zus"] == pytest.approx(100000 * 1.01 + 18739.2)
     assert "zus:ofe" not in y.balances
@@ -105,7 +110,7 @@ def test_zus_ofe_subaccount_grows_at_market_roi_passively():
             45,
         ),
     ]
-    result = simulate(SimulationInput(stages=stages, max_age=44))
+    result = simulate(SimulationInput(stages=stages, max_age=44, config=CFG_NOINFL))
     ofe_bal = result.years[4].balances["zus:ofe"]
     # akumulacja 40-41 (wzrost 6%), potem pasywny wzrost 6% przez lata 41-43
     assert ofe_bal == pytest.approx(10000 * 1.06**4 + 2803.2 * 1.06**3)
@@ -142,7 +147,7 @@ def test_zus_waloryzacja_swiadczenia_yearly():
 
 def test_zus_manual_mode_not_converted():
     stages = [realization_stage("ZUS", {"zus": acc(monthly_pension=4000)}, 65, 100)]
-    result = simulate(SimulationInput(stages=stages, max_age=100))
+    result = simulate(SimulationInput(stages=stages, max_age=100, config=CFG_NOINFL))
     assert result.years[0].monthly_withdrawal == pytest.approx(3820.0)
     assert result.warnings == []
 
@@ -176,7 +181,7 @@ def test_zus_conversion_ignores_manual_override():
 
 def test_zus_warning_zero_capital():
     stages = [realization_stage("ZUS", {"zus": acc(monthly_pension=0)}, 65, 100)]
-    result = simulate(SimulationInput(stages=stages, max_age=100))
+    result = simulate(SimulationInput(stages=stages, max_age=100, config=CFG_NOINFL))
     assert any("brak zgromadzonego kapitału" in w for w in result.warnings)
 
 
@@ -207,7 +212,7 @@ def test_zus_warning_before_retirement_age():
         ),
         realization_stage("ZUS", {"zus": acc(monthly_pension=0)}, 55, 100),
     ]
-    result = simulate(SimulationInput(stages=stages, max_age=100))
+    result = simulate(SimulationInput(stages=stages, max_age=100, config=CFG_NOINFL))
     assert any("przed powszechnym wiekiem emerytalnym" in w for w in result.warnings)
 
 
@@ -230,7 +235,7 @@ def test_zus_warning_male_below_65():
         ),
         realization_stage("ZUS", {"zus": acc(monthly_pension=0)}, 62, 100),
     ]
-    result = simulate(SimulationInput(stages=stages, max_age=100, gender="m"))
+    result = simulate(SimulationInput(stages=stages, max_age=100, gender="m", config=CFG_NOINFL))
     assert any("przed powszechnym wiekiem emerytalnym (65 r.ż.)" in w for w in result.warnings)
 
 
@@ -250,7 +255,7 @@ def test_zus_no_warning_female_from_62():
         ),
         realization_stage("ZUS", {"zus": acc(monthly_pension=0)}, 62, 100),
     ]
-    result = simulate(SimulationInput(stages=stages, max_age=100, gender="k"))
+    result = simulate(SimulationInput(stages=stages, max_age=100, gender="k", config=CFG_NOINFL))
     assert not any("przed powszechnym wiekiem emerytalnym" in w for w in result.warnings)
 
 
@@ -270,7 +275,7 @@ def test_zus_warning_female_below_60():
         ),
         realization_stage("ZUS", {"zus": acc(monthly_pension=0)}, 58, 100),
     ]
-    result = simulate(SimulationInput(stages=stages, max_age=100, gender="k"))
+    result = simulate(SimulationInput(stages=stages, max_age=100, gender="k", config=CFG_NOINFL))
     assert any("przed powszechnym wiekiem emerytalnym (60 r.ż.)" in w for w in result.warnings)
 
 
@@ -291,8 +296,8 @@ def test_zus_pension_independent_of_gender():
         ),
         realization_stage("ZUS", {"zus": acc(monthly_pension=0)}, 65, 70),
     ]
-    result_k = simulate(SimulationInput(stages=stages, max_age=70, gender="k"))
-    result_m = simulate(SimulationInput(stages=stages, max_age=70, gender="m"))
+    result_k = simulate(SimulationInput(stages=stages, max_age=70, gender="k", config=CFG_NOINFL))
+    result_m = simulate(SimulationInput(stages=stages, max_age=70, gender="m", config=CFG_NOINFL))
     pension_k = next(y for y in result_k.years if y.age == 65).monthly_withdrawal
     pension_m = next(y for y in result_m.years if y.age == 65).monthly_withdrawal
     assert pension_k == pytest.approx(pension_m)

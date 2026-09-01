@@ -2,9 +2,11 @@ import pytest
 from conftest import acc, accumulation_stage, realization_stage
 
 from app.core.tax import scale_tax
-from app.simulation.config import default_config
+from app.simulation.config import TaxConfig, default_config
 from app.simulation.engine import simulate
 from app.simulation.schemas import SimulationInput
+
+CFG_NOINFL = TaxConfig(inflation=0.0)
 
 # --- Skala PIT 2026 ---
 
@@ -31,7 +33,7 @@ def test_ikze_after_65_flat_10_percent():
         accumulation_stage({"ikze": acc(starting_balance=500_000, roi=0.0)}, start=40, end=65),
         realization_stage("IKZE", {"ikze": acc(roi=0.0, buffer=0)}, 65, 70),
     ]
-    result = simulate(SimulationInput(stages=stages, max_age=69))
+    result = simulate(SimulationInput(stages=stages, max_age=69, config=CFG_NOINFL))
     y = result.years[25]
     # 500k rozłożone na 5 lat PMT = 100k/rok brutto; 10% podatku od całości -> 90k netto
     assert y.annual_withdrawal == pytest.approx(90_000, rel=1e-3)
@@ -46,7 +48,7 @@ def test_ikze_before_65_zwrot_lump_tax():
         accumulation_stage({"ikze": acc(starting_balance=500_000, roi=0.0)}, start=40, end=50),
         realization_stage("IKZE", {"ikze": acc(roi=0.0, buffer=0)}, 50, 55),
     ]
-    result = simulate(SimulationInput(stages=stages, max_age=54))
+    result = simulate(SimulationInput(stages=stages, max_age=54, config=CFG_NOINFL))
     lump = result.years[10]
     # Zwrot całości w 50 r.ż.: skala 2026 od 500k = 132 400 zł.
     # Kapitał netto 367 600 zł rozłożony PMT na 5 lat -> 73 520 zł/rok.
@@ -67,7 +69,7 @@ def test_ikze_zwrot_no_tax_after_65():
         accumulation_stage({"ikze": acc(starting_balance=500_000, roi=0.0)}, start=40, end=50),
         realization_stage("IKZE", {"ikze": acc(roi=0.0, buffer=0)}, 50, 70),
     ]
-    result = simulate(SimulationInput(stages=stages, max_age=69))
+    result = simulate(SimulationInput(stages=stages, max_age=69, config=CFG_NOINFL))
     assert result.years[10].tax_paid == pytest.approx(132_400, rel=1e-3)
     assert all(y.tax_paid == 0 for y in result.years[11:])
 
@@ -80,7 +82,7 @@ def test_ike_before_60_gains_tax_then_tax_free():
         accumulation_stage({"ike": acc(starting_balance=100_000, roi=0.02)}, start=40, end=50),
         realization_stage("IKE", {"ike": acc(roi=0.02, buffer=0)}, 50, 65),
     ]
-    result = simulate(SimulationInput(stages=stages, max_age=64))
+    result = simulate(SimulationInput(stages=stages, max_age=64, config=CFG_NOINFL))
 
     early = result.years[10]
     assert early.tax_paid > 0  # Belka od zysku przed 60
@@ -98,7 +100,7 @@ def test_broker_taxes_gains_only():
         accumulation_stage({"broker": acc(starting_balance=100_000, roi=0.0)}, start=40, end=45),
         realization_stage("Broker", {"broker": acc(roi=0.0, buffer=0)}, 45, 50),
     ]
-    r1 = simulate(SimulationInput(stages=stages_no_gain, max_age=49))
+    r1 = simulate(SimulationInput(stages=stages_no_gain, max_age=49, config=CFG_NOINFL))
     assert r1.years[5].tax_paid == 0
 
     # Wzrost 20% -> część wypłat to zysk -> podatek > 0
@@ -111,7 +113,7 @@ def test_broker_taxes_gains_only():
             50,
         ),
     ]
-    r2 = simulate(SimulationInput(stages=stages_gain, max_age=49))
+    r2 = simulate(SimulationInput(stages=stages_gain, max_age=49, config=CFG_NOINFL))
     assert sum(y.tax_paid for y in r2.years) > 0
 
 
@@ -120,7 +122,7 @@ def test_broker_taxes_gains_only():
 
 def test_zus_scale_tax_with_kwota_wolna():
     stages = [realization_stage("ZUS", {"zus": acc(monthly_pension=2_000)}, 67, 100)]
-    result = simulate(SimulationInput(stages=stages, max_age=100))
+    result = simulate(SimulationInput(stages=stages, max_age=100, config=CFG_NOINFL))
     y = result.years[0]
     # 24k/rok < kwota wolna 30k -> podatek 0
     assert y.tax_paid == 0
@@ -149,13 +151,13 @@ def test_warning_ikze_before_65():
         accumulation_stage({"ikze": acc(starting_balance=200_000)}, start=40, end=50),
         realization_stage("IKZE", {"ikze": acc(roi=0.02)}, 50, 70),
     ]
-    result = simulate(SimulationInput(stages=stages, max_age=69))
+    result = simulate(SimulationInput(stages=stages, max_age=69, config=CFG_NOINFL))
     assert any("IKZE" in w and "skali" in w for w in result.warnings)
 
 
 def test_warning_ike_before_60():
     stages = [realization_stage("IKE", {"ike": acc(starting_balance=200_000)}, 50, 70)]
-    result = simulate(SimulationInput(stages=stages, max_age=69))
+    result = simulate(SimulationInput(stages=stages, max_age=69, config=CFG_NOINFL))
     assert any("IKE" in w and "19%" in w for w in result.warnings)
 
 
@@ -163,7 +165,7 @@ def test_warning_over_limit_contribution():
     stages = [
         accumulation_stage({"ikze": acc(annual_contribution=20_000)}, start=40, end=45),
     ]
-    result = simulate(SimulationInput(stages=stages, max_age=44))
+    result = simulate(SimulationInput(stages=stages, max_age=44, config=CFG_NOINFL))
     assert any("limit" in w and "IKZE" in w for w in result.warnings)
 
 
@@ -175,7 +177,7 @@ def test_warning_ikze_limit_self_employed_ok():
             end=45,
         ),
     ]
-    result = simulate(SimulationInput(stages=stages, max_age=44))
+    result = simulate(SimulationInput(stages=stages, max_age=44, config=CFG_NOINFL))
     assert not any("limit" in w and "IKZE" in w for w in result.warnings)
 
 
@@ -187,5 +189,5 @@ def test_warning_ikze_limit_self_employed_over():
             end=45,
         ),
     ]
-    result = simulate(SimulationInput(stages=stages, max_age=44))
+    result = simulate(SimulationInput(stages=stages, max_age=44, config=CFG_NOINFL))
     assert any("16,956" in w and "IKZE" in w for w in result.warnings)

@@ -1,9 +1,11 @@
 import pytest
 from conftest import acc, accumulation_stage, realization_stage
 
-from app.simulation.config import default_config
+from app.simulation.config import TaxConfig, default_config
 from app.simulation.engine import simulate
 from app.simulation.schemas import SimulationInput
+
+CFG_NOINFL = TaxConfig(inflation=0.0)
 
 # --- OKI: osobne konta inwestycyjne i oszczędnościowe (2027), brak Belki w limicie ---
 
@@ -29,7 +31,7 @@ def test_oki_accumulation_like_broker():
             {"oki_inw": acc(starting_balance=10000, annual_contribution=5000, roi=0.02)}
         )
     ]
-    result = simulate(SimulationInput(stages=stages, max_age=41))
+    result = simulate(SimulationInput(stages=stages, max_age=41, config=CFG_NOINFL))
     assert result.years[1].balances["oki_inw"] == pytest.approx(10000 * 1.02 + 5000)
 
 
@@ -42,7 +44,7 @@ def test_oki_no_tax_below_limit_full_cycle():
         ),
         realization_stage("OKI", {"oki_inw": acc(roi=0.02, buffer=0)}, 65, 70),
     ]
-    result = simulate(SimulationInput(stages=stages, max_age=69))
+    result = simulate(SimulationInput(stages=stages, max_age=69, config=CFG_NOINFL))
     assert result.total_tax == 0.0
     assert result.total_withdrawn > 0
 
@@ -51,7 +53,7 @@ def test_oki_asset_tax_above_100k():
     stages = [
         accumulation_stage({"oki_inw": acc(starting_balance=200000, roi=0.02)}, start=40, end=41)
     ]
-    result = simulate(SimulationInput(stages=stages, max_age=40))
+    result = simulate(SimulationInput(stages=stages, max_age=40, config=CFG_NOINFL))
     assert result.total_tax == pytest.approx((202000 - 100000) * 0.0085, abs=0.01)
     assert result.final_wealth == pytest.approx(200000 * 1.02 - 867.0, abs=0.5)
 
@@ -64,7 +66,7 @@ def test_oki_savings_assets_limit_25k():
             end=41,
         )
     ]
-    result = simulate(SimulationInput(stages=stages, max_age=40))
+    result = simulate(SimulationInput(stages=stages, max_age=40, config=CFG_NOINFL))
     assert result.total_tax == pytest.approx((50500 - 25000) * 0.0085, abs=0.01)
 
 
@@ -77,7 +79,7 @@ def test_oki_no_belka_on_early_withdrawal():
             46,
         )
     ]
-    result = simulate(SimulationInput(stages=stages, max_age=45))
+    result = simulate(SimulationInput(stages=stages, max_age=45, config=CFG_NOINFL))
     y = result.years[-1]
     assert y.tax_paid == pytest.approx((150000 - 100000) * 0.0085, abs=0.01)
     assert result.total_tax == y.tax_paid
@@ -92,7 +94,7 @@ def test_oki_asset_tax_during_realization():
             43,
         )
     ]
-    result = simulate(SimulationInput(stages=stages, max_age=42))
+    result = simulate(SimulationInput(stages=stages, max_age=42, config=CFG_NOINFL))
     assert result.total_tax == pytest.approx(3 * 850.0, rel=0.1)
     assert result.final_wealth == pytest.approx(200000.0, rel=0.1)
     assert all(y.tax_paid > 0 for y in result.years)
@@ -100,7 +102,7 @@ def test_oki_asset_tax_during_realization():
 
 def test_oki_in_accounts_list():
     stages = [accumulation_stage({"oki_inw": acc(annual_contribution=10000)})]
-    result = simulate(SimulationInput(stages=stages, max_age=40))
+    result = simulate(SimulationInput(stages=stages, max_age=40, config=CFG_NOINFL))
     assert "oki_inw" in result.accounts
 
 
@@ -118,7 +120,7 @@ def _mix(osk, inw, start=40, end=41, roi=0.0):
             end=end,
         )
     ]
-    return simulate(SimulationInput(stages=stages, max_age=end - 1))
+    return simulate(SimulationInput(stages=stages, max_age=end - 1, config=CFG_NOINFL))
 
 
 def test_oki_mix_25k_osk_75k_inw_no_tax():
@@ -158,7 +160,7 @@ def test_oki_mix_separate_rois():
             end=42,
         )
     ]
-    result = simulate(SimulationInput(stages=stages, max_age=41))
+    result = simulate(SimulationInput(stages=stages, max_age=41, config=CFG_NOINFL))
     y = result.years[-1]
     assert y.balances["oki_osk"] == pytest.approx(15_000 * 1.02, abs=0.01)
     assert y.balances["oki_inw"] == pytest.approx(70_000 * 1.08, abs=0.01)
@@ -176,5 +178,5 @@ def test_oki_mix_25k_osk_75k_inw_exactly_at_limit():
             end=41,
         )
     ]
-    result = simulate(SimulationInput(stages=stages, max_age=40))
+    result = simulate(SimulationInput(stages=stages, max_age=40, config=CFG_NOINFL))
     assert result.total_tax == 0.0

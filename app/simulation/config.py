@@ -173,7 +173,7 @@ class TaxConfig(BaseModel):
     rate_lower: float = 0.12
     rate_upper: float = 0.32
     kup: float = 3600.0
-    inflation: float = 0.0
+    inflation: float = 0.025
     limits: Limits = Field(default_factory=Limits)
     accounts: dict[str, AccountRules] = Field(default_factory=default_account_rules)
     zus: ZusConfig = Field(default_factory=ZusConfig)
