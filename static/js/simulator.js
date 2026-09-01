@@ -656,6 +656,7 @@ function initPresetBar() {
             }
             const saved = await res.json();
             _currentPresetId = saved.id;
+            _currentPresetName = null;
             await refreshPresets();
             applyPresetById(saved.id);
         } catch (err) {
