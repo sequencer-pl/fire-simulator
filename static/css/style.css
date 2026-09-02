@@ -382,10 +382,6 @@ h2 {
     color: #f7931a;
 }
 
-.account-toggle[data-account="krypto"] .tip {
-    color: #f7931a;
-}
-
 .account-toggle .tip .tooltip {
     left: auto;
     right: 0.2rem;
