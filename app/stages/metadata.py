@@ -473,14 +473,6 @@ STAGE_META = {
                         "step": 1000,
                         "hint": FIELD_HINTS["starting_balance"],
                     },
-                    "roi": {
-                        "label": "Inflacja",
-                        "type": "number",
-                        "step": 1,
-                        "percent": True,
-                        "noNetto": True,
-                        "hint": ("Roczna inflacja. Przy inflacji 2,5% wpisz 2,5."),
-                    },
                 },
             },
             "lokata": {
@@ -519,6 +511,9 @@ STAGE_META = {
                             {"value": 4, "label": "4 mies."},
                             {"value": 6, "label": "6 mies."},
                             {"value": 12, "label": "12 mies."},
+                            {"value": 24, "label": "24 mies."},
+                            {"value": 36, "label": "36 mies."},
+                            {"value": 60, "label": "60 mies."},
                         ],
                         "hint": (
                             "Długość pojedynczej lokaty. Belka jest pobierana "
@@ -789,14 +784,6 @@ STAGE_META = {
             "gotowka": {
                 "label": "Gotówka",
                 "fields": {
-                    "roi": {
-                        "label": "Inflacja",
-                        "type": "number",
-                        "step": 1,
-                        "percent": True,
-                        "noNetto": True,
-                        "hint": ("Roczna inflacja. Przy inflacji 2,5% wpisz 2,5."),
-                    },
                     "buffer": {
                         "label": "Bufor",
                         "type": "number",
@@ -829,6 +816,9 @@ STAGE_META = {
                             {"value": 4, "label": "4 mies."},
                             {"value": 6, "label": "6 mies."},
                             {"value": 12, "label": "12 mies."},
+                            {"value": 24, "label": "24 mies."},
+                            {"value": 36, "label": "36 mies."},
+                            {"value": 60, "label": "60 mies."},
                         ],
                         "hint": (
                             "Długość pojedynczej lokaty. Belka jest pobierana "

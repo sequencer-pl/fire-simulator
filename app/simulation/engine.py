@@ -111,12 +111,14 @@ def _validate_stage_order(stages: list[StageInput]) -> None:
 
 def _validate_roi(data: SimulationInput) -> None:
     """ROI must be greater than -100% (lower values break growth and PMT calculations)."""
+    eff_infl = data.inflation if data.inflation is not None else data.config.inflation
     for si in data.stages:
         for name, cfg in si.accounts.items():
-            if cfg.roi <= -1:
+            roi = -eff_infl if name == "gotowka" else cfg.roi
+            if roi <= -1:
                 raise ValueError(
                     f"ROI konta {ACCOUNT_LABELS.get(name, name)} nie może być mniejsze "
-                    f"lub równe -100% (otrzymano {cfg.roi * 100:.0f}%)."
+                    f"lub równe -100% (otrzymano {roi * 100:.0f}%)."
                 )
 
 
@@ -135,7 +137,9 @@ def _init_state(data: SimulationInput) -> SimulationState:
     for stage_input in sorted(data.stages, key=lambda s: s.start_age):
         all_accounts.update(stage_input.accounts.keys())
         for name, cfg in stage_input.accounts.items():
-            if name != "zus" or stage_input.stage_type == "akumulacja":
+            if name == "gotowka":
+                account_rois[name] = -config.inflation
+            elif name != "zus" or stage_input.stage_type == "akumulacja":
                 account_rois[name] = cfg.roi
             if cfg.asset_exemption is not None:
                 asset_exemptions[name] = cfg.asset_exemption
@@ -398,6 +402,9 @@ def _process_stages(
     for stage_input in active_stages:
         stage_obj = create_stage(stage_input.stage_type)
         accounts_config = {name: cfg.model_dump() for name, cfg in stage_input.accounts.items()}
+        for n, c in accounts_config.items():
+            if n == "gotowka":
+                c["roi"] = -config.inflation
 
         # ZUS — contributions and capital indexation (accumulation) plus capital
         # conversion to pension (realization) are handled by the engine because
@@ -525,6 +532,8 @@ def _accumulate_periodic(
     contribution = cfg.get("annual_contribution", 0.0)
     inflation = getattr(config, "inflation", 0.0) or 0.0
     term_months = max(1, int(cfg.get("lokata_term_months", 12)))
+    if term_months > 12:
+        term_months = 12
     intervals = MONTHS_PER_YEAR / term_months
     tax_paid = 0.0
 
@@ -1293,17 +1302,18 @@ def _collect_warnings(data: SimulationInput) -> list[str]:
                             f"przekracza ustawowy limit 7%."
                         )
 
-    # Cash — ROI >= 0% means no inflation or deflation (unlikely).
-    # Deduplication: cash usually appears in both accumulation and realization.
+    # Cash — inflation <= 0% means no erosion (unlikely).
+    eff_infl = data.inflation if data.inflation is not None else config.inflation
     cash_warnings: set[str] = set()
     for si in data.stages:
-        for name, cfg in si.accounts.items():
-            if name == "gotowka" and cfg.roi >= 0:
+        for name in si.accounts:
+            if name == "gotowka" and eff_infl <= 1e-9:
                 cash_warnings.add(
-                    f"Gotówka z ROI {cfg.roi * 100:.1f}% — zakładasz brak inflacji lub "
+                    f"Gotówka — inflacja {eff_infl * 100:.1f}% — zakładasz brak inflacji lub "
                     f"wieloletnią deflację. Realnie gotówka traci na wartości "
                     f"(domyślnie -2,5%/rok); wynik mało prawdopodobny."
                 )
-    warnings.extend(sorted(cash_warnings))
+    if cash_warnings:
+        warnings.extend(sorted(cash_warnings))
 
     return warnings

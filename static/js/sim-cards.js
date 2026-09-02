@@ -38,7 +38,6 @@ const FIELD_DEFAULTS = {
     zus: { waloryzacja_skladek: () => CONFIG?.zus?.waloryzacja_skladek ?? 0, waloryzacja_swiadczenia: () => CONFIG?.zus?.waloryzacja_swiadczenia ?? 0 },
     ppk: { employee_pct: () => CONFIG?.ppk?.employee_pct ?? 0, employer_pct: () => CONFIG?.ppk?.employer_pct ?? 0 },
     ppe: { employer_pct: 0.035 },
-    gotowka: { roi: 0.025 },
     lokata: { lokata_term_months: 12 },
 };
 

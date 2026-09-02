@@ -378,6 +378,10 @@ h2 {
     cursor: help;
 }
 
+.account-toggle[data-account="krypto"] .account-icon {
+    color: #f7931a;
+}
+
 .account-toggle[data-account="krypto"] .tip {
     color: #f7931a;
 }
@@ -867,6 +871,10 @@ h2 {
 .inflation-field .num-control .acc-field {
     max-width: 6ch;
     color: var(--text);
+}
+
+.account-card [data-key="lokata_term_months"] {
+    max-width: 12ch;
 }
 
 .inflation-field .num-control .acc-field::placeholder {
