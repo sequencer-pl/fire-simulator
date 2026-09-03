@@ -88,13 +88,33 @@ Typowy cykl: edytujesz kod → serwer sam się przeładuje → odświeżasz stro
 |-----|------|
 | `make setup` | Instaluje zależności (`uv sync`) |
 | `make dev` | Serwer deweloperski z auto-reload |
-| `make prod` | Serwer na `0.0.0.0:8000` |
+| `make prod` | Serwer na `0.0.0.0:8000` (gunicorn + uvicorn worker) |
+| `make prod-port` | Jak `prod`, ale port z env `PORT` (np. Render) |
 | `make test` | Testy jednostkowe (pytest) |
 | `make lint` | Linter (ruff check) |
 | `make format` | Formatowanie kodu (ruff format + fix) |
 | `make clean` | Usuwa cache i artefakty |
 
 Zapisane symulacje trzymane są lokalnie w SQLite (konto e-mail + hasło wystarczą). Z poziomu strony głównej można je porównywać (do 4 naraz).
+
+## Uruchamianie produkcyjne
+
+Produkcja to FastAPI + gunicorn/uvicorn + SQLite. Wymagane zmienne środowiskowe:
+
+| Zmienna | Obowiązkowa | Opis |
+|---------|-------------|------|
+| `FIRE_ENV` | w produkcji | `production` — wyłącza `/docs`, wymusza `https_only`, wymaga `FIRE_SECRET_KEY` z env |
+| `FIRE_SECRET_KEY` | w produkcji | klucz sesji. W `production` **musi** pochodzić z env (nie jest zapisywany na dysk) |
+| `FIRE_DB` | nie | ścieżka do pliku SQLite (domyślnie `fire.db` w repo). **W produkcji wskaż katalog trwały** |
+
+Dwa sposoby startu:
+
+- **gunicorn** (rekomendowane, używane na hostingu): `gunicorn app.main:app -k uvicorn.workers.UvicornWorker -w 1 --bind 0.0.0.0:$PORT`. Jeden worker — SQLite plikowe jest single-writer.
+- **uvicorn**: `make prod` albo `make prod-port` (port z `PORT`).
+
+Endpoint `GET /healthz` zwraca status + dostępność bazy (probe dla hostingu). Backup bazy — `scripts/backup_db.sh` (online backup `sqlite3 .backup`, zachowuje `BACKUP_KEEP` ostatnich snapshotów).
+
+**Deploy na Render** — repo zawiera `render.yaml` (Blueprint: web service + persistent disk `/var/data` + env). `FIRE_DB` musi wskazywać `mountPath` dysku (np. `/var/data/fire.db`), inaczej dane znikną przy redeploy — Render poza podłączonym dyskiem ma filesystem ephemeryczny. CI/CD leci z GitHub Actions (`.github/workflows/ci.yml` + `deploy.yml` na tag `v*`).
 
 ## Struktura
 

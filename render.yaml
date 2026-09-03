@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: fire-simulator
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app.main:app -k uvicorn.workers.UvicornWorker -w 1 --bind 0.0.0.0:$PORT
+    healthCheckPath: /healthz
+    disk:
+      name: data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: FIRE_ENV
+        value: production
+      - key: FIRE_DB
+        value: /var/data/fire.db
+      - key: FIRE_SECRET_KEY
+        sync: false
