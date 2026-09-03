@@ -1,7 +1,7 @@
 PYTHON := uv run
 APP := app.main:app
 
-.PHONY: setup dev prod test lint format clean
+.PHONY: setup dev prod prod-port test lint format clean
 
 ## Instaluje zależności (tworzy .venv)
 setup:
@@ -11,9 +11,13 @@ setup:
 dev:
 	$(PYTHON) uvicorn $(APP) --reload
 
-## Uruchamia serwer produkcyjny
+## Uruchamia serwer produkcyjny (gunicorn + 1 worker uvicorn; SQLite jest single-writer)
 prod:
-	$(PYTHON) uvicorn $(APP) --host 0.0.0.0 --port 8000
+	$(PYTHON) gunicorn $(APP) -k uvicorn.workers.UvicornWorker -w 1 --bind 0.0.0.0:8000
+
+## Uruchamia serwer produkcyjny na porcie z env PORT (np. Render)
+prod-port:
+	$(PYTHON) gunicorn $(APP) -k uvicorn.workers.UvicornWorker -w 1 --bind 0.0.0.0:$$PORT
 
 ## Uruchamia testy jednostkowe
 test:

@@ -228,3 +228,5 @@ fire.db-wal
 fire.db-shm
 # Sekret sesji generowany przy starcie
 .secret_key
+# Kopie zapasowe bazy
+backups/
