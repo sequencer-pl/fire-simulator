@@ -105,7 +105,7 @@ Produkcja to FastAPI + gunicorn/uvicorn + SQLite. Wymagane zmienne środowiskowe
 |---------|-------------|------|
 | `FIRE_ENV` | w produkcji | `production` — wyłącza `/docs`, wymusza `https_only`, wymaga `FIRE_SECRET_KEY` z env |
 | `FIRE_SECRET_KEY` | w produkcji | klucz sesji. W `production` **musi** pochodzić z env (nie jest zapisywany na dysk) |
-| `FIRE_DB` | nie | ścieżka do pliku SQLite (domyślnie `fire.db` w repo). **W produkcji wskaż katalog trwały** |
+| `FIRE_DB` | nie | ścieżka do pliku SQLite (domyślnie `fire.db` w repo). **Na free tier Render dysk jest ephemeryczny — dane giną przy spin-down/redeploy** |
 
 Dwa sposoby startu:
 
@@ -114,7 +114,9 @@ Dwa sposoby startu:
 
 Endpoint `GET /healthz` zwraca status + dostępność bazy (probe dla hostingu). Backup bazy — `scripts/backup_db.sh` (online backup `sqlite3 .backup`, zachowuje `BACKUP_KEEP` ostatnich snapshotów).
 
-**Deploy na Render** — repo zawiera `render.yaml` (Blueprint: web service + persistent disk `/var/data` + env). `FIRE_DB` musi wskazywać `mountPath` dysku (np. `/var/data/fire.db`), inaczej dane znikną przy redeploy — Render poza podłączonym dyskiem ma filesystem ephemeryczny. CI/CD leci z GitHub Actions (`.github/workflows/ci.yml` + `deploy.yml` na tag `v*`).
+**Deploy na Render** — repo zawiera `render.yaml` (Blueprint: web service + env, build przez `pip install -r requirements.txt`, start przez gunicorn, `/healthz`). CI/CD leci z GitHub Actions (`.github/workflows/ci.yml` + `deploy.yml` na tag `v*`).
+
+> **Uwaga o free tier Render.** Free web service NIE wspiera persistent disk — filesystem jest ephemeryczny, więc lokalne dane (konta, symulacje) giną przy każdym *spin-down* (po ~15 min bezczynności) i przy każdym redeployu. To celowy wybór na **wstępne "demo"** — nie trzymamy tu trwałych kont. Plan na trwałość (w kolejnych krokach): baza zewnętrzna (np. Render Postgres / Turso libSQL) wraz z **export/import symulacji do JSON**.
 
 ## Struktura
 

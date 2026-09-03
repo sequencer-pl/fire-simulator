@@ -6,14 +6,13 @@ services:
     buildCommand: pip install -r requirements.txt
     startCommand: gunicorn app.main:app -k uvicorn.workers.UvicornWorker -w 1 --bind 0.0.0.0:$PORT
     healthCheckPath: /healthz
-    disk:
-      name: data
-      mountPath: /var/data
-      sizeGB: 1
+    # UWAGA: free tier Render nie wspiera persistent disk — dane SQLite są
+    # trzymane na dysku ephemerycznym i giną przy każdym spin-down/redeploy.
+    # To wstępny deploy "demo"; trwała baza planowana w kolejnych krokach.
     envVars:
       - key: FIRE_ENV
         value: production
       - key: FIRE_DB
-        value: /var/data/fire.db
+        value: /tmp/fire.db
       - key: FIRE_SECRET_KEY
         sync: false
