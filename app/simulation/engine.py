@@ -35,6 +35,7 @@ class SimulationState:
     welcomed_ppk: set[str] = field(default_factory=set)
     start_age: int = 0
     basis_vintages: dict[str, list[tuple[int, float]]] = field(default_factory=dict)
+    lokata_interest_nom: dict[str, float] = field(default_factory=dict)
 
     def __iter__(self):
         yield self.config
@@ -51,6 +52,7 @@ class SimulationState:
         yield self.welcomed_ppk
         yield self.start_age
         yield self.basis_vintages
+        yield self.lokata_interest_nom
 
 
 def _compute_ikze_tax_saving(
@@ -453,22 +455,15 @@ def _process_stages(
             if not rules or not rules.tax_periodic:
                 continue
             if stage_input.stage_type == "akumulacja":
-                if state is not None:
-                    periodic_tax[name] = _accumulate_periodic(
-                        name,
-                        accounts_config[name],
-                        balances,
-                        config,
-                        age,
-                        state.start_age,
-                    )
-                else:
-                    periodic_tax[name] = _accumulate_periodic(
-                        name,
-                        accounts_config[name],
-                        balances,
-                        config,
-                    )
+                periodic_tax[name] = _accumulate_periodic(
+                    name,
+                    accounts_config[name],
+                    balances,
+                    config,
+                    age,
+                    state.start_age if state is not None else None,
+                    state,
+                )
                 processed_accounts.add(name)
                 accounts_config.pop(name)
             else:
@@ -517,6 +512,7 @@ def _accumulate_periodic(
     config: TaxConfig,
     age: int | None = None,
     start_age: int | None = None,
+    state: SimulationState | None = None,
 ) -> float:
     """Accumulate an account whose gains are taxed every term (lokata).
 
@@ -524,6 +520,12 @@ def _accumulate_periodic(
     Podatek Belki liczony jest na nominalnym oprocentowaniu brutto
     wyprowadzonym z realnego ROI + inflacji, co pozwala pokazać
     periodyczny drag lokaty vs IKE. Zwraca podatek w wartościach REALNYCH.
+
+    Dla terminy dłuższych niż 12 mies. model jest inny (zgodnie z decyzją):
+    lokata wieloletnia, odsetki kapitalizowane co roku na brutto, a Belka
+    pobierana dopiero na koniec okresu (co term_months mies.). Odroczenie
+    Belki daje realną przewagę (efekt kapitalizacji na brutto), dlatego
+    dłuższe lokaty dają wyższy saldo przy tym samym realnym ROI.
     """
     rules = config.accounts.get(name)
     tax_rate = rules.tax_rate if rules else 0.0
@@ -532,14 +534,18 @@ def _accumulate_periodic(
     contribution = cfg.get("annual_contribution", 0.0)
     inflation = getattr(config, "inflation", 0.0) or 0.0
     term_months = max(1, int(cfg.get("lokata_term_months", 12)))
-    if term_months > 12:
-        term_months = 12
-    intervals = MONTHS_PER_YEAR / term_months
-    tax_paid = 0.0
 
     if roi_real <= 0:
         balances[name] = balance * (1 + roi_real) + contribution
         return 0.0
+
+    if term_months > 12:
+        return _accumulate_periodic_multi_year(
+            name, cfg, balances, config, roi_real, tax_rate, term_months, age, start_age, state
+        )
+
+    intervals = MONTHS_PER_YEAR / term_months
+    tax_paid = 0.0
 
     if inflation == 0:
         nominal_net = roi_real
@@ -591,6 +597,76 @@ def _accumulate_periodic(
 
 def _periodic_net_roi(name: str, rules: AccountRules, cfg: dict) -> float:
     return effective_roi(name, cfg.get("roi", DEFAULT_ROI))
+
+
+def _accumulate_periodic_multi_year(
+    name: str,
+    cfg: dict,
+    balances: dict[str, float],
+    config: TaxConfig,
+    roi_real: float,
+    tax_rate: float,
+    term_months: int,
+    age: int | None,
+    start_age: int | None,
+    state: SimulationState | None,
+) -> float:
+    """Multi-year lokata (term > 12 mies.): Belka only at term end.
+
+    Lokata wieloletnia to jeden stały depozyt. Odsetki kapitalizują się
+    corocznie na STAWCE BRUTTO (bez odejmowania Belki), a Belka pobierana
+    jest dopiero na koniec okresu (co term_months mies.). Dzięki temu
+    dłuższy termin = rzadsza Belka = realnie wyższe saldo przy tym samym
+    realnym ROI netto (efekt odroczenia podatku / kapitalizacji na brutto).
+
+    ROI jest realny netto; Belka liczona jest na nominalnym oprocentowaniu
+    brutto wyprowadzonym z realnego ROI + inflacji.
+    """
+    term_years = max(2, term_months // 12)
+    contribution = cfg.get("annual_contribution", 0.0)
+    inflation = getattr(config, "inflation", 0.0) or 0.0
+
+    nominal_net_annual = fisher_nominal(roi_real, inflation)
+    if 0 < tax_rate < 1:
+        gross_annual = (
+            nominal_net_annual / (1 - tax_rate) if nominal_net_annual > -1 else nominal_net_annual
+        )
+    else:
+        gross_annual = nominal_net_annual
+
+    if gross_annual > 1:
+        balances[name] = balances.get(name, 0.0) * (1 + roi_real) + contribution
+        return 0.0
+
+    factor_start = 1.0
+    factor_end = 1 + inflation
+    is_maturity = True
+    if state is not None and age is not None and start_age is not None:
+        factor_start = cumulative_factor(inflation, age - start_age)
+        factor_end = cumulative_factor(inflation, age - start_age + 1)
+        position = (age - start_age) % term_years
+        is_maturity = position == term_years - 1
+
+    b_nom = balances.get(name, 0.0) * factor_start
+    interest_nom = state.lokata_interest_nom.get(name, 0.0) if state is not None else 0.0
+
+    interest_this_year = b_nom * gross_annual
+    interest_nom += interest_this_year
+    b_nom = b_nom * (1 + gross_annual)
+
+    tax_nom = 0.0
+    if is_maturity:
+        tax_nom = interest_nom * tax_rate
+        b_nom -= tax_nom
+        interest_nom = 0.0
+
+    if state is not None:
+        state.lokata_interest_nom[name] = interest_nom
+
+    contrib_nom = contribution * factor_end
+    b_nom += contrib_nom
+    balances[name] = b_nom / factor_end
+    return tax_nom / factor_end if factor_end else tax_nom
 
 
 def _passive_growth(
