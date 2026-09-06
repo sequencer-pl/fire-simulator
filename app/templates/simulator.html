@@ -29,13 +29,18 @@
                                 <button type="button" class="stepper" data-dir="1">+</button>
                             </div>
                         </div>
-                        <div class="bar-sep"></div>
                         <div class="inflation-field" title="Roczna inflacja dla tej symulacji — puste = użyj wartości z Konfiguracji (globalnej).">
-                            <label>Inflacja (roczna)</label>
-                            <div class="num-control">
-                                <button type="button" class="stepper" data-dir="-1">−</button>
-                                <input type="number" id="simInflation" class="acc-field" step="0.5" min="-5" max="20" placeholder="—" />
-                                <button type="button" class="stepper" data-dir="1">+</button>
+                            <label>Inflacja (roczna)<span class="sim-inflation-hint" id="simInflationHint"></span></label>
+                            <div class="pct-control">
+                                <div class="pct-row pct-row-head">
+                                    <button type="button" class="stepper" data-dir="-1" tabindex="-1" aria-label="Zmniejsz">−</button>
+                                    <input type="number" id="simInflation" class="acc-field" step="0.5" min="-1" max="30" placeholder="—" />
+                                    <button type="button" class="stepper" data-dir="1" tabindex="-1" aria-label="Zwiększ">+</button>
+                                    <button type="button" class="field-reset" id="simInflationReset" title="Użyj inflacji z Konfiguracji (globalnej)" hidden>&#x21ba;</button>
+                                </div>
+                                <div class="pct-row pct-row-slider">
+                                    <div id="simInflationSlider" class="pct-slider-host"></div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -131,6 +136,7 @@
     </script>
     <script src="/static/js/session.js?v={{ version }}"></script>
     <script src="/static/js/sim-utils.js?v={{ version }}"></script>
+    <script src="/static/js/percent-slider.js?v={{ version }}"></script>
     <script src="/static/js/sim-metadata.js?v={{ version }}"></script>
     <script src="/static/js/sim-cards.js?v={{ version }}"></script>
     <script src="/static/js/sim-stages.js?v={{ version }}"></script>

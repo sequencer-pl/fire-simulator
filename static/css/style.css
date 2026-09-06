@@ -197,7 +197,8 @@ h2 {
     border-color: var(--danger);
 }
 
-.num-control .stepper {
+.num-control .stepper,
+.pct-row .stepper {
     flex-shrink: 0;
     width: 2rem;
     border: none;
@@ -213,12 +214,14 @@ h2 {
     justify-content: center;
 }
 
-.num-control .stepper:hover {
+.num-control .stepper:hover,
+.pct-row .stepper:hover {
     background: rgba(108, 92, 231, 0.12);
     color: var(--primary);
 }
 
-.num-control .stepper:active {
+.num-control .stepper:active,
+.pct-row .stepper:active {
     background: rgba(108, 92, 231, 0.22);
 }
 
@@ -865,7 +868,7 @@ h2 {
 
 .gross-field .num-control .acc-field,
 .inflation-field .num-control .acc-field {
-    max-width: 6ch;
+    max-width: 9ch;
     color: var(--text);
 }
 
@@ -1310,7 +1313,8 @@ tr.stage-accum td {
     position: relative;
 }
 
-.num-control .field-reset {
+.num-control .field-reset,
+.pct-row .field-reset {
     flex-shrink: 0;
     width: 2rem;
     border: none;
@@ -1324,10 +1328,12 @@ tr.stage-accum td {
     transition: color 0.15s;
     line-height: 1;
 }
-.num-control .field-reset[hidden] {
+.num-control .field-reset[hidden],
+.pct-row .field-reset[hidden] {
     display: none !important;
 }
-.num-control .field-reset:hover {
+.num-control .field-reset:hover,
+.pct-row .field-reset:hover {
     color: var(--danger);
 }
 
@@ -2502,4 +2508,160 @@ th.col-name { z-index: 3; }
 
     /* --- stage summary --- */
     .cmp-card-metrics { gap: 0.25rem 0.5rem; }
+}
+
+/* --- Suwak procentowy (percent-slider) --- */
+
+.pct-slider-host {
+    flex: 1;
+    min-width: 0;
+}
+
+.pct-slider {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    width: 100%;
+}
+
+.pct-slider-row {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+}
+
+.pct-slider-range {
+    flex: 1;
+    min-width: 100px;
+    -webkit-appearance: none;
+    appearance: none;
+    height: 6px;
+    border-radius: 3px;
+    background: var(--border);
+    outline: none;
+    cursor: pointer;
+    margin: 0;
+}
+
+.pct-slider-range::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--primary);
+    border: 2px solid #fff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+    cursor: pointer;
+}
+
+.pct-slider-range::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--primary);
+    border: 2px solid #fff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+    cursor: pointer;
+}
+
+.pct-slider-value {
+    min-width: 3.5ch;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text);
+    white-space: nowrap;
+}
+
+.pct-slider-value.is-inherit {
+    color: var(--text-dim);
+    font-weight: 400;
+}
+
+.pct-slider-labels {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.68rem;
+    color: var(--text-dim);
+    font-variant-numeric: tabular-nums;
+    user-select: none;
+}
+
+/* --- Złożony komponent procentowy: numerik + suwak w jednej ramce --- */
+.pct-control {
+    display: flex;
+    flex-direction: column;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+    width: 100%;
+    min-width: 0;
+    transition: border-color 0.15s;
+    container-type: inline-size;
+}
+
+.pct-control:focus-within {
+    border-color: var(--primary);
+}
+
+.pct-row {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+}
+
+.pct-control .pct-row-head .acc-field {
+    flex: 1;
+    min-width: 0;
+    max-width: 12ch;
+    width: 100%;
+    border: none;
+    background: transparent;
+    color: var(--text);
+    padding: 0.45rem 0.1rem;
+    border-radius: 0;
+    text-align: center;
+    font-variant-numeric: tabular-nums;
+}
+
+.pct-control .pct-row-head .acc-field::placeholder {
+    color: var(--text-dim);
+    opacity: 0.5;
+}
+
+.pct-control .pct-row-head .field-reset {
+    margin-left: 0.1rem;
+}
+
+.pct-control .pct-row-slider {
+    border-top: 1px solid var(--border);
+    padding: 0.35rem 0.5rem 0.3rem;
+}
+
+@container (max-width: 280px) {
+    .pct-control .pct-row-head .acc-field {
+        max-width: none;
+        text-align: left;
+    }
+}
+
+/* Inflacja w global-config staje się pełnym wierszem pod pozostałymi polami. */
+.global-config-bar .inflation-field {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.35rem;
+    flex: 1 1 100%;
+}
+
+.sim-inflation-hint {
+    display: inline-block;
+    margin-left: 0.5rem;
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    text-transform: none;
+    letter-spacing: 0;
+    font-weight: 400;
 }

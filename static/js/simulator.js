@@ -7,6 +7,7 @@ let DEFAULT_CONFIG = null;
 let PRESETS = [];
 let _currentPresetId = null;
 let _currentPresetName = "Domyślne 2026";
+let _simInflationSlider = null;
 
 let lastInput = null;
 let lastResult = null;
@@ -74,6 +75,42 @@ function setSimInflation(value) {
         el.value = "";
     }
     updateSimInflationHint();
+    if (_simInflationSlider) _simInflationSlider.setValue(simInflationPct(el));
+}
+
+function simInflationPct(input) {
+    if (!input || input.value === "") return null;
+    const v = parseFloat(input.value);
+    return Number.isFinite(v) ? v : null;
+}
+
+function initSimInflationSlider() {
+    const host = document.getElementById("simInflationSlider");
+    const input = document.getElementById("simInflation");
+    const resetBtn = document.getElementById("simInflationReset");
+    if (!host || !input) return;
+    input.dataset.ticks = JSON.stringify(INFLATION_TICKS);
+    const globalPct =
+        DEFAULT_CONFIG && typeof DEFAULT_CONFIG.inflation === "number"
+            ? DEFAULT_CONFIG.inflation * 100
+            : 2.5;
+    const slider = percentSlider(host, {
+        ticks: INFLATION_TICKS,
+        value: simInflationPct(input),
+        fallback: globalPct,
+        onChange: (tick) => {
+            input.value = String(tick);
+            input.dispatchEvent(new Event("input", { bubbles: true }));
+        },
+    });
+    _simInflationSlider = slider;
+    input.addEventListener("input", () => slider.setValue(simInflationPct(input)));
+    if (resetBtn) {
+        resetBtn.addEventListener("click", () => {
+            input.value = "";
+            input.dispatchEvent(new Event("input", { bubbles: true }));
+        });
+    }
 }
 
 function updateSimInflationHint() {
@@ -81,10 +118,14 @@ function updateSimInflationHint() {
     const el = document.getElementById("simInflation");
     if (!hint || !el) return;
     if (el.value === "" && CONFIG && typeof CONFIG.inflation === "number") {
-        hint.textContent = `globalnie ${(CONFIG.inflation * 100).toFixed(1)}%`;
+        hint.textContent = `globalnie ${(CONFIG.inflation * 100).toFixed(1).replace(".", ",")}%`;
+    } else if (el.value === "") {
+        hint.textContent = "globalnie 2,5%";
     } else {
         hint.textContent = "";
     }
+    const resetBtn = document.getElementById("simInflationReset");
+    if (resetBtn) resetBtn.hidden = el.value === "";
 }
 
 function currentGender() {
@@ -286,15 +327,15 @@ document.addEventListener("DOMContentLoaded", () => {
         editBtn.addEventListener("click", () => switchToConfig());
     }
 
-    // Steppery w globalConfig (brutto mies.)
+    // Steppery w globalConfig (brutto mies., inflacja)
     const globalConfig = document.getElementById("globalConfig");
     if (globalConfig) {
         globalConfig.addEventListener("click", (e) => {
             const btn = e.target.closest(".stepper");
             if (!btn) return;
-            const input = btn.closest(".num-control")?.querySelector("input");
+            const input = btn.closest(".pct-row, .num-control")?.querySelector("input");
             if (!input) return;
-            stepInputValue(input, parseInt(btn.dataset.dir) || 0);
+            guardedNumberInputStep(input, parseInt(btn.dataset.dir) || 0);
         });
     }
 
@@ -302,11 +343,11 @@ document.addEventListener("DOMContentLoaded", () => {
     const configContent = document.getElementById("config-content");
     if (configContent) {
         configContent.addEventListener("click", (e) => {
-            const btn = e.target.closest(".num-control .stepper");
+            const btn = e.target.closest(".num-control .stepper, .pct-control .stepper");
             if (!btn) return;
-            const input = btn.parentElement.querySelector(".acc-field");
+            const input = btn.closest(".pct-row, .num-control")?.querySelector(".acc-field");
             if (!input) return;
-            stepInputValue(input, btn.classList.contains("stepper-up") ? 1 : -1);
+            guardedNumberInputStep(input, btn.classList.contains("stepper-up") ? 1 : -1);
         });
     }
 
@@ -350,6 +391,7 @@ async function initConfig() {
         applyZusWaloryzacjaDefaults();
         renderConfigView();
         updateSimInflationHint();
+        initSimInflationSlider();
         updateStageHints(document.getElementById("stages-container"));
         document.getElementById("configResetBtn").addEventListener("click", resetConfig);
         initPresetBar();
@@ -412,7 +454,7 @@ function renderConfigView() {
         configPercentField("rate_lower", "Stawka niższa", CONFIG.rate_lower, "Stawka podatku do progu (2026 r.: 12%)."),
         configPercentField("rate_upper", "Stawka wyższa", CONFIG.rate_upper, "Stawka podatku powyżej progu (2026 r.: 32%)."),
         configNumberField("kup", "Koszty uzyskania przychodu", CONFIG.kup, "Roczne koszty uzyskania przychodu (2026 r.: 3 000–3 600 zł)."),
-        configPercentField("inflation", "Inflacja roczna", CONFIG.inflation, "Roczna inflacja — używana tylko do wyliczenia nominalnego podatku Belki/OKI z realnego ROI (wyniki zawsze w dzisiejszych zł)."),
+        configPercentField("inflation", "Inflacja roczna", CONFIG.inflation, "Roczna inflacja — używana tylko do wyliczenia nominalnego podatku Belki/OKI z realnego ROI (wyniki zawsze w dzisiejszych zł).", INFLATION_TICKS),
     ]));
 
     root.appendChild(configSection("Limity rocznych wpłat", [
@@ -469,22 +511,49 @@ function configSection(title, fields) {
     return section;
 }
 
-function configField(path, label, value, percent, hint) {
+function configField(path, label, value, percent, hint, ticks) {
     const wrap = document.createElement("div");
     wrap.className = "field-group";
     const raw = percent ? value * 100 : value;
     const displayVal = Math.round(raw * 1e4) / 1e4;
+    const inputMin = ticks && ticks.length ? Math.min(...ticks) : 0;
+    const hasTicks = Boolean(ticks && ticks.length);
     wrap.innerHTML = `
         <label>${label}${hint ? tipHtml(hint) : ""}</label>
+        ${hasTicks ? `
+        <div class="pct-control">
+            <div class="pct-row pct-row-head">
+                <button type="button" class="stepper stepper-down" tabindex="-1" aria-label="Zmniejsz">&minus;</button>
+                <input type="number" class="acc-field" min="${inputMin}" step="any" value="${displayVal}" />
+                <button type="button" class="stepper stepper-up" tabindex="-1" aria-label="Zwiększ">+</button>
+                <button type="button" class="field-reset" title="Przywróć wartość domyślną" hidden>&#x21ba;</button>
+            </div>
+            <div class="pct-row pct-row-slider"><div class="pct-slider-host"></div></div>
+        </div>` : `
         <div class="num-control">
             <button type="button" class="stepper stepper-down" tabindex="-1" aria-label="Zmniejsz">&minus;</button>
             <input type="number" class="acc-field" min="0" step="any" value="${displayVal}" />
             <button type="button" class="stepper stepper-up" tabindex="-1" aria-label="Zwiększ">+</button>
             <button type="button" class="field-reset" title="Przywróć wartość domyślną" hidden>&#x21ba;</button>
-        </div>
+        </div>`}
     `;
     const input = wrap.querySelector("input");
     const resetBtn = wrap.querySelector(".field-reset");
+
+    if (hasTicks) {
+        input.dataset.ticks = JSON.stringify(ticks);
+        const host = wrap.querySelector(".pct-slider-host");
+        const slider = percentSlider(host, {
+            ticks,
+            value: displayVal,
+            fallback: displayVal,
+            onChange: (t) => {
+                input.value = String(t);
+                input.dispatchEvent(new Event("input", { bubbles: true }));
+            },
+        });
+        input.addEventListener("input", () => slider.setValue(parseFloat(input.value) || 0));
+    }
 
     function updateIndicator() {
         const cur = percent ? (parseFloat(input.value) || 0) / 100 : (parseFloat(input.value) || 0);
@@ -504,6 +573,9 @@ function configField(path, label, value, percent, hint) {
         setConfigPath(path, def);
         input.value = percent ? def * 100 : def;
         updateIndicator();
+        if (ticks && ticks.length) {
+            input.dispatchEvent(new Event("input", { bubbles: true }));
+        }
     });
 
     updateIndicator();
@@ -514,8 +586,8 @@ function configNumberField(path, label, value, hint) {
     return configField(path, label, value, false, hint);
 }
 
-function configPercentField(path, label, value, hint) {
-    return configField(path, label, value, true, hint);
+function configPercentField(path, label, value, hint, ticks) {
+    return configField(path, label, value, true, hint, ticks);
 }
 
 function renderAccountRulesCard(key, rules) {
