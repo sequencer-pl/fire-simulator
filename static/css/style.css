@@ -2404,6 +2404,9 @@ th.col-name { z-index: 3; }
     .preset-bar { flex-wrap: wrap; gap: 0.5rem; }
     .global-config-bar { flex-wrap: wrap; gap: 0.5rem; }
 
+    .global-config-bar .inflation-field { flex: 1 1 100%; max-width: none; }
+    .global-config-bar .bar-sep { display: none; }
+
     #summary { flex-wrap: wrap; }
     .summary-card { flex: 1 1 calc(50% - 0.5rem); min-width: 0; }
 
@@ -2655,7 +2658,7 @@ th.col-name { z-index: 3; }
     gap: 0.35rem;
     flex: 1 1 0;
     min-width: 0;
-    max-width: 360px;
+    max-width: 300px;
 }
 
 .sim-inflation-hint {
