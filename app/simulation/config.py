@@ -188,15 +188,15 @@ def default_config() -> TaxConfig:
 BUILTIN_PRESETS: dict[str, dict] = {
     "Domyślne 2026": {"inflation": 0.025},
     "Konserwatywne": {
-        "inflation": 0.015,
-        "zus": {"waloryzacja_skladek": 0.005, "waloryzacja_swiadczenia": 0.005},
+        "inflation": 0.035,
+        "zus": {"waloryzacja_skladek": 0.01, "waloryzacja_swiadczenia": 0.01},
     },
     "Realne": {
         "inflation": 0.025,
-        "zus": {"waloryzacja_skladek": 0.015, "waloryzacja_swiadczenia": 0.015},
+        "zus": {"waloryzacja_skladek": 0.02, "waloryzacja_swiadczenia": 0.02},
     },
     "Optymistyczne": {
-        "inflation": 0.035,
+        "inflation": 0.015,
         "zus": {"waloryzacja_skladek": 0.025, "waloryzacja_swiadczenia": 0.025},
     },
 }
