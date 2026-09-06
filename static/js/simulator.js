@@ -313,11 +313,6 @@ document.addEventListener("DOMContentLoaded", () => {
     if (simId) {
         loadSimulation(simId, container);
     } else {
-        if (DEFAULTS.monthly_gross) {
-            const grossInput = document.getElementById("monthlyGross");
-            if (grossInput) grossInput.value = DEFAULTS.monthly_gross;
-        }
-        (DEFAULTS.stages || []).forEach((s) => container.appendChild(createStageBlock(s)));
         updateStageButtons(container);
         updateStageHints(container);
         refreshRealizationToggles(container);
@@ -884,7 +879,6 @@ async function loadSimulation(simId, container) {
         if (data.name) document.title = "FIRE Simulator — " + data.name;
     } catch (err) {
         alert("Błąd: " + err.message);
-        (DEFAULTS.stages || []).forEach((s) => container.appendChild(createStageBlock(s)));
         updateStageButtons(container);
         updateStageHints(container);
         refreshRealizationToggles(container);
