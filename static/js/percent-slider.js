@@ -2,7 +2,12 @@
 // Gęste kroki przy wartościach realistycznych, rzadkie przy ekstremach (snap do ticków).
 // Pole liczbowe (.acc-field) pozostaje kanonem wartości; suwak tylko go synchronizuje.
 
-const INFLATION_TICKS = [-1, -0.5, 0, 0.5, 1, 1.5, 2, 2.5, 3, 5, 10, 30];
+const INFLATION_TICKS = [
+    -1, -0.5,
+    0, 0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5,
+    5.5, 6, 6.5, 7, 7.5, 8, 8.5, 9, 9.5, 10,
+    12, 15, 20, 30,
+];
 
 function formatPctTick(v) {
     return String(v).replace(".", ",");

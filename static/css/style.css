@@ -2648,12 +2648,14 @@ th.col-name { z-index: 3; }
     }
 }
 
-/* Inflacja w global-config staje się pełnym wierszem pod pozostałymi polami. */
+/* Inflacja w global-config obok pola wynagrodzenia — boks o ograniczonej szerokości. */
 .global-config-bar .inflation-field {
     flex-direction: column;
     align-items: stretch;
     gap: 0.35rem;
-    flex: 1 1 100%;
+    flex: 1 1 0;
+    min-width: 0;
+    max-width: 360px;
 }
 
 .sim-inflation-hint {
