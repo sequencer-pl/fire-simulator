@@ -2404,7 +2404,13 @@ th.col-name { z-index: 3; }
     .preset-bar { flex-wrap: wrap; gap: 0.5rem; }
     .global-config-bar { flex-wrap: wrap; gap: 0.5rem; }
 
-    .global-config-bar .inflation-field { flex: 1 1 100%; max-width: none; }
+    .global-config-bar .inflation-field {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.35rem;
+        flex: 1 1 100%;
+        max-width: none;
+    }
     .global-config-bar .bar-sep { display: none; }
 
     #summary { flex-wrap: wrap; }
@@ -2652,13 +2658,15 @@ th.col-name { z-index: 3; }
 }
 
 /* Inflacja w global-config obok pola wynagrodzenia — boks o ograniczonej szerokości. */
-.global-config-bar .inflation-field {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 0.35rem;
-    flex: 1 1 0;
-    min-width: 0;
-    max-width: 300px;
+@media (min-width: 769px) {
+    .global-config-bar .inflation-field {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.35rem;
+        flex: 1 1 0;
+        min-width: 0;
+        max-width: 300px;
+    }
 }
 
 .sim-inflation-hint {
