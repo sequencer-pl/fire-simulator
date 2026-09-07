@@ -1,12 +1,14 @@
 name: Deploy
 
 on:
+  # Deploy po każdym pushu/merge do main (Render buduje linkowany branch).
   push:
-    tags: ['v*']
+    branches: [main]
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
     steps:
       - uses: actions/checkout@v4
 
