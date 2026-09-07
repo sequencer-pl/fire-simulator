@@ -2548,8 +2548,12 @@ th.col-name { z-index: 3; }
     border-radius: 3px;
     background: var(--border);
     outline: none;
-    cursor: pointer;
+    cursor: grab;
     margin: 0;
+}
+
+.pct-slider-range:active {
+    cursor: grabbing;
 }
 
 .pct-slider-range::-webkit-slider-thumb {
@@ -2572,6 +2576,29 @@ th.col-name { z-index: 3; }
     border: 2px solid #fff;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
     cursor: pointer;
+}
+
+.pct-slider-range:active::-webkit-slider-thumb {
+    transform: scale(1.12);
+}
+
+.pct-slider-range:active::-moz-range-thumb {
+    transform: scale(1.12);
+}
+
+.pct-slider.is-inherit .pct-slider-range {
+    opacity: 0.45;
+}
+
+@media (pointer: coarse) {
+    .pct-slider-range::-webkit-slider-thumb {
+        width: 20px;
+        height: 20px;
+    }
+    .pct-slider-range::-moz-range-thumb {
+        width: 18px;
+        height: 18px;
+    }
 }
 
 .pct-slider-value {

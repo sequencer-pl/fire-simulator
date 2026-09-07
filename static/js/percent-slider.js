@@ -71,10 +71,11 @@ function guardedNumberInputStep(input, dir) {
 }
 
 // percentSlider(container, opts) — renderuje suwak do containera.
-// opts: { ticks, value (%|null = dziedziczenie), fallback (%), onChange(tick) }
+// opts: { ticks, value (%|null = dziedziczenie), fallback (%), onChange(tick), label }
 // Zwraca { setValue(v) } aby odzwierciedlić wpisane/załadowane wartości z zewnątrz.
 function percentSlider(container, opts) {
     const ticks = opts.ticks || [];
+    const fallback = typeof opts.fallback === "number" ? opts.fallback : 0;
     const wrap = document.createElement("div");
     wrap.className = "pct-slider";
 
@@ -87,6 +88,9 @@ function percentSlider(container, opts) {
     range.min = 0;
     range.max = String(ticks.length - 1);
     range.step = 1;
+    range.setAttribute("aria-label", typeof opts.label === "string" && opts.label ? opts.label : "Wartość procentowa");
+    range.setAttribute("aria-valuemin", String(ticks[0]));
+    range.setAttribute("aria-valuemax", String(ticks[ticks.length - 1]));
 
     const chip = document.createElement("span");
     chip.className = "pct-slider-value";
@@ -107,24 +111,43 @@ function percentSlider(container, opts) {
     wrap.appendChild(row);
     wrap.appendChild(labels);
 
+    function paintFill(idx) {
+        const p = ticks.length > 1 ? (idx / (ticks.length - 1)) * 100 : 0;
+        range.style.background = `linear-gradient(90deg, var(--primary) ${p}%, var(--border) ${p}%)`;
+    }
+
     function setValue(v) {
         if (typeof v === "number" && Number.isFinite(v)) {
-            range.value = String(nearestTickIndex(ticks, v));
+            const idx = nearestTickIndex(ticks, v);
+            range.value = String(idx);
+            paintFill(idx);
             chip.textContent = formatPctTick(v) + "%";
             chip.classList.remove("is-inherit");
+            wrap.classList.remove("is-inherit");
+            range.setAttribute("aria-valuenow", String(idx));
+            range.setAttribute("aria-valuetext", formatPctTick(v) + "%");
         } else {
-            const fallback = typeof opts.fallback === "number" ? opts.fallback : 0;
-            range.value = String(nearestTickIndex(ticks, fallback));
+            const idx = nearestTickIndex(ticks, fallback);
+            range.value = String(idx);
+            range.style.background = "";
             chip.textContent = "—";
             chip.classList.add("is-inherit");
+            wrap.classList.add("is-inherit");
+            range.setAttribute("aria-valuenow", String(idx));
+            range.setAttribute("aria-valuetext", `dziedziczone: ${formatPctTick(fallback)}%`);
         }
     }
 
     range.addEventListener("input", () => {
-        const t = ticks[parseInt(range.value, 10)];
+        const idx = parseInt(range.value, 10);
+        const t = ticks[idx];
         if (t === undefined) return;
+        paintFill(idx);
         chip.textContent = formatPctTick(t) + "%";
         chip.classList.remove("is-inherit");
+        wrap.classList.remove("is-inherit");
+        range.setAttribute("aria-valuenow", String(idx));
+        range.setAttribute("aria-valuetext", formatPctTick(t) + "%");
         if (typeof opts.onChange === "function") opts.onChange(t);
     });
 

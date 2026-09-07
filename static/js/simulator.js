@@ -98,6 +98,7 @@ function initSimInflationSlider() {
         ticks: INFLATION_TICKS,
         value: simInflationPct(input),
         fallback: globalPct,
+        label: "Inflacja (roczna)",
         onChange: (tick) => {
             input.value = String(tick);
             input.dispatchEvent(new Event("input", { bubbles: true }));
@@ -547,6 +548,7 @@ function configField(path, label, value, percent, hint, ticks) {
             ticks,
             value: displayVal,
             fallback: displayVal,
+            label,
             onChange: (t) => {
                 input.value = String(t);
                 input.dispatchEvent(new Event("input", { bubbles: true }));
