@@ -13,6 +13,10 @@ function formatPctTick(v) {
     return String(v).replace(".", ",");
 }
 
+function round4(v) {
+    return Math.round(v * 1e4) / 1e4;
+}
+
 function nearestTickIndex(ticks, value) {
     let best = 0;
     let bestDist = Infinity;
@@ -72,10 +76,12 @@ function guardedNumberInputStep(input, dir) {
 
 // percentSlider(container, opts) — renderuje suwak do containera.
 // opts: { ticks, value (%|null = dziedziczenie), fallback (%), onChange(tick), label }
-// Zwraca { setValue(v) } aby odzwierciedlić wpisane/załadowane wartości z zewnątrz.
+// Zwraca { setValue(v), setFallback(v) }: setValue odzwierciedla wpisane/
+// załadowane wartości, setFallback podmienia wartość dziedziczoną (np. po
+// zmianie presetu; samo nie odświeża widoku — wołaj potem setValue(null)).
 function percentSlider(container, opts) {
     const ticks = opts.ticks || [];
-    const fallback = typeof opts.fallback === "number" ? opts.fallback : 0;
+    let fallback = typeof opts.fallback === "number" ? round4(opts.fallback) : 0;
     const wrap = document.createElement("div");
     wrap.className = "pct-slider";
 
@@ -130,12 +136,16 @@ function percentSlider(container, opts) {
             const idx = nearestTickIndex(ticks, fallback);
             range.value = String(idx);
             range.style.background = "";
-            chip.textContent = "—";
+            chip.textContent = "≈ " + formatPctTick(fallback) + "%";
             chip.classList.add("is-inherit");
             wrap.classList.add("is-inherit");
             range.setAttribute("aria-valuenow", String(idx));
             range.setAttribute("aria-valuetext", `dziedziczone: ${formatPctTick(fallback)}%`);
         }
+    }
+
+    function setFallback(v) {
+        if (typeof v === "number" && Number.isFinite(v)) fallback = round4(v);
     }
 
     range.addEventListener("input", () => {
@@ -154,5 +164,5 @@ function percentSlider(container, opts) {
     container.appendChild(wrap);
     setValue(opts.value != null ? opts.value : null);
 
-    return { setValue };
+    return { setValue, setFallback };
 }

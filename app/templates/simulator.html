@@ -12,39 +12,6 @@
         <div id="simulatorView">
             <form id="simForm" novalidate>
                 <div id="simConfigSection" class="sim-config-section">
-                    <div id="globalConfig" class="global-config-bar">
-                        <div class="gender-toggle" title="Płeć wpływa na powszechny wiek emerytalny ZUS (60 r.ż. kobiety / 65 r.ż. mężczyźni).">
-                            <label>Płeć</label>
-                            <div class="gender-options">
-                                <label class="gender-option"><input type="radio" name="gender" value="k" /> K</label>
-                                <label class="gender-option"><input type="radio" name="gender" value="m" checked /> M</label>
-                            </div>
-                        </div>
-                        <div class="bar-sep"></div>
-                        <div class="gross-field" title="Miesięczne wynagrodzenie brutto — podstawa do obliczeń składek (ZUS/PPK/PPE) i oszczędności podatkowej (IKZE).">
-                            <label>Wynagrodzenie (brutto)</label>
-                            <div class="num-control">
-                                <button type="button" class="stepper" data-dir="-1">−</button>
-                                <input type="number" id="monthlyGross" class="acc-field" min="0" step="100" value="0" />
-                                <button type="button" class="stepper" data-dir="1">+</button>
-                            </div>
-                        </div>
-                        <div class="bar-sep"></div>
-                        <div class="inflation-field" title="Roczna inflacja dla tej symulacji — puste = użyj wartości z Konfiguracji (globalnej).">
-                            <label>Inflacja (roczna)<span class="sim-inflation-hint" id="simInflationHint"></span></label>
-                            <div class="pct-control">
-                                <div class="pct-row pct-row-head">
-                                    <button type="button" class="stepper" data-dir="-1" tabindex="-1" aria-label="Zmniejsz">−</button>
-                                    <input type="number" id="simInflation" class="acc-field" step="0.5" min="-1" max="30" placeholder="—" />
-                                    <button type="button" class="stepper" data-dir="1" tabindex="-1" aria-label="Zwiększ">+</button>
-                                    <button type="button" class="field-reset" id="simInflationReset" title="Użyj inflacji z Konfiguracji (globalnej)" hidden>&#x21ba;</button>
-                                </div>
-                                <div class="pct-row pct-row-slider">
-                                    <div id="simInflationSlider" class="pct-slider-host"></div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
                     <div id="stages-container">
                     </div>
                 </div>

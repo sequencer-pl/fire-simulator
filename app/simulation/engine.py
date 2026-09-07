@@ -746,9 +746,6 @@ def _apply_ikze_savings(
     merged_tax: dict[str, float],
     age: int | None = None,
 ) -> None:
-    if monthly_gross <= 0:
-        return
-    dochód = _compute_monthly_gross_dochod(monthly_gross, state.config)
     inflation = getattr(state.config, "inflation", 0.0) or 0.0
     for si in active_stages:
         if si.stage_type != "akumulacja":
@@ -759,6 +756,10 @@ def _apply_ikze_savings(
             contribution = cfg.annual_contribution
             if contribution <= 0:
                 continue
+            base = cfg.monthly_base if cfg.monthly_base > 0 else monthly_gross
+            if base <= 0:
+                continue
+            dochód = _compute_monthly_gross_dochod(base, state.config)
             if inflation and age is not None and state.start_age is not None:
                 factor = cumulative_factor(inflation, age - state.start_age + 1)
                 dochód_nom = dochód * factor

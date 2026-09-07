@@ -109,8 +109,7 @@ FIELD_HINTS = {
     "buffer": "Kwota, która zostaje na koncie po etapie (nie jest wypłacana).",
     "monthly_base": (
         "Miesięczne wynagrodzenie brutto — podstawa wymiaru składek "
-        "(ZUS/PPK/PPE) lub obliczania oszczędności podatkowej (IKZE). "
-        'Domyślnie pobierane z globalnego pola "Brutto mies."'
+        "(ZUS/PPK/PPE) lub dochodu do wyliczenia oszczędności podatkowej (IKZE)."
     ),
     "employee_pct": "Wpłata pracownika (% podstawy, ustawowo min. 2%).",
     "employer_pct": "Wpłata pracodawcy (% podstawy, min. 1,5%, max 4%).",
@@ -133,10 +132,6 @@ FIELD_HINTS = {
         "a nie od całej kwoty wypłaty."
     ),
     "cost_basis": ("Łączny koszt zakupu (wpłacony kapitał) — podatek zapłacisz tylko od różnicy."),
-    "base_override_enabled": (
-        "Nadpisz globalne brutto dla tego konta. "
-        "Zaznacz, jeśli używasz innej podstawy niż wpisana globalnie."
-    ),
 }
 
 STAGE_META = {
@@ -226,20 +221,11 @@ STAGE_META = {
                             "zatrudnienia: etat 11 304 zł, przedsiębiorca 16 956 zł."
                         ),
                     },
-                    "base_override_enabled": {
-                        "label": "Niestandardowy dochód",
-                        "type": "checkbox",
-                        "hint": (
-                            "Nadpisz globalne brutto do obliczenia oszczędności "
-                            "podatkowej IKZE (odliczenie od dochodu)."
-                        ),
-                    },
                     "monthly_base": {
-                        "label": "Miesięczne brutto",
+                        "label": "Wynagrodzenie (brutto)",
                         "type": "number",
                         "step": 100,
                         "hint": FIELD_HINTS["monthly_base"],
-                        "visible_when": "base_override_enabled",
                     },
                     "roi": {
                         "label": "ROI",
@@ -381,12 +367,6 @@ STAGE_META = {
                         "type": "number",
                         "step": 100,
                         "hint": FIELD_HINTS["monthly_base"],
-                        "visible_when": "base_override_enabled",
-                    },
-                    "base_override_enabled": {
-                        "label": "Niestandardowa podstawa",
-                        "type": "checkbox",
-                        "hint": FIELD_HINTS["base_override_enabled"],
                     },
                     "employee_pct": {
                         "label": "Wpłata pracownika",
@@ -430,12 +410,6 @@ STAGE_META = {
                         "type": "number",
                         "step": 100,
                         "hint": FIELD_HINTS["monthly_base"],
-                        "visible_when": "base_override_enabled",
-                    },
-                    "base_override_enabled": {
-                        "label": "Niestandardowa podstawa",
-                        "type": "checkbox",
-                        "hint": FIELD_HINTS["base_override_enabled"],
                     },
                     "employer_pct": {
                         "label": "Składka pracodawcy",
@@ -583,12 +557,6 @@ STAGE_META = {
                         "type": "number",
                         "step": 100,
                         "hint": FIELD_HINTS["monthly_base"],
-                        "visible_when": "base_override_enabled",
-                    },
-                    "base_override_enabled": {
-                        "label": "Niestandardowa podstawa",
-                        "type": "checkbox",
-                        "hint": FIELD_HINTS["base_override_enabled"],
                     },
                     "ofe_member": {
                         "label": "Członek OFE",
@@ -858,6 +826,15 @@ STAGE_META = {
             "zus": {
                 "label": "ZUS (emerytura)",
                 "fields": {
+                    "gender": {
+                        "label": "Płeć",
+                        "type": "gender",
+                        "hint": (
+                            "Płeć wpływa na powszechny wiek emerytalny ZUS "
+                            "(60 r.ż. kobiety / 65 r.ż. mężczyźni) — używana do "
+                            "weryfikacji wypłat emerytury przed wiekiem emerytalnym."
+                        ),
+                    },
                     "monthly_pension": {
                         "label": "Emerytura mies.",
                         "type": "number",

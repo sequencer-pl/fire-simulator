@@ -15,6 +15,66 @@ function tipHtml(text, url, icon = "?") {
     return ` <span class="tip" tabindex="0">${icon}<span class="tooltip">${escapeHtml(text)}${link}</span></span>`;
 }
 
+// Pozycjonuje tooltip tak, by cały znalazł się w viewporcie (klamp 8px).
+// Współrzędne liczone lokalnie względem tipa (jego containing block), więc
+// nie zależą od scrolla strony ani transformów przodków.
+function _positionTooltip(tip) {
+    const tooltip = tip.querySelector(".tooltip");
+    if (!tooltip) return;
+    const tr = tip.getBoundingClientRect();
+    const w = tooltip.offsetWidth;
+    const h = tooltip.offsetHeight;
+    const vw = window.innerWidth;
+    let left = tr.left + tr.width / 2 - w / 2;
+    left = Math.max(8, Math.min(left, vw - w - 8));
+    let top = tr.top - h - 8;
+    const below = top < 8;
+    if (below) top = tr.bottom + 8;
+    tooltip.style.left = left - tr.left + "px";
+    tooltip.style.top = top - tr.top + "px";
+    tooltip.style.bottom = "auto";
+    tip.classList.toggle("is-below", below);
+    tip.classList.add("is-positioned");
+}
+
+function _repositionOpenTips() {
+    document.querySelectorAll(".tip:hover, .tip:focus, .tip:focus-within").forEach(_positionTooltip);
+}
+
+// Kotwiczy tooltipy w viewporcie (JS), by nie wypadały poza ekran.
+let _tipAnchoringInit = false;
+function initTipAnchoring() {
+    if (_tipAnchoringInit) return;
+    _tipAnchoringInit = true;
+    document.addEventListener(
+        "mouseenter",
+        (e) => {
+            const tip = e.target.closest?.(".tip");
+            if (tip) _positionTooltip(tip);
+        },
+        true
+    );
+    document.addEventListener(
+        "focusin",
+        (e) => {
+            const tip = e.target.closest?.(".tip");
+            if (tip) _positionTooltip(tip);
+        },
+        true
+    );
+    let ticking = false;
+    const schedule = () => {
+        if (ticking) return;
+        ticking = true;
+        requestAnimationFrame(() => {
+            ticking = false;
+            _repositionOpenTips();
+        });
+    };
+    window.addEventListener("resize", schedule);
+    document.addEventListener("scroll", schedule, true);
+}
+
 function formatMoney(val) {
     if (val === 0) return "—";
     return val.toLocaleString("pl-PL", { maximumFractionDigits: 0 }) + " zł";
@@ -41,7 +101,7 @@ function stepInputValue(input, dir) {
 }
 
 function resolveBase(cfg, monthlyGross) {
-    if (cfg.base_override_enabled) return cfg.monthly_base || 0;
+    if (cfg.monthly_base > 0) return cfg.monthly_base;
     return monthlyGross || 0;
 }
 

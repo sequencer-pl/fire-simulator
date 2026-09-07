@@ -16,6 +16,10 @@
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
+html {
+    overflow-x: clip;
+}
+
 body {
     font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
     background: var(--bg);
@@ -364,6 +368,7 @@ h2 {
     font-size: 0.78rem;
     line-height: 1.3;
     white-space: nowrap;
+    overflow-wrap: anywhere;
 }
 
 .account-toggle .tip {
@@ -383,24 +388,6 @@ h2 {
 
 .account-toggle[data-account="krypto"] .account-icon {
     color: #f7931a;
-}
-
-.account-toggle .tip .tooltip {
-    left: auto;
-    right: 0.2rem;
-    transform: translateY(4px);
-}
-
-.account-toggle .tip .tooltip::after {
-    left: auto;
-    right: 0.35rem;
-    transform: translateX(-50%);
-}
-
-.account-toggle .tip:hover .tooltip,
-.account-toggle .tip:focus .tooltip,
-.account-toggle .tip:focus-within .tooltip {
-    transform: translateY(0);
 }
 
 /* --- Account cards --- */
@@ -463,7 +450,7 @@ h2 {
     left: 50%;
     transform: translateX(-50%) translateY(4px);
     width: max-content;
-    max-width: 300px;
+    max-width: min(300px, calc(100vw - 2rem));
     padding: 0.55rem 0.7rem;
     border-radius: 8px;
     background: #2d2b3f;
@@ -480,16 +467,6 @@ h2 {
     box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
 }
 
-.tip .tooltip::after {
-    content: "";
-    position: absolute;
-    top: 100%;
-    left: 50%;
-    transform: translateX(-50%);
-    border: 6px solid transparent;
-    border-top-color: #2d2b3f;
-}
-
 .tip .tooltip a {
     color: #7fb8ff;
     text-decoration: underline;
@@ -503,6 +480,12 @@ h2 {
     visibility: visible;
     transform: translateX(-50%) translateY(0);
     pointer-events: auto;
+}
+
+/* Tooltip pozycjonowany z JS (klamp w viewport) — znosi bazowe kotwiczenie. */
+.tip.is-positioned .tooltip {
+    bottom: auto;
+    transform: none;
 }
 
 .account-card .fields-row {
@@ -879,10 +862,6 @@ h2 {
 .inflation-field .num-control .acc-field::placeholder {
     color: var(--text-dim);
     opacity: 0.5;
-}
-
-#simInflationHint {
-    white-space: nowrap;
 }
 
 .bar-sep {
@@ -2550,6 +2529,7 @@ th.col-name { z-index: 3; }
     outline: none;
     cursor: grab;
     margin: 0;
+    touch-action: none;
 }
 
 .pct-slider-range:active {
@@ -2578,27 +2558,8 @@ th.col-name { z-index: 3; }
     cursor: pointer;
 }
 
-.pct-slider-range:active::-webkit-slider-thumb {
-    transform: scale(1.12);
-}
-
-.pct-slider-range:active::-moz-range-thumb {
-    transform: scale(1.12);
-}
-
 .pct-slider.is-inherit .pct-slider-range {
     opacity: 0.45;
-}
-
-@media (pointer: coarse) {
-    .pct-slider-range::-webkit-slider-thumb {
-        width: 20px;
-        height: 20px;
-    }
-    .pct-slider-range::-moz-range-thumb {
-        width: 18px;
-        height: 18px;
-    }
 }
 
 .pct-slider-value {

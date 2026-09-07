@@ -7,7 +7,6 @@ let DEFAULT_CONFIG = null;
 let PRESETS = [];
 let _currentPresetId = null;
 let _currentPresetName = "Domyślne 2026";
-let _simInflationSlider = null;
 
 let lastInput = null;
 let lastResult = null;
@@ -53,89 +52,21 @@ function gatherFormData() {
         stages: stages,
         max_age: 100,
         gender: currentGender(),
-        monthly_gross: parseFloat(document.getElementById("monthlyGross")?.value) || 0,
-        inflation: getSimInflation(),
+        monthly_gross: 0,
+        inflation: null,
         config: CONFIG,
     };
 }
 
-function getSimInflation() {
-    const el = document.getElementById("simInflation");
-    if (!el || el.value === "") return null;
-    const v = parseFloat(el.value);
-    return Number.isFinite(v) ? v / 100 : null;
-}
-
-function setSimInflation(value) {
-    const el = document.getElementById("simInflation");
-    if (!el) return;
-    if (typeof value === "number" && Number.isFinite(value)) {
-        el.value = (Math.round(value * 1000) / 10).toString();
-    } else {
-        el.value = "";
-    }
-    updateSimInflationHint();
-    if (_simInflationSlider) _simInflationSlider.setValue(simInflationPct(el));
-}
-
-function simInflationPct(input) {
-    if (!input || input.value === "") return null;
-    const v = parseFloat(input.value);
-    return Number.isFinite(v) ? v : null;
-}
-
-function initSimInflationSlider() {
-    const host = document.getElementById("simInflationSlider");
-    const input = document.getElementById("simInflation");
-    const resetBtn = document.getElementById("simInflationReset");
-    if (!host || !input) return;
-    input.dataset.ticks = JSON.stringify(INFLATION_TICKS);
-    const globalPct =
-        DEFAULT_CONFIG && typeof DEFAULT_CONFIG.inflation === "number"
-            ? DEFAULT_CONFIG.inflation * 100
-            : 2.5;
-    const slider = percentSlider(host, {
-        ticks: INFLATION_TICKS,
-        value: simInflationPct(input),
-        fallback: globalPct,
-        label: "Inflacja (roczna)",
-        onChange: (tick) => {
-            input.value = String(tick);
-            input.dispatchEvent(new Event("input", { bubbles: true }));
-        },
-    });
-    _simInflationSlider = slider;
-    input.addEventListener("input", () => slider.setValue(simInflationPct(input)));
-    if (resetBtn) {
-        resetBtn.addEventListener("click", () => {
-            input.value = "";
-            input.dispatchEvent(new Event("input", { bubbles: true }));
-        });
-    }
-}
-
-function updateSimInflationHint() {
-    const hint = document.getElementById("simInflationHint");
-    const el = document.getElementById("simInflation");
-    if (!hint || !el) return;
-    if (el.value === "" && CONFIG && typeof CONFIG.inflation === "number") {
-        hint.textContent = `globalnie ${(CONFIG.inflation * 100).toFixed(1).replace(".", ",")}%`;
-    } else if (el.value === "") {
-        hint.textContent = "globalnie 2,5%";
-    } else {
-        hint.textContent = "";
-    }
-    const resetBtn = document.getElementById("simInflationReset");
-    if (resetBtn) resetBtn.hidden = el.value === "";
-}
-
 function currentGender() {
-    const checked = document.querySelector('input[name="gender"]:checked');
+    const checked = document.querySelector(
+        '.account-card[data-account="zus"] input[type="radio"]:checked'
+    );
     return checked ? checked.value : "m";
 }
 
 function setGender(value) {
-    const radio = document.querySelector(`input[name="gender"][value="${value}"]`);
+    const radio = document.querySelector(`.account-card[data-account="zus"] input[type="radio"][value="${value}"]`);
     if (radio) radio.checked = true;
 }
 
@@ -321,23 +252,12 @@ document.addEventListener("DOMContentLoaded", () => {
     initSaveButton();
     initResultsControls();
     initStageEventHandlers(container);
+    initTipAnchoring();
 
     // "Edytuj" button — switch from results back to config
     const editBtn = document.getElementById("editConfigBtn");
     if (editBtn) {
         editBtn.addEventListener("click", () => switchToConfig());
-    }
-
-    // Steppery w globalConfig (brutto mies., inflacja)
-    const globalConfig = document.getElementById("globalConfig");
-    if (globalConfig) {
-        globalConfig.addEventListener("click", (e) => {
-            const btn = e.target.closest(".stepper");
-            if (!btn) return;
-            const input = btn.closest(".pct-row, .num-control")?.querySelector("input");
-            if (!input) return;
-            guardedNumberInputStep(input, parseInt(btn.dataset.dir) || 0);
-        });
     }
 
     // Steppery w konfiguracji
@@ -391,12 +311,10 @@ async function initConfig() {
         PRESETS = presetsData.presets || [];
         applyZusWaloryzacjaDefaults();
         renderConfigView();
-        updateSimInflationHint();
-        initSimInflationSlider();
+        initTipAnchoring();
         updateStageHints(document.getElementById("stages-container"));
         document.getElementById("configResetBtn").addEventListener("click", resetConfig);
         initPresetBar();
-        document.getElementById("simInflation")?.addEventListener("input", updateSimInflationHint);
     } catch (err) {
         console.error("Nie udało się wczytać konfiguracji:", err);
     }
@@ -455,7 +373,7 @@ function renderConfigView() {
         configPercentField("rate_lower", "Stawka niższa", CONFIG.rate_lower, "Stawka podatku do progu (2026 r.: 12%)."),
         configPercentField("rate_upper", "Stawka wyższa", CONFIG.rate_upper, "Stawka podatku powyżej progu (2026 r.: 32%)."),
         configNumberField("kup", "Koszty uzyskania przychodu", CONFIG.kup, "Roczne koszty uzyskania przychodu (2026 r.: 3 000–3 600 zł)."),
-        configPercentField("inflation", "Inflacja roczna", CONFIG.inflation, "Roczna inflacja — używana tylko do wyliczenia nominalnego podatku Belki/OKI z realnego ROI (wyniki zawsze w dzisiejszych zł).", INFLATION_TICKS),
+        configPercentField("inflation", "Inflacja roczna", CONFIG.inflation, "Roczna inflacja — jedyne źródło dla całej symulacji. Używana do wyliczenia nominalnego podatku Belki/OKI z realnego ROI oraz realnej erozji gotówki (wyniki zawsze w dzisiejszych zł)."),
     ]));
 
     root.appendChild(configSection("Limity rocznych wpłat", [
@@ -661,6 +579,7 @@ async function resetConfig() {
     _currentPresetId = null;
     _currentPresetName = "Domyślne 2026";
     renderConfigView();
+    initTipAnchoring();
     updateStageHints(document.getElementById("stages-container"));
     refreshPresetBar();
     if (window.getCurrentUserEmail?.()) {
@@ -819,7 +738,7 @@ async function applyPresetByName(name) {
         _currentPresetName = name;
         applyZusWaloryzacjaDefaults();
         renderConfigView();
-        updateSimInflationHint();
+        initTipAnchoring();
         updateStageHints(document.getElementById("stages-container"));
         scheduleConfigSave();
         refreshPresetBar();
@@ -929,9 +848,6 @@ function populateStages(inputData) {
     const container = document.getElementById("stages-container");
     if (inputData.config) CONFIG = backfillConfig(inputData.config);
     if (inputData.gender) setGender(inputData.gender);
-    const grossInput = document.getElementById("monthlyGross");
-    if (grossInput && inputData.monthly_gross != null) grossInput.value = inputData.monthly_gross;
-    if ("inflation" in inputData) setSimInflation(inputData.inflation);
     container.innerHTML = "";
     (inputData.stages || []).forEach((stage) => {
         migrateLegacyAccounts(stage);

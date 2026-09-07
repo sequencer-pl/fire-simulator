@@ -41,6 +41,8 @@ const FIELD_DEFAULTS = {
     lokata: { lokata_term_months: 12 },
 };
 
+let _genderCardSeq = 0;
+
 function fieldDefault(accountKey, key) {
     const table = FIELD_DEFAULTS[accountKey];
     if (!table) return 0;
@@ -99,6 +101,20 @@ function createAccountCard(stageType, accountKey, accountData) {
         const displayVal = fieldDef.percent ? Math.round(rawVal * 100 * 100) / 100 : rawVal;
         const maxBtns = limitButtonsHtml(accountKey, key);
         const chipsHtml = maxBtns ? `<div class="max-chips">${maxBtns}</div>` : "";
+
+        if (fieldDef.type === "gender") {
+            const uid = "gender-" + accountKey + "-" + (++_genderCardSeq);
+            fieldsHtml += `
+                <div class="field-group" ${visibleWhen}>
+                    <label>${fieldLabelHtml(fieldDef)}</label>
+                    <div class="gender-options">
+                        <label class="gender-option"><input type="radio" name="${uid}" value="k" /> K</label>
+                        <label class="gender-option"><input type="radio" name="${uid}" value="m" checked /> M</label>
+                    </div>
+                </div>
+            `;
+            continue;
+        }
 
         if (fieldDef.type === "checkbox") {
             fieldsHtml += `
