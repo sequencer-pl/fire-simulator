@@ -1,0 +1,237 @@
+{% extends "base.html" %}
+{% block title %}FIRE Simulator — Asystent{% endblock %}
+{% block subtitle %}Asystent niezależności finansowej — krok po kroku{% endblock %}
+{% block topnav %}
+<a href="/" class="btn btn-secondary" style="margin:0;">Moje symulacje</a>
+<a href="/sim" class="btn btn-secondary" style="margin:0;">Edytor</a>
+{% endblock %}
+{% block head_extra %}<link rel="stylesheet" href="/static/css/wizard.css?v={{ version }}">{% endblock %}
+{% block content %}
+<div class="wizard">
+    <div class="wizard-progress" id="wizardProgress">
+        <div class="wizard-progress-bar" id="wizardProgressBar"></div>
+        <div class="wizard-progress-labels">
+            <span class="wz-step-label">1. Podstawy</span>
+            <span class="wz-step-label">2. Kapitał</span>
+            <span class="wz-step-label">3. Instrumenty</span>
+            <span class="wz-step-label">4. Cele</span>
+            <span class="wz-step-label">5. Strategia</span>
+            <span class="wz-step-label">6. Podsumowanie</span>
+        </div>
+    </div>
+
+    <!-- KROK 1: PODSTAWY -->
+    <section class="wz-step" data-step="1">
+        <h2>Podstawy</h2>
+        <p class="subtitle">Zacznijmy od danych o Tobie i Twojej pracy.</p>
+        <div class="wz-fields">
+            <div class="field-group">
+                <label>Płeć</label>
+                <select id="wzGender" class="acc-field">
+                    <option value="m">Mężczyzna</option>
+                    <option value="k">Kobieta</option>
+                </select>
+            </div>
+            <div class="field-group">
+                <label>Obecny wiek</label>
+                <div class="num-control">
+                    <button type="button" class="stepper stepper-down" tabindex="-1" aria-label="Zmniejsz wiek">&minus;</button>
+                    <input type="number" id="wzAge" class="acc-field" value="30" min="16" max="90">
+                    <button type="button" class="stepper stepper-up" tabindex="-1" aria-label="Zwiększ wiek">+</button>
+                </div>
+            </div>
+            <div class="field-group">
+                <label>Forma zatrudnienia</label>
+                <select id="wzEmployment" class="acc-field">
+                    <option value="etat">Etat</option>
+                    <option value="b2b">B2B / samozatrudnienie</option>
+                    <option value="niepracujacy">Nie pracuję</option>
+                </select>
+            </div>
+            <div class="field-group">
+                <label>Pensja brutto (mies.)</label>
+                <div class="num-control">
+                    <button type="button" class="stepper stepper-down" tabindex="-1" aria-label="Zmniejsz pensję">&minus;</button>
+                    <input type="number" id="wzGross" class="acc-field" value="8000" min="0" step="100">
+                    <button type="button" class="stepper stepper-up" tabindex="-1" aria-label="Zwiększ pensję">+</button>
+                </div>
+            </div>
+        </div>
+        <div class="wz-step-actions">
+            <button type="button" class="btn btn-primary wz-next">Dalej</button>
+        </div>
+    </section>
+
+    <!-- KROK 2: KAPITAŁ I OSZCZĘDNOŚCI -->
+    <section class="wz-step hidden" data-step="2">
+        <h2>Twój kapitał i oszczędności</h2>
+        <p class="subtitle">Wpisz salda na poszczególnych kontach. Zostaw 0, jeśli danego przetrzynania nie masz.</p>
+        <div class="wz-capital-grid" id="wzCapitalGrid"></div>
+        <div class="wz-savings-row">
+            <div class="field-group">
+                <label>Odkładasz miesięcznie</label>
+                <select id="wzSavingsMode" class="acc-field">
+                    <option value="amount">kwotę (zł)</option>
+                    <option value="pct" selected>% pensji</option>
+                </select>
+                <div class="num-control">
+                    <button type="button" class="stepper stepper-down" tabindex="-1" aria-label="Zmniejsz oszczędności">&minus;</button>
+                    <input type="number" id="wzSavings" class="acc-field" value="10" min="0" step="50">
+                    <button type="button" class="stepper stepper-up" tabindex="-1" aria-label="Zwiększ oszczędności">+</button>
+                </div>
+            </div>
+            <p class="wz-hint" id="wzSavingsHint">Oszczędności „na czysto” — dodatkowe do wpłat w PPK/ZUS.</p>
+        </div>
+        <div class="wz-step-actions">
+            <button type="button" class="btn btn-secondary wz-back">Wstecz</button>
+            <button type="button" class="btn btn-primary wz-next">Dalej</button>
+        </div>
+    </section>
+
+    <!-- KROK 3: INSTRUMENTY -->
+    <section class="wz-step hidden" data-step="3">
+        <h2>Instrumenty</h2>
+        <p class="subtitle">Z których rozwiązań korzystasz? Dostępne jedynie zamiast w głównej drodze.</p>
+        <div class="wz-instruments">
+            <label class="wz-check"><input type="checkbox" id="wzZus" checked> ZUS (składki emerytalne)</label>
+            <label class="wz-check"><input type="checkbox" id="wzPpk"> PPK <span class="wz-check-sub">pracowniczy plan kapitałowy</span></label>
+            <label class="wz-check"><input type="checkbox" id="wzIkze"> IKZE <span class="wz-check-sub">dopłaty do limitu</span></label>
+            <label class="wz-check"><input type="checkbox" id="wzIke"> IKE <span class="wz-check-sub">dopłaty do limitu</span></label>
+            <label class="wz-check"><input type="checkbox" id="wzOipe"> OIPE <span class="wz-check-sub">dopłaty do limitu</span></label>
+        </div>
+        <div class="wz-ppk-fields hidden" id="wzPpkFields">
+            <div class="field-group">
+                <label>PPK — % pracownika</label>
+                <input type="number" id="wzPpkEmployee" class="acc-field" value="2" step="0.5" data-percent="1">
+            </div>
+            <div class="field-group">
+                <label>PPK — % pracodawcy</label>
+                <input type="number" id="wzPpkEmployer" class="acc-field" value="1.5" step="0.5" data-percent="1">
+            </div>
+        </div>
+        <button type="button" class="btn btn-secondary wz-advanced-toggle" data-target="wzAdvancedInstruments">Więcej opcji (PPE, OKI, krypto, lokata, obligacje)</button>
+        <div id="wzAdvancedInstruments" class="hidden wz-advanced-box">
+            <label class="wz-check"><input type="checkbox" id="wzPpe" value="ppe"> PPE <span class="wz-check-sub">pracowniczy plan emerytalny</span></label>
+            <label class="wz-check"><input type="checkbox" id="wzOkiInw" value="oki_inw"> OKI inwestycyjne</label>
+            <label class="wz-check"><input type="checkbox" id="wzOkiOsk" value="oki_osk"> OKI oszczędnościowe</label>
+            <label class="wz-check"><input type="checkbox" id="wzKrypto" value="krypto"> Krypto</label>
+            <label class="wz-check"><input type="checkbox" id="wzLokata" value="lokata"> Lokata</label>
+            <label class="wz-check"><input type="checkbox" id="wzObligacje" value="obligacje"> Obligacje</label>
+        </div>
+        <div class="wz-step-actions">
+            <button type="button" class="btn btn-secondary wz-back">Wstecz</button>
+            <button type="button" class="btn btn-primary wz-next">Dalej</button>
+        </div>
+    </section>
+
+    <!-- KROK 4: CELE -->
+    <section class="wz-step hidden" data-step="4">
+        <h2>Twoje cele</h2>
+        <p class="subtitle">Wybierz, czego chcesz się dowiedzieć — asystent wstecznie wyliczy resztę.</p>
+        <div class="wz-paths" id="wzPaths">
+            <label class="wz-path">
+                <input type="radio" name="wzPath" value="1" checked>
+                <span class="wz-path-title">Ile dostanę?</span>
+                <span class="wz-path-desc">Znany kapitał + oszczędności + wiek FIRE → przewidywana wypłata miesięczna.</span>
+            </label>
+            <label class="wz-path">
+                <input type="radio" name="wzPath" value="2">
+                <span class="wz-path-title">Ile muszę odkładać?</span>
+                <span class="wz-path-desc">Cel wypłaty + wiek FIRE → wymagane miesięczne oszczędności.</span>
+            </label>
+            <label class="wz-path">
+                <input type="radio" name="wzPath" value="3">
+                <span class="wz-path-title">Kiedy mogę przestać pracować?</span>
+                <span class="wz-path-desc">Cel wypłaty + oszczędności → najwcześniejszy wiek FIRE.</span>
+            </label>
+        </div>
+        <div class="wz-goal-fields hidden" id="wzGoalField">
+            <div class="field-group">
+                <label>Cel wypłaty miesięcznej (netto, zł)</label>
+                <input type="number" id="wzTarget" class="acc-field" value="6000" min="100" step="100">
+            </div>
+        </div>
+        <div class="wz-fields">
+            <div class="field-group">
+                <label>Wiek przejścia na FIRE (koniec akumulacji)</label>
+                <div class="num-control">
+                    <button type="button" class="stepper stepper-down" tabindex="-1" aria-label="Zmniejsz wiek FIRE">&minus;</button>
+                    <input type="number" id="wzRe" class="acc-field" value="55" min="0" max="110">
+                    <button type="button" class="stepper stepper-up" tabindex="-1" aria-label="Zwiększ wiek FIRE">+</button>
+                </div>
+            </div>
+            <div class="field-group">
+                <label>Wiek emerytury (puste = domyślny)</label>
+                <input type="number" id="wzRetirement" class="acc-field" placeholder="np. 65" min="0" max="110">
+            </div>
+            <div class="field-group">
+                <label>Do którego wieku plan (wyłącznie)</label>
+                <div class="num-control">
+                    <button type="button" class="stepper stepper-down" tabindex="-1" aria-label="Zmniejsz wiek końca planu">&minus;</button>
+                    <input type="number" id="wzPlanEnd" class="acc-field" value="96" min="1" max="120">
+                    <button type="button" class="stepper stepper-up" tabindex="-1" aria-label="Zwiększ wiek końca planu">+</button>
+                </div>
+            </div>
+        </div>
+        <div class="wz-step-actions">
+            <button type="button" class="btn btn-secondary wz-back">Wstecz</button>
+            <button type="button" class="btn btn-primary wz-next">Dalej</button>
+        </div>
+    </section>
+
+    <!-- KROK 5: STRATEGIA + WYNIK -->
+    <section class="wz-step hidden" data-step="5">
+        <h2>Strategia i wynik</h2>
+        <div class="wz-fields">
+            <div class="field-group">
+                <label>Strategia inwestycyjna</label>
+                <select id="wzStrategy" class="acc-field">
+                    <option value="konserwatywna">Konserwatywna</option>
+                    <option value="zbilansowana" selected>Zbilansowana</option>
+                    <option value="agresywna">Agresywna</option>
+                </select>
+                <p class="wz-hint">Decyduje o zakładanych stopach zwrotu (ROI) poszczególnych kont.</p>
+            </div>
+        </div>
+        <button type="button" class="btn btn-primary" id="wzRunBtn">Wylicz plan</button>
+        <div id="wzResult" class="wz-result hidden">
+            <div id="wzResultError" class="wz-result-error hidden"></div>
+            <div class="wz-metric-line" id="wzMetrics"></div>
+            <div id="wzSolved" class="wz-solved"></div>
+            <div id="wzWarnings" class="wz-warnings"></div>
+        </div>
+        <div class="wz-step-actions">
+            <button type="button" class="btn btn-secondary wz-back">Wstecz</button>
+            <button type="button" class="btn btn-primary wz-next" id="wzToSummary" disabled>Podsumowanie</button>
+        </div>
+    </section>
+
+    <!-- KROK 6: PODSUMOWANIE -->
+    <section class="wz-step hidden" data-step="6">
+        <h2>Podsumowanie</h2>
+        <p class="subtitle">Tak wyglądać będą Twoje etapy. Możesz je dalej edytować w edytorze.</p>
+        <div class="wz-timeline" id="wzTimeline"></div>
+        <div id="wzStagePreview" class="wz-stage-preview"></div>
+        <div class="wz-step-actions">
+            <button type="button" class="btn btn-secondary wz-back">Wstecz</button>
+            <button type="button" class="btn btn-primary" id="wzFinishBtn">Przejdź do edytora</button>
+        </div>
+    </section>
+
+    <div class="wizard-footnote">
+        <p>Wypłaty pokazane są netto (po podatku). Symulacja jest deterministyczna — opiera się na założonych stopach zwrotu i nie gwarantuje przyszłych wyników.</p>
+    </div>
+</div>
+{% endblock %}
+{% block scripts %}
+    <script>
+    const STAGE_TYPES = {{ stage_types | tojson }};
+    let CONFIG = null;
+    </script>
+    <script src="/static/js/session.js?v={{ version }}"></script>
+    <script src="/static/js/sim-utils.js?v={{ version }}"></script>
+    <script src="/static/js/sim-metadata.js?v={{ version }}"></script>
+    <script src="/static/js/sim-cards.js?v={{ version }}"></script>
+    <script src="/static/js/sim-stages.js?v={{ version }}"></script>
+    <script src="/static/js/wizard.js?v={{ version }}"></script>
+{% endblock %}

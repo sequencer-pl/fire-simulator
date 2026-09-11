@@ -2666,3 +2666,13 @@ th.col-name { z-index: 3; }
     letter-spacing: 0;
     font-weight: 400;
 }
+
+.wizard-draft-bar {
+    background: var(--bg-elevated);
+    border: 1px solid rgba(0, 206, 201, 0.4);
+    border-radius: 8px;
+    padding: 0.6rem 0.9rem;
+    margin-bottom: 0.75rem;
+    font-size: 0.9rem;
+    color: var(--text);
+}

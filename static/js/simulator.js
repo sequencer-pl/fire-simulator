@@ -275,11 +275,37 @@ document.addEventListener("DOMContentLoaded", () => {
     if (simId) {
         loadSimulation(simId, container);
     } else {
+        applyWizardDraftIfPresent();
         updateStageButtons(container);
         updateStageHints(container);
         refreshRealizationToggles(container);
     }
 });
+
+const WIZARD_DRAFT_KEY = "fire.wizardDraft";
+
+function applyWizardDraftIfPresent() {
+    const container = document.getElementById("stages-container");
+    const raw = localStorage.getItem(WIZARD_DRAFT_KEY);
+    if (!raw || !container) return;
+    try {
+        const draft = JSON.parse(raw);
+        if (!draft || !Array.isArray(draft.stages) || !draft.stages.length) return;
+        populateStages(draft);
+        showWizardDraftBanner();
+    } catch (err) {
+        localStorage.removeItem(WIZARD_DRAFT_KEY);
+    }
+}
+
+function showWizardDraftBanner() {
+    const bar = document.getElementById("wizardDraftBar");
+    if (bar) bar.classList.remove("hidden");
+}
+
+function clearWizardDraft() {
+    localStorage.removeItem(WIZARD_DRAFT_KEY);
+}
 
 // --- Tryby: Symulator / Konfiguracja ---
 
@@ -821,6 +847,9 @@ function initSaveButton() {
                 alert("Błąd zapisu: " + (result.detail || result.error || "nieznany"));
             } else {
                 alert(`Zapisano symulację „${result.name}".`);
+                clearWizardDraft();
+                const bar = document.getElementById("wizardDraftBar");
+                if (bar) bar.classList.add("hidden");
             }
         } catch (err) {
             alert("Błąd zapisu: " + err.message);

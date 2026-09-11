@@ -673,6 +673,7 @@ function initStageEventHandlers(container) {
         if (!confirm("Na pewno wyczyścić wszystkie etapy?")) return;
         container.querySelectorAll(".stage-block").forEach((b) => b.remove());
         if (typeof switchToConfig === "function") switchToConfig();
+        if (typeof clearWizardDraft === "function") clearWizardDraft();
         updateStageButtons(container);
         updateStageHints(container);
     });

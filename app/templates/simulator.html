@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block title %}FIRE Simulator{% endblock %}
 {% block subtitle %}Symulator niezależności finansowej{% endblock %}
-{% block topnav %}<a href="/" class="btn btn-secondary" style="margin:0;">Moje symulacje</a>{% endblock %}
+{% block topnav %}<a href="/wizard" class="btn btn-secondary" style="margin:0;">Asystent</a> <a href="/" class="btn btn-secondary" style="margin:0;">Moje symulacje</a>{% endblock %}
 {% block content %}
         <div class="mode-toggle">
             <button type="button" id="modeSimBtn" class="mode-btn active">Symulator</button>
@@ -10,6 +10,9 @@
 
         <!-- ====== SYMULATOR ====== -->
         <div id="simulatorView">
+            <div id="wizardDraftBar" class="wizard-draft-bar hidden">
+                Konfiguracja wczytana z asystenta. <a href="/wizard" style="margin-left:0.4rem;">Wróć do asystenta</a> albo zapisz symulację, aby zachować.
+            </div>
             <form id="simForm" novalidate>
                 <div id="simConfigSection" class="sim-config-section">
                     <div id="stages-container">

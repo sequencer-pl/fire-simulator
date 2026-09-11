@@ -16,6 +16,7 @@ from app.simulation.config import (
     default_config,
 )
 from app.simulation.engine import simulate
+from app.simulation.planner import WizardPlanRequest, plan
 from app.simulation.schemas import SimulationInput, SimulationResult
 from app.stages.metadata import STAGE_META
 from app.stages.registry import get_all_stage_types
@@ -38,6 +39,8 @@ def _asset_version_uncached() -> str:
             "js/sim-cards.js",
             "js/sim-stages.js",
             "js/simulator.js",
+            "js/wizard.js",
+            "css/wizard.css",
             "js/home.js",
             "js/compare.js",
         )
@@ -209,7 +212,27 @@ async def compare(request: Request):
     )
 
 
+@router.get("/wizard", response_class=HTMLResponse)
+async def wizard(request: Request):
+    return templates.TemplateResponse(
+        request,
+        "wizard.html",
+        {
+            "version": _asset_version(),
+            "stage_types": get_all_stage_types(),
+        },
+    )
+
+
 # --- Simulation API (existing) ---
+
+
+@router.post("/api/wizard/plan")
+async def api_wizard_plan(body: WizardPlanRequest):
+    try:
+        return plan(body.path, body.answers, body.target_monthly)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @router.post("/api/simulate")
@@ -335,4 +358,3 @@ async def api_delete_preset(preset_id: int, request: Request):
     if not db.delete_preset(preset_id, user_id):
         raise HTTPException(status_code=404, detail="Preset not found")
     return {"ok": True}
-
