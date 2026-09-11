@@ -1,48 +1,11 @@
 let sims = [];
 
-function $(id) {
-    return document.getElementById(id);
-}
-
-function show(id, on) {
-    $(id).classList.toggle("hidden", !on);
-}
-
-function fmtMoney(v) {
-    if (v == null) return "—";
-    return Math.round(v).toLocaleString("pl-PL") + " zł";
-}
-
-async function api(path, options) {
-    const res = await fetch(path, options);
-    let data = null;
-    try {
-        data = await res.json();
-    } catch (e) {
-        data = {};
-    }
-    if (!res.ok) {
-        const msg = data.detail || data.error || "Błąd serwera";
-        const err = new Error(msg);
-        err.status = res.status;
-        throw err;
-    }
-    return data;
-}
-
-async function refreshSession() {
-    try {
-        const session = await api("/api/session");
-        const email = session.email;
-        show("authPanel", !email);
-        show("simsPanel", !!email);
-        if (email) {
-            await loadSims();
-        }
-        if (window.refreshSessionBar) refreshSessionBar();
-    } catch (e) {
-        console.error(e);
-    }
+function fmtDate(sum, s) {
+    const parts = [];
+    if (s.updated_at) parts.push(new Date(s.updated_at).toLocaleString("pl-PL"));
+    if (s.created_at && s.updated_at !== s.created_at)
+        parts.push("utw. " + new Date(s.created_at).toLocaleString("pl-PL"));
+    return parts.join(" · ");
 }
 
 async function loadSims() {
@@ -53,9 +16,9 @@ async function loadSims() {
 function renderSims() {
     const list = $("simsList");
     list.innerHTML = "";
-    show("emptyMsg", sims.length === 0);
+    show("emptyState", sims.length === 0);
     show("simFooter", sims.length > 0);
-    updateCompareBtn();
+    if (window.updateCompareBtn) updateCompareBtn();
 
     sims.forEach((s) => {
         const sum = s.summary || {};
@@ -161,20 +124,6 @@ function renderSims() {
     });
 }
 
-function fmtDate(sum, s) {
-    const parts = [];
-    if (s.updated_at) parts.push(new Date(s.updated_at).toLocaleString("pl-PL"));
-    if (s.created_at && s.updated_at !== s.created_at)
-        parts.push("utw. " + new Date(s.created_at).toLocaleString("pl-PL"));
-    return parts.join(" · ");
-}
-
-function escapeHtml(str) {
-    const div = document.createElement("div");
-    div.textContent = String(str);
-    return div.innerHTML;
-}
-
 function updateCompareBtn() {
     const checked = document.querySelectorAll(".sim-check:checked");
     const count = checked.length;
@@ -191,56 +140,7 @@ function openSim(id) {
     window.location.href = "/sim?id=" + id;
 }
 
-function switchAuthTab(tab) {
-    const login = tab === "login";
-    $("tabLogin").classList.toggle("active", login);
-    $("tabRegister").classList.toggle("active", !login);
-    show("loginForm", login);
-    show("registerForm", !login);
-}
-
-function setMsg(id, text, ok) {
-    const el = $(id);
-    if (!text) {
-        el.textContent = "";
-        show(id, false);
-        return;
-    }
-    el.textContent = text;
-    el.className = "form-msg " + (ok ? "ok" : "err");
-    show(id, true);
-}
-
-async function submitAuth(form, path, msgId) {
-    const data = new FormData(form);
-    setMsg(msgId, "");
-    try {
-        const res = await api(path, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                email: data.get("email"),
-                password: data.get("password"),
-            }),
-        });
-        setMsg(msgId, "Zalogowano jako " + res.email + ".", true);
-        await refreshSession();
-    } catch (e) {
-        setMsg(msgId, e.message, false);
-    }
-}
-
 document.addEventListener("DOMContentLoaded", () => {
-    $("tabLogin").addEventListener("click", () => switchAuthTab("login"));
-    $("tabRegister").addEventListener("click", () => switchAuthTab("register"));
-    $("loginForm").addEventListener("submit", (e) => {
-        e.preventDefault();
-        submitAuth(e.target, "/api/login", "loginMsg");
-    });
-    $("registerForm").addEventListener("submit", (e) => {
-        e.preventDefault();
-        submitAuth(e.target, "/api/register", "registerMsg");
-    });
     $("compareBtn").addEventListener("click", () => {
         const ids = Array.from(document.querySelectorAll(".sim-check:checked"))
             .map((c) => c.dataset.id)
@@ -279,5 +179,8 @@ document.addEventListener("DOMContentLoaded", () => {
         a.click();
         URL.revokeObjectURL(a.href);
     });
-    refreshSession();
+    initAuth(async () => {
+        show("simsPanel", true);
+        await loadSims();
+    });
 });

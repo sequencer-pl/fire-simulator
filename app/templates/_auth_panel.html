@@ -1,0 +1,30 @@
+<div id="authPanel" class="auth-panel hidden">
+            <div class="auth-tabs">
+                <button type="button" class="tab-btn active" id="tabLogin">Logowanie</button>
+                <button type="button" class="tab-btn" id="tabRegister">Rejestracja</button>
+            </div>
+            <form id="loginForm" class="auth-form">
+                <div class="field-group">
+                    <label>E-mail</label>
+                    <input type="email" name="email" required>
+                </div>
+                <div class="field-group">
+                    <label>Hasło</label>
+                    <input type="password" name="password" required>
+                </div>
+                <button type="submit" class="btn btn-primary" style="margin-top:0.5rem;">Zaloguj</button>
+                <p id="loginMsg" class="form-msg hidden"></p>
+            </form>
+            <form id="registerForm" class="auth-form hidden">
+                <div class="field-group">
+                    <label>E-mail</label>
+                    <input type="email" name="email" required>
+                </div>
+                <div class="field-group">
+                    <label>Hasło (min. 8 znaków)</label>
+                    <input type="password" name="password" required>
+                </div>
+                <button type="submit" class="btn btn-primary" style="margin-top:0.5rem;">Zarejestruj</button>
+                <p id="registerMsg" class="form-msg hidden"></p>
+            </form>
+        </div>

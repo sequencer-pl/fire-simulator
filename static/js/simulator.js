@@ -3,6 +3,7 @@
 const TAX_MODEL_LABELS = { none: "Brak", flat: "Ryczałt", scale: "Skala PIT", assets: "Od wartości aktywów" };
 const TAX_BASIS_LABELS = { gains: "od zysku", full: "od całości" };
 let CONFIG = null;
+let USER_CONFIG = null;
 let DEFAULT_CONFIG = null;
 let PRESETS = [];
 let _currentPresetId = null;
@@ -246,7 +247,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const params = new URLSearchParams(location.search);
     const simId = params.get("id");
 
-    initModeToggle();
+    if (params.get("view") === "config") switchMode("config");
     initConfig();
     refreshSessionBar();
     initSaveButton();
@@ -280,7 +281,18 @@ document.addEventListener("DOMContentLoaded", () => {
         updateStageHints(container);
         refreshRealizationToggles(container);
     }
+
+    updateEmptyState();
+    new MutationObserver(updateEmptyState).observe(container, { childList: true });
 });
+
+function updateEmptyState() {
+    const el = document.getElementById("emptyState");
+    if (!el) return;
+    const container = document.getElementById("stages-container");
+    const hasStages = container && container.querySelector(".stage-block");
+    el.classList.toggle("hidden", hasStages);
+}
 
 const WIZARD_DRAFT_KEY = "fire.wizardDraft";
 
@@ -309,17 +321,23 @@ function clearWizardDraft() {
 
 // --- Tryby: Symulator / Konfiguracja ---
 
-function initModeToggle() {
-    document.getElementById("modeSimBtn").addEventListener("click", () => switchMode("sim"));
-    document.getElementById("modeConfigBtn").addEventListener("click", () => switchMode("config"));
-}
-
 function switchMode(mode) {
-    document.getElementById("modeSimBtn").classList.toggle("active", mode === "sim");
-    document.getElementById("modeConfigBtn").classList.toggle("active", mode === "config");
     document.getElementById("simulatorView").classList.toggle("hidden", mode !== "sim");
     document.getElementById("configView").classList.toggle("hidden", mode !== "config");
+    document.body.dataset.section = mode === "config" ? "konfiguracja" : "edytor";
+    const url = new URL(window.location.href);
+    if (mode === "config") {
+        url.searchParams.set("view", "config");
+    } else {
+        url.searchParams.delete("view");
+    }
+    history.replaceState(null, "", url.pathname + url.search);
 }
+
+// Primary nav (Symulacje / Konfiguracja) na /sim — przełącza widok bez reloadu.
+window.setNavSection = function (section) {
+    switchMode(section === "konfiguracja" ? "config" : "sim");
+};
 
 // --- Konfiguracja (podatki, limity, reguły kont) ---
 
@@ -332,9 +350,10 @@ async function initConfig() {
         ]);
         DEFAULT_CONFIG = await defaultsRes.json();
         const userData = await userRes.json();
-        CONFIG = userData.config ? backfillConfig(userData.config) : structuredClone(DEFAULT_CONFIG);
+        USER_CONFIG = userData.config ? backfillConfig(userData.config) : structuredClone(DEFAULT_CONFIG);
         const presetsData = await presetsRes.json();
         PRESETS = presetsData.presets || [];
+        if (!CONFIG) CONFIG = structuredClone(USER_CONFIG);
         applyZusWaloryzacjaDefaults();
         renderConfigView();
         initTipAnchoring();
@@ -363,7 +382,7 @@ function backfillConfig(config) {
 
 function setConfigPath(path, value) {
     const parts = path.split(".");
-    let obj = CONFIG;
+    let obj = USER_CONFIG;
     for (let i = 0; i < parts.length - 1; i++) obj = obj[parts[i]];
     obj[parts[parts.length - 1]] = value;
     scheduleConfigSave();
@@ -384,7 +403,7 @@ function scheduleConfigSave() {
         fetch("/api/config/user", {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(CONFIG),
+            body: JSON.stringify(USER_CONFIG),
         }).catch((err) => console.error("Błąd zapisu konfiguracji:", err));
     }, 500);
 }
@@ -394,43 +413,43 @@ function renderConfigView() {
     root.innerHTML = "";
 
     root.appendChild(configSection("Skala podatkowa", [
-        configNumberField("kwota_wolna", "Kwota wolna od podatku", CONFIG.kwota_wolna, "Kwota wolna od podatku (2026 r.: 30 000 zł)."),
-        configNumberField("prog", "Próg podatkowy", CONFIG.prog, "Próg dochodowy: powyżej kwoty obowiązuje wyższa stawka (2026 r.: 120 000 zł)."),
-        configPercentField("rate_lower", "Stawka niższa", CONFIG.rate_lower, "Stawka podatku do progu (2026 r.: 12%)."),
-        configPercentField("rate_upper", "Stawka wyższa", CONFIG.rate_upper, "Stawka podatku powyżej progu (2026 r.: 32%)."),
-        configNumberField("kup", "Koszty uzyskania przychodu", CONFIG.kup, "Roczne koszty uzyskania przychodu (2026 r.: 3 000–3 600 zł)."),
-        configPercentField("inflation", "Inflacja roczna", CONFIG.inflation, "Roczna inflacja — jedyne źródło dla całej symulacji. Używana do wyliczenia nominalnego podatku Belki/OKI z realnego ROI oraz realnej erozji gotówki (wyniki zawsze w dzisiejszych zł)."),
+        configNumberField("kwota_wolna", "Kwota wolna od podatku", USER_CONFIG.kwota_wolna, "Kwota wolna od podatku (2026 r.: 30 000 zł)."),
+        configNumberField("prog", "Próg podatkowy", USER_CONFIG.prog, "Próg dochodowy: powyżej kwoty obowiązuje wyższa stawka (2026 r.: 120 000 zł)."),
+        configPercentField("rate_lower", "Stawka niższa", USER_CONFIG.rate_lower, "Stawka podatku do progu (2026 r.: 12%)."),
+        configPercentField("rate_upper", "Stawka wyższa", USER_CONFIG.rate_upper, "Stawka podatku powyżej progu (2026 r.: 32%)."),
+        configNumberField("kup", "Koszty uzyskania przychodu", USER_CONFIG.kup, "Roczne koszty uzyskania przychodu (2026 r.: 3 000–3 600 zł)."),
+        configPercentField("inflation", "Inflacja roczna", USER_CONFIG.inflation, "Roczna inflacja — jedyne źródło dla całej symulacji. Używana do wyliczenia nominalnego podatku Belki/OKI z realnego ROI oraz realnej erozji gotówki (wyniki zawsze w dzisiejszych zł)."),
     ]));
 
     root.appendChild(configSection("Limity rocznych wpłat", [
-        configNumberField("limits.ike_annual", "IKE", CONFIG.limits.ike_annual, "Limit roczny wpłat na IKE (2026 r.: 28 260 zł)."),
-        configNumberField("limits.ikze_annual", "IKZE — etat", CONFIG.limits.ikze_annual, "Limit roczny IKZE dla zatrudnionych (2026 r.: 11 304 zł)."),
-        configNumberField("limits.ikze_annual_self_employed", "IKZE — przedsiębiorca", CONFIG.limits.ikze_annual_self_employed, "Limit roczny IKZE dla przedsiębiorców (2026 r.: 16 956 zł)."),
-        configNumberField("limits.oipe_annual", "OIPE", CONFIG.limits.oipe_annual, "Limit roczny wpłat na OIPE (2026 r.: 28 260 zł)."),
-        configNumberField("limits.ppe_additional_annual", "PPE — składka dodatkowa", CONFIG.limits.ppe_additional_annual, "Limit roczny składki dodatkowej PPE (2026 r.: 42 390 zł)."),
+        configNumberField("limits.ike_annual", "IKE", USER_CONFIG.limits.ike_annual, "Limit roczny wpłat na IKE (2026 r.: 28 260 zł)."),
+        configNumberField("limits.ikze_annual", "IKZE — etat", USER_CONFIG.limits.ikze_annual, "Limit roczny IKZE dla zatrudnionych (2026 r.: 11 304 zł)."),
+        configNumberField("limits.ikze_annual_self_employed", "IKZE — przedsiębiorca", USER_CONFIG.limits.ikze_annual_self_employed, "Limit roczny IKZE dla przedsiębiorców (2026 r.: 16 956 zł)."),
+        configNumberField("limits.oipe_annual", "OIPE", USER_CONFIG.limits.oipe_annual, "Limit roczny wpłat na OIPE (2026 r.: 28 260 zł)."),
+        configNumberField("limits.ppe_additional_annual", "PPE — składka dodatkowa", USER_CONFIG.limits.ppe_additional_annual, "Limit roczny składki dodatkowej PPE (2026 r.: 42 390 zł)."),
     ]));
 
     root.appendChild(configSection("PPK — parametry", [
-        configPercentField("ppk.employee_pct", "Wpłata pracownika", CONFIG.ppk.employee_pct, "Ustawowo min. 2% wynagrodzenia; można obniżyć do 0,5%."),
-        configPercentField("ppk.employer_pct", "Wpłata pracodawcy", CONFIG.ppk.employer_pct, "Ustawowo min. 1,5%, max 4% wynagrodzenia."),
-        configPercentField("ppk.max_total_pct", "Limit sumy wpłat", CONFIG.ppk.max_total_pct, "Ustawowy limit łącznej sumy wpłat pracownika i pracodawcy (8%)."),
-        configNumberField("ppk.state_welcoming", "Dopłata powitalna", CONFIG.ppk.state_welcoming, "Jednorazowa dopłata państwa w pierwszym roku akumulacji (250 zł)."),
-        configNumberField("ppk.state_annual", "Dopłata roczna", CONFIG.ppk.state_annual, "Coroczna dopłata państwa przy wpłacie min. 0,5% (240 zł)."),
+        configPercentField("ppk.employee_pct", "Wpłata pracownika", USER_CONFIG.ppk.employee_pct, "Ustawowo min. 2% wynagrodzenia; można obniżyć do 0,5%."),
+        configPercentField("ppk.employer_pct", "Wpłata pracodawcy", USER_CONFIG.ppk.employer_pct, "Ustawowo min. 1,5%, max 4% wynagrodzenia."),
+        configPercentField("ppk.max_total_pct", "Limit sumy wpłat", USER_CONFIG.ppk.max_total_pct, "Ustawowy limit łącznej sumy wpłat pracownika i pracodawcy (8%)."),
+        configNumberField("ppk.state_welcoming", "Dopłata powitalna", USER_CONFIG.ppk.state_welcoming, "Jednorazowa dopłata państwa w pierwszym roku akumulacji (250 zł)."),
+        configNumberField("ppk.state_annual", "Dopłata roczna", USER_CONFIG.ppk.state_annual, "Coroczna dopłata państwa przy wpłacie min. 0,5% (240 zł)."),
     ]));
 
     root.appendChild(configSection("PPE — parametry", [
-        configPercentField("ppe.max_employer_pct", "Limit składki podstawowej", CONFIG.ppe.max_employer_pct, "Ustawowy limit składki podstawowej pracodawcy (7% wynagrodzenia)."),
+        configPercentField("ppe.max_employer_pct", "Limit składki podstawowej", USER_CONFIG.ppe.max_employer_pct, "Ustawowy limit składki podstawowej pracodawcy (7% wynagrodzenia)."),
     ]));
 
     root.appendChild(configSection("ZUS — parametry", [
-        configPercentField("zus.skladka_rate", "Składka emerytalna", CONFIG.zus.skladka_rate, "Część składki na ubezpieczenie emerytalne (19,52% podstawy)."),
-        configPercentField("zus.ofe_rate", "Część składki do OFE", CONFIG.zus.ofe_rate, "Punkt procentowy składki trafiający do OFE dla członków OFE (2,92 pkt)."),
-        configNumberField("zus.limit_base_annual", "Limit rocznej podstawy (30×)", CONFIG.zus.limit_base_annual, "Roczna podstawa wymiaru składek (30× przeciętne wynagrodzenie; 0 = brak limitu)."),
-        configPercentField("zus.waloryzacja_skladek", "Waloryzacja składek", CONFIG.zus.waloryzacja_skladek, "Roczna waloryzacja kapitału zgromadzonego w ZUS."),
-        configPercentField("zus.waloryzacja_swiadczenia", "Waloryzacja świadczenia", CONFIG.zus.waloryzacja_swiadczenia, "Roczna waloryzacja wypłacanej emerytury."),
-        configNumberField("zus.wiek_emerytalny_k", "Wiek emerytalny — kobiety", CONFIG.zus.wiek_emerytalny_k, "Powszechny wiek emerytalny kobiet (60 r.ż. od 1.10.2017)."),
-        configNumberField("zus.wiek_emerytalny_m", "Wiek emerytalny — mężczyźni", CONFIG.zus.wiek_emerytalny_m, "Powszechny wiek emerytalny mężczyzn (65 r.ż. od 1.10.2017)."),
-        configNumberField("zus.min_emerytura", "Emerytura minimalna", CONFIG.zus.min_emerytura, "Najniższa gwarantowana emerytura (2026 r.: 1 740 zł)."),
+        configPercentField("zus.skladka_rate", "Składka emerytalna", USER_CONFIG.zus.skladka_rate, "Część składki na ubezpieczenie emerytalne (19,52% podstawy)."),
+        configPercentField("zus.ofe_rate", "Część składki do OFE", USER_CONFIG.zus.ofe_rate, "Punkt procentowy składki trafiający do OFE dla członków OFE (2,92 pkt)."),
+        configNumberField("zus.limit_base_annual", "Limit rocznej podstawy (30×)", USER_CONFIG.zus.limit_base_annual, "Roczna podstawa wymiaru składek (30× przeciętne wynagrodzenie; 0 = brak limitu)."),
+        configPercentField("zus.waloryzacja_skladek", "Waloryzacja składek", USER_CONFIG.zus.waloryzacja_skladek, "Roczna waloryzacja kapitału zgromadzonego w ZUS."),
+        configPercentField("zus.waloryzacja_swiadczenia", "Waloryzacja świadczenia", USER_CONFIG.zus.waloryzacja_swiadczenia, "Roczna waloryzacja wypłacanej emerytury."),
+        configNumberField("zus.wiek_emerytalny_k", "Wiek emerytalny — kobiety", USER_CONFIG.zus.wiek_emerytalny_k, "Powszechny wiek emerytalny kobiet (60 r.ż. od 1.10.2017)."),
+        configNumberField("zus.wiek_emerytalny_m", "Wiek emerytalny — mężczyźni", USER_CONFIG.zus.wiek_emerytalny_m, "Powszechny wiek emerytalny mężczyzn (65 r.ż. od 1.10.2017)."),
+        configNumberField("zus.min_emerytura", "Emerytura minimalna", USER_CONFIG.zus.min_emerytura, "Najniższa gwarantowana emerytura (2026 r.: 1 740 zł)."),
     ]));
 
     const accountsSection = document.createElement("div");
@@ -438,7 +457,7 @@ function renderConfigView() {
     accountsSection.innerHTML = "<h3>Konta — reguły wypłat i podatków</h3>";
     const grid = document.createElement("div");
     grid.className = "config-accounts";
-    for (const [key, rules] of Object.entries(CONFIG.accounts)) {
+    for (const [key, rules] of Object.entries(USER_CONFIG.accounts)) {
         grid.appendChild(renderAccountRulesCard(key, rules));
     }
     accountsSection.appendChild(grid);
@@ -601,7 +620,7 @@ function configSelect(path, label, value, options, hint) {
 }
 
 async function resetConfig() {
-    CONFIG = structuredClone(DEFAULT_CONFIG);
+    USER_CONFIG = structuredClone(DEFAULT_CONFIG);
     _currentPresetId = null;
     _currentPresetName = "Domyślne 2026";
     renderConfigView();
@@ -642,7 +661,7 @@ function initPresetBar() {
             const res = await fetch("/api/presets", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ name: name.trim(), config: CONFIG }),
+                body: JSON.stringify({ name: name.trim(), config: USER_CONFIG }),
             });
             if (!res.ok) {
                 const err = await res.json();
@@ -676,7 +695,7 @@ function initPresetBar() {
         const name = _currentPresetId !== null
             ? (PRESETS.find(p => p.id === _currentPresetId)?.name || "preset")
             : (_currentPresetName || "preset");
-        const blob = new Blob([JSON.stringify(CONFIG, null, 2)], { type: "application/json" });
+        const blob = new Blob([JSON.stringify(USER_CONFIG, null, 2)], { type: "application/json" });
         const a = document.createElement("a");
         a.href = URL.createObjectURL(blob);
         a.download = `${name}.json`;
@@ -756,13 +775,12 @@ async function applyPresetByName(name) {
         const defaults = await res.json();
         const overrides = BUILTIN_PRESETS_CLIENT[name];
         if (overrides) {
-            CONFIG = deepMerge(structuredClone(defaults), overrides);
+            USER_CONFIG = deepMerge(structuredClone(defaults), overrides);
         } else {
-            CONFIG = backfillConfig(defaults);
+            USER_CONFIG = backfillConfig(defaults);
         }
         _currentPresetId = null;
         _currentPresetName = name;
-        applyZusWaloryzacjaDefaults();
         renderConfigView();
         initTipAnchoring();
         updateStageHints(document.getElementById("stages-container"));
@@ -804,10 +822,9 @@ async function applyPresetById(presetId) {
     try {
         const res = await fetch(`/api/presets/${presetId}`);
         const data = await res.json();
-        CONFIG = backfillConfig(data.config);
+        USER_CONFIG = backfillConfig(data.config);
         _currentPresetId = presetId;
         _currentPresetName = null;
-        applyZusWaloryzacjaDefaults();
         renderConfigView();
         updateStageHints(document.getElementById("stages-container"));
         scheduleConfigSave();
@@ -882,7 +899,6 @@ function populateStages(inputData) {
         migrateLegacyAccounts(stage);
         container.appendChild(createStageBlock(stage));
     });
-    if (inputData.config) renderConfigView();
     applyZusWaloryzacjaDefaults();
     updateStageButtons(container);
     updateStageHints(container);

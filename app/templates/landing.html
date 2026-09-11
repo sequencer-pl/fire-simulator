@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+{% block title %}FIRE Simulator — Start{% endblock %}
+{% block subtitle %}Symulator niezależności finansowej{% endblock %}
+{% block section %}start{% endblock %}
+{% block content %}
+        <section class="hero">
+            <h2>Zaplanuj swoją drogę do FIRE</h2>
+            <p>Modeluj kapitał, wpłaty, wypłaty i podatki — od dziś aż po przejście na emeryturę. Zapisuj scenariusze i porównuj je, aby podejmować lepsze decyzje.</p>
+        </section>
+
+        <section class="landing-grid" aria-label="Dostępne sekcje">
+            <a class="landing-card" href="/sim">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 3a2.83 2.83 0 0 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
+                <div class="landing-card-text">
+                    <h3>Nowa symulacja</h3>
+                    <p>Zbuduj scenariusz etap po etapie i zobacz prognozę majątku.</p>
+                </div>
+                <span class="landing-card-arrow">→</span>
+            </a>
+            <a class="landing-card" href="/wizard">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+                <div class="landing-card-text">
+                    <h3>Asystent</h3>
+                    <p>Odpowiedz na kilka pytań, a Asystent przygotuje orientacyjny plan.</p>
+                </div>
+                <span class="landing-card-arrow">→</span>
+            </a>
+            <a class="landing-card" href="/sim?view=config">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                <div class="landing-card-text">
+                    <h3>Konfiguracja</h3>
+                    <p>Zdefiniuj globalne ustawienia: podatki, ZUS, wskaźniki.</p>
+                </div>
+                <span class="landing-card-arrow">→</span>
+            </a>
+            <a class="landing-card" href="/moje-symulacje">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"/></svg>
+                <div class="landing-card-text">
+                    <h3>Moje symulacje</h3>
+                    <p>Przeglądaj, porównuj i eksportuj zapisane scenariusze.</p>
+                </div>
+                <span class="landing-card-arrow">→</span>
+            </a>
+        </section>
+
+        <section class="landing-session">
+            {% include "_auth_panel.html" %}
+            <div id="recentSection" class="hidden">
+                <div class="recent-head">
+                    <h2>Ostatnie symulacje</h2>
+                    <a href="/moje-symulacje" class="recent-all">Zobacz wszystkie →</a>
+                </div>
+                <p id="greetingText" class="greeting"></p>
+                <div id="recentList" class="recent-list"></div>
+                <div id="recentEmpty" class="empty-state empty-cta hidden">
+                    <p>Nie masz jeszcze zapisanych symulacji.</p>
+                    <div class="empty-actions">
+                        <a href="/sim" class="btn btn-primary">Stwórz pierwszą symulację</a>
+                        <a href="/wizard" class="btn btn-secondary">Wypróbuj Asystenta</a>
+                    </div>
+                </div>
+            </div>
+        </section>
+{% endblock %}
+{% block scripts %}
+    <script src="/static/js/session.js?v={{ version }}"></script>
+    <script src="/static/js/common.js?v={{ version }}"></script>
+    <script src="/static/js/landing.js?v={{ version }}"></script>
+{% endblock %}

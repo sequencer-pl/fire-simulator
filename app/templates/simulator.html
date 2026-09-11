@@ -1,17 +1,16 @@
 {% extends "base.html" %}
 {% block title %}FIRE Simulator{% endblock %}
-{% block subtitle %}Symulator niezależności finansowej{% endblock %}
-{% block topnav %}<a href="/wizard" class="btn btn-secondary" style="margin:0;">Asystent</a> <a href="/" class="btn btn-secondary" style="margin:0;">Moje symulacje</a>{% endblock %}
+{% block subtitle %}Planuj niezależność finansową{% endblock %}
+{% block section %}edytor{% endblock %}
 {% block content %}
-        <div class="mode-toggle">
-            <button type="button" id="modeSimBtn" class="mode-btn active">Symulator</button>
-            <button type="button" id="modeConfigBtn" class="mode-btn">Konfiguracja</button>
-        </div>
 
         <!-- ====== SYMULATOR ====== -->
         <div id="simulatorView">
             <div id="wizardDraftBar" class="wizard-draft-bar hidden">
                 Konfiguracja wczytana z asystenta. <a href="/wizard" style="margin-left:0.4rem;">Wróć do asystenta</a> albo zapisz symulację, aby zachować.
+            </div>
+            <div id="emptyState" class="empty-state">
+                <p>Tu tworzysz symulację — dodaj pierwszy etap akumulacji poniżej albo skorzystaj z <a href="/wizard" style="color:var(--accent);text-decoration:none;">Asystenta</a>.</p>
             </div>
             <form id="simForm" novalidate>
                 <div id="simConfigSection" class="sim-config-section">
@@ -83,7 +82,7 @@
         <!-- ====== KONFIGURACJA ====== -->
         <div id="configView" class="hidden">
             <h2>Konfiguracja</h2>
-            <p class="subtitle">Parametry zależne od państwa i instytucji (domyślnie 2026 r.). Wpływa na wyliczenie podatków, limitów wiekowych i wpłat.</p>
+            <p class="subtitle">Parametry zależne od państwa i instytucji — wzorzec dla nowych symulacji. Zapisane symulacje zachowują własną konfigurację z chwili zapisu.</p>
             <div id="presetBar" class="preset-bar">
                 <div class="preset-left">
                     <label>Preset:</label>

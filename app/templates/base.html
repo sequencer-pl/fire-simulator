@@ -8,10 +8,10 @@
     <link rel="stylesheet" href="/static/css/style.css?v={{ version }}">
     {% block head_extra %}{% endblock %}
 </head>
-<body>
+<body data-section="{% block section %}symulacje{% endblock %}">
     <div class="container">
-        <div class="topbar">
-            <div class="brand">
+        <header class="topbar">
+            <a href="/" class="brand" title="Strona główna" aria-label="FIRE Simulator — strona główna">
                 <svg class="brand-mark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" role="img" aria-label="Płomień FIRE">
                     <defs>
                         <linearGradient id="flameGrad" x1="0" y1="1" x2="0" y2="0">
@@ -32,12 +32,27 @@
                     <h1><span class="brand-fire">FIRE</span> <span class="brand-sim">Simulator</span></h1>
                     <p class="subtitle" style="margin-bottom:0;">{% block subtitle %}{% endblock %}</p>
                 </div>
-            </div>
-            <nav class="topnav">
-                {% block topnav %}{% endblock %}
-                <span id="sessionBar" class="session-email"></span>
+            </a>
+            <nav class="topnav" aria-label="Sekcje główne">
+                <a href="/moje-symulacje" class="nav-item" data-nav="symulacje" title="Moje symulacje">
+                    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"/></svg>
+                    <span>Moje symulacje</span>
+                </a>
+                <a href="/wizard" class="nav-item" data-nav="asystent" title="Asystent">
+                    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+                    <span>Asystent</span>
+                </a>
+                <a href="/sim" class="nav-item" data-nav="edytor" title="Edytor">
+                    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 3a2.83 2.83 0 0 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
+                    <span>Edytor</span>
+                </a>
+                <a href="/sim?view=config" class="nav-item" data-nav="konfiguracja" title="Konfiguracja">
+                    <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                    <span>Konfiguracja</span>
+                </a>
+                <div id="accountWidget" class="account-widget"></div>
             </nav>
-        </div>
+        </header>
         {% block content %}{% endblock %}
     </div>
     {% block scripts %}{% endblock %}

@@ -41,7 +41,10 @@ def _asset_version_uncached() -> str:
             "js/simulator.js",
             "js/wizard.js",
             "css/wizard.css",
-            "js/home.js",
+            "js/session.js",
+            "js/common.js",
+            "js/simulations.js",
+            "js/landing.js",
             "js/compare.js",
         )
         if os.path.exists(os.path.join(STATIC_DIR, rel))
@@ -179,10 +182,21 @@ def _simulation_response(row: sqlite3.Row) -> dict:
 
 
 @router.get("/", response_class=HTMLResponse)
-async def home(request: Request):
+async def landing(request: Request):
     return templates.TemplateResponse(
         request,
-        "home.html",
+        "landing.html",
+        {
+            "version": _asset_version(),
+        },
+    )
+
+
+@router.get("/moje-symulacje", response_class=HTMLResponse)
+async def simulations(request: Request):
+    return templates.TemplateResponse(
+        request,
+        "simulations.html",
         {
             "version": _asset_version(),
         },
