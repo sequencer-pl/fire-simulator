@@ -63,6 +63,14 @@
     min-width: 180px;
 }
 
+.wz-fields .gender-options {
+    align-self: flex-start;
+}
+
+.field-group.is-disabled {
+    opacity: 0.5;
+}
+
 .wz-hint {
     font-size: 0.8rem;
     color: var(--text-dim, #9aa0b5);
@@ -126,18 +134,116 @@
     margin: 1rem 0;
 }
 
-.wz-advanced-toggle {
-    margin-top: 1rem;
+/* --- Allocation step (Podział oszczędności) -------------------------------- */
+
+.wz-alloc-controls {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
 }
 
-.wz-advanced-box {
-    margin-top: 1rem;
-    border: 1px dashed rgba(0, 206, 201, 0.4);
-    border-radius: 8px;
-    padding: 0.75rem;
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+.wz-alloc-strategy-options {
+    flex-wrap: wrap;
+}
+
+.wz-alloc-strategy-options .gender-option {
+    white-space: nowrap;
+}
+
+.wz-alloc-strategy-label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-dim, #9aa0b5);
+}
+
+.wz-alloc-strategy-hint {
+    flex-basis: 100%;
+    font-size: 0.8rem;
+    color: var(--text-dim, #9aa0b5);
+}
+
+.wz-alloc-sum {
+    font-size: 0.85rem;
+    color: var(--text-dim, #9aa0b5);
+    font-weight: 600;
+}
+
+.wz-alloc-sum.wz-alloc-over {
+    color: #ffbe76;
+}
+
+.wz-alloc-grid {
+    display: flex;
+    flex-direction: column;
     gap: 0.5rem;
+}
+
+.wz-alloc-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    background: var(--bg);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    padding: 0.45rem 0.75rem;
+    flex-wrap: wrap;
+}
+
+.wz-alloc-row.is-over {
+    border-color: #ffbe76;
+}
+
+.wz-alloc-label {
+    min-width: 150px;
+    font-weight: 600;
+    display: flex;
+    align-items: baseline;
+    gap: 0.4rem;
+}
+
+.wz-alloc-cap {
+    font-size: 0.68rem;
+    font-weight: 400;
+    background: rgba(108, 92, 231, 0.15);
+    border-radius: 4px;
+    padding: 0.1rem 0.35rem;
+    color: var(--text-dim, #9aa0b5);
+}
+
+.wz-alloc-range {
+    flex: 1 1 auto;
+    min-width: 100px;
+    margin: 0;
+}
+
+.wz-alloc-row .num-control {
+    min-width: 72px;
+}
+
+.wz-alloc-row .acc-field {
+    width: 46px;
+    text-align: center;
+}
+
+.wz-alloc-money {
+    min-width: 96px;
+    text-align: right;
+    font-size: 0.82rem;
+    color: var(--text-dim, #9aa0b5);
+    white-space: nowrap;
+}
+
+.wz-alloc-overflow {
+    font-size: 0.72rem;
+    color: #ffbe76;
+}
+
+.wz-alloc-cash {
+    margin-top: 0.5rem;
+    font-size: 0.8rem;
+    color: var(--text-dim, #9aa0b5);
 }
 
 .wz-paths {

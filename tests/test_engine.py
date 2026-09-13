@@ -3,7 +3,7 @@ from conftest import acc, accumulation_stage, realization_stage
 
 from app.simulation.config import TaxConfig
 from app.simulation.engine import simulate
-from app.simulation.schemas import SimulationInput
+from app.simulation.schemas import SimulationInput, StageInput
 
 CFG_NOINFL = TaxConfig(inflation=0.0)
 
@@ -200,3 +200,76 @@ def test_zus_sequential_stages():
     assert result.years[5].monthly_withdrawal == pytest.approx(3380.0)
     assert result.years[7].monthly_withdrawal == pytest.approx(3820.0)
     assert result.years[-1].annual_withdrawal == pytest.approx(45840.0)
+
+
+# --- Constant-target realization mode (wizard FIRE bridge) -------------------
+
+
+def test_withdrawal_target_field_accepted():
+    s = StageInput(
+        stage_type="realizacja",
+        start_age=55,
+        end_age=95,
+        withdrawal_target_monthly=1500,
+    )
+    assert s.withdrawal_target_monthly == 1500
+
+
+def test_no_target_keeps_pmt_annuitization():
+    stages = [
+        realization_stage(
+            "Realizacja",
+            {"broker": acc(starting_balance=500000, roi=0.05, buffer=0)},
+            55,
+            95,
+        )
+    ]
+    nets = [
+        y.monthly_withdrawal
+        for y in simulate(SimulationInput(stages=stages, max_age=94, config=CFG_NOINFL)).years
+    ]
+    # PMT annuity: gross payments stay put, net declines as more of the draw
+    # is taxable gain — late years pay steadily less than early ones.
+    assert nets[0] > nets[-1]
+    assert nets[-1] > 0
+
+
+def test_constant_target_pays_flat_instead_of_declining():
+    stage = realization_stage(
+        "Brydż",
+        {"broker": acc(starting_balance=500000, roi=0.05, buffer=0)},
+        55,
+        95,
+    )
+    stage.withdrawal_target_monthly = 2000
+    nets = [
+        y.monthly_withdrawal
+        for y in simulate(SimulationInput(stages=[stage], max_age=94, config=CFG_NOINFL)).years
+    ]
+    # Flat-ish take-home around the target instead of a PMT annuity tail.
+    assert min(nets) > 2000 * 0.6
+    assert max(nets) - min(nets) < 600
+
+
+def test_constant_target_zus_offset_keeps_total_stable():
+    bridge = realization_stage(
+        "Brydż",
+        {"broker": acc(starting_balance=1000000, roi=0.05, buffer=0)},
+        55,
+        95,
+    )
+    bridge.withdrawal_target_monthly = 5000
+    zus = realization_stage(
+        "Emerytura", {"zus": acc(monthly_pension=2000)}, 65, 95
+    )
+    by = {
+        y.age: y.monthly_withdrawal
+        for y in simulate(
+            SimulationInput(stages=[bridge, zus], max_age=94, config=CFG_NOINFL)
+        ).years
+    }
+    # The pension replaces part of the portfolio draw — total income stays near
+    # the target instead of jumping by the full pension.
+    assert by[60] > 0
+    assert by[60] - by[90] < 1000
+    assert by[80] > 4000

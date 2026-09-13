@@ -16,7 +16,13 @@ from app.simulation.config import (
     default_config,
 )
 from app.simulation.engine import simulate
-from app.simulation.planner import WizardPlanRequest, plan
+from app.simulation.planner import (
+    WizardPlanRequest,
+    WizardSuggestRequest,
+    _savings_monthly,
+    plan,
+    suggest_allocations,
+)
 from app.simulation.schemas import SimulationInput, SimulationResult
 from app.stages.metadata import STAGE_META
 from app.stages.registry import get_all_stage_types
@@ -245,6 +251,15 @@ async def wizard(request: Request):
 async def api_wizard_plan(body: WizardPlanRequest):
     try:
         return plan(body.path, body.answers, body.target_monthly)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+@router.post("/api/wizard/suggest")
+async def api_wizard_suggest(body: WizardSuggestRequest):
+    try:
+        pool = _savings_monthly(body.answers) * 12.0
+        return {"allocations": suggest_allocations(body.answers, default_config(), pool)}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
 

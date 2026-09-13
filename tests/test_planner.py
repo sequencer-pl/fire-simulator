@@ -4,7 +4,14 @@ import pytest
 from pydantic import ValidationError
 
 import app.simulation.planner as P
-from app.simulation.planner import WizardAnswers, plan
+from app.simulation.config import default_config
+from app.simulation.engine import simulate
+from app.simulation.planner import (
+    WizardAnswers,
+    _resolve_allocation,
+    plan,
+    suggest_allocations,
+)
 from app.simulation.schemas import SimulationInput
 
 BASE = dict(
@@ -38,26 +45,33 @@ def test_all_paths_return_valid_input(path):
     assert data.stages
     assert data.gender == "m"
     order = [(s.stage_type, s.start_age, s.end_age) for s in data.stages]
-    # chronological and non-overlapping (end exclusive)
-    for (_t1, _s1, e1), (t2, s2, _e2) in zip(order, order[1:], strict=False):
+    # Stages are chronological; consecutive realizations (bridge + ZUS) may overlap.
+    for (t1, _s1, e1), (t2, s2, _e2) in zip(order, order[1:], strict=False):
         assert t2 == "akumulacja" or t2 == "realizacja"
-        assert e1 <= s2
+        assert e1 <= s2 or (t1 == "realizacja" and t2 == "realizacja")
     assert order[-1][0] == "realizacja"
 
 
 def test_path1_has_bridge_when_re_below_retirement():
     r = plan(1, answers(retire_early_age=55))
     types = [s.stage_type for s in r.input.stages]
-    assert types == ["akumulacja", "akumulacja", "realizacja"]
+    assert types == ["akumulacja", "realizacja", "realizacja"]
     bridge = r.input.stages[1]
     assert "zus" not in bridge.accounts
-    assert "ppk" not in bridge.accounts
+    assert "ppk" in bridge.accounts
     assert "broker" in bridge.accounts
+    zus_stage = r.input.stages[2]
+    assert set(zus_stage.accounts) == {"zus"}
+    assert zus_stage.start_age == 65
 
 
 def test_no_bridge_when_re_equals_retirement():
     r = plan(1, answers(retire_early_age=65))
-    assert [s.stage_type for s in r.input.stages] == ["akumulacja", "realizacja"]
+    types = [s.stage_type for s in r.input.stages]
+    assert types == ["akumulacja", "realizacja", "realizacja"]
+    bridge, zus_stage = r.input.stages[1], r.input.stages[2]
+    assert bridge.start_age == bridge.end_age - (96 - 65)
+    assert bridge.start_age == zus_stage.start_age == 65
 
 
 def test_accumulation_includes_zus_and_ppk():
@@ -105,9 +119,13 @@ def test_b2b_ikze_limit_field():
 
 def test_realization_mirrors_accumulation():
     r = plan(1, answers())
-    acc = set(r.input.stages[0].accounts) | set(r.input.stages[1].accounts)
-    real = set(r.input.stages[-1].accounts)
-    assert real == acc
+    acc = set(r.input.stages[0].accounts)
+    bridge = set(r.input.stages[1].accounts)
+    zus_stage = set(r.input.stages[2].accounts)
+    # The whole non-ZUS portfolio is realized from the FIRE age; ZUS stays in
+    # its own realization stage — together they mirror the accumulation set.
+    assert set(zus_stage) == {"zus"}
+    assert bridge | zus_stage == acc
 
 
 def test_capital_seeded_even_without_stage_a():
@@ -124,6 +142,56 @@ def test_capital_seeded_even_without_stage_a():
     r = plan(1, a)
     assert r.projection.min_monthly > 0
     assert r.input.stages[-1].stage_type == "realizacja"
+
+
+def test_bridge_realization_starts_at_fire_age():
+    r = plan(1, answers(retire_early_age=55))
+    bridge = r.input.stages[1]
+    assert bridge.stage_type == "realizacja"
+    assert bridge.start_age == 55
+
+
+def test_path1_guarantees_constant_target():
+    r = plan(1, answers())
+    p = r.projection
+    assert p.met
+    assert p.target_monthly > 0
+    assert p.exhaust_age is None
+    # The gross-up drives the year-min up to the target: the guaranteed
+    # take-home equals the reported target (mean above from portfolio growth).
+    assert abs(p.min_monthly - p.target_monthly) < 2
+    assert p.mean_monthly >= p.min_monthly
+
+
+def test_path1_replay_keeps_guarantee():
+    r = plan(1, answers())
+    data: SimulationInput = r.input
+    W = r.projection.target_monthly
+    assert any(
+        s.withdrawal_target_monthly > 0
+        for s in data.stages
+        if s.stage_type == "realizacja"
+    )
+    res = simulate(data)
+    months = [
+        y.monthly_withdrawal
+        for y in res.years
+        if any(
+            s.start_age <= y.age < s.end_age
+            for s in data.stages
+            if s.stage_type == "realizacja"
+        )
+    ]
+    assert min(months) >= W - 2
+
+
+def test_realization_overlap_zus_starts_at_pension_age():
+    r = plan(1, answers())
+    types = [s.stage_type for s in r.input.stages]
+    assert types.count("realizacja") == 2
+    bridge, zus = r.input.stages[1], r.input.stages[2]
+    assert zus.start_age == 65
+    assert bridge.start_age < zus.start_age
 
 
 # --- Guarantee metric -------------------------------------------------------
@@ -158,7 +226,7 @@ def test_exhaust_reported_when_plan_runs_out():
 
 def test_path2_solves_required_savings():
     target = 15_000
-    r = plan(2, answers(savings=100), target)
+    r = plan(2, answers(allocations={"broker": 100}), target)
     assert r.solved.feasible
     assert r.solved.savings_monthly > 0
     assert r.projection.met
@@ -166,7 +234,16 @@ def test_path2_solves_required_savings():
 
 
 def test_path2_zero_savings_when_already_met():
-    r = plan(2, answers(savings=100), 6000)
+    # Big capital already guarantees the target with no extra savings.
+    r = plan(
+        2,
+        answers(
+            savings=0,
+            allocations={"broker": 100},
+            capital={"broker": 2_000_000},
+        ),
+        6000,
+    )
     assert r.solved.feasible
     assert r.solved.savings_monthly == 0
     assert r.projection.met
@@ -187,7 +264,12 @@ def test_path2_infeasible_target():
 
 
 def test_path3_finds_earliest_fire_age():
-    r = plan(3, answers(savings=500), 6000)
+    a = answers(
+        savings=1500,
+        allocations={"broker": 100},
+        capital={"broker": 1_000_000},
+    )
+    r = plan(3, a, 6000)
     assert r.solved.feasible
     assert r.solved.retire_early_age is not None
     re = r.solved.retire_early_age
@@ -214,7 +296,7 @@ def test_path3_infeasible():
 
 def test_bisection_converges_accuracy():
     target = 12_000
-    r = plan(2, answers(savings=50), target)
+    r = plan(2, answers(allocations={"broker": 100}), target)
     assert r.projection.min_monthly >= target - 1
 
 
@@ -253,6 +335,17 @@ def test_api_path2(client):
     assert resp.json()["solved"]["savings_monthly"] > 0
 
 
+def test_api_path3(client):
+    resp = client.post(
+        "/api/wizard/plan",
+        json={"path": 3, "target_monthly": 6_000, "answers": dict(BASE)},
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["solved"]["retire_early_age"] is not None
+    assert body["projection"]["met"] is True
+
+
 def test_api_missing_target_400(client):
     resp = client.post("/api/wizard/plan", json={"path": 2, "answers": dict(BASE)})
     assert resp.status_code == 400
@@ -261,3 +354,228 @@ def test_api_missing_target_400(client):
 def test_api_invalid_path_422(client):
     resp = client.post("/api/wizard/plan", json={"path": 9, "answers": dict(BASE)})
     assert resp.status_code == 422
+
+
+# --- Allocation model (cash-sink) ---------------------------------------------
+
+
+def test_allocation_split():
+    alloc = _resolve_allocation(answers(allocations={"broker": 100}), default_config(), 12_000)
+    assert alloc.get("broker") == 12_000
+    assert alloc.get("gotowka", 0) < 1e-6
+
+
+def test_allocation_no_assignments_is_cash():
+    a = answers(allocations={})
+    alloc = _resolve_allocation(a, default_config(), 12_000)
+    assert abs(alloc.get("gotowka", 0) - 12_000) < 0.01
+    assert "broker" not in alloc
+
+
+def test_allocation_split_multiple_accounts():
+    a = answers(allocations={"broker": 50, "krypto": 50})
+    alloc = _resolve_allocation(a, default_config(), 12_000)
+    assert abs(alloc.get("broker", 0) - 6_000) < 1
+    assert abs(alloc.get("krypto", 0) - 6_000) < 1
+    assert abs(alloc.get("gotowka", 0)) < 1
+
+
+def test_allocation_ikze_cap_clamp():
+    a = answers(
+        allocations={"ikze": 100},
+        use_ikze=True,
+        savings=1000,
+        savings_mode="amount",
+    )
+    alloc = _resolve_allocation(a, default_config(), 12_000)
+    limits = default_config().limits
+    assert abs(alloc.get("ikze", 0) - limits.ikze_annual) < 0.01
+    assert alloc.get("gotowka", 0) > 0
+
+
+def test_allocation_ikze_b2b_cap_clamp():
+    limits = default_config().limits
+    etat = _resolve_allocation(
+        answers(allocations={"ikze": 100}, use_ikze=True, savings=2000, savings_mode="amount"),
+        default_config(),
+        24_000,
+    )
+    b2b = _resolve_allocation(
+        answers(
+            allocations={"ikze": 100},
+            use_ikze=True,
+            employment="b2b",
+            savings=2000,
+            savings_mode="amount",
+        ),
+        default_config(),
+        24_000,
+    )
+    assert abs(etat.get("ikze", 0) - limits.ikze_annual) < 0.01
+    assert abs(b2b.get("ikze", 0) - limits.ikze_annual_self_employed) < 0.01
+    assert etat.get("ikze", 0) < b2b.get("ikze", 0)
+
+
+def test_allocation_over_100_rejected():
+    with pytest.raises(ValidationError):
+        answers(allocations={"broker": 60, "krypto": 50})
+
+
+def test_allocation_unknown_account_rejected():
+    with pytest.raises(ValidationError):
+        answers(allocations={"gotowka": 100})
+
+
+def test_suggest_equal_roi_split():
+    """Zbilansowana: ike/ikze/oipe/broker all 6% → equal 25% each at modest pool."""
+    a = answers(allocations={}, use_ikze=True, use_ike=True, use_oipe=True, use_broker=True)
+    pool = 40_000
+    s = suggest_allocations(a, default_config(), pool)
+    for k in ("ikze", "ike", "oipe", "broker"):
+        assert k in s
+        assert abs(s[k] - 25.0) < 0.1
+    assert sum(s.values()) <= 100 + 1e-6
+
+
+def test_suggest_sole_active_account_gets_full_weight():
+    """Agresywna: tylko krypto → całość na jedyne aktywne konto."""
+    a = answers(allocations={}, use_krypto=True)
+    s = suggest_allocations(a, default_config(), 120_000)
+    assert abs(s.get("krypto", 0) - 100) < 0.1
+    assert sum(s.values()) <= 100 + 1e-6
+
+
+def test_suggest_equal_roi_split_large_pool():
+    """Zbilansowana: ike/ikze/oipe/broker all 6% → equal 25% even at large pool
+    (limits are applied later in _resolve_allocation, not in the suggestion)."""
+    a = answers(allocations={}, use_ikze=True, use_ike=True, use_oipe=True, use_broker=True)
+    s = suggest_allocations(a, default_config(), 200_000)
+    for k in ("ikze", "ike", "oipe", "broker"):
+        assert abs(s[k] - 25.0) < 0.1
+    assert sum(s.values()) <= 100 + 1e-6
+
+
+def test_suggest_weights_monotonic_by_roi():
+    """Zbilansowana: strażnice (6%) dostają więcej niż lokata (4%)."""
+    a = answers(allocations={}, use_ikze=True, use_ike=True, use_oipe=True, use_lokata=True)
+    pool = 120_000
+    s = suggest_allocations(a, default_config(), pool)
+    assert abs(s["ikze"] - 30.0) < 0.1
+    assert abs(s["ike"] - 30.0) < 0.1
+    assert abs(s["oipe"] - 30.0) < 0.1
+    assert abs(s["lokata"] - 10.0) < 0.1
+    assert s["ikze"] > s["lokata"]
+    assert sum(s.values()) <= 100 + 1e-6
+
+
+def test_suggest_konserwatywna_prefers_safe():
+    """Konserwatywna: strażnice (5%) dominują; broker/lokata (4%) mniej, ale >0."""
+    a = answers(
+        strategy="konserwatywna",
+        allocations={},
+        use_ikze=True,
+        use_ike=True,
+        use_oipe=True,
+        use_broker=True,
+        use_lokata=True,
+    )
+    s = suggest_allocations(a, default_config(), 60_000)
+    for k in ("ikze", "ike", "oipe"):
+        assert abs(s[k] - 26.53) < 0.1
+    assert abs(s["broker"] - 10.2) < 0.1
+    assert abs(s["lokata"] - 10.2) < 0.1
+    assert s["ikze"] > s["lokata"]
+    assert sum(s.values()) <= 100 + 1e-6
+
+
+def test_suggest_agresywna_weights_higher_roi_more():
+    """Agresywna: krypto (9%) > broker (8%) > obligacje (6%) > lokata (4%),
+    a lokata nadal dostaje cząstkę (nigdy zero)."""
+    a = answers(
+        strategy="agresywna",
+        allocations={},
+        use_krypto=True,
+        use_broker=True,
+        use_obligacje=True,
+        use_lokata=True,
+    )
+    s = suggest_allocations(a, default_config(), 90_000)
+    assert s["krypto"] > s["broker"] > s["obligacje"] > s["lokata"] > 0
+    assert abs(s["krypto"] - 42.31) < 0.1
+    assert abs(s["lokata"] - 3.85) < 0.15
+    assert sum(s.values()) <= 100 + 1e-6
+
+
+def test_suggest_konserwatywna_punishes_risky_hardest():
+    """Krypto vs obligacje (te same dwa konta): konserwatywna daje krypto MNIEJ
+    niż zbilansowana — absolutny dystans stóp (2% vs 4,5%) jest tu sankcjonowany."""
+    cons = suggest_allocations(
+        answers(strategy="konserwatywna", allocations={}, use_krypto=True, use_obligacje=True),
+        default_config(),
+        12_000,
+    )
+    zbil = suggest_allocations(
+        answers(strategy="zbilansowana", allocations={}, use_krypto=True, use_obligacje=True),
+        default_config(),
+        12_000,
+    )
+    assert abs(cons["krypto"] - 16.67) < 0.1
+    assert abs(cons["obligacje"] - 83.33) < 0.1
+    assert abs(zbil["krypto"] - 33.33) < 0.1
+    assert abs(zbil["obligacje"] - 66.67) < 0.1
+    assert cons["krypto"] < zbil["krypto"]
+    assert cons["krypto"] < cons["obligacje"]
+    assert zbil["krypto"] < zbil["obligacje"]
+
+
+def test_suggest_no_activations_returns_empty():
+    a = answers(allocations={})
+    s = suggest_allocations(a, default_config(), 12_000)
+    assert s == {}
+
+
+def test_gotowka_accums_when_all_cash():
+    a = answers(allocations={}, savings=1000, savings_mode="amount")
+    r = plan(1, a)
+    acc = r.input.stages[0].accounts
+    assert "gotowka" in acc
+    assert acc["gotowka"].annual_contribution > 0
+
+
+def test_gotowka_absent_when_fully_allocated():
+    a = answers(allocations={"broker": 100})
+    r = plan(1, a)
+    acc = r.input.stages[0].accounts
+    assert "gotowka" not in acc
+
+
+def test_gotowka_warning_present():
+    a = answers(allocations={}, savings=1000, savings_mode="amount")
+    r = plan(1, a)
+    assert any("gotówce" in w for w in r.projection.warnings)
+
+
+def test_gotowka_warning_absent_when_full():
+    a = answers(allocations={"broker": 100})
+    r = plan(1, a)
+    assert not any("gotówce" in w for w in r.projection.warnings)
+
+
+def test_path2_scales_balances_in_allocated_accounts():
+    a = answers(allocations={"broker": 50, "krypto": 50}, savings=1000)
+    r = plan(2, a, 10_000)
+    assert r.solved.feasible
+    acc = r.input.stages[0].accounts
+    assert "broker" in acc
+    assert "krypto" in acc
+
+
+def test_suggest_endpoint(client):
+    resp = client.post(
+        "/api/wizard/suggest",
+        json={"answers": dict(BASE, allocations={}, use_ikze=True, use_krypto=True)},
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert "allocations" in body
+    assert sum(body["allocations"].values()) <= 100 + 1e-6

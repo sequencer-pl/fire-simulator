@@ -1,6 +1,6 @@
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from app.simulation.config import default_config
 from app.simulation.engine import simulate
@@ -12,6 +12,22 @@ from app.simulation.schemas import (
 )
 
 SAVINGS_ACCOUNTS = ("broker", "lokata", "obligacje", "krypto")
+
+# Risk-appetite per strategy: turns relative return into an allocation weight
+# via  w = 1 + TILT * rel(roi). High TILT concentrates on the best ROI,
+# low TILT stays close to a flat split (which favours the many "safe" accounts
+# in a conservative world because those carry the highest ROI there).
+STRATEGY_TILT: dict[str, float] = {
+    "konserwatywna": 8.0,
+    "zbilansowana": 5.0,
+    "agresywna": 10.0,
+}
+
+# Fixed reference spread for rel(roi) = (roi - roi_min) / ROI_REF. Using a fixed
+# reference instead of the active-set span keeps absolute return gaps meaningful:
+# a risky account far below the best one (e.g. krypto at 2% vs obligacje 4.5%) is
+# penalized hard under conservative assumptions instead of being normalized away.
+ROI_REF = 0.05
 
 STRATEGY_ROI: dict[str, dict[str, float]] = {
     "konserwatywna": {
@@ -55,10 +71,26 @@ STRATEGY_ROI: dict[str, dict[str, float]] = {
     },
 }
 
-# Preferred funding order of tax-privileged vehicles; the remainder lands in
-# the "primary" savings account (broker by default).
+# Preferred funding order of tax-privileged vehicles. Funds NOT assigned by the
+# user (or overflowing annual limits below) stay in "gotowka" — the visible,
+# worst-case (real −inflation) sink.
 TAX_SHELTER_ORDER = ("ikze", "ike", "oipe")
 TAX_SHELTER_FLAG = {"ikze": "use_ikze", "ike": "use_ike", "oipe": "use_oipe"}
+
+# Accounts a user can assign a monthly-savings share to. "gotowka" is never
+# here — it is the implicit reservoir for leftovers. Payroll/employer vehicles
+# (ZUS, PPK, PPE) cannot receive discretionary savings.
+ALLOCATABLE_ACCOUNTS = (
+    "broker",
+    "ikze",
+    "ike",
+    "oipe",
+    "oki_inw",
+    "oki_osk",
+    "krypto",
+    "lokata",
+    "obligacje",
+)
 
 DEFAULT_PLAN_END = 96  # exclusive — plan covers ages up to 95
 DEFAULT_ZUS_ROI = 0.05
@@ -89,6 +121,7 @@ class WizardAnswers(BaseModel):
     use_krypto: bool = False
     use_lokata: bool = False
     use_obligacje: bool = False
+    use_broker: bool = False
 
     retire_early_age: int | None = Field(default=None, ge=0, le=110)
     retirement_age: int | None = Field(default=None, ge=0, le=110)
@@ -99,12 +132,32 @@ class WizardAnswers(BaseModel):
 
     strategy: Literal["konserwatywna", "zbilansowana", "agresywna"] = "zbilansowana"
     roi_overrides: dict[str, float] = Field(default_factory=dict)
-    primary_account: Literal["broker", "lokata", "obligacje"] = "broker"
+
+    # Monthly-savings shares (%) per allocatable account. Money NOT assigned
+    # here (or exceeding a shelter's annual limit) lands in "gotowka".
+    allocations: dict[str, float] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def validate_allocations(self) -> "WizardAnswers":
+        share_sum = 0.0
+        for name, weight in self.allocations.items():
+            if name not in ALLOCATABLE_ACCOUNTS:
+                raise ValueError(f"Nieznane konto w podziale oszczędności: {name}")
+            if weight < 0:
+                raise ValueError(f"Udział {name} nie może być ujemny.")
+            share_sum += weight
+        if share_sum > 100 + 1e-6:
+            raise ValueError("Suma udziałów przekracza 100%.")
+        return self
 
 
 class WizardPlanRequest(BaseModel):
     path: Literal[1, 2, 3]
     target_monthly: float | None = Field(default=None, ge=0.0)
+    answers: WizardAnswers
+
+
+class WizardSuggestRequest(BaseModel):
     answers: WizardAnswers
 
 
@@ -157,30 +210,79 @@ def _with_basis(name: str) -> bool:
     return name in ("broker", "obligacje", "krypto")
 
 
-def _alloc_discretionary(a: WizardAnswers, config, annual_pool: float) -> dict[str, float]:
-    """Split annual discretionary savings: tax shelters first, remainder → primary."""
-    alloc: dict[str, float] = {}
-    remaining = annual_pool
+def _shelter_cap(a: WizardAnswers, config, name: str) -> float:
     limits = config.limits
-    ikze_cap = limits.ikze_annual_self_employed if a.employment == "b2b" else limits.ikze_annual
-    caps = {"ikze": ikze_cap, "ike": limits.ike_annual, "oipe": limits.oipe_annual}
-    for inst in TAX_SHELTER_ORDER:
-        if not getattr(a, TAX_SHELTER_FLAG[inst]):
-            continue
-        share = min(remaining, caps[inst])
-        if share > 0:
-            alloc[inst] = share
-            remaining -= share
-    if remaining > 0:
-        alloc[a.primary_account] = alloc.get(a.primary_account, 0.0) + remaining
+    if name == "ikze":
+        return limits.ikze_annual_self_employed if a.employment == "b2b" else limits.ikze_annual
+    if name == "ike":
+        return limits.ike_annual
+    if name == "oipe":
+        return limits.oipe_annual
+    return 0.0
+
+
+def _resolve_allocation(a: WizardAnswers, config, annual_pool: float) -> dict[str, float]:
+    """Split the discretionary pool by user weights; shelters cap at annual
+    limits; whatever is not assigned stays in "gotowka" (the visible sink).
+    """
+    alloc: dict[str, float] = {}
+    used = 0.0
+    for inst, weight in a.allocations.items():
+        target = annual_pool * weight / 100.0
+        cap = _shelter_cap(a, config, inst)
+        contrib = min(target, cap) if cap else target
+        if contrib > 1e-6:
+            alloc[inst] = round(contrib, 2)
+            used += contrib
+    overflow = max(0.0, annual_pool - used)
+    if overflow > 1e-6:
+        alloc["gotowka"] = round(overflow, 2)
     return alloc
 
 
+def suggest_allocations(a: WizardAnswers, config, annual_pool: float) -> dict[str, float]:
+    """Auto % split: each active account gets a weight of the form
+    w = 1 + TILT * rel(roi), where rel(roi) = (roi - roi_min) / ROI_REF with an
+    absolute 5pp reference spread (ROI_REF). Equal ROI always means equal
+    weight; absolute ROI gaps stay meaningful, so a low-return risky account is
+    penalized hard under conservative assumptions while never hitting zero.
+    Annual limits are NOT applied here — they clamp inside _resolve_allocation
+    and any overflow falls back to "gotowka"."""
+    if annual_pool <= 0:
+        return {}
+    active = [n for n in ALLOCATABLE_ACCOUNTS if _investment_used(a, n)]
+    if not active:
+        return {}
+    rois = {n: _roi(a, n) for n in active}
+    r_min = min(rois.values())
+    tilt = STRATEGY_TILT[a.strategy]
+    weights: dict[str, float] = {}
+    for n in active:
+        rel = (rois[n] - r_min) / ROI_REF
+        weights[n] = 1.0 + tilt * rel
+    total = sum(weights.values())
+    out = {n: round(w / total * 100.0, 2) for n, w in weights.items()}
+    drift = 100.0 - sum(out.values())
+    if abs(drift) > 1e-6 and out:
+        biggest = max(out, key=out.get)
+        out[biggest] = round(out[biggest] + drift, 2)
+    return out
+
+
 def _investment_used(a: WizardAnswers, name: str) -> bool:
-    if name == "broker":
-        return True
-    flag = {"lokata": "use_lokata", "obligacje": "use_obligacje", "krypto": "use_krypto"}.get(name)
-    return bool(getattr(a, flag)) if flag else bool(getattr(a, "use_" + name, False))
+    flag = {
+        "broker": "use_broker",
+        "lokata": "use_lokata",
+        "obligacje": "use_obligacje",
+        "krypto": "use_krypto",
+        "oki_inw": "use_oki_inw",
+        "oki_osk": "use_oki_osk",
+    }.get(name)
+    if flag is not None:
+        return bool(getattr(a, flag))
+    if name in TAX_SHELTER_FLAG:
+        return bool(getattr(a, TAX_SHELTER_FLAG[name]))
+    return False
 
 
 def _account_present(a: WizardAnswers, name: str, alloc: dict[str, float]) -> bool:
@@ -213,7 +315,8 @@ def build_stages(a: WizardAnswers) -> SimulationInput:
     retirement = max(retirement, re)
     plan_end = max(a.plan_end_age, retirement + 1)
     annual_pool = _savings_monthly(a) * 12.0
-    alloc = _alloc_discretionary(a, config, annual_pool)
+    alloc = _resolve_allocation(a, config, annual_pool)
+    cash_present = a.capital.get("gotowka", 0.0) > 0 or alloc.get("gotowka", 0.0) > 0
 
     stages: list[StageInput] = []
     accum_accounts: dict[str, AccountConfig] = {}
@@ -235,9 +338,11 @@ def build_stages(a: WizardAnswers) -> SimulationInput:
                 cfg["ikze_limit"] = "self_employed" if a.employment == "b2b" else "etat"
                 cfg["monthly_base"] = gross
             accum_accounts[name] = AccountConfig(**cfg)
-        if a.capital.get("gotowka", 0.0) > 0:
+        if cash_present:
             accum_accounts["gotowka"] = AccountConfig(
-                starting_balance=a.capital["gotowka"], roi=0.0
+                starting_balance=a.capital.get("gotowka", 0.0),
+                annual_contribution=alloc.get("gotowka", 0.0),
+                roi=0.0,
             )
         if a.use_ppk:
             accum_accounts["ppk"] = AccountConfig(
@@ -275,73 +380,67 @@ def build_stages(a: WizardAnswers) -> SimulationInput:
                 )
             )
 
-    # --- Stage B: bridging accumulation (FIRE → pension age, no more ZUS/PPK) ---
-    if re < retirement:
-        bridge: dict[str, AccountConfig] = {}
-        for name in inv_names:
-            cfg = _base_account(a, name, a.capital.get(name, 0.0), _roi(a, name))
-            cfg["annual_contribution"] = 0.0
-            if name == "ikze":
-                cfg["ikze_limit"] = "self_employed" if a.employment == "b2b" else "etat"
-            bridge[name] = AccountConfig(**cfg)
-        if a.capital.get("gotowka", 0.0) > 0:
-            bridge["gotowka"] = AccountConfig(starting_balance=a.capital["gotowka"], roi=0.0)
+    # --- Stage B: FIRE bridge realization (FIRE age → plan horizon) ---
+    # The whole non-ZUS portfolio pays out from the FIRE age (not from the
+    # pension age): "Brydż do emerytury" is a realization stage.
+    bridge_accounts: dict[str, AccountConfig] = {}
+    for name in inv_names:
+        bridge_accounts[name] = AccountConfig(
+            starting_balance=a.capital.get(name, 0.0),
+            roi=_roi(a, name),
+            buffer=0.0,
+        )
+    if cash_present:
+        bridge_accounts["gotowka"] = AccountConfig(
+            starting_balance=a.capital.get("gotowka", 0.0),
+            roi=0.0,
+            buffer=0.0,
+        )
+    if a.use_ppk:
+        bridge_accounts["ppk"] = AccountConfig(
+            starting_balance=a.capital.get("ppk", 0.0),
+            roi=_roi(a, "ppk"),
+            buffer=0.0,
+        )
+    if a.use_ppe:
+        bridge_accounts["ppe"] = AccountConfig(
+            starting_balance=a.capital.get("ppe", 0.0),
+            roi=_roi(a, "ppe"),
+            buffer=0.0,
+        )
+    if bridge_accounts:
         stages.append(
             StageInput(
-                stage_type="akumulacja",
+                stage_type="realizacja",
                 name="Brydż do emerytury",
                 start_age=re,
-                end_age=retirement,
-                accounts=bridge or {},
+                end_age=plan_end,
+                accounts=bridge_accounts,
             )
         )
 
-    # --- Stage C: realization (annuitet) from pension age until plan end ---
-    real_accounts: dict[str, AccountConfig] = {}
-
-    def _has_capital(name: str) -> bool:
-        if name in accum_accounts or name in a.capital:
-            return True
-        return name in ("ppk", "ppe", "zus") and getattr(a, "use_" + name, False)
-
-    for name in SAVINGS_ACCOUNTS + (
-        "ike",
-        "ikze",
-        "oipe",
-        "oki_inw",
-        "oki_osk",
-        "gotowka",
-        "ppk",
-        "ppe",
-        "zus",
-    ):
-        if not _has_capital(name):
-            continue
-        if name == "zus":
-            real_accounts["zus"] = AccountConfig(
-                starting_balance=a.capital.get("zus", 0.0),
-                starting_balance_ofe=a.capital.get("zus:ofe", 0.0),
-                ofe_member=a.ofe_member,
-                roi=0.0,
-                buffer=0.0,
-                waloryzacja_swiadczenia=None,
+    # --- Stage C: ZUS-only realization from pension age ---
+    # Pension capital is converted to a lifetime annuity (ŚDTŻ) at retirement;
+    # it never passes through the non-ZUS portfolio.
+    if a.use_zus:
+        stages.append(
+            StageInput(
+                stage_type="realizacja",
+                name="Realizacja (emerytura)",
+                start_age=retirement,
+                end_age=plan_end,
+                accounts={
+                    "zus": AccountConfig(
+                        starting_balance=a.capital.get("zus", 0.0),
+                        starting_balance_ofe=a.capital.get("zus:ofe", 0.0),
+                        ofe_member=a.ofe_member,
+                        roi=0.0,
+                        buffer=0.0,
+                        waloryzacja_swiadczenia=None,
+                    )
+                },
             )
-        else:
-            real_accounts[name] = AccountConfig(
-                starting_balance=a.capital.get(name, 0.0),
-                roi=_roi(a, name),
-                buffer=0.0,
-            )
-
-    stages.append(
-        StageInput(
-            stage_type="realizacja",
-            name="Realizacja (emerytura)",
-            start_age=retirement,
-            end_age=plan_end,
-            accounts=real_accounts,
         )
-    )
 
     return SimulationInput(
         stages=stages,
@@ -359,6 +458,12 @@ def _realization_window(data: SimulationInput) -> tuple[int, int]:
     return 0, 0
 
 
+def _tl(target: float) -> float:
+    """Solver/gross-up accuracy band — a draw within this of the target counts
+    as "met" (the constant-target gross-up converges to min ≈ target ± tol)."""
+    return max(0.3, target * 1e-5)
+
+
 def _project(
     data: SimulationInput, result: SimulationResult, target: float | None
 ) -> PlanProjection:
@@ -369,12 +474,15 @@ def _project(
     values = [m for _, m in months]
     min_m = min(values) if values else 0.0
     mean_m = sum(values) / len(values) if values else 0.0
+    # A draw below the target is a miss: the gross-up scales so the year-min
+    # nets to the target, so the guarantee "you always get at least target"
+    # holds for every year — met fails only when the portfolio depletes.
+    floor = (target - _tl(target)) if target and target > 0 else 0.5
     exhaust = None
-    if target:
-        for age, m in months:
-            if m < target - 1e-9:
-                exhaust = age
-                break
+    for age, m in months:
+        if m < floor:
+            exhaust = age
+            break
     return PlanProjection(
         met=target is None or exhaust is None,
         target_monthly=target,
@@ -387,8 +495,90 @@ def _project(
     )
 
 
+def _drawn_floor(data: SimulationInput, result: SimulationResult) -> float:
+    """Lowest net monthly draw observed across the whole realization window.
+
+    The constant-target engine pays a fixed gross, so the net take-home is
+    lowest in the final years (taxes grow as principal is realized). Grossing
+    this up to ``target`` is what makes "you can rely on at least target"
+    literally true for every year of the horizon.
+    """
+    start, end = _realization_window(data)
+    nets = [
+        year.monthly_withdrawal for year in result.years if start <= year.age < end
+    ]
+    return min(nets) if nets else 0.0
+
+
+def _net_to_gross(data: SimulationInput, target: float) -> float:
+    """Monthly gross draw whose minimum net take-home equals ``target``.
+
+    The engine pays out gross; taxes eat a growing share as principal is
+    realized, so the worst (final) years pay least. Iteratively scale the
+    gross by the drawn minimum so that no year — the guarantee — falls below
+    the target. Infeasible targets diverge upward (min stays below target).
+    """
+    if target <= 0:
+        return 0.0
+    G = target
+    tol = _tl(target)
+    for _ in range(60):
+        net = _drawn_floor(data, simulate(data, G))
+        if net <= 0:
+            break
+        if abs(net - target) <= tol:
+            break
+        G = G * target / net
+        if G > 1e12:
+            break
+    return G
+
+
 def _evaluate(data: SimulationInput, target: float | None) -> PlanProjection:
-    return _project(data, simulate(data), target)
+    if target is None or target <= 0:
+        return _project(data, simulate(data, target), target)
+    G = _net_to_gross(data, target)
+    return _project(data, simulate(data, G), target)
+
+
+def _solve_payout(data: SimulationInput) -> tuple[float, bool]:
+    """Highest constant monthly payout the portfolio sustains to the horizon.
+
+    Returns (W, True) where W is the FIRE target for path 1: the maximum
+    fixed monthly withdrawal (net) such that no year's draw falls below W —
+    i.e. the portfolio never exhausts before ``plan_end``. Bisection over W:
+    monotone, a higher target exhausts sooner, so ``met`` decreases with W.
+    """
+    start, end = _realization_window(data)
+    if start >= end:
+        return 0.0, True
+
+    lo = 0.0
+    hi = max(100.0, data.monthly_gross)
+    while _evaluate(data, hi).met and hi < 1e9:
+        hi *= 2.0
+    for _ in range(50):
+        mid = (lo + hi) / 2.0
+        if _evaluate(data, mid).met:
+            lo = mid
+        else:
+            hi = mid
+    return lo, True
+
+
+def _append_cash_warning(proj: PlanProjection, data: SimulationInput) -> PlanProjection:
+    for etap in data.stages:
+        if etap.stage_type == "akumulacja" and "gotowka" in etap.accounts:
+            monthly = etap.accounts["gotowka"].annual_contribution / 12.0
+            if monthly > 0.05:
+                infl = data.config.inflation * 100.0
+                proj.warnings.append(
+                    f"Z oszczędności {round(monthly):,} zł/mies. pozostaje w gotówce "
+                    f"— inflacja ({infl:.1f}%/rok) realnie je zjada. Rozważ broker, "
+                    f"lokatę lub obligacje (zaznacz w kroku „Instrumenty”)."
+                )
+            break
+    return proj
 
 
 def _vary_savings(a: WizardAnswers, amount: float) -> SimulationInput:
@@ -411,13 +601,14 @@ def _solve_savings(a: WizardAnswers, target: float) -> tuple[float, bool]:
     """
     lo = 0.0
     hi = max(1.0, a.gross_monthly)
-    if _evaluate(_vary_savings(a, hi), target).min_monthly < target:
+    tol = _tl(target)
+    if _evaluate(_vary_savings(a, hi), target).min_monthly < target - tol:
         return hi, False
-    if _evaluate(_vary_savings(a, lo), target).min_monthly >= target:
+    if _evaluate(_vary_savings(a, lo), target).min_monthly >= target - tol:
         return 0.0, True
     for _ in range(40):
         mid = (lo + hi) / 2.0
-        if _evaluate(_vary_savings(a, mid), target).min_monthly >= target:
+        if _evaluate(_vary_savings(a, mid), target).min_monthly >= target - tol:
             hi = mid
         else:
             lo = mid
@@ -429,11 +620,12 @@ def _solve_re(a: WizardAnswers, target: float) -> tuple[int | None, bool]:
     retirement = _retirement_age(a, default_config())
     low = a.age_now + 1
     high = max(retirement, low)
-    if _evaluate(_vary_re(a, high), target).min_monthly < target:
+    tol = _tl(target)
+    if _evaluate(_vary_re(a, high), target).min_monthly < target - tol:
         return None, False
     while low < high:
         mid = (low + high) // 2
-        if _evaluate(_vary_re(a, mid), target).min_monthly >= target:
+        if _evaluate(_vary_re(a, mid), target).min_monthly >= target - tol:
             high = mid
         else:
             low = mid + 1
@@ -443,10 +635,14 @@ def _solve_re(a: WizardAnswers, target: float) -> tuple[int | None, bool]:
 def plan(path: int, a: WizardAnswers, target: float | None = None) -> WizardPlanResult:
     if path == 1:
         data = build_stages(a)
+        payout, _ = _solve_payout(data)
+        for si in data.stages:
+            if si.stage_type == "realizacja" and "zus" not in si.accounts:
+                si.withdrawal_target_monthly = float(_net_to_gross(data, payout))
         return WizardPlanResult(
             path=1,
             input=data,
-            projection=_evaluate(data, None),
+            projection=_append_cash_warning(_evaluate(data, payout), data),
             solved=PlanSolved(feasible=True),
         )
 
@@ -459,7 +655,7 @@ def plan(path: int, a: WizardAnswers, target: float | None = None) -> WizardPlan
     if path == 2:
         amount, feasible = _solve_savings(a, target)
         data = _vary_savings(a, amount)
-        proj = _evaluate(data, target)
+        proj = _append_cash_warning(_evaluate(data, target), data)
         pct = None
         if a.savings_mode == "pct" and a.gross_monthly > 0:
             pct = round(amount / a.gross_monthly * 100.0, 1)
@@ -493,14 +689,14 @@ def plan(path: int, a: WizardAnswers, target: float | None = None) -> WizardPlan
         return WizardPlanResult(
             path=3,
             input=data,
-            projection=_evaluate(data, target),
+            projection=_append_cash_warning(_evaluate(data, target), data),
             solved=PlanSolved(feasible=False, note=note),
         )
     data = _vary_re(a, re)
     return WizardPlanResult(
         path=3,
         input=data,
-        projection=_evaluate(data, target),
+        projection=_append_cash_warning(_evaluate(data, target), data),
         solved=PlanSolved(
             retire_early_age=re,
             feasible=feasible,

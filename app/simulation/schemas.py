@@ -33,6 +33,15 @@ class StageInput(BaseModel):
     start_age: int
     end_age: int
     accounts: dict[str, AccountConfig] = Field(default_factory=dict)
+    withdrawal_target_monthly: float = Field(
+        default=0.0,
+        ge=0.0,
+        description=(
+            "Stały cel wypłaty (netto, zł/mies.) dla fazy realizacji bez ZUS. "
+            ">0 = tryb stałego celu (wypłata z portfela, pomniejszona o rentę ZUS); "
+            "0 = klasyczna annuitetyzacja PMT."
+        ),
+    )
 
 
 class SimulationInput(BaseModel):

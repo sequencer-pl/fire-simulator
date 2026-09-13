@@ -376,6 +376,8 @@ def _process_stages(
     welcomed_ppk: set[str] | None = None,
     monthly_gross: float = 0.0,
     state: SimulationState | None = None,
+    target: float | None = None,
+    zus_pension: float = 0.0,
 ) -> tuple[dict[str, float], list[str], dict[str, float]]:
     if state is not None:
         balances = state.balances
@@ -407,6 +409,19 @@ def _process_stages(
         for n, c in accounts_config.items():
             if n == "gotowka":
                 c["roi"] = -config.inflation
+
+        # Constant-target withdrawal for non-ZUS realization stages (wizard FIRE
+        # model): the portfolio pays out a fixed monthly amount, reduced by the
+        # ZUS pension once it kicks in, instead of annuitizing to zero via PMT.
+        stage_target = target if target is not None else stage_input.withdrawal_target_monthly
+        desired_withdrawal: float | None = None
+        if (
+            stage_input.stage_type == "realizacja"
+            and "zus" not in accounts_config
+            and stage_target is not None
+            and stage_target > 0
+        ):
+            desired_withdrawal = max(0.0, stage_target * MONTHS_PER_YEAR - zus_pension)
 
         # ZUS — contributions and capital indexation (accumulation) plus capital
         # conversion to pension (realization) are handled by the engine because
@@ -476,11 +491,15 @@ def _process_stages(
         if not accounts_to_process:
             continue
 
+        kwargs: dict = {}
+        if desired_withdrawal is not None:
+            kwargs["desired_withdrawal"] = desired_withdrawal
         result = stage_obj.calculate_year(
             age=age,
             end_age=stage_input.end_age,
             balances=balances,
             config=accounts_to_process,
+            **kwargs,
         )
 
         for k, v in result["withdrawal"].items():
@@ -773,7 +792,11 @@ def _apply_ikze_savings(
 
 
 def _run_year(
-    state: SimulationState, age: int, monthly_gross: float, all_stages: list[StageInput]
+    state: SimulationState,
+    age: int,
+    monthly_gross: float,
+    all_stages: list[StageInput],
+    target: float | None = None,
 ) -> None:
     active_stages = [si for si in all_stages if si.start_age <= age < si.end_age]
     if not active_stages:
@@ -798,6 +821,8 @@ def _run_year(
         age=age,
         processed_accounts=processed_accounts,
         monthly_gross=monthly_gross,
+        target=target,
+        zus_pension=zus_pension,
     )
 
     merged_tax = _apply_tax(
@@ -864,7 +889,7 @@ def _finalize_result(data: SimulationInput, state: SimulationState) -> Simulatio
     )
 
 
-def simulate(data: SimulationInput) -> SimulationResult:
+def simulate(data: SimulationInput, target: float | None = None) -> SimulationResult:
     """
     Simulation engine — pipeline over ages.
 
@@ -877,6 +902,10 @@ def simulate(data: SimulationInput) -> SimulationResult:
     6. Store computed[age]
 
     end_age is exclusive.
+
+    ``target`` is an optional override of the constant monthly withdrawal
+    target for realization stages without a ZUS account (wizard solver).
+    When None the stage-level ``withdrawal_target_monthly`` is used.
     """
     if not data.stages:
         return SimulationResult(
@@ -897,7 +926,7 @@ def simulate(data: SimulationInput) -> SimulationResult:
     max_age = data.max_age
 
     for age in range(min_age, max_age + 1):
-        _run_year(state, age, data.monthly_gross, data.stages)
+        _run_year(state, age, data.monthly_gross, data.stages, target)
 
     return _finalize_result(data, state)
 
