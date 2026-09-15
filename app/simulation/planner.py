@@ -327,8 +327,11 @@ def build_stages(a: WizardAnswers) -> SimulationInput:
         if _account_present(a, n, alloc)
     ]
 
-    # --- Stage A: accumulation while working (from today until FIRE) ---
-    if a.age_now < re and employed:
+    # --- Stage A: accumulation from today until FIRE ---
+    # Workers save out of their salary, but the unemployed may still save from
+    # other sources ("Odkładasz miesięcznie") — both accumulate until FIRE.
+    # Salary-derived vehicles (PPK/PPE/ZUS) need a gross, so they require employment.
+    if a.age_now < re and (employed or annual_pool > 0):
         for name in inv_names:
             starting = a.capital.get(name, 0.0)
             contrib = alloc.get(name, 0.0)
@@ -344,7 +347,7 @@ def build_stages(a: WizardAnswers) -> SimulationInput:
                 annual_contribution=alloc.get("gotowka", 0.0),
                 roi=0.0,
             )
-        if a.use_ppk:
+        if employed and a.use_ppk:
             accum_accounts["ppk"] = AccountConfig(
                 starting_balance=a.capital.get("ppk", 0.0),
                 monthly_base=gross,
@@ -353,7 +356,7 @@ def build_stages(a: WizardAnswers) -> SimulationInput:
                 state_topups=a.ppk_state_topups,
                 roi=_roi(a, "ppk"),
             )
-        if a.use_ppe:
+        if employed and a.use_ppe:
             accum_accounts["ppe"] = AccountConfig(
                 starting_balance=a.capital.get("ppe", 0.0),
                 monthly_base=gross,
@@ -361,7 +364,7 @@ def build_stages(a: WizardAnswers) -> SimulationInput:
                 annual_contribution=0.0,
                 roi=_roi(a, "ppe"),
             )
-        if a.use_zus:
+        if employed and a.use_zus:
             accum_accounts["zus"] = AccountConfig(
                 starting_balance=a.capital.get("zus", 0.0),
                 starting_balance_ofe=a.capital.get("zus:ofe", 0.0),
@@ -594,13 +597,28 @@ def _vary_re(a: WizardAnswers, re: int) -> SimulationInput:
     return build_stages(na)
 
 
+def _savings_upper_bound(a: WizardAnswers, target: float) -> float:
+    """Numeric cap for the savings bisection — derived from plan geometry,
+    not income. Contributions alone (without returns) funding the whole
+    realization horizon are provably enough with non-negative ROI, so a hit on
+    this cap is a structural impossibility, never a salary artifact. The 2x
+    factor absorbs taxes and drag on withdrawal."""
+    config = default_config()
+    retirement = _retirement_age(a, config)
+    re = float(a.retire_early_age if a.retire_early_age is not None else retirement)
+    horizon = max(1.0, float(a.plan_end_age) - re)
+    window = max(0.1, re - float(a.age_now))
+    return max(1.0, 2.0 * target * 12.0 * horizon / window)
+
+
 def _solve_savings(a: WizardAnswers, target: float) -> tuple[float, bool]:
     """Minimum monthly savings whose projected payout meets target (bisection).
 
-    Upper bound is capped at gross salary — you cannot save more than you earn.
+    There is no income cap: the answer is a pure number and stays informative
+    even when it exceeds the salary (the UI surfaces it as a warning + % of pay).
     """
     lo = 0.0
-    hi = max(1.0, a.gross_monthly)
+    hi = _savings_upper_bound(a, target)
     tol = _tl(target)
     if _evaluate(_vary_savings(a, hi), target).min_monthly < target - tol:
         return hi, False
@@ -649,16 +667,20 @@ def plan(path: int, a: WizardAnswers, target: float | None = None) -> WizardPlan
     if target is None or target <= 0:
         raise ValueError("target_monthly jest wymagany dla tej ścieżki.")
 
-    if a.gross_monthly <= 0 or a.employment == "niepracujacy":
-        raise ValueError("Brak dochodów — nie da się wyznaczyć oszczędności.")
-
     if path == 2:
         amount, feasible = _solve_savings(a, target)
         data = _vary_savings(a, amount)
         proj = _append_cash_warning(_evaluate(data, target), data)
         pct = None
-        if a.savings_mode == "pct" and a.gross_monthly > 0:
+        if a.gross_monthly > 0:
             pct = round(amount / a.gross_monthly * 100.0, 1)
+            if feasible and amount > 0 and amount > a.gross_monthly:
+                proj.warnings.append(
+                    f"Wymagane oszczędności ({amount:,.0f} zł/mies.) przekraczają "
+                    f"Twoją pensję ({a.gross_monthly:,.0f} zł/mies.) — to "
+                    f"{pct:,.0f}% pensji brutto. Symulacja zakłada wzrost dochodów, "
+                    "cięcie kosztów lub dłuższy horyzont."
+                )
         note = ""
         if not feasible:
             note = (

@@ -254,10 +254,51 @@ def test_path2_pct_conversion():
     assert r.solved.savings_pct is not None
 
 
-def test_path2_infeasible_target():
+def test_path2_returns_amount_even_when_exceeds_income():
+    # No income cap: a "need to save more than the salary" is a signal, not an
+    # error — surface it as a % of pay and a warning.
     r = plan(2, answers(), 99_000)
-    assert not r.solved.feasible
-    assert not r.projection.met
+    assert r.solved.feasible
+    assert r.solved.savings_monthly > answers().gross_monthly
+    assert r.solved.savings_pct is not None
+    assert r.projection.met
+    assert any("przekraczają" in w for w in r.projection.warnings)
+
+
+def test_path2_no_income_solves_amount():
+    a = WizardAnswers(
+        gender="m",
+        age_now=35,
+        employment="niepracujacy",
+        gross_monthly=0,
+        capital={"gotowka": 30_000},
+        plan_end_age=90,
+        savings=0,
+        savings_mode="amount",
+        allocations={"broker": 100},
+        use_broker=True,
+    )
+    r = plan(2, a, 4000)
+    assert r.solved.feasible
+    assert r.solved.savings_monthly > 0
+    assert r.solved.savings_pct is None
+    assert r.projection.met
+
+
+def test_unemployed_savings_create_accumulation_stage():
+    a = WizardAnswers(
+        gender="m",
+        age_now=35,
+        employment="niepracujacy",
+        gross_monthly=0,
+        savings=2000,
+        savings_mode="amount",
+        plan_end_age=90,
+        allocations={"broker": 100},
+        use_broker=True,
+    )
+    data = P.build_stages(a)
+    assert data.stages[0].stage_type == "akumulacja"
 
 
 # --- Path 3: earliest FIRE age ----------------------------------------------
@@ -289,6 +330,22 @@ def test_path3_monotonic_in_re():
 def test_path3_infeasible():
     r = plan(3, answers(), 99_000)
     assert not r.solved.feasible
+
+
+def test_path3_no_income_uses_capital():
+    a = WizardAnswers(
+        gender="m",
+        age_now=30,
+        employment="niepracujacy",
+        gross_monthly=0,
+        capital={"broker": 1_000_000},
+        savings=0,
+        savings_mode="amount",
+    )
+    r = plan(3, a, 4000)
+    assert r.solved.feasible
+    assert r.solved.retire_early_age is not None
+    assert r.projection.met
 
 
 # --- Input/solver hygiene ---------------------------------------------------
