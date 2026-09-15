@@ -84,10 +84,10 @@
             <div class="wz-savings-row" id="wzSavingsGroup">
                 <div class="field-group">
                     <label>Odkładasz miesięcznie</label>
-                    <select id="wzSavingsMode" class="acc-field">
-                        <option value="amount">kwotę (zł)</option>
-                        <option value="pct" selected>% pensji</option>
-                    </select>
+                    <div class="gender-options">
+                        <label class="gender-option" title="Ile odkładasz co miesiąc „na czysto” — w złotych"><input type="radio" name="wzSavingsMode" value="amount" /> Kwotę (zł)</label>
+                        <label class="gender-option" title="Jaki procent pensji brutto odkładasz co miesiąc"><input type="radio" name="wzSavingsMode" value="pct" checked /> % pensji</label>
+                    </div>
                     <div class="num-control">
                         <button type="button" class="stepper stepper-down" tabindex="-1" aria-label="Zmniejsz oszczędności">&minus;</button>
                         <input type="number" id="wzSavings" class="acc-field" value="10" min="0" step="50">

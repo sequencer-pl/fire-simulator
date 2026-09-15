@@ -91,7 +91,7 @@ function collectAnswers() {
             return Number.isFinite(v) && v > 0 ? v : null;
         })(),
         plan_end_age: parseInt(document.getElementById("wzPlanEnd").value, 10) || 96,
-        savings_mode: document.getElementById("wzSavingsMode").value,
+        savings_mode: radioChecked("wzSavingsMode") || "pct",
         savings: parseFloat(document.getElementById("wzSavings").value) || 0,
         strategy: wzStrategyValue,
         roi_overrides: {},
@@ -326,11 +326,10 @@ function finishWizard() {
 }
 
 function initSavingsMode() {
-    const mode = document.getElementById("wzSavingsMode");
     const input = document.getElementById("wzSavings");
     const hint = document.getElementById("wzSavingsHint");
     const sync = () => {
-        if (mode.value === "amount") {
+        if ((radioChecked("wzSavingsMode") || "pct") === "amount") {
             input.step = "50";
             hint.textContent = "Kwota miesięcznie „na czysto” — dodatkowa do wpłat w PPK/ZUS.";
             if (parseFloat(input.value) < 100) input.value = "1000";
@@ -340,7 +339,9 @@ function initSavingsMode() {
             if (parseFloat(input.value) > 100) input.value = "10";
         }
     };
-    mode.addEventListener("change", sync);
+    document.querySelectorAll('input[name="wzSavingsMode"]').forEach((r) => {
+        r.addEventListener("change", sync);
+    });
     sync();
 }
 
@@ -403,7 +404,7 @@ function wzPoolMonthly() {
         return wzPlan.solved.savings_monthly;
     }
     if (currentPath() === 2) return null;
-    const mode = document.getElementById("wzSavingsMode").value;
+    const mode = radioChecked("wzSavingsMode") || "pct";
     const v = parseFloat(document.getElementById("wzSavings").value) || 0;
     if (mode === "amount") return v;
     const gross = parseFloat(document.getElementById("wzGross").value) || 0;

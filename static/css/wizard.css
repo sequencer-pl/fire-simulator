@@ -26,14 +26,14 @@
     justify-content: space-between;
     gap: 0.5rem;
     flex-wrap: wrap;
-    color: var(--text-dim, #9aa0b5);
+    color: var(--text-dim);
     font-size: 0.8rem;
 }
 
 .wz-step {
-    background: var(--bg-elevated);
-    border: 1px solid rgba(108, 92, 231, 0.25);
-    border-radius: 10px;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 12px;
     padding: 1.25rem 1.5rem;
 }
 
@@ -73,7 +73,7 @@
 
 .wz-hint {
     font-size: 0.8rem;
-    color: var(--text-dim, #9aa0b5);
+    color: var(--text-dim);
     max-width: 320px;
     margin-top: 0.4rem;
 }
@@ -87,7 +87,7 @@
 
 .wz-capital-item {
     background: var(--bg);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    border: 1px solid var(--border);
     border-radius: 8px;
     padding: 0.5rem 0.75rem 0.75rem;
 }
@@ -118,12 +118,12 @@
     padding: 0.6rem 0.75rem;
     background: var(--bg);
     border-radius: 8px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    border: 1px solid var(--border);
     cursor: pointer;
 }
 
 .wz-check-sub {
-    color: var(--text-dim, #9aa0b5);
+    color: var(--text-dim);
     font-size: 0.75rem;
     font-weight: 400;
 }
@@ -155,23 +155,23 @@
 .wz-alloc-strategy-label {
     font-size: 0.85rem;
     font-weight: 600;
-    color: var(--text-dim, #9aa0b5);
+    color: var(--text-dim);
 }
 
 .wz-alloc-strategy-hint {
     flex-basis: 100%;
     font-size: 0.8rem;
-    color: var(--text-dim, #9aa0b5);
+    color: var(--text-dim);
 }
 
 .wz-alloc-sum {
     font-size: 0.85rem;
-    color: var(--text-dim, #9aa0b5);
+    color: var(--text-dim);
     font-weight: 600;
 }
 
 .wz-alloc-sum.wz-alloc-over {
-    color: #ffbe76;
+    color: var(--orange);
 }
 
 .wz-alloc-grid {
@@ -185,14 +185,14 @@
     align-items: center;
     gap: 0.75rem;
     background: var(--bg);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    border: 1px solid var(--border);
     border-radius: 8px;
     padding: 0.45rem 0.75rem;
     flex-wrap: wrap;
 }
 
 .wz-alloc-row.is-over {
-    border-color: #ffbe76;
+    border-color: var(--orange);
 }
 
 .wz-alloc-label {
@@ -206,10 +206,11 @@
 .wz-alloc-cap {
     font-size: 0.68rem;
     font-weight: 400;
-    background: rgba(108, 92, 231, 0.15);
+    background: var(--card-bg);
+    border: 1px solid var(--border);
     border-radius: 4px;
     padding: 0.1rem 0.35rem;
-    color: var(--text-dim, #9aa0b5);
+    color: var(--text-dim);
 }
 
 .wz-alloc-range {
@@ -231,19 +232,19 @@
     min-width: 96px;
     text-align: right;
     font-size: 0.82rem;
-    color: var(--text-dim, #9aa0b5);
+    color: var(--text-dim);
     white-space: nowrap;
 }
 
 .wz-alloc-overflow {
     font-size: 0.72rem;
-    color: #ffbe76;
+    color: var(--orange);
 }
 
 .wz-alloc-cash {
     margin-top: 0.5rem;
     font-size: 0.8rem;
-    color: var(--text-dim, #9aa0b5);
+    color: var(--text-dim);
 }
 
 .wz-paths {
@@ -259,7 +260,7 @@
     gap: 0.3rem;
     padding: 0.9rem;
     background: var(--bg);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    border: 1px solid var(--border);
     border-radius: 10px;
     cursor: pointer;
     transition: border-color 0.2s ease;
@@ -280,7 +281,7 @@
 
 .wz-path-desc {
     font-size: 0.85rem;
-    color: var(--text-dim, #9aa0b5);
+    color: var(--text-dim);
 }
 
 .wz-goal-fields {
@@ -295,7 +296,7 @@
 }
 
 .wz-result-error {
-    color: #ff6b6b;
+    color: var(--danger);
     padding: 0.5rem 0;
 }
 
@@ -316,7 +317,7 @@
 
 .wz-metric-label {
     font-size: 0.75rem;
-    color: var(--text-dim, #9aa0b5);
+    color: var(--text-dim);
 }
 
 .wz-metric-value {
@@ -329,7 +330,7 @@
 }
 
 .wz-metric-warn .wz-metric-value {
-    color: #ffbe76;
+    color: var(--orange);
 }
 
 .wz-solved {
@@ -338,12 +339,12 @@
 }
 
 .wz-warn-inline {
-    color: #ffbe76;
+    color: var(--orange);
 }
 
 .wz-warnings {
     margin-top: 0.75rem;
-    color: #ffbe76;
+    color: var(--orange);
     font-size: 0.85rem;
 }
 
@@ -364,7 +365,7 @@
     align-items: center;
     justify-content: center;
     border-right: 1px solid var(--bg);
-    color: #0f1117;
+    color: var(--bg);
     font-size: 0.72rem;
     font-weight: 700;
     text-align: center;
@@ -372,12 +373,12 @@
 }
 
 .wz-tl-acc {
-    background: linear-gradient(135deg, #6c5ce7, #a29bfe);
+    background: linear-gradient(135deg, var(--orange), var(--danger));
 }
 
 .wz-tl-real {
-    background: linear-gradient(135deg, #00cec9, #55e6c1);
-    color: #0f1117;
+    background: linear-gradient(135deg, var(--accent), var(--success));
+    color: var(--bg);
 }
 
 .wz-stage-preview {
@@ -385,7 +386,7 @@
 }
 
 .wizard-footnote {
-    color: var(--text-dim, #9aa0b5);
+    color: var(--text-dim);
     font-size: 0.8rem;
     margin-top: 1rem;
 }
