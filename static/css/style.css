@@ -1526,6 +1526,17 @@ body[data-section="konfiguracja"] a.nav-item[data-nav="konfiguracja"] {
 .form-msg.ok { color: var(--success); }
 .form-msg.err { color: var(--danger); }
 
+/* --- Dedicated login page --- */
+.login-section {
+    max-width: 420px;
+    margin: 1rem auto;
+    padding: 0 0.5rem;
+}
+
+.login-section .auth-panel {
+    margin-bottom: 0;
+}
+
 /* --- Lista symulacji (home) --- */
 .sims-list {
     display: flex;

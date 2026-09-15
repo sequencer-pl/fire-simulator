@@ -209,6 +209,17 @@ async def simulations(request: Request):
     )
 
 
+@router.get("/login", response_class=HTMLResponse)
+async def login(request: Request):
+    return templates.TemplateResponse(
+        request,
+        "login.html",
+        {
+            "version": _asset_version(),
+        },
+    )
+
+
 @router.get("/sim", response_class=HTMLResponse)
 async def sim(request: Request):
     return templates.TemplateResponse(

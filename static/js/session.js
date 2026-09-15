@@ -33,8 +33,9 @@ async function refreshSessionBar() {
                 }
             });
         } else {
+            const next = encodeURIComponent(window.location.pathname + window.location.search);
             widget.innerHTML = `
-                <a href="/" class="nav-item" title="Zaloguj / zarejestruj"
+                <a href="/login?next=${next}" class="nav-item" title="Zaloguj / zarejestruj"
                    aria-label="Zaloguj / zarejestruj">${NAV_ICONS.login}<span>Zaloguj</span></a>
             `;
         }

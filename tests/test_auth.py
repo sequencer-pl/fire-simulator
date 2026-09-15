@@ -39,3 +39,13 @@ def test_login_and_logout(client):
     r = client.post("/api/login", json={"email": "a@b.pl", "password": "haslo12345"})
     assert r.status_code == 200
     assert client.get("/api/session").json()["email"] == "a@b.pl"
+
+
+def test_login_page_renders_auth_panel(client):
+    r = client.get("/login")
+    assert r.status_code == 200
+    html = r.text
+    assert "authPanel" in html
+    assert "loginForm" in html
+    assert "registerForm" in html
+    assert "/static/js/login.js" in html

@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}FIRE Simulator — Zaloguj się{% endblock %}
+{% block subtitle %}Logowanie{% endblock %}
+{% block section %}login{% endblock %}
+{% block content %}
+        <section class="login-section" aria-label="Logowanie">
+            {% include "_auth_panel.html" %}
+        </section>
+{% endblock %}
+{% block scripts %}
+    <script src="/static/js/session.js?v={{ version }}"></script>
+    <script src="/static/js/common.js?v={{ version }}"></script>
+    <script src="/static/js/login.js?v={{ version }}"></script>
+{% endblock %}
