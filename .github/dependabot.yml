@@ -1,0 +1,37 @@
+# Automatyczne aktualizacje zależności (cotygodniowe PR-y).
+version: 2
+updates:
+  # Python (pyproject.toml + uv.lock) — runtime + dev
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    labels:
+      - "deps"
+
+  # QA/narzędzia frontowe (Playwright, jsdom)
+  - package-ecosystem: "npm"
+    directory: "/qa/visual"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 3
+    labels:
+      - "deps"
+
+  - package-ecosystem: "npm"
+    directory: "/qa/jsdom"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 3
+    labels:
+      - "deps"
+
+  # Github Actions (ci.yml, deploy.yml)
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 3
+    labels:
+      - "deps"

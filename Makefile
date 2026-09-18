@@ -3,7 +3,7 @@ APP := app.main:app
 QA := qa/visual
 QA_JS := qa/jsdom
 
-.PHONY: setup dev prod prod-port test lint format shots visual-baseline visual harness-jsdom clean
+.PHONY: setup dev prod prod-port test lint typecheck format shots visual-baseline visual harness-jsdom clean
 
 ## Instaluje zależności (tworzy .venv)
 setup:
@@ -45,6 +45,10 @@ harness-jsdom:
 ## Uruchamia linter (ruff check)
 lint:
 	$(PYTHON) ruff check .
+
+## Sprawdza typy (mypy)
+typecheck:
+	$(PYTHON) mypy app/
 
 ## Formatuje kod (ruff format)
 format:
