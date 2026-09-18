@@ -1,0 +1,17 @@
+{
+  "name": "fire-visual-qa",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Regresja wizualna (dev-only) — screenshoty stron FIRE",
+  "scripts": {
+    "shots": "playwright test --update-snapshots",
+    "check": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.48.2"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

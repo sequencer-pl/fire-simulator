@@ -1,0 +1,5 @@
+# QA wizualne — artefakty lokalne (dev-only)
+node_modules/
+test-results/
+playwright-report/
+.blob-cache/
