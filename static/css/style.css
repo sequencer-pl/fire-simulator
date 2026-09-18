@@ -1,6 +1,6 @@
 :root {
     --bg: #0f1117;
-    --surface: #1a1d27;
+    --surface: var(--card-bg);
     --border: #2a2d3a;
     --text: #e1e4ed;
     --text-dim: #8b8fa3;
@@ -12,7 +12,49 @@
     --success: #00b894;
     --bg-elevated: #22253a;
     --card-bg: #1e2130;
+
+    /* --- Skala przestrzeni (spacing) --- */
+    --sp-1: 0.25rem;
+    --sp-2: 0.5rem;
+    --sp-3: 0.75rem;
+    --sp-4: 1rem;
+    --sp-5: 1.25rem;
+    --sp-6: 1.5rem;
+    --sp-8: 2rem;
+
+    /* --- Zaokrąglenia (radii) --- */
+    --r-sm: 6px;
+    --r-md: 8px;
+    --r-lg: 12px;
+
+    /* --- Skala typografii --- */
+    --fs-sm: 0.85rem;
+    --fs-base: 1rem;
+    --fs-lg: 1.4rem;
+    --fs-title: 2rem;
+
+    /* --- Szerokości i minimalne rozmiary --- */
+    --content-width: 1200px;
+    --control-min-height: 44px;
 }
+
+/* Tokeny tła:
+   --card-bg  — poziom „karty” (karty /sim, azd. /wizard) na tle strony --bg;
+   --surface  — alias historyczny teraz = --card-bg (karty /sim stopniowo migrowane);
+   --bg-elevated — tło insertów „na karcie” (kontrole, sekcje wewnętrzne, suwaki). */
+
+/* =====================================================================
+   style.css — indeks sekcji (top-down)
+   1. Tokeny, reset, layout bazowy (.container), typografia
+   2. /sim — edytor: stage blocks, konta, stepy, przyciski, pola, toggles
+   3. Widok konfiguracji (/sim?view=config)
+   4. Topnav, widget konta, autoryzacja, dedykowany /login
+   5. Lista symulacji i strona główna (karty, metryki, timeline, gantt)
+   6. Compare (karty kolorów)
+   7. Komponenty procentowe (suwak, numerik+suwak)
+   8. Media queries (dopasowane do breakpointów 480/640/768)
+   Konwencja kolorów etapów: akumulacja = --orange, realizacja = --accent.
+   ===================================================================== */
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -29,30 +71,30 @@ body {
 }
 
 .container {
-    max-width: 1200px;
+    width: min(var(--content-width), 100%);
     margin: 0 auto;
-    padding: 2rem;
+    padding: clamp(var(--sp-4), 3vw, var(--sp-8)) clamp(var(--sp-4), 4vw, var(--sp-8));
 }
 
 h1 {
-    font-size: 2rem;
+    font-size: clamp(1.6rem, 4vw, var(--fs-title));
     font-weight: 700;
     margin-bottom: 0.25rem;
 }
 
 .subtitle {
     color: var(--text-dim);
-    margin-bottom: 2rem;
+    margin-bottom: var(--sp-8);
 }
 
 h2 {
-    font-size: 1.4rem;
-    margin-bottom: 1rem;
+    font-size: var(--fs-lg);
+    margin-bottom: var(--sp-4);
 }
 
 /* --- Stage blocks --- */
 .stage-block {
-    background: var(--surface);
+    background: var(--card-bg);
     border: 1px solid var(--border);
     border-radius: 12px;
     padding: 1.5rem;
@@ -204,7 +246,8 @@ h2 {
 .num-control .stepper,
 .pct-row .stepper {
     flex-shrink: 0;
-    width: 2rem;
+    min-width: var(--control-min-height);
+    min-height: var(--control-min-height);
     border: none;
     background: transparent;
     color: var(--text-dim);
@@ -336,7 +379,7 @@ h2 {
     padding: 0.45rem 0.6rem;
     border: 1px solid var(--border);
     border-radius: 10px;
-    background: var(--surface);
+    background: var(--bg-elevated);
     color: var(--text-dim);
     font-size: 0.78rem;
     cursor: pointer;
@@ -584,7 +627,7 @@ h2 {
 .btn-primary:hover { background: var(--primary-hover); }
 
 .btn-secondary {
-    background: var(--surface);
+    background: var(--bg-elevated);
     color: var(--text-dim);
     border: 1px dashed var(--border);
     margin-top: 1rem;
@@ -691,7 +734,7 @@ h2 {
     position: sticky;
     bottom: 0.75rem;
     z-index: 30;
-    background: var(--surface);
+    background: var(--card-bg);
     border: 1px solid var(--border);
     border-radius: 10px;
     padding: 0.75rem 1rem;
@@ -736,8 +779,9 @@ h2 {
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    min-height: var(--control-min-height);
     padding: 0.35rem 0.8rem;
-    font-size: 0.85rem;
+    font-size: var(--fs-sm);
     cursor: pointer;
     color: var(--text-dim);
     transition: background 0.15s, color 0.15s;
@@ -908,7 +952,7 @@ h2 {
 }
 
 .summary-card {
-    background: var(--surface);
+    background: var(--card-bg);
     border: 1px solid var(--border);
     border-radius: 10px;
     padding: 0.75rem 1rem;
@@ -977,7 +1021,7 @@ h2 {
     align-items: center;
     gap: 0.3rem 0.5rem;
     padding: 0.4rem 0.6rem;
-    background: var(--surface);
+    background: var(--bg-elevated);
     border: 1px solid var(--border);
     border-radius: 8px;
 }
@@ -1119,7 +1163,7 @@ tr.stage-accum td {
     padding: 1.25rem 1.5rem;
     border: 1px dashed var(--border);
     border-radius: 12px;
-    background: var(--surface);
+    background: var(--bg-elevated);
     color: var(--text-dim);
     font-size: 0.92rem;
     line-height: 1.6;
@@ -1209,7 +1253,7 @@ tr.stage-accum td {
 }
 
 .config-section {
-    background: var(--surface);
+    background: var(--card-bg);
     border: 1px solid var(--border);
     border-radius: 12px;
     padding: 1.25rem;
@@ -1248,7 +1292,7 @@ tr.stage-accum td {
 
 .config-section input:not(.acc-field),
 .config-section select {
-    background: var(--surface);
+    background: var(--bg-elevated);
     border: 1px solid var(--border);
     color: var(--text);
     padding: 0.45rem 0.6rem;
@@ -1392,7 +1436,7 @@ tr.stage-accum td {
 
 .nav-item:hover {
     color: var(--text);
-    background: var(--surface);
+    background: var(--card-bg);
 }
 
 .nav-icon {
@@ -1444,7 +1488,7 @@ body[data-section="konfiguracja"] a.nav-item[data-nav="konfiguracja"] {
     width: 34px;
     height: 34px;
     border-radius: 8px;
-    background: var(--surface);
+    background: var(--bg-elevated);
     border: 1px solid var(--border);
     color: var(--text-dim);
     cursor: pointer;
@@ -1460,7 +1504,7 @@ body[data-section="konfiguracja"] a.nav-item[data-nav="konfiguracja"] {
 
 /* --- Autoryzacja --- */
 .auth-panel {
-    background: var(--surface);
+    background: var(--card-bg);
     border: 1px solid var(--border);
     border-radius: 12px;
     padding: 1.5rem;
@@ -1478,7 +1522,7 @@ body[data-section="konfiguracja"] a.nav-item[data-nav="konfiguracja"] {
     padding: 0.4rem 1.25rem;
     border: 1px solid var(--border);
     border-radius: 999px;
-    background: var(--surface);
+    background: var(--card-bg);
     color: var(--text-dim);
     cursor: pointer;
     font-size: 0.88rem;
@@ -1547,7 +1591,7 @@ body[data-section="konfiguracja"] a.nav-item[data-nav="konfiguracja"] {
 
 /* --- Karta symulacji --- */
 .sim-card {
-    background: var(--surface);
+    background: var(--card-bg);
     border: 1px solid var(--border);
     border-radius: 14px;
     padding: 0;
@@ -1698,7 +1742,7 @@ body[data-section="konfiguracja"] a.nav-item[data-nav="konfiguracja"] {
     height: 10px;
     border-radius: 50%;
     background: var(--primary);
-    border: 2px solid var(--surface);
+    border: 2px solid var(--card-bg);
     z-index: 1;
     flex-shrink: 0;
     margin-top: 0.55rem;
@@ -1798,7 +1842,7 @@ body[data-section="konfiguracja"] a.nav-item[data-nav="konfiguracja"] {
     align-items: center;
     gap: 0.75rem;
     padding: 0.75rem 1rem;
-    background: var(--surface);
+    background: var(--bg-elevated);
     border: 1px solid var(--border);
     border-radius: 10px;
     box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
@@ -1881,7 +1925,7 @@ body[data-section="konfiguracja"] a.nav-item[data-nav="konfiguracja"] {
     display: inline-flex;
     align-items: center;
     gap: 0.3rem;
-    background: var(--surface);
+    background: var(--bg-elevated);
     border: 1px solid var(--border);
     border-radius: 999px;
     color: var(--text-dim);
@@ -1911,7 +1955,7 @@ body[data-section="konfiguracja"] a.nav-item[data-nav="konfiguracja"] {
 }
 
 .density-control select {
-    background: var(--surface);
+    background: var(--bg-elevated);
     border: 1px solid var(--border);
     color: var(--text);
     padding: 0.35rem 0.6rem;
@@ -1951,7 +1995,7 @@ body[data-section="konfiguracja"] a.nav-item[data-nav="konfiguracja"] {
 
 #resultsTable tr:hover td.col-age,
 #resultsTable tr:hover td.col-stage {
-    background: var(--surface);
+    background: var(--bg-elevated);
 }
 
 /* Sticky tło MUSI być kryjące na całej szerokości (kolumny kwot leżą
@@ -1994,7 +2038,7 @@ th.col-name { z-index: 3; }
 
 #metricsTable tr:hover td.col-name,
 #milestonesTable tr:hover td.col-name {
-    background: var(--surface);
+    background: var(--bg-elevated);
 }
 
 .dim {
@@ -2074,7 +2118,7 @@ th.col-name { z-index: 3; }
 
 /* --- Withdrawal chart detail panel --- */
 .chart-detail {
-    background: var(--surface);
+    background: var(--bg-elevated);
     border: 1px solid var(--border);
     border-radius: 10px;
     padding: 1rem 1.25rem;
@@ -2222,7 +2266,7 @@ th.col-name { z-index: 3; }
 }
 
 .cmp-card {
-    background: var(--surface);
+    background: var(--card-bg);
     border: 1px solid var(--border);
     border-radius: 12px;
     overflow: hidden;
@@ -2812,7 +2856,7 @@ th.col-name { z-index: 3; }
     align-items: center;
     gap: 0.9rem;
     padding: 1.1rem 1.25rem;
-    background: var(--surface);
+    background: var(--card-bg);
     border: 1px solid var(--border);
     border-radius: 12px;
     color: var(--text);
@@ -2900,7 +2944,7 @@ th.col-name { z-index: 3; }
     align-items: center;
     gap: 0.9rem;
     padding: 0.9rem 1.1rem;
-    background: var(--surface);
+    background: var(--card-bg);
     border: 1px solid var(--border);
     border-radius: 10px;
     color: var(--text);
