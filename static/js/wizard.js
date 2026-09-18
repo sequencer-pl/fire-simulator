@@ -24,22 +24,8 @@ const WZ_ALWAYS_ON = new Set(["gotowka", "zus"]);
 // contributions come from the salary, never from the discretionary pool.
 const WZ_PAYROLL = new Set(["ppk", "ppe"]);
 
-const WZ_CAPITAL_LABELS = {
-    gotowka: "Gotówka",
-    zus: "ZUS",
-    "zus:ofe": "OFE",
-    ppk: "PPK",
-    ppe: "PPE",
-    ike: "IKE",
-    ikze: "IKZE",
-    oipe: "OIPE",
-    oki_inw: "OKI inwestycyjne",
-    oki_osk: "OKI oszczędnościowe",
-    krypto: "Krypto",
-    lokata: "Lokata",
-    obligacje: "Obligacje",
-    broker: "Broker",
-};
+// Etykiety kont: ACCOUNT_LABELS (sim-metadata.js) + kontekstowe nadpisania (krok 3).
+const WZ_CAPITAL_OVERRIDES = { zus: "ZUS", "zus:ofe": "OFE" };
 
 // Accounts added explicitly via the step-4 pills (no capital, participation only).
 let wzPill = new Set();
@@ -48,12 +34,8 @@ let wzWeights = {};
 let wzLimits = null;
 let wzStrategyValue = "zbilansowana";
 
-function capitalizeLabel(s) {
-    return (ACCOUNT_LABELS[s] || s).charAt(0).toUpperCase() + (ACCOUNT_LABELS[s] || s).slice(1);
-}
-
 function capitalLabel(account) {
-    return WZ_CAPITAL_LABELS[account] || capitalizeLabel(account);
+    return WZ_CAPITAL_OVERRIDES[account] || ACCOUNT_LABELS[account] || account;
 }
 
 function radioChecked(name) {
@@ -156,7 +138,7 @@ function currentPath() {
     return checked ? parseInt(checked.value, 10) : 1;
 }
 
-function setStep(n) {
+function setStep(n, focus = false) {
     syncPathUI();
     document.querySelectorAll(".wz-step").forEach((el) => {
         el.classList.toggle("hidden", parseInt(el.dataset.step, 10) !== n);
@@ -167,6 +149,13 @@ function setStep(n) {
     if (n === 4) buildAllocationStep();
     const finalStep = document.getElementById("wzToSummary");
     if (finalStep) finalStep.disabled = true;
+    if (focus) {
+        const heading = document.querySelector(`.wz-step[data-step="${n}"] h2`);
+        if (heading) {
+            heading.setAttribute("tabindex", "-1");
+            heading.focus({ preventScroll: true });
+        }
+    }
 }
 
 function validateStep(n) {
@@ -553,7 +542,7 @@ function buildAllocationStep() {
     grid.innerHTML = "";
     wzActiveAllocAccounts().forEach((acc) => {
         const icon = ACCOUNT_ICONS[acc] || "";
-        const label = capitalizeLabel(acc);
+        const label = capitalLabel(acc);
         const w = wzWeights[acc] != null ? wzWeights[acc] : 0;
         const cap = wzShelterCap(acc);
         const badge = cap
@@ -563,11 +552,11 @@ function buildAllocationStep() {
         wrap.className = "wz-alloc-row";
         wrap.innerHTML = `
             <div class="wz-alloc-label">${icon} ${label} ${badge}</div>
-            <input type="range" class="wz-alloc-range" data-account="${acc}" min="0" max="100" step="1" value="${w}">
+            <input type="range" class="wz-alloc-range" data-account="${acc}" min="0" max="100" step="1" value="${w}" aria-label="Udział ${label}">
             <div class="num-control">
-                <button type="button" class="stepper stepper-down" tabindex="-1" aria-label="Zmniejsz ${acc}">&minus;</button>
-                <input type="number" class="acc-field wz-alloc-pct" data-account="${acc}" value="${w}" min="0" max="100" step="1">
-                <button type="button" class="stepper stepper-up" tabindex="-1" aria-label="Zwiększ ${acc}">+</button>
+                <button type="button" class="stepper stepper-down" tabindex="-1" aria-label="Zmniejsz ${label}">&minus;</button>
+                <input type="number" class="acc-field wz-alloc-pct" data-account="${acc}" value="${w}" min="0" max="100" step="1" aria-label="Udział ${label} (%)">
+                <button type="button" class="stepper stepper-up" tabindex="-1" aria-label="Zwiększ ${label}">+</button>
             </div>
             <span class="wz-alloc-money" data-account="${acc}">—</span>
             <span class="wz-alloc-overflow hidden" data-account="${acc}"></span>
@@ -577,6 +566,7 @@ function buildAllocationStep() {
             rm.type = "button";
             rm.className = "wz-pill-remove";
             rm.textContent = "Usuń";
+            rm.setAttribute("aria-label", `Usuń ${label}`);
             rm.addEventListener("click", () => {
                 wzPill.delete(acc);
                 buildAllocationStep();
@@ -616,6 +606,7 @@ function renderPayrollActive() {
             rm.type = "button";
             rm.className = "wz-pill-remove";
             rm.textContent = "Usuń";
+            rm.setAttribute("aria-label", `Usuń ${capitalLabel(acc)}`);
             rm.addEventListener("click", () => {
                 wzPill.delete(acc);
                 buildAllocationStep();
@@ -751,13 +742,13 @@ function initNav() {
         btn.addEventListener("click", () => {
             const step = parseInt(btn.closest(".wz-step").dataset.step, 10);
             if (!validateStep(step)) return;
-            setStep(step + 1);
+            setStep(step + 1, true);
         });
     });
     document.querySelectorAll(".wz-back").forEach((btn) => {
         btn.addEventListener("click", () => {
             const step = parseInt(btn.closest(".wz-step").dataset.step, 10);
-            setStep(step - 1);
+            setStep(step - 1, true);
         });
     });
     document.getElementById("wzRunBtn").addEventListener("click", runPlan);
@@ -766,7 +757,7 @@ function initNav() {
         if (!wzPlan) return;
         renderTimeline(wzPlan.input);
         renderStagePreview(wzPlan.input);
-        setStep(7);
+        setStep(7, true);
     });
     document.getElementById("wzFinishBtn").addEventListener("click", finishWizard);
 }
