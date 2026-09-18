@@ -44,14 +44,6 @@ async function refreshSessionBar() {
     }
 }
 
-function escapeHtml(str) {
-    return String(str)
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;");
-}
-
 window.refreshSessionBar = refreshSessionBar;
 
 // Primary nav: na /sim (edytor/konfiguracja) przełączamy widok bez przeładowania.

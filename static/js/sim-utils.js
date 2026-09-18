@@ -1,12 +1,5 @@
 // sim-utils.js — Pure utility functions
-
-function escapeHtml(s) {
-    return String(s)
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;");
-}
+// (escapeHtml jest wspólny — helpers.js z base.html)
 
 function tipHtml(text, url, icon = "?") {
     const link = url

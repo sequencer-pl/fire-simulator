@@ -37,8 +37,9 @@ window.fetch = (url) => {
 };
 
 // Wszystkie skrypty w jednym eval — współdzielą globalną leksykalną przestrzeń
-// (top-level `const`/`let`). Testy też tutaj, by widziały funkcje z wizard.js.
+// (top-level `const`/`let`). helpers.js pierwszy, jak w base.html.
 const scripts = [
+    "static/js/helpers.js",
     "static/js/sim-metadata.js",
     "static/js/sim-utils.js",
     "static/js/wizard.js",

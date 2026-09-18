@@ -2,19 +2,7 @@ const COLORS = ["#00cec9", "#6c5ce7", "#e17055", "#00b894", "#f1c40f"];
 const GRID_COLOR = "rgba(255,255,255,0.06)";
 const TEXT_DIM = "#636e72";
 
-function $(id) { return document.getElementById(id); }
-function show(id, on) { $(id).classList.toggle("hidden", !on); }
-
-function escapeHtml(str) {
-    const d = document.createElement("div");
-    d.textContent = String(str);
-    return d.innerHTML;
-}
-
-function fmtMoney(v) {
-    if (v == null) return "—";
-    return Math.round(v).toLocaleString("pl-PL") + " zł";
-}
+// $, show, escapeHtml, fmtMoney — wspólne helpery z helpers.js (base.html).
 
 function fmtPct(v) {
     if (v == null) return "—";

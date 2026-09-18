@@ -1,40 +1,5 @@
-// Wspólne helpery oraz logika autoryzacji dla stron landing/simulations.
-function $(id) {
-    return document.getElementById(id);
-}
-
-function show(id, on) {
-    $(id).classList.toggle("hidden", !on);
-}
-
-function escapeHtml(str) {
-    const div = document.createElement("div");
-    div.textContent = String(str);
-    return div.innerHTML;
-}
-
-function fmtMoney(v) {
-    if (v == null) return "—";
-    return Math.round(v).toLocaleString("pl-PL") + " zł";
-}
-
-async function api(path, options) {
-    const res = await fetch(path, options);
-    let data = null;
-    try {
-        data = await res.json();
-    } catch (e) {
-        data = {};
-    }
-    if (!res.ok) {
-        const msg = data.detail || data.error || "Błąd serwera";
-        const err = new Error(msg);
-        err.status = res.status;
-        throw err;
-    }
-    return data;
-}
-
+// Autoryzacja (landing/simulations/login/compare) — czyste helpery ($, show,
+// escapeHtml, fmtMoney, api) są w helpers.js ładowanym z base.html.
 function switchAuthTab(tab) {
     const login = tab === "login";
     $("tabLogin").classList.toggle("active", login);
