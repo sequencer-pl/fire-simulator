@@ -44,12 +44,14 @@ function radioChecked(name) {
 }
 
 function numControl(account, ariaLabel) {
-    return `
-        <div class="num-control">
-            <button type="button" class="stepper stepper-down" tabindex="-1" aria-label="Zmniejsz ${ariaLabel || account}">&minus;</button>
-            <input type="number" class="acc-field wz-capital-input" data-account="${account}" value="0" min="0" step="1000">
-            <button type="button" class="stepper stepper-up" tabindex="-1" aria-label="Zwiększ ${ariaLabel || account}">+</button>
-        </div>`;
+    return numControlsHtml({
+        value: "0",
+        min: "0",
+        step: "1000",
+        fieldClass: "wz-capital-input",
+        aria: ariaLabel || account,
+        attrs: ` data-account="${account}"`,
+    });
 }
 
 function buildCapitalGrid() {
@@ -553,11 +555,15 @@ function buildAllocationStep() {
         wrap.innerHTML = `
             <div class="wz-alloc-label">${icon} ${label} ${badge}</div>
             <input type="range" class="wz-alloc-range" data-account="${acc}" min="0" max="100" step="1" value="${w}" aria-label="Udział ${label}">
-            <div class="num-control">
-                <button type="button" class="stepper stepper-down" tabindex="-1" aria-label="Zmniejsz ${label}">&minus;</button>
-                <input type="number" class="acc-field wz-alloc-pct" data-account="${acc}" value="${w}" min="0" max="100" step="1" aria-label="Udział ${label} (%)">
-                <button type="button" class="stepper stepper-up" tabindex="-1" aria-label="Zwiększ ${label}">+</button>
-            </div>
+            ${numControlsHtml({
+                value: w,
+                min: "0",
+                max: "100",
+                step: "1",
+                fieldClass: "wz-alloc-pct",
+                aria: `Udział ${label} (%)`,
+                attrs: ` data-account="${acc}"`,
+            })}
             <span class="wz-alloc-money" data-account="${acc}">—</span>
             <span class="wz-alloc-overflow hidden" data-account="${acc}"></span>
         `;
@@ -725,16 +731,7 @@ function syncPathUI() {
 }
 
 function initSteppers() {
-    document.querySelector(".wizard").addEventListener("click", (e) => {
-        const btn = e.target.closest(".num-control .stepper");
-        if (!btn) return;
-        const input = btn.closest(".num-control")?.querySelector(".acc-field");
-        if (!input) return;
-        if (input.value === "" && input.dataset.empty != null) {
-            input.value = input.dataset.empty;
-        }
-        stepInputValue(input, btn.classList.contains("stepper-up") ? 1 : -1);
-    });
+    initNumControls(document.querySelector(".wizard"));
 }
 
 function initNav() {

@@ -149,18 +149,14 @@ function createAccountCard(stageType, accountKey, accountData) {
         fieldsHtml += `
             <div class="field-group" ${visibleWhen}>
                 <label>${fieldLabelHtml(fieldDef)}</label>
-                <div class="num-control">
-                    <button type="button" class="stepper stepper-down" tabindex="-1" aria-label="Zmniejsz">&minus;</button>
-                    <input type="${fieldDef.type || 'number'}"
-                           class="acc-field"
-                           data-account="${accountKey}"
-                           data-key="${key}"
-                           ${fieldDef.percent ? 'data-percent="true"' : ''}
-                           value="${displayVal}"
-                           ${fieldDef.step ? `step="${fieldDef.step}"` : 'step="any"'}
-                           min="${fieldDef.percent ? -99 : 0}" />
-                    <button type="button" class="stepper stepper-up" tabindex="-1" aria-label="Zwiększ">+</button>
-                </div>
+                ${numControlsHtml({
+                    type: fieldDef.type || "number",
+                    value: displayVal,
+                    min: fieldDef.percent ? "-99" : "0",
+                    step: fieldDef.step || "any",
+                    aria: fieldDef.label || key,
+                    attrs: ` data-account="${accountKey}" data-key="${key}"${fieldDef.percent ? ' data-percent="true"' : ""}`,
+                })}
                 ${chipsHtml}
             </div>
         `;

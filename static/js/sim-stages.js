@@ -121,19 +121,23 @@ function createStageBlock(defaults) {
             </div>
             <div class="field-group">
                 <label>Wiek start</label>
-                <div class="num-control">
-                    <button type="button" class="stepper stepper-down" tabindex="-1" aria-label="Zmniejsz wiek start">&minus;</button>
-                    <input type="number" class="acc-field start-age" value="${defaults?.start_age ?? 40}" min="0" max="120" />
-                    <button type="button" class="stepper stepper-up" tabindex="-1" aria-label="Zwiększ wiek start">+</button>
-                </div>
+                ${numControlsHtml({
+                    value: defaults?.start_age ?? 40,
+                    min: "0",
+                    max: "120",
+                    fieldClass: "start-age",
+                    aria: "wiek start",
+                })}
             </div>
             <div class="field-group">
                 <label>Wiek koniec${tipHtml("Wiek końca etapu (wyłączny) — etap obejmuje lata od wieku start do wieku koniec minus 1.")}</label>
-                <div class="num-control">
-                    <button type="button" class="stepper stepper-down" tabindex="-1" aria-label="Zmniejsz wiek koniec">&minus;</button>
-                    <input type="number" class="acc-field end-age" value="${defaults?.end_age ?? 60}" min="0" max="120" />
-                    <button type="button" class="stepper stepper-up" tabindex="-1" aria-label="Zwiększ wiek koniec">+</button>
-                </div>
+                ${numControlsHtml({
+                    value: defaults?.end_age ?? 60,
+                    min: "0",
+                    max: "120",
+                    fieldClass: "end-age",
+                    aria: "wiek koniec",
+                })}
             </div>
         </div>
         <div class="accounts-toggles"></div>
@@ -689,13 +693,7 @@ function initStageEventHandlers(container) {
     });
 
     // Steppery −/+ we wszystkich kontrolkach numerycznych (pola kont i wiek etapów)
-    container.addEventListener("click", (e) => {
-        const btn = e.target.closest(".num-control .stepper");
-        if (!btn) return;
-        const input = btn.parentElement.querySelector(".acc-field");
-        if (!input) return;
-        stepInputValue(input, btn.classList.contains("stepper-up") ? 1 : -1);
-    });
+    initNumControls(container);
 
     // Kliknięcie w pole zaznacza całą wartość (wpisywanie nadpisuje, bez backspace)
     document.addEventListener(

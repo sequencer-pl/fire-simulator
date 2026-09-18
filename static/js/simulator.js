@@ -261,16 +261,10 @@ document.addEventListener("DOMContentLoaded", () => {
         editBtn.addEventListener("click", () => switchToConfig());
     }
 
-    // Steppery w konfiguracji
+    // Steppery w konfiguracji (num-control; pct-control obsługuje guardedNumberInputStep)
     const configContent = document.getElementById("config-content");
     if (configContent) {
-        configContent.addEventListener("click", (e) => {
-            const btn = e.target.closest(".num-control .stepper, .pct-control .stepper");
-            if (!btn) return;
-            const input = btn.closest(".pct-row, .num-control")?.querySelector(".acc-field");
-            if (!input) return;
-            guardedNumberInputStep(input, btn.classList.contains("stepper-up") ? 1 : -1);
-        });
+        initNumControls(configContent, guardedNumberInputStep);
     }
 
     if (simId) {

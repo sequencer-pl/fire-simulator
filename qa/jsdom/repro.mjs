@@ -42,6 +42,7 @@ const scripts = [
     "static/js/helpers.js",
     "static/js/sim-metadata.js",
     "static/js/sim-utils.js",
+    "static/js/controls.js",
     "static/js/wizard.js",
 ].map(readRel).join("\n;\n");
 
@@ -112,6 +113,10 @@ const harness = `
         const rows = document.querySelectorAll("#wzAllocGrid .wz-alloc-row").length;
         const r = document.querySelector("#wzAllocCashRow input[type=range]");
         return rows === 1 && r.value === "75" && document.getElementById("wzAllocCashMoney").textContent === "600 zł/mies.";
+    });
+    check("num-control alokacji zachowuje data-account i step", () => {
+        const input = document.querySelector('#wzAllocGrid .acc-field.wz-alloc-pct[data-account="broker"]');
+        return !!input && input.step === "1" && !!input.getAttribute("aria-label").startsWith("Udział Broker");
     });
     check("zostało 10 pastylek (8 alokowalnych + PPK/PPE), panel wciąż widoczny", () => {
         return document.querySelectorAll("#wzAllocPills .wz-pill").length === 10
