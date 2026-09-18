@@ -8,14 +8,13 @@
     <div class="wizard-progress" id="wizardProgress">
         <div class="wizard-progress-bar" id="wizardProgressBar"></div>
         <div class="wizard-progress-labels">
-            <span class="wz-step-label">1. Pytanie</span>
-            <span class="wz-step-label">2. Podstawy</span>
+            <span class="wz-step-label">1. Twoje pytanie</span>
+            <span class="wz-step-label">2. Twoje dane</span>
             <span class="wz-step-label">3. Kapitał</span>
-            <span class="wz-step-label">4. Instrumenty</span>
-            <span class="wz-step-label">5. Podział</span>
-            <span class="wz-step-label">6. Cele</span>
-            <span class="wz-step-label">7. Wynik</span>
-            <span class="wz-step-label">8. Podsumowanie</span>
+            <span class="wz-step-label">4. Podział oszczędności</span>
+            <span class="wz-step-label">5. Cel i horyzont</span>
+            <span class="wz-step-label">6. Wynik</span>
+            <span class="wz-step-label">7. Podsumowanie</span>
         </div>
     </div>
 
@@ -47,7 +46,7 @@
 
     <!-- KROK 2: PODSTAWY -->
     <section class="wz-step hidden" data-step="2">
-        <h2>Podstawy</h2>
+        <h2>Twoje dane</h2>
         <p class="subtitle">Zacznijmy od danych o Tobie i Twojej pracy.</p>
         <div class="wz-fields">
             <div class="field-group">
@@ -105,8 +104,8 @@
 
     <!-- KROK 3: KAPITAŁ -->
     <section class="wz-step hidden" data-step="3">
-        <h2>Twój kapitał</h2>
-        <p class="subtitle">Wpisz salda na poszczególnych kontach. Zostaw 0, jeśli danego przechowywania nie masz.</p>
+        <h2>Kapitał</h2>
+        <p class="subtitle">Wpisz zgromadzone salda — konto z saldem 0 jest pomijane. Instrumenty, których nie masz, możesz dodać w kroku Podział.</p>
         <div class="wz-capital-grid" id="wzCapitalGrid"></div>
         <div class="wz-step-actions">
             <button type="button" class="btn btn-secondary wz-back">Wstecz</button>
@@ -114,93 +113,95 @@
         </div>
     </section>
 
-    <!-- KROK 4: INSTRUMENTY -->
+    <!-- KROK 4: PODZIAŁ OSZCZĘDNOŚCI -->
     <section class="wz-step hidden" data-step="4">
-        <h2>Instrumenty</h2>
-        <p class="subtitle">Zaznacz rozwiązania, w których uczestniczysz lub planujesz uczestniczyć.</p>
-        <div class="wz-instruments">
-            <label class="wz-check"><input type="checkbox" id="wzZus" checked> ZUS <span class="wz-check-sub">Zakład Ubezpieczeń Społecznych (składki emerytalne)</span></label>
-            <label class="wz-check"><input type="checkbox" id="wzPpk"> PPK <span class="wz-check-sub">Pracownicze Plany Kapitałowe</span></label>
-            <label class="wz-check"><input type="checkbox" id="wzIke"> IKE <span class="wz-check-sub">Indywidualne Konto Emerytalne</span></label>
-            <label class="wz-check"><input type="checkbox" id="wzIkze"> IKZE <span class="wz-check-sub">Indywidualne Konto Zabezpieczenia Emerytalnego</span></label>
-            <label class="wz-check"><input type="checkbox" id="wzOipe"> OIPE <span class="wz-check-sub">Ogólnoeuropejski Indywidualny Produkt Emerytalny</span></label>
-            <label class="wz-check"><input type="checkbox" id="wzPpe"> PPE <span class="wz-check-sub">Pracownicze Programy Emerytalne</span></label>
-            <label class="wz-check"><input type="checkbox" id="wzOkiInw"> OKI inwestycyjne <span class="wz-check-sub">Osobiste Konto Inwestycyjne (aktywa inwestycyjne)</span></label>
-            <label class="wz-check"><input type="checkbox" id="wzOkiOsk"> OKI oszczędnościowe <span class="wz-check-sub">Osobiste Konto Inwestycyjne (aktywa oszczędnościowe)</span></label>
-            <label class="wz-check"><input type="checkbox" id="wzKrypto"> Krypto <span class="wz-check-sub">kryptowaluty</span></label>
-            <label class="wz-check"><input type="checkbox" id="wzLokata"> Lokata <span class="wz-check-sub">lokaty bankowe</span></label>
-            <label class="wz-check"><input type="checkbox" id="wzObligacje"> Obligacje <span class="wz-check-sub">obligacje skarbowe</span></label>
-            <label class="wz-check"><input type="checkbox" id="wzBroker"> Broker <span class="wz-check-sub">rachunek maklerski</span></label>
-        </div>
-        <div class="wz-ppk-fields hidden" id="wzPpkFields">
-            <div class="field-group">
-                <label>PPK — % pracownika</label>
-                <input type="number" id="wzPpkEmployee" class="acc-field" value="2" step="0.5" data-percent="1">
-            </div>
-            <div class="field-group">
-                <label>PPK — % pracodawcy</label>
-                <input type="number" id="wzPpkEmployer" class="acc-field" value="1.5" step="0.5" data-percent="1">
-            </div>
-        </div>
-        <div class="wz-step-actions">
-            <button type="button" class="btn btn-secondary wz-back">Wstecz</button>
-            <button type="button" class="btn btn-primary wz-next">Dalej</button>
-        </div>
-    </section>
-
-    <!-- KROK 5: PODZIAŁ OSZCZĘDNOŚCI -->
-    <section class="wz-step hidden" data-step="5">
         <h2>Podział oszczędności</h2>
         <p class="subtitle" id="wzAllocHeader"></p>
-        <div class="wz-alloc-controls">
-            <span class="wz-alloc-strategy-label">Strategia</span>
-            <div class="gender-options wz-alloc-strategy-options">
-                <label class="gender-option" title="Niski apetyt na ryzyko — bezpieczne aktywa, mało w ryzykowne"><input type="radio" name="wzStrategy" value="konserwatywna" /> Konserwatywna</label>
-                <label class="gender-option" title="Umiarkowane ryzyko i umiarkowany zysk"><input type="radio" name="wzStrategy" value="zbilansowana" checked /> Zbilansowana</label>
-                <label class="gender-option" title="Wysoki potencjał zysku, większe ryzyko"><input type="radio" name="wzStrategy" value="agresywna" /> Agresywna</label>
+
+        <div class="wz-alloc-panel">
+            <h3 class="wz-panel-title">Strategia</h3>
+            <div class="wz-alloc-controls">
+                <span class="wz-alloc-strategy-label">Preferujesz</span>
+                <div class="gender-options wz-alloc-strategy-options">
+                    <label class="gender-option" title="Niski apetyt na ryzyko — bezpieczne aktywa, mało w ryzykowne"><input type="radio" name="wzStrategy" value="konserwatywna" /> Konserwatywna</label>
+                    <label class="gender-option" title="Umiarkowane ryzyko i umiarkowany zysk"><input type="radio" name="wzStrategy" value="zbilansowana" checked /> Zbilansowana</label>
+                    <label class="gender-option" title="Wysoki potencjał zysku, większe ryzyko"><input type="radio" name="wzStrategy" value="agresywna" /> Agresywna</label>
+                </div>
+                <button type="button" class="btn btn-secondary" id="wzAutoBtn">Zaproponuj podział</button>
+                <span class="wz-alloc-strategy-hint">Decyduje o zakładanych stopach zwrotu (ROI) poszczególnych kont.</span>
             </div>
-            <button type="button" class="btn btn-secondary" id="wzAutoBtn">Zaproponuj podział</button>
-            <div id="wzAllocSum" class="wz-alloc-sum"></div>
-            <span class="wz-alloc-strategy-hint">Decyduje o zakładanych stopach zwrotu (ROI) poszczególnych kont.</span>
         </div>
-        <div id="wzAllocGrid" class="wz-alloc-grid"></div>
-        <div id="wzAllocCash" class="wz-alloc-cash"></div>
+
+        <div class="wz-alloc-panel">
+            <div class="wz-alloc-panel-head">
+                <h3 class="wz-panel-title">Podział</h3>
+                <div id="wzAllocSum" class="wz-alloc-sum"></div>
+            </div>
+            <div class="wz-alloc-cash-row wz-alloc-row" id="wzAllocCashRow">
+                <div class="wz-alloc-label">💵 Gotówka</div>
+                <input type="range" class="wz-alloc-range" disabled aria-label="Udział gotówkowy (read-only)">
+                <span class="wz-alloc-money" id="wzAllocCashMoney">—</span>
+            </div>
+            <div id="wzAllocGrid" class="wz-alloc-grid"></div>
+            <div id="wzAllocCash" class="wz-alloc-cash"></div>
+        </div>
+
+        <div class="wz-alloc-panel" id="wzAllocPillsPanel">
+            <h3 class="wz-panel-title">Dodaj instrument</h3>
+            <div id="wzAllocPills" class="wz-alloc-pills hidden"></div>
+        </div>
+
+        <div class="wz-alloc-panel" id="wzPayrollPanel">
+            <h3 class="wz-panel-title">Wpłaty z pensji</h3>
+            <div id="wzPayrollActive" class="wz-payroll-active hidden"></div>
+        </div>
+
         <div class="wz-step-actions">
             <button type="button" class="btn btn-secondary wz-back">Wstecz</button>
             <button type="button" class="btn btn-primary wz-next">Dalej</button>
         </div>
     </section>
 
-    <!-- KROK 6: CELE I HORYZONT -->
-    <section class="wz-step hidden" data-step="6">
-        <h2>Twoje cele</h2>
+    <!-- KROK 5: CELE I HORYZONT -->
+    <section class="wz-step hidden" data-step="5">
+        <h2>Cel i horyzont</h2>
         <p class="subtitle">Ustaw cel i horyzont — asystent wstecznie wyliczy resztę Twojej ścieżki.</p>
-        <div class="wz-goal-fields hidden" id="wzGoalField">
-            <div class="field-group">
-                <label>Cel wypłaty miesięcznej (netto, zł)</label>
-                <input type="number" id="wzTarget" class="acc-field" value="6000" min="100" step="100">
-            </div>
-        </div>
         <div class="wz-fields">
+            <div class="field-group" id="wzGoalField">
+                <label>Cel wypłaty miesięcznej (netto, zł)</label>
+                <div class="num-control">
+                    <button type="button" class="stepper stepper-down" tabindex="-1" aria-label="Zmniejsz cel">&minus;</button>
+                    <input type="number" id="wzTarget" class="acc-field" value="6000" min="100" step="100">
+                    <button type="button" class="stepper stepper-up" tabindex="-1" aria-label="Zwiększ cel">+</button>
+                </div>
+                <p class="wz-hint">Ile netto miesięcznie chcesz wypłacać po przejściu na FIRE.</p>
+            </div>
             <div class="field-group" id="wzReGroup">
-                <label>Wiek przejścia na FIRE (koniec akumulacji)</label>
+                <label>Wiek przejścia na FIRE</label>
                 <div class="num-control">
                     <button type="button" class="stepper stepper-down" tabindex="-1" aria-label="Zmniejsz wiek FIRE">&minus;</button>
                     <input type="number" id="wzRe" class="acc-field" value="55" min="0" max="110">
                     <button type="button" class="stepper stepper-up" tabindex="-1" aria-label="Zwiększ wiek FIRE">+</button>
                 </div>
+                <p class="wz-hint">Koniec fazy akumulacji — od tego momentu żyjesz z kapitału.</p>
             </div>
             <div class="field-group">
-                <label>Wiek emerytury (puste = domyślny)</label>
-                <input type="number" id="wzRetirement" class="acc-field" placeholder="np. 65" min="0" max="110">
+                <label>Wiek emerytury</label>
+                <div class="num-control">
+                    <button type="button" class="stepper stepper-down" tabindex="-1" aria-label="Zmniejsz wiek emerytury">&minus;</button>
+                    <input type="number" id="wzRetirement" class="acc-field" placeholder="domyślny" min="0" max="110" data-empty="65">
+                    <button type="button" class="stepper stepper-up" tabindex="-1" aria-label="Zwiększ wiek emerytury">+</button>
+                </div>
+                <p class="wz-hint">Wiek przejścia na emeryturę ustawową — zostaw puste, by użyć wieku ZUS.</p>
             </div>
             <div class="field-group">
-                <label>Do którego wieku plan (wyłącznie)</label>
+                <label>Koniec planu</label>
                 <div class="num-control">
                     <button type="button" class="stepper stepper-down" tabindex="-1" aria-label="Zmniejsz wiek końca planu">&minus;</button>
                     <input type="number" id="wzPlanEnd" class="acc-field" value="96" min="1" max="120">
                     <button type="button" class="stepper stepper-up" tabindex="-1" aria-label="Zwiększ wiek końca planu">+</button>
                 </div>
+                <p class="wz-hint">Do tego wieku trwa wypłata z kapitału (planowanie dożywotnie).</p>
             </div>
         </div>
         <div class="wz-step-actions">
@@ -209,8 +210,8 @@
         </div>
     </section>
 
-    <!-- KROK 7: WYNIK -->
-    <section class="wz-step hidden" data-step="7">
+    <!-- KROK 6: WYNIK -->
+    <section class="wz-step hidden" data-step="6">
         <h2>Wynik</h2>
         <button type="button" class="btn btn-primary" id="wzRunBtn">Wylicz plan</button>
         <div id="wzResult" class="wz-result hidden">
@@ -225,8 +226,8 @@
         </div>
     </section>
 
-    <!-- KROK 8: PODSUMOWANIE -->
-    <section class="wz-step hidden" data-step="8">
+    <!-- KROK 7: PODSUMOWANIE -->
+    <section class="wz-step hidden" data-step="7">
         <h2>Podsumowanie</h2>
         <p class="subtitle">Tak wyglądać będą Twoje etapy. Możesz je dalej edytować w edytorze.</p>
         <div class="wz-timeline" id="wzTimeline"></div>

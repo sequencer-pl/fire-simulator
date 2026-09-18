@@ -1,30 +1,48 @@
 // wizard.js — Asystent FIRE: 3 ścieżki planowania oparte o backend planner.py
 
-const WZ_TOTAL_STEPS = 8;
-const WZ_CAPITAL_ACCOUNTS = [
-    "gotowka", "broker", "ike", "ikze", "oipe",
-    "lokata", "obligacje", "krypto", "oki_inw", "oki_osk",
+const WZ_TOTAL_STEPS = 7;
+
+// Step 3 rows: every account is a plain balance field — participation follows
+// the declared capital (zero/nonzero). OFE lives as its own row beneath ZUS.
+const WZ_CAPITAL_ROWS = [
+    "gotowka", "zus", "zus:ofe", "ppk", "ppe",
+    "ike", "ikze", "oipe", "oki_inw", "oki_osk",
+    "krypto", "lokata", "obligacje", "broker",
 ];
 
-// Accounts allocatable from the discretionary pool (sliders in step 5).
+// Accounts allocatable from the discretionary pool (sliders + pills in step 4).
 // Payroll vehicles (ZUS, PPK, PPE) are excluded — savings can't be routed there.
 const WZ_ALLOC_ACCOUNTS = [
     "broker", "ikze", "ike", "oipe",
     "krypto", "lokata", "obligacje", "oki_inw", "oki_osk",
 ];
 
-const WZ_ALLOC_FLAG_MAP = {
-    broker: "wzBroker",
-    ikze: "wzIkze",
-    ike: "wzIke",
-    oipe: "wzOipe",
-    krypto: "wzKrypto",
-    lokata: "wzLokata",
-    obligacje: "wzObligacje",
-    oki_inw: "wzOkiInw",
-    oki_osk: "wzOkiOsk",
+// Always present: the cash sink and the ZUS state pension.
+const WZ_ALWAYS_ON = new Set(["gotowka", "zus"]);
+
+// Payroll-funded vehicles — participation is toggled with pills in step 4,
+// contributions come from the salary, never from the discretionary pool.
+const WZ_PAYROLL = new Set(["ppk", "ppe"]);
+
+const WZ_CAPITAL_LABELS = {
+    gotowka: "Gotówka",
+    zus: "ZUS",
+    "zus:ofe": "OFE",
+    ppk: "PPK",
+    ppe: "PPE",
+    ike: "IKE",
+    ikze: "IKZE",
+    oipe: "OIPE",
+    oki_inw: "OKI inwestycyjne",
+    oki_osk: "OKI oszczędnościowe",
+    krypto: "Krypto",
+    lokata: "Lokata",
+    obligacje: "Obligacje",
+    broker: "Broker",
 };
 
+// Accounts added explicitly via the step-4 pills (no capital, participation only).
+let wzPill = new Set();
 let wzPlan = null;
 let wzWeights = {};
 let wzLimits = null;
@@ -34,28 +52,57 @@ function capitalizeLabel(s) {
     return (ACCOUNT_LABELS[s] || s).charAt(0).toUpperCase() + (ACCOUNT_LABELS[s] || s).slice(1);
 }
 
+function capitalLabel(account) {
+    return WZ_CAPITAL_LABELS[account] || capitalizeLabel(account);
+}
+
 function radioChecked(name) {
     const el = document.querySelector(`input[name="${name}"]:checked`);
     return el ? el.value : null;
 }
 
+function numControl(account, ariaLabel) {
+    return `
+        <div class="num-control">
+            <button type="button" class="stepper stepper-down" tabindex="-1" aria-label="Zmniejsz ${ariaLabel || account}">&minus;</button>
+            <input type="number" class="acc-field wz-capital-input" data-account="${account}" value="0" min="0" step="1000">
+            <button type="button" class="stepper stepper-up" tabindex="-1" aria-label="Zwiększ ${ariaLabel || account}">+</button>
+        </div>`;
+}
+
 function buildCapitalGrid() {
     const grid = document.getElementById("wzCapitalGrid");
     grid.innerHTML = "";
-    WZ_CAPITAL_ACCOUNTS.forEach((account) => {
-        const wrap = document.createElement("div");
-        wrap.className = "wz-capital-item";
+    WZ_CAPITAL_ROWS.forEach((account) => {
         const icon = ACCOUNT_ICONS[account] || "";
+        const wrap = document.createElement("div");
+        wrap.className = "wz-capital-item wz-instrument-row";
         wrap.innerHTML = `
-            <label>${icon} ${capitalizeLabel(account)}</label>
-            <div class="num-control">
-                <button type="button" class="stepper stepper-down" tabindex="-1" aria-label="Zmniejsz ${account}">&minus;</button>
-                <input type="number" class="acc-field wz-capital-input" data-account="${account}" value="0" min="0" step="1000">
-                <button type="button" class="stepper stepper-up" tabindex="-1" aria-label="Zwiększ ${account}">+</button>
-            </div>
-        `;
+            <label class="wz-instrument-name">${icon} ${capitalLabel(account)}</label>
+            <div class="wz-instrument-fields">
+                ${numControl(account, capitalLabel(account))}
+            </div>`;
         grid.appendChild(wrap);
     });
+}
+
+function capitalSaldo(account) {
+    const el = document.querySelector(`.wz-capital-input[data-account="${account}"]`);
+    return parseFloat(el && el.value) || 0;
+}
+
+function isCapActive(account) {
+    if (WZ_ALWAYS_ON.has(account)) return true;
+    return capitalSaldo(account) > 0 || wzPill.has(account);
+}
+
+function togglePill(account) {
+    const on = isCapActive(account);
+    if (on && !WZ_ALWAYS_ON.has(account) && capitalSaldo(account) <= 0) {
+        wzPill.delete(account);
+    } else if (!on) {
+        wzPill.add(account);
+    }
 }
 
 function collectAnswers() {
@@ -70,21 +117,18 @@ function collectAnswers() {
         employment: radioChecked("wzEmployment") || "etat",
         gross_monthly: parseFloat(document.getElementById("wzGross").value) || 0,
         capital: capital,
-        use_zus: document.getElementById("wzZus").checked,
-        use_ppk: document.getElementById("wzPpk").checked,
-        ppk_employee_pct: (parseFloat(document.getElementById("wzPpkEmployee").value) || 0) / 100,
-        ppk_employer_pct: (parseFloat(document.getElementById("wzPpkEmployer").value) || 0) / 100,
-        ppk_state_topups: true,
-        use_ikze: document.getElementById("wzIkze").checked,
-        use_ike: document.getElementById("wzIke").checked,
-        use_oipe: document.getElementById("wzOipe").checked,
-        use_ppe: document.getElementById("wzPpe").checked,
-        use_oki_inw: document.getElementById("wzOkiInw").checked,
-        use_oki_osk: document.getElementById("wzOkiOsk").checked,
-        use_krypto: document.getElementById("wzKrypto").checked,
-        use_lokata: document.getElementById("wzLokata").checked,
-        use_obligacje: document.getElementById("wzObligacje").checked,
-        use_broker: document.getElementById("wzBroker").checked,
+        use_zus: true,
+        use_ppk: isCapActive("ppk"),
+        use_ppe: isCapActive("ppe"),
+        use_ikze: isCapActive("ikze"),
+        use_ike: isCapActive("ike"),
+        use_oipe: isCapActive("oipe"),
+        use_oki_inw: isCapActive("oki_inw"),
+        use_oki_osk: isCapActive("oki_osk"),
+        use_krypto: isCapActive("krypto"),
+        use_lokata: isCapActive("lokata"),
+        use_obligacje: isCapActive("obligacje"),
+        use_broker: isCapActive("broker"),
         retire_early_age: parseInt(document.getElementById("wzRe").value, 10) || null,
         retirement_age: (() => {
             const v = parseInt(document.getElementById("wzRetirement").value, 10);
@@ -120,20 +164,20 @@ function setStep(n) {
     const bar = document.getElementById("wizardProgressBar");
     bar.style.width = (n / WZ_TOTAL_STEPS) * 100 + "%";
     window.scrollTo({ top: 0, behavior: "smooth" });
-    if (n === 5) buildAllocationStep();
+    if (n === 4) buildAllocationStep();
     const finalStep = document.getElementById("wzToSummary");
     if (finalStep) finalStep.disabled = true;
 }
 
 function validateStep(n) {
-    if (n === 5) {
+    if (n === 4) {
         const total = Object.values(wzWeights).reduce((a, b) => a + (b || 0), 0);
         if (total > 100 + 1e-6) {
             alert("Suma udziałów przekracza 100%. Zmniejsz któreś z kont albo zostaw resztę w gotówce.");
             return false;
         }
     }
-    if (n === 6) {
+    if (n === 5) {
         const path = currentPath();
         const age = parseInt(document.getElementById("wzAge").value, 10) || 0;
         const reGroup = document.getElementById("wzReGroup");
@@ -158,7 +202,7 @@ function validateStep(n) {
             }
         }
     }
-    if (n === 7) {
+    if (n === 6) {
         return wzPlan !== null;
     }
     return true;
@@ -345,14 +389,6 @@ function initSavingsMode() {
     sync();
 }
 
-function initInstrumentToggles() {
-    const ppk = document.getElementById("wzPpk");
-    const fields = document.getElementById("wzPpkFields");
-    const sync = () => fields.classList.toggle("hidden", !ppk.checked);
-    ppk.addEventListener("change", sync);
-    sync();
-}
-
 function initEmploymentToggle() {
     const group = document.getElementById("wzGrossGroup");
     const gross = document.getElementById("wzGross");
@@ -391,12 +427,7 @@ function fmtPct(v) {
 }
 
 function wzActiveAllocAccounts() {
-    const list = [];
-    WZ_ALLOC_ACCOUNTS.forEach((acc) => {
-        const el = document.getElementById(WZ_ALLOC_FLAG_MAP[acc]);
-        if (el && el.checked) list.push(acc);
-    });
-    return list;
+    return WZ_ALLOC_ACCOUNTS.filter((acc) => isCapActive(acc));
 }
 
 function wzPoolMonthly() {
@@ -438,10 +469,11 @@ function refreshAllocationDisplay() {
     const poolAnnual = (poolMonthly || 0) * 12;
     let usedPct = 0;
     let effectiveTotal = 0;
+    let anyOverflow = false;
     wzActiveAllocAccounts().forEach((acc) => {
         const w = wzWeights[acc] || 0;
         usedPct += w;
-        const targetAnnual = ((poolMonthly || 0) * w) / 100;
+        const targetAnnual = ((poolMonthly || 0) * 12 * w) / 100;
         const cap = wzShelterCap(acc);
         const eff = cap ? Math.min(targetAnnual, cap) : targetAnnual;
         effectiveTotal += eff;
@@ -455,6 +487,7 @@ function refreshAllocationDisplay() {
             if (poolKnown && cap && overflow > 0.5 && (poolMonthly || 0) > 0) {
                 overflowEl.textContent = "nadwyżka " + fmtZloty(overflow / 12) + " zł/mies. → Gotówka";
                 overflowEl.classList.remove("hidden");
+                anyOverflow = true;
             } else {
                 overflowEl.classList.add("hidden");
                 overflowEl.textContent = "";
@@ -462,7 +495,7 @@ function refreshAllocationDisplay() {
         }
     });
     const over = usedPct > 100 + 1e-6;
-    document.querySelectorAll(".wz-alloc-row").forEach((r) => r.classList.toggle("is-over", over));
+    document.querySelectorAll(".wz-alloc-row:not(.wz-alloc-cash-row)").forEach((r) => r.classList.toggle("is-over", over));
 
     const header = document.getElementById("wzAllocHeader");
     if (header) {
@@ -474,15 +507,28 @@ function refreshAllocationDisplay() {
                 `— przypisz udział, gdzie ma trafiać.`;
         }
     }
+
+    const remainingMoney = poolKnown ? Math.max(0, poolMonthly - effectiveTotal / 12) : 0;
+    const remainingPct = Math.max(0, 100 - usedPct);
+    const cashRow = document.getElementById("wzAllocCashRow");
+    if (cashRow) {
+        cashRow.classList.toggle("is-over", over);
+        const range = cashRow.querySelector(".wz-alloc-range");
+        if (range) range.value = String(Math.round(remainingPct));
+        const money = document.getElementById("wzAllocCashMoney");
+        if (money) money.textContent = poolKnown ? fmtZloty(remainingMoney) + " zł/mies." : "—";
+    }
+
     const cash = document.getElementById("wzAllocCash");
     if (cash) {
         if (!poolKnown) {
             cash.textContent = "";
         } else if (usedPct >= 99.999) {
             cash.textContent = "W pełni rozdysponowano.";
+        } else if (anyOverflow) {
+            cash.textContent = `Nadwyżka ponad limit trafia do Gotówki — rozważ uaktywnienie kolejnego instrumentu pastylką poniżej.`;
         } else {
-            cash.textContent = `Nieprzypisane: ${fmtZloty(Math.max(0, poolMonthly - effectiveTotal / 12))} zł/mies. ` +
-                `(${fmtPct(Math.max(0, 100 - usedPct))}) zostaje w Gotówce.`;
+            cash.textContent = "";
         }
     }
     const sum = document.getElementById("wzAllocSum");
@@ -493,10 +539,10 @@ function refreshAllocationDisplay() {
 }
 
 function bindAllocInputs() {
-    document.querySelectorAll(".wz-alloc-range").forEach((range) => {
+    document.querySelectorAll(".wz-alloc-grid .wz-alloc-range").forEach((range) => {
         range.addEventListener("input", () => setWzWeight(range.dataset.account, parseFloat(range.value) || 0));
     });
-    document.querySelectorAll(".wz-alloc-pct").forEach((num) => {
+    document.querySelectorAll(".wz-alloc-grid .wz-alloc-pct").forEach((num) => {
         num.addEventListener("input", () => setWzWeight(num.dataset.account, parseFloat(num.value) || 0));
     });
 }
@@ -526,11 +572,99 @@ function buildAllocationStep() {
             <span class="wz-alloc-money" data-account="${acc}">—</span>
             <span class="wz-alloc-overflow hidden" data-account="${acc}"></span>
         `;
+        if (capitalSaldo(acc) <= 0) {
+            const rm = document.createElement("button");
+            rm.type = "button";
+            rm.className = "wz-pill-remove";
+            rm.textContent = "Usuń";
+            rm.addEventListener("click", () => {
+                wzPill.delete(acc);
+                buildAllocationStep();
+            });
+            wrap.appendChild(rm);
+        }
         grid.appendChild(wrap);
     });
     document.getElementById("wzAllocCash").innerHTML = "";
+    renderPayrollActive();
+    buildAllocationPills();
     bindAllocInputs();
     refreshAllocationDisplay();
+}
+
+// Payroll vehicles present in the plan get an info bar (no slider — their
+// money comes from the salary, not from the discretionary pool).
+function renderPayrollActive() {
+    const box = document.getElementById("wzPayrollActive");
+    const panel = document.getElementById("wzPayrollPanel");
+    if (!box) return;
+    box.innerHTML = "";
+    const list = [...WZ_PAYROLL].filter((acc) => isCapActive(acc));
+    if (panel) panel.classList.toggle("hidden", !list.length);
+    box.classList.toggle("hidden", !list.length);
+    list.forEach((acc) => {
+        const icon = ACCOUNT_ICONS[acc] || "";
+        const row = document.createElement("div");
+        row.className = "wz-alloc-row wz-alloc-info";
+        row.innerHTML = `<div class="wz-alloc-label">${icon} ${capitalLabel(acc)}</div>`;
+        const note = document.createElement("span");
+        note.className = "wz-alloc-note";
+        note.textContent = "wpłaty z pensji — dodatkowe do oszczędności";
+        row.appendChild(note);
+        if (capitalSaldo(acc) <= 0) {
+            const rm = document.createElement("button");
+            rm.type = "button";
+            rm.className = "wz-pill-remove";
+            rm.textContent = "Usuń";
+            rm.addEventListener("click", () => {
+                wzPill.delete(acc);
+                buildAllocationStep();
+            });
+            row.appendChild(rm);
+        }
+        box.appendChild(row);
+    });
+}
+
+// Pills for instruments not yet considered — clicking toggles them in.
+function buildAllocationPills() {
+    const box = document.getElementById("wzAllocPills");
+    const panel = document.getElementById("wzAllocPillsPanel");
+    if (!box) return;
+    box.innerHTML = "";
+    const missing = WZ_ALLOC_ACCOUNTS.filter((acc) => !isCapActive(acc));
+    const payrollMissing = [...WZ_PAYROLL].filter((acc) => !isCapActive(acc));
+    if (!missing.length && !payrollMissing.length) {
+        if (panel) panel.classList.add("hidden");
+        box.classList.add("hidden");
+        return;
+    }
+    if (panel) panel.classList.remove("hidden");
+    const hint = document.createElement("p");
+    hint.className = "wz-pills-hint";
+    hint.textContent = "Nie uwzględnione — kliknij, aby dodać:";
+    box.appendChild(hint);
+    const wrap = document.createElement("div");
+    wrap.className = "wz-pills";
+    const pill = (acc) => {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = "wz-pill";
+        b.dataset.account = acc;
+        const payrollSub = WZ_PAYROLL.has(acc)
+            ? `<span class="wz-pill-sub">wpłaty z pensji</span>`
+            : "";
+        b.innerHTML = `${ACCOUNT_ICONS[acc] || ""} ${capitalLabel(acc)}${payrollSub}`;
+        b.addEventListener("click", () => {
+            togglePill(acc);
+            buildAllocationStep();
+        });
+        wrap.appendChild(b);
+    };
+    missing.forEach(pill);
+    payrollMissing.forEach(pill);
+    box.appendChild(wrap);
+    box.classList.remove("hidden");
 }
 
 async function runSuggestAllocation() {
@@ -551,7 +685,10 @@ async function runSuggestAllocation() {
         }
         wzWeights = {};
         Object.entries(data.allocations || {}).forEach(([acc, v]) => {
-            if (acc !== "gotowka") wzWeights[acc] = v;
+            if (acc !== "gotowka") {
+                wzWeights[acc] = v;
+                wzPill.add(acc);
+            }
         });
         buildAllocationStep();
     } catch (err) {
@@ -569,7 +706,7 @@ async function loadWzLimits() {
         const cfg = await res.json();
         wzLimits = cfg.limits;
         const step = document.querySelector(".wz-step:not(.hidden)");
-        if (step && parseInt(step.dataset.step, 10) === 5) buildAllocationStep();
+        if (step && parseInt(step.dataset.step, 10) === 4) buildAllocationStep();
     } catch (err) {
         wzLimits = null;
     }
@@ -602,6 +739,9 @@ function initSteppers() {
         if (!btn) return;
         const input = btn.closest(".num-control")?.querySelector(".acc-field");
         if (!input) return;
+        if (input.value === "" && input.dataset.empty != null) {
+            input.value = input.dataset.empty;
+        }
         stepInputValue(input, btn.classList.contains("stepper-up") ? 1 : -1);
     });
 }
@@ -626,7 +766,7 @@ function initNav() {
         if (!wzPlan) return;
         renderTimeline(wzPlan.input);
         renderStagePreview(wzPlan.input);
-        setStep(8);
+        setStep(7);
     });
     document.getElementById("wzFinishBtn").addEventListener("click", finishWizard);
 }
@@ -635,7 +775,6 @@ function initWizard() {
     buildCapitalGrid();
     initSteppers();
     initSavingsMode();
-    initInstrumentToggles();
     initEmploymentToggle();
     initStrategy();
     syncPathUI();

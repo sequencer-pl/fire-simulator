@@ -483,6 +483,26 @@ def test_allocation_unknown_account_rejected():
         answers(allocations={"gotowka": 100})
 
 
+def test_suggest_allocation_includes_capital_holder():
+    # Account with money but no explicit participation flag is still suggested
+    # as a target for future savings (BASE capital: broker 100k, use_broker off).
+    out = suggest_allocations(answers(allocations={}), default_config(), 12_000)
+    assert "broker" in out
+
+
+def test_capital_payroll_instruments_seeded():
+    a = answers(
+        use_ppk=True,
+        use_ppe=True,
+        capital={"ppk": 50_000, "ppe": 20_000, "zus": 100_000},
+        allocations={},
+    )
+    accum = P.build_stages(a).stages[0].accounts
+    assert accum["ppk"].starting_balance == 50_000
+    assert accum["ppe"].starting_balance == 20_000
+    assert accum["zus"].starting_balance == 100_000
+
+
 def test_suggest_equal_roi_split():
     """Zbilansowana: ike/ikze/oipe/broker all 6% → equal 25% each at modest pool."""
     a = answers(allocations={}, use_ikze=True, use_ike=True, use_oipe=True, use_broker=True)
@@ -496,7 +516,7 @@ def test_suggest_equal_roi_split():
 
 def test_suggest_sole_active_account_gets_full_weight():
     """Agresywna: tylko krypto → całość na jedyne aktywne konto."""
-    a = answers(allocations={}, use_krypto=True)
+    a = answers(allocations={}, capital={}, use_krypto=True)
     s = suggest_allocations(a, default_config(), 120_000)
     assert abs(s.get("krypto", 0) - 100) < 0.1
     assert sum(s.values()) <= 100 + 1e-6
@@ -514,7 +534,14 @@ def test_suggest_equal_roi_split_large_pool():
 
 def test_suggest_weights_monotonic_by_roi():
     """Zbilansowana: strażnice (6%) dostają więcej niż lokata (4%)."""
-    a = answers(allocations={}, use_ikze=True, use_ike=True, use_oipe=True, use_lokata=True)
+    a = answers(
+        allocations={},
+        capital={},
+        use_ikze=True,
+        use_ike=True,
+        use_oipe=True,
+        use_lokata=True,
+    )
     pool = 120_000
     s = suggest_allocations(a, default_config(), pool)
     assert abs(s["ikze"] - 30.0) < 0.1
@@ -567,12 +594,24 @@ def test_suggest_konserwatywna_punishes_risky_hardest():
     """Krypto vs obligacje (te same dwa konta): konserwatywna daje krypto MNIEJ
     niż zbilansowana — absolutny dystans stóp (2% vs 4,5%) jest tu sankcjonowany."""
     cons = suggest_allocations(
-        answers(strategy="konserwatywna", allocations={}, use_krypto=True, use_obligacje=True),
+        answers(
+            strategy="konserwatywna",
+            allocations={},
+            capital={},
+            use_krypto=True,
+            use_obligacje=True,
+        ),
         default_config(),
         12_000,
     )
     zbil = suggest_allocations(
-        answers(strategy="zbilansowana", allocations={}, use_krypto=True, use_obligacje=True),
+        answers(
+            strategy="zbilansowana",
+            allocations={},
+            capital={},
+            use_krypto=True,
+            use_obligacje=True,
+        ),
         default_config(),
         12_000,
     )
@@ -586,7 +625,7 @@ def test_suggest_konserwatywna_punishes_risky_hardest():
 
 
 def test_suggest_no_activations_returns_empty():
-    a = answers(allocations={})
+    a = answers(allocations={}, capital={})
     s = suggest_allocations(a, default_config(), 12_000)
     assert s == {}
 

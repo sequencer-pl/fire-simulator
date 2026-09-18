@@ -53,18 +53,33 @@
 }
 
 .wz-fields {
-    display: flex;
-    gap: 1rem 1.5rem;
-    flex-wrap: wrap;
-    align-items: flex-start;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem 1.25rem;
+    align-items: start;
 }
 
 .wz-fields .field-group {
-    min-width: 180px;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    min-width: 0;
+}
+
+.wz-fields .field-group .num-control {
+    width: 100%;
+    max-width: 100%;
+}
+
+.wz-fields .acc-field {
+    width: 100%;
+    max-width: 100%;
+    text-align: left;
 }
 
 .wz-fields .gender-options {
-    align-self: flex-start;
+    width: 100%;
+    flex-wrap: wrap;
 }
 
 .field-group.is-disabled {
@@ -75,7 +90,7 @@
     font-size: 0.8rem;
     color: var(--text-dim);
     max-width: 320px;
-    margin-top: 0.4rem;
+    margin-top: 0.2rem;
 }
 
 .wz-capital-grid {
@@ -86,9 +101,9 @@
 }
 
 .wz-capital-item {
-    background: var(--bg);
+    background: var(--card-bg);
     border: 1px solid var(--border);
-    border-radius: 8px;
+    border-radius: 12px;
     padding: 0.5rem 0.75rem 0.75rem;
 }
 
@@ -99,42 +114,78 @@
 }
 
 .wz-savings-row {
+    grid-column: 1 / -1;
     display: flex;
     gap: 1rem;
     align-items: center;
     flex-wrap: wrap;
 }
 
-.wz-instruments {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+/* --- Capital rows (Kapitał) -------------------------------------------------- */
+
+.wz-instrument-row {
+    display: flex;
+    flex-direction: column;
     gap: 0.5rem;
 }
 
-.wz-check {
-    display: flex;
+.wz-instrument-name {
+    display: inline-flex;
     align-items: center;
-    gap: 0.5rem;
-    padding: 0.6rem 0.75rem;
-    background: var(--bg);
-    border-radius: 8px;
-    border: 1px solid var(--border);
-    cursor: pointer;
+    gap: 0.3rem;
 }
 
-.wz-check-sub {
-    color: var(--text-dim);
-    font-size: 0.75rem;
-    font-weight: 400;
-}
-
-.wz-ppk-fields {
+.wz-instrument-fields {
     display: flex;
-    gap: 1rem;
-    margin: 1rem 0;
+    flex-direction: column;
+    gap: 0.4rem;
 }
 
 /* --- Allocation step (Podział oszczędności) -------------------------------- */
+
+.wz-alloc-panel {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 0.9rem 1rem;
+    margin-bottom: 0.75rem;
+}
+
+.wz-panel-title {
+    margin: 0 0 0.6rem;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.wz-alloc-panel-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-bottom: 0.4rem;
+}
+
+.wz-alloc-panel-head .wz-panel-title {
+    margin-bottom: 0;
+}
+
+.wz-alloc-cash-row {
+    background: var(--bg-elevated);
+    border-color: var(--primary);
+    margin-bottom: 0.5rem;
+}
+
+.wz-alloc-cash-row .wz-alloc-range {
+    opacity: 0.75;
+}
+
+.wz-alloc-cash-row .wz-alloc-money {
+    color: var(--primary);
+    font-weight: 700;
+}
 
 .wz-alloc-controls {
     display: flex;
@@ -247,6 +298,82 @@
     color: var(--text-dim);
 }
 
+/* --- Payroll info bars + instrument pills (Podział) ------------------------ */
+
+.wz-payroll-active {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+.wz-alloc-info {
+    justify-content: space-between;
+}
+
+.wz-alloc-note {
+    font-size: 0.78rem;
+    color: var(--text-dim);
+    flex: 1;
+}
+
+.wz-pill-remove {
+    border: 1px solid var(--border);
+    background: var(--card-bg);
+    color: var(--text-dim);
+    border-radius: 8px;
+    padding: 0.2rem 0.6rem;
+    cursor: pointer;
+    font-size: 0.78rem;
+}
+
+.wz-pill-remove:hover {
+    color: var(--danger);
+    border-color: var(--danger);
+}
+
+.wz-alloc-pills {
+    margin-top: 0.75rem;
+}
+
+.wz-pills-hint {
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    margin: 0 0 0.4rem;
+}
+
+.wz-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.wz-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 0.45rem 0.9rem;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 0.85rem;
+    color: var(--text);
+    transition: border-color 0.2s ease, color 0.2s ease;
+}
+
+.wz-pill:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+}
+
+.wz-pill-sub {
+    color: var(--text-dim);
+    font-size: 0.7rem;
+    font-weight: 400;
+}
+
 .wz-paths {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
@@ -282,10 +409,6 @@
 .wz-path-desc {
     font-size: 0.85rem;
     color: var(--text-dim);
-}
-
-.wz-goal-fields {
-    margin-bottom: 1rem;
 }
 
 .wz-result {

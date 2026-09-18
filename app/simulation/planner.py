@@ -250,7 +250,10 @@ def suggest_allocations(a: WizardAnswers, config, annual_pool: float) -> dict[st
     and any overflow falls back to "gotowka"."""
     if annual_pool <= 0:
         return {}
-    active = [n for n in ALLOCATABLE_ACCOUNTS if _investment_used(a, n)]
+    # Active = participation flag OR existing capital — an account the user
+    # already holds money in is a valid target for future savings even without
+    # an explicit "use_*" checkbox (wizard auto-checks on any non-zero balance).
+    active = [n for n in ALLOCATABLE_ACCOUNTS if _account_present(a, n, {})]
     if not active:
         return {}
     rois = {n: _roi(a, n) for n in active}
