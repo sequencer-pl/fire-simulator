@@ -1,0 +1,13 @@
+{
+  "name": "fire-jsdom",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Harness jsdom — regresje dla vanilla JS (wizard) bez przeglądarki",
+  "type": "module",
+  "scripts": {
+    "test": "node repro.mjs"
+  },
+  "dependencies": {
+    "jsdom": "^24.1.3"
+  }
+}

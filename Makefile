@@ -1,8 +1,9 @@
 PYTHON := uv run
 APP := app.main:app
 QA := qa/visual
+QA_JS := qa/jsdom
 
-.PHONY: setup dev prod prod-port test lint format shots visual-baseline visual clean
+.PHONY: setup dev prod prod-port test lint format shots visual-baseline visual harness-jsdom clean
 
 ## Instaluje zależności (tworzy .venv)
 setup:
@@ -36,6 +37,10 @@ visual:
 ## Odświeża baseline'y po świadomej zmianie wizualnej
 visual-baseline:
 	npm --prefix $(QA) run shots
+
+## Harness jsdom — regresywne testy JS (wizard) bez przeglądarki
+harness-jsdom:
+	npm --prefix $(QA_JS) run test
 
 ## Uruchamia linter (ruff check)
 lint:
