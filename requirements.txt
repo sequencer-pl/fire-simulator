@@ -52,7 +52,7 @@ typing-inspection==0.4.3
     # via
     #   fastapi
     #   pydantic
-uvicorn==0.52.1
+uvicorn==0.53.0
     # via fire-simulator
 uvloop==0.22.1 ; platform_python_implementation != 'PyPy' and sys_platform != 'cygwin' and sys_platform != 'win32'
     # via uvicorn
