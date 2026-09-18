@@ -1,7 +1,8 @@
 PYTHON := uv run
 APP := app.main:app
+QA := qa/visual
 
-.PHONY: setup dev prod prod-port test lint format clean
+.PHONY: setup dev prod prod-port test lint format shots visual-baseline visual clean
 
 ## Instaluje zależności (tworzy .venv)
 setup:
@@ -22,6 +23,19 @@ prod-port:
 ## Uruchamia testy jednostkowe
 test:
 	$(PYTHON) pytest
+
+## Instaluje zależności harnessa wizualnego (Playwright, pierwszy raz)
+visual-setup:
+	npm --prefix $(QA) install
+	cd $(QA) && npx playwright install chromium
+
+## Porównanie zrzutów ekranu z baseline'ami (14 widoków, desktop + mobile)
+visual:
+	npm --prefix $(QA) run check
+
+## Odświeża baseline'y po świadomej zmianie wizualnej
+visual-baseline:
+	npm --prefix $(QA) run shots
 
 ## Uruchamia linter (ruff check)
 lint:
