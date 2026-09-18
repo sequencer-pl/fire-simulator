@@ -80,7 +80,9 @@ def create_user(email: str, password_hash: str, created_at: str) -> int:
             "INSERT INTO users (email, password_hash, created_at) VALUES (?, ?, ?)",
             (email, password_hash, created_at),
         )
-        return cur.lastrowid
+        rowid = cur.lastrowid
+        assert rowid is not None
+        return rowid
 
 
 def get_user_by_email(email: str) -> sqlite3.Row | None:
@@ -116,7 +118,9 @@ def insert_simulation(
             """,
             (user_id, name, created_at, created_at, input_json, result_json, summary_json),
         )
-        return cur.lastrowid
+        rowid = cur.lastrowid
+        assert rowid is not None
+        return rowid
 
 
 def update_simulation_name(sim_id: int, user_id: int, name: str, updated_at: str) -> bool:
@@ -244,7 +248,9 @@ def save_preset(user_id: int, name: str, config_json: str, created_at: str) -> i
             "INSERT INTO presets (user_id, name, config_json, created_at) VALUES (?, ?, ?, ?)",
             (user_id, name, config_json, created_at),
         )
-        return cur.lastrowid
+        rowid = cur.lastrowid
+        assert rowid is not None
+        return rowid
 
 
 def delete_preset(preset_id: int, user_id: int) -> bool:

@@ -54,6 +54,7 @@ async def api_save_simulation(payload: SaveSimulationPayload, request: Request):
         summary_json=json.dumps(summary),
     )
     row = db.get_simulation(sim_id, user_id)
+    assert row is not None
     return _simulation_response(row)
 
 
@@ -87,6 +88,7 @@ async def api_rename_simulation(sim_id: int, payload: RenamePayload, request: Re
     if not db.update_simulation_name(sim_id, user_id, payload.name.strip(), _now()):
         raise HTTPException(status_code=404, detail="Symulacja nie znaleziona.")
     row = db.get_simulation(sim_id, user_id)
+    assert row is not None
     return _simulation_response(row)
 
 
@@ -97,7 +99,9 @@ async def api_duplicate_simulation(sim_id: int, request: Request):
     if not row:
         raise HTTPException(status_code=404, detail="Symulacja nie znaleziona.")
     new_id = db.duplicate_simulation(sim_id, user_id, f"Kopia: {row['name']}", _now())
+    assert new_id is not None
     new_row = db.get_simulation(new_id, user_id)
+    assert new_row is not None
     return _simulation_response(new_row)
 
 

@@ -4,6 +4,8 @@ All Polish labels and descriptions are intentionally kept as-is because they
 are user-facing strings.
 """
 
+from typing import Any
+
 # Canonical processing order for stages.
 STAGE_ORDER = ["akumulacja", "realizacja"]
 
@@ -134,7 +136,7 @@ FIELD_HINTS = {
     "cost_basis": ("Łączny koszt zakupu (wpłacony kapitał) — podatek zapłacisz tylko od różnicy."),
 }
 
-STAGE_META = {
+STAGE_META: dict[str, dict[str, Any]] = {
     "akumulacja": {
         "label": "Akumulacja",
         "description": "Etap akumulacji kapitału - oszczędzanie i inwestowanie",
@@ -858,7 +860,7 @@ STAGE_META = {
 }
 
 
-def _inject_account_info(stage_meta: dict) -> dict:
+def _inject_account_info(stage_meta: dict[str, dict[str, Any]]) -> dict[str, dict[str, Any]]:
     """Inject description/url from ACCOUNT_INFO into stage metadata."""
     for stage_cfg in stage_meta.values():
         for account_key, meta in stage_cfg.get("available_accounts", {}).items():

@@ -6,7 +6,7 @@ planner); trzymamy je tu, by trzymać engine.py w czytelnych granicach.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from app.core.base import resolve_base
 from app.simulation.config import TaxConfig
@@ -56,8 +56,8 @@ def _estimate_zus_pension(
 
 
 def _accumulate_zus(
-    cfg: dict,
-    balances: dict,
+    cfg: dict[str, Any],
+    balances: dict[str, float],
     config: TaxConfig,
     monthly_gross: float = 0.0,
 ) -> None:
@@ -73,21 +73,15 @@ def _accumulate_zus(
             balances["zus:ofe"] = cfg["starting_balance_ofe"]
         ofe_contrib = capped * zus_cfg.ofe_rate
         zus_contrib = total_contrib - ofe_contrib
-        waloryzacja = (
-            cfg.get("waloryzacja_skladek")
-            if cfg.get("waloryzacja_skladek") is not None
-            else zus_cfg.waloryzacja_skladek
-        )
+        skladki_param = cfg.get("waloryzacja_skladek")
+        waloryzacja = skladki_param if skladki_param is not None else zus_cfg.waloryzacja_skladek
         balances["zus"] = balances.get("zus", 0.0) * (1 + waloryzacja) + zus_contrib
         balances["zus:ofe"] = (
             balances.get("zus:ofe", 0.0) * (1 + cfg.get("roi", DEFAULT_ROI)) + ofe_contrib
         )
     else:
-        waloryzacja = (
-            cfg.get("waloryzacja_skladek")
-            if cfg.get("waloryzacja_skladek") is not None
-            else zus_cfg.waloryzacja_skladek
-        )
+        skladki_param = cfg.get("waloryzacja_skladek")
+        waloryzacja = skladki_param if skladki_param is not None else zus_cfg.waloryzacja_skladek
         balances["zus"] = balances.get("zus", 0.0) * (1 + waloryzacja) + total_contrib
 
 
@@ -95,8 +89,8 @@ def _convert_zus(
     zus_pensions: dict[str, float],
     age: int,
     start_age: int,
-    accounts_config: dict,
-    balances: dict,
+    accounts_config: dict[str, Any],
+    balances: dict[str, float],
     config: TaxConfig,
 ) -> None:
     """Convert capital to pension at the start of the realization stage.
@@ -115,10 +109,9 @@ def _convert_zus(
         months = sdtz_months(age)
         zus_pensions["zus"] = capital / months if months > 0 else 0.0
     elif "zus" in zus_pensions:
+        swiadczenia_param = cfg.get("waloryzacja_swiadczenia")
         waloryzacja = (
-            cfg.get("waloryzacja_swiadczenia")
-            if cfg.get("waloryzacja_swiadczenia") is not None
-            else zus_cfg.waloryzacja_swiadczenia
+            swiadczenia_param if swiadczenia_param is not None else zus_cfg.waloryzacja_swiadczenia
         )
         zus_pensions["zus"] = zus_pensions["zus"] * (1 + waloryzacja)
     cfg["monthly_pension"] = zus_pensions.get("zus", 0.0)

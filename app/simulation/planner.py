@@ -267,7 +267,7 @@ def suggest_allocations(a: WizardAnswers, config, annual_pool: float) -> dict[st
     out = {n: round(w / total * 100.0, 2) for n, w in weights.items()}
     drift = 100.0 - sum(out.values())
     if abs(drift) > 1e-6 and out:
-        biggest = max(out, key=out.get)
+        biggest = max(out, key=out.__getitem__)
         out[biggest] = round(out[biggest] + drift, 2)
     return out
 
