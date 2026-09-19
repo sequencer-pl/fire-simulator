@@ -6,14 +6,15 @@ bez TypeScript), SQLite, pytest. Odpowiadaj i pisz UI po polsku.
 ## Pewniki modelu FIRE (aktualne, nie do zmiany bez uzgodnienia)
 
 - **ROI netto wszędzie.** Wszystkie konta rosną według ROI *po* podatkach; podatek
-  naliczany jest od wypłat (`_apply_tax`, engine.py:1170). Wyjątek: lokata
+  naliczany jest od wypłat (`_apply_tax`, engine.py). Wyjątek: lokata
   (`tax_periodic`) — podatek Belka pobierany w trakcie akumulacji, wzrost już netto
-  (engine.py:467, `periodic_net_roi`, core/roi.py).
+  (użycia `_periodic_net_roi`, engine.py; definicja `periodic_net_roi`, core/roi.py).
 - **Inflacja świadomie pomijana** w większości wyliczeń — wartości realne traktujemy
   jak nominalne. Inflacja występuje TYLKO w: kontu `gotowka` (ROI = -inflacja,
-  engine.py:119/143), waloryzacji świadczenia ZUS i indeksacji kapitału
-  (`_accumulate_zus`/`_convert_zus`, engine.py:934/1137) oraz helperach Fisher/deflate
-  (core/inflation.py). Nie dodawać inflacji do wzrostu kont ani do PMT bez zgody.
+  engine.py), waloryzacji świadczenia ZUS i indeksacji kapitału
+  (`_accumulate_zus`/`_convert_zus`, app/simulation/zus.py) oraz helperach
+  Fisher/deflate (core/inflation.py). Nie dodawać inflacji do wzrostu kont ani do
+  PMT bez zgody.
 - **Dwa tryby realizacji** (app/stages/realizacja.py):
   - PMT (annuitizacja do zera) — edytor `/sim` bez targetu i legacy;
   - stały cel netto — TYLKO wizard (edytor nigdy). Wypłata = `cel − bieżąca renta ZUS`,
@@ -22,7 +23,7 @@ bez TypeScript), SQLite, pytest. Odpowiadaj i pisz UI po polsku.
   planu; „Realizacja (emerytura)" = osobny etap `realizacja` zawierający tylko `zus`.
 - **ZUS obsługuje engine**, nie etap (waloryzacja zamiast ROI, konwersja kapitału na
   rentę zamiast PMT; renta waloryzowana corocznie). Nie powielać `zus` w wielu etapach
-  (`_process_stages`, engine.py:366 — guard `zus_handled`).
+  (`_process_stages`, engine.py — guard `zus_handled`).
 - Klucze kont są stałe (`broker, gotowka, ike, ikze, krypto, lokata, obligacje, oipe,
   oki_inw, oki_osk, ppe, ppk, zus`) — patrz `ACCOUNT_LABELS` w config.py.
 - Wizard: path 1 = maks. stała wypłata netto (bisekcja + gross-up), path 2 = ile
@@ -30,13 +31,19 @@ bez TypeScript), SQLite, pytest. Odpowiadaj i pisz UI po polsku.
 
 ## Architektura i konwencje kodu
 
-- `app/simulation/engine.py` — silnik + schematy; `app/simulation/planner.py` —
-  wizard (plan, build_stages, solvery); `app/stages/*.py` — implementacje etapów;
-  `app/web/` — FastAPI (routes.py, auth.py, simulations.py); `app/core/` — helpery
-  (tax, pmt, roi, inflation); `static/js/` + `app/templates/` — front.
+- `app/simulation/engine.py` — silnik + schematy; `app/simulation/zus.py` — klaster
+  ZUS (waloryzacja, konwersja kapitału na rentę, wiek emerytalny);
+  `app/simulation/constants.py` — stałe liczbowe (DEFAULT_ROI, MONTHS_PER_YEAR,
+  PPE_ZUS_FRACTION); `app/simulation/planner.py` — wizard (plan, build_stages,
+  solvery); `app/stages/*.py` — implementacje etapów; `app/web/` — FastAPI
+  (routes.py, auth.py, simulations.py); `app/core/` — helpery (tax, pmt, roi,
+  inflation); `static/js/` + `app/templates/` — front.
 - Python: pełne adnotacje typów, pydantic BaseModel dla DTO, bez zbędnych komentarzy.
 - JS: bez frameworków, funkcje nazwane, współdzielone helpery przez `window.*`
-  (common.js: `$`, `show`, `api`; session.js: `refreshSessionBar`).
+  (helpers.js: `$`, `show`, `escapeHtml`, `fmtMoney`, `api`; controls.js:
+  `numControlsHtml`, `initNumControls`; session.js: `refreshSessionBar`). helpers.js
+  ładowany z base.html przed `{% block scripts %}`, controls.js — w wizard.html
+  i simulator.html.
 
 ## Konwencje UI — wzorcem spójności jest zakładka /sim (edytor)
 
@@ -57,7 +64,9 @@ bez TypeScript), SQLite, pytest. Odpowiadaj i pisz UI po polsku.
   `createStageBlock`/`.stage-block` (sim-stages.js).
 - **Wybór jednej z kilku opcji = radio pills `.gender-option`** (jak „Forma
   zatrudnienia"), a nie natywny `<select>`. Wartość czytaj przez `radioChecked(name)`
-  (wizard.js). Nowe pola liczbowe przez `.num-control` + `.stepper`, nie surowe inputy.
+  (wizard.js). Nowe pola liczbowe przez `numControlsHtml`/`initNumControls`
+  (controls.js — jedyny punkt obsługi stepperów → `.num-control` + `.stepper`),
+  nie surowe inputy.
 - Aktywa wersjonowane przez `?v={{ version }}` (`_asset_version`, routes.py:37) —
   dodaj do każdego nowego pliku JS/CSS w template.
 
@@ -65,8 +74,11 @@ bez TypeScript), SQLite, pytest. Odpowiadaj i pisz UI po polsku.
 
 - `uv run ruff check app/ tests/ scripts/`
 - `uv run pytest -q` (suite musi być zielony)
+- `uv run mypy app/` (make typecheck) — typy muszą być czyste
 - `node --check static/js/...` dla zmienionych plików JS
-- zmiany w wizard.js: harness jsdom `/tmp/opencode/fire-jsdom/repro.mjs`
+- zmiany w wizard.js / sim-stages.js / simulator.js (binding): `make harness-jsdom`
+  (qa/jsdom/repro.mjs)
+- zmiany wizualne: `make visual` (qa/visual, Playwright + baseline'y)
 
 ## Workflow git / deploy
 
