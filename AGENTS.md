@@ -85,6 +85,30 @@ bez TypeScript), SQLite, pytest. Odpowiadaj i pisz UI po polsku.
   **≤480px** num-control na górnej linii, range pełnej szerokości pod nim
   (`flex: 1 1 100%`, bez `order`). Input kwot: `width/min-width: 11ch` (mieści ≥7 cyfr).
 - Ostrzeżenia `.form-msg.warn` — pełna szerokość (`grid-column: 1 / -1`).
+
+### Założenia projektowe układu wierszowego (dlaczego tak — stosuj przy innych widokach)
+
+- **Slot opcji = stała szerokość**, wspólna dla wszystkich paneli widoku — wyrównuje
+  lewe brzegi wartości i prawych kontrolek. Wartość dobierana z pomiaru: suma
+  naturalnych szerokości najszerszej grupy pigułek + zapas na fonty (~8%, mierzone w
+  Chromium na systemowej czcionce; Forma naturalnie 276.5px → slot 300px).
+- **Pigułki zawsze rozciągnięte do swojej komórki** — duży, jednoznaczny cel
+  kliknięcia i spójny wygląd. Segmenty **proporcjonalne (`flex: 1 0 auto`)**, NIE
+  równe (`flex: 1 1 0%`) — równe ściskałyby najdłuższą etykietę poniżej szerokości
+  tekstu i wymuszały łamanie linii.
+- **Tekst pigułki zawsze w jednej linii** (`white-space: nowrap`) — selektor o
+  innej wysokości niż sąsiednie kontrolki wygląda jak błąd. Koszt: slot musi mieć
+  szerokość najszerszej etykiety (a na ≤480px redukujemy padding pigułek, by zmieścić
+  grupy 3-segmentowe w wąskich widokach).
+- **Wartość przed suwakiem** (`.num-control` PRZED `input[type="range"]`) — na
+  mobile liczba jest nad suwakiem i kciuk jej nie zasłania; na desktopie z tej samej
+  zasady liczba po lewej, suwak po prawej.
+- **Inputy kwot `11ch` (+`min-width: 11ch`)** — największa kwota w widoku to pensja
+  50 000 zł (7 cyfr); 11ch mieści ją z zapasem, bez rośnięcia pola przy wpisie.
+- **Separator między polami tylko w układzie pionowym (<821px)** — w 2-kolumnowym
+  siatka wystarczająco oddziela; bez separatora w pionowym wiersze się zlewają.
+- **Ostrzeżenia na pełną szerokość** — nie łamią siatki 2-kolumnowej i mają miejsce
+  na pełny komunikat.
 - Klasy wielokrotnego użytku: `.wz-grid`, `.wz-inline-field`, `.wz-field-block`,
   `.wz-slider` (wizard.css).
 - Aktywa wersjonowane przez `?v={{ version }}` (`_asset_version`, routes.py:37) —
