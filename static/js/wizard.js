@@ -400,12 +400,11 @@ function initSavingsMode() {
             input.step = "1";
             input.min = "0";
             input.max = "50";
-            if (pctRange) {
-                pctRange.classList.remove("hidden");
-                pctRange.value = String(Math.min(50, Math.max(0, parseFloat(input.value) || 0)));
-            }
+            if (pctRange) pctRange.classList.remove("hidden");
             if (amtRange) amtRange.classList.add("hidden");
-            if (parseFloat(input.value) > 100) input.value = "10";
+            const v = parseFloat(input.value) || 0;
+            input.value = String(Math.min(50, Math.max(0, v > 100 ? 10 : v)));
+            if (pctRange) pctRange.value = String(Math.min(50, Math.max(0, parseFloat(input.value) || 0)));
         }
         updateSavingsAmtMax();
         updateSavingsWarn();
@@ -414,7 +413,9 @@ function initSavingsMode() {
         if (amountMode()) {
             if (amtRange) amtRange.value = String(Math.min(parseFloat(amtRange.max) || 0, Math.max(0, parseFloat(input.value) || 0)));
         } else if (pctRange) {
-            pctRange.value = String(Math.min(50, Math.max(0, parseFloat(input.value) || 0)));
+            const v = Math.min(50, Math.max(0, parseFloat(input.value) || 0));
+            input.value = String(v);
+            pctRange.value = String(v);
         }
         updateSavingsWarn();
     };

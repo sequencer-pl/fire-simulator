@@ -158,6 +158,36 @@ const harness = `
         return shown === true && hidden === true;
     });
 
+    check("krok 2: tryb % pensji — kwota >=100 wraca do 10, suwak zsynchronizowany", () => {
+        const setMode = (m) => {
+            const r = document.querySelector('input[name="wzSavingsMode"][value="' + m + '"]');
+            r.checked = true;
+            r.dispatchEvent(new Event("change"));
+        };
+        setMode("amount");
+        document.getElementById("wzSavings").value = "1000";
+        setMode("pct");
+        const ok = document.getElementById("wzSavings").value === "10"
+            && document.getElementById("wzSavingsRange").value === "10"
+            && !document.getElementById("wzSavingsRange").classList.contains("hidden");
+        setMode("amount");
+        document.getElementById("wzSavings").value = "500";
+        setMode("pct");
+        const ok2 = document.getElementById("wzSavings").value === "10"
+            && document.getElementById("wzSavingsRange").value === "10";
+        return ok === true && ok2 === true;
+    });
+    check("krok 2: % pensji — wpisanie >50 przycina do 50 (input i suwak)", () => {
+        const input = document.getElementById("wzSavings");
+        const range = document.getElementById("wzSavingsRange");
+        input.value = "60";
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+        const ok = input.value === "50" && range.value === "50";
+        input.value = "10";
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+        return ok === true;
+    });
+
     // ---- Pkt 4/5: struktura kroku 4 ----
     check("krok 4: 4 panele w kolejności", () => {
         const panels = [...document.querySelector('.wz-step[data-step="4"]').querySelectorAll(".wz-alloc-panel")];
