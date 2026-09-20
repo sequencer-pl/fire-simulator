@@ -183,12 +183,18 @@
     padding-top: 0.6rem;
 }
 
-.wz-grid > .gender-options {
+.wz-grid .gender-options {
     width: 100%;
 }
 
-.wz-grid > .gender-options .gender-option {
+.wz-grid .gender-options .gender-option {
     flex: 1 1 0%;
+}
+
+.wz-grid .wz-inline-field {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.35rem;
 }
 
 .wz-grid .wz-grid-wide {
@@ -654,22 +660,11 @@
 
 @media (min-width: 821px) {
     .wz-grid {
-        grid-template-columns: auto 1fr;
+        grid-template-columns: 240px 1fr;
     }
     .wz-grid > * + *:not(.form-msg) {
         border-top: 0;
         padding-top: 0;
-    }
-    .wz-grid .wz-inline-field {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 0.35rem;
-    }
-    .wz-grid > .gender-options {
-        width: auto;
-    }
-    .wz-grid > .gender-options .gender-option {
-        flex: initial;
     }
 }
 
@@ -710,6 +705,5 @@
     }
     .wz-slider input[type="range"] {
         flex: 1 1 100%;
-        order: -1;
     }
 }

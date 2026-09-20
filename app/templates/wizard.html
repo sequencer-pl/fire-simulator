@@ -53,12 +53,12 @@
                 <div class="wz-field-block">
                     <label>Obecny wiek</label>
                     <div class="wz-slider">
-                        <input type="range" id="wzAgeRange" min="16" max="90" step="1" value="40" aria-label="Wiek">
                         <div class="num-control">
                             <button type="button" class="stepper stepper-down" tabindex="-1" aria-label="Zmniejsz wiek">&minus;</button>
                             <input type="number" id="wzAge" class="acc-field" value="40" min="16" max="90">
                             <button type="button" class="stepper stepper-up" tabindex="-1" aria-label="Zwiększ wiek">+</button>
                         </div>
+                        <input type="range" id="wzAgeRange" min="16" max="90" step="1" value="40" aria-label="Wiek">
                     </div>
                 </div>
             </div>
@@ -78,12 +78,12 @@
                 <div class="wz-field-block" id="wzGrossGroup">
                     <label>Pensja brutto (mies.)</label>
                     <div class="wz-slider">
-                        <input type="range" id="wzGrossRange" min="0" max="50000" step="250" value="8000" aria-label="Pensja brutto (mies.)">
                         <div class="num-control">
                             <button type="button" class="stepper stepper-down" tabindex="-1" aria-label="Zmniejsz pensję">&minus;</button>
                             <input type="number" id="wzGross" class="acc-field" value="8000" min="0" max="50000" step="100">
                             <button type="button" class="stepper stepper-up" tabindex="-1" aria-label="Zwiększ pensję">+</button>
                         </div>
+                        <input type="range" id="wzGrossRange" min="0" max="50000" step="250" value="8000" aria-label="Pensja brutto (mies.)">
                     </div>
                 </div>
             </div>
@@ -97,13 +97,13 @@
                     <label class="gender-option" title="Jaki procent pensji brutto odkładasz co miesiąc"><input type="radio" name="wzSavingsMode" value="pct" checked /> % pensji</label>
                 </div>
                 <div class="wz-slider">
-                    <input type="range" id="wzSavingsRange" min="0" max="50" step="0.5" value="10" aria-label="Odkładasz miesięcznie (%)">
-                    <input type="range" id="wzSavingsAmtRange" min="0" max="4000" step="50" value="1000" aria-label="Odkładasz miesięcznie (zł)" class="hidden">
                     <div class="num-control">
                         <button type="button" class="stepper stepper-down" tabindex="-1" aria-label="Zmniejsz oszczędności">&minus;</button>
                         <input type="number" id="wzSavings" class="acc-field" value="10" min="0" step="1">
                         <button type="button" class="stepper stepper-up" tabindex="-1" aria-label="Zwiększ oszczędności">+</button>
                     </div>
+                    <input type="range" id="wzSavingsRange" min="0" max="50" step="0.5" value="10" aria-label="Odkładasz miesięcznie (%)">
+                    <input type="range" id="wzSavingsAmtRange" min="0" max="4000" step="50" value="1000" aria-label="Odkładasz miesięcznie (zł)" class="hidden">
                 </div>
                 <p class="form-msg warn wz-grid-wide" id="wzSavingsWarn" hidden></p>
             </div>

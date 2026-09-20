@@ -67,6 +67,23 @@ bez TypeScript), SQLite, pytest. Odpowiadaj i pisz UI po polsku.
   (wizard.js). Nowe pola liczbowe przez `numControlsHtml`/`initNumControls`
   (controls.js — jedyny punkt obsługi stepperów → `.num-control` + `.stepper`),
   nie surowe inputy.
+
+### Układ wierszowy formularza (wzór: krok 2 asystenta, wizard.css)
+
+- Pole w panelu = `.wz-grid`: **≥821px dwie kolumny `240px 1fr`** (lewy slot opcji
+  wyboru | prawa wartość) — sloty i kontrolki wyrównane w całym widoku; **<821px
+  jedna kolumna** ze separatorami `1px solid var(--border)` między polami
+  (`.wz-grid > * + *:not(.form-msg)`).
+- Selektory pigułkowe `.gender-options` **zawsze `width: 100%`** swojej komórki,
+  segmenty `.gender-option { flex: 1 1 0% }` (równy podział); etykieta nad
+  pigułkami (`.wz-inline-field` w układzie kolumnowym).
+- Suwak z wartością `.wz-slider`: **`.num-control` zawsze PRZED `input[type="range"]`**
+  — na desktopie liczba po lewej, suwak po prawej (wartość nie zasłaniana);
+  **≤480px** num-control na górnej linii, range pełnej szerokości pod nim
+  (`flex: 1 1 100%`, bez `order`). Input kwot: `width/min-width: 11ch` (mieści ≥7 cyfr).
+- Ostrzeżenia `.form-msg.warn` — pełna szerokość (`grid-column: 1 / -1`).
+- Klasy wielokrotnego użytku: `.wz-grid`, `.wz-inline-field`, `.wz-field-block`,
+  `.wz-slider` (wizard.css).
 - Aktywa wersjonowane przez `?v={{ version }}` (`_asset_version`, routes.py:37) —
   dodaj do każdego nowego pliku JS/CSS w template.
 
