@@ -630,8 +630,13 @@
 
 @media (max-width: 640px) {
     .wizard {
-        --control-min-height: 36px;
         padding: var(--sp-4) var(--sp-4) max(5.5rem, calc(4.75rem + env(safe-area-inset-bottom)));
+    }
+    .wz-footer .btn {
+        min-height: 44px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
     }
     .wz-timeline-segment .wz-tl-label {
         display: none;
