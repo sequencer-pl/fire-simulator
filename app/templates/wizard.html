@@ -42,44 +42,48 @@
 
         <div class="wz-panel">
             <h3 class="wz-panel-title">Ty</h3>
-            <div class="wz-inline-field">
-                <label>Płeć</label>
-                <div class="gender-options">
-                    <label class="gender-option"><input type="radio" name="wzGender" value="k" /> K</label>
-                    <label class="gender-option"><input type="radio" name="wzGender" value="m" checked /> M</label>
-                </div>
-            </div>
-            <div class="wz-field-block">
-                <label>Obecny wiek</label>
-                <div class="wz-slider">
-                    <div class="num-control">
-                        <button type="button" class="stepper stepper-down" tabindex="-1" aria-label="Zmniejsz wiek">&minus;</button>
-                        <input type="number" id="wzAge" class="acc-field" value="40" min="16" max="90">
-                        <button type="button" class="stepper stepper-up" tabindex="-1" aria-label="Zwiększ wiek">+</button>
+            <div class="wz-grid">
+                <div class="wz-inline-field">
+                    <label>Płeć</label>
+                    <div class="gender-options">
+                        <label class="gender-option"><input type="radio" name="wzGender" value="k" /> K</label>
+                        <label class="gender-option"><input type="radio" name="wzGender" value="m" checked /> M</label>
                     </div>
-                    <input type="range" id="wzAgeRange" min="16" max="90" step="1" value="40" aria-label="Wiek">
+                </div>
+                <div class="wz-field-block">
+                    <label>Obecny wiek</label>
+                    <div class="wz-slider">
+                        <div class="num-control">
+                            <button type="button" class="stepper stepper-down" tabindex="-1" aria-label="Zmniejsz wiek">&minus;</button>
+                            <input type="number" id="wzAge" class="acc-field" value="40" min="16" max="90">
+                            <button type="button" class="stepper stepper-up" tabindex="-1" aria-label="Zwiększ wiek">+</button>
+                        </div>
+                        <input type="range" id="wzAgeRange" min="16" max="90" step="1" value="40" aria-label="Wiek">
+                    </div>
                 </div>
             </div>
         </div>
 
         <div class="wz-panel">
             <h3 class="wz-panel-title">Praca i dochód</h3>
-            <div class="wz-inline-field">
-                <label>Forma zatrudnienia</label>
-                <div class="gender-options">
-                    <label class="gender-option" title="Umowa o pracę"><input type="radio" name="wzEmployment" value="etat" checked /> Etat</label>
-                    <label class="gender-option" title="Samozatrudnienie / jednoosobowa działalność"><input type="radio" name="wzEmployment" value="b2b" /> B2B</label>
-                    <label class="gender-option" title="Brak dochodów z pracy"><input type="radio" name="wzEmployment" value="niepracujacy" /> Nie pracuję</label>
+            <div class="wz-grid">
+                <div class="wz-inline-field">
+                    <label>Forma zatrudnienia</label>
+                    <div class="gender-options">
+                        <label class="gender-option" title="Umowa o pracę"><input type="radio" name="wzEmployment" value="etat" checked /> Etat</label>
+                        <label class="gender-option" title="Samozatrudnienie / jednoosobowa działalność"><input type="radio" name="wzEmployment" value="b2b" /> B2B</label>
+                        <label class="gender-option" title="Brak dochodów z pracy"><input type="radio" name="wzEmployment" value="niepracujacy" /> Nie pracuję</label>
+                    </div>
                 </div>
-            </div>
-            <div class="wz-field-block" id="wzGrossGroup">
-                <label>Pensja brutto (mies.)</label>
-                <div class="wz-slider">
-                    <input type="range" id="wzGrossRange" min="0" max="50000" step="250" value="8000" aria-label="Pensja brutto (mies.)">
-                    <div class="num-control">
-                        <button type="button" class="stepper stepper-down" tabindex="-1" aria-label="Zmniejsz pensję">&minus;</button>
-                        <input type="number" id="wzGross" class="acc-field" value="8000" min="0" max="50000" step="100">
-                        <button type="button" class="stepper stepper-up" tabindex="-1" aria-label="Zwiększ pensję">+</button>
+                <div class="wz-field-block" id="wzGrossGroup">
+                    <label>Pensja brutto (mies.)</label>
+                    <div class="wz-slider">
+                        <input type="range" id="wzGrossRange" min="0" max="50000" step="250" value="8000" aria-label="Pensja brutto (mies.)">
+                        <div class="num-control">
+                            <button type="button" class="stepper stepper-down" tabindex="-1" aria-label="Zmniejsz pensję">&minus;</button>
+                            <input type="number" id="wzGross" class="acc-field" value="8000" min="0" max="50000" step="100">
+                            <button type="button" class="stepper stepper-up" tabindex="-1" aria-label="Zwiększ pensję">+</button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -87,7 +91,7 @@
 
         <div class="wz-panel" id="wzSavingsPanel">
             <h3 class="wz-panel-title">Odkładasz miesięcznie</h3>
-            <div class="wz-savings-row">
+            <div class="wz-grid">
                 <div class="gender-options">
                     <label class="gender-option" title="Ile odkładasz co miesiąc „na czysto” — w złotych"><input type="radio" name="wzSavingsMode" value="amount" /> Kwotę (zł)</label>
                     <label class="gender-option" title="Jaki procent pensji brutto odkładasz co miesiąc"><input type="radio" name="wzSavingsMode" value="pct" checked /> % pensji</label>
@@ -101,7 +105,7 @@
                         <button type="button" class="stepper stepper-up" tabindex="-1" aria-label="Zwiększ oszczędności">+</button>
                     </div>
                 </div>
-                <p class="form-msg warn" id="wzSavingsWarn" hidden></p>
+                <p class="form-msg warn wz-grid-wide" id="wzSavingsWarn" hidden></p>
             </div>
         </div>
     </section>

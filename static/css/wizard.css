@@ -172,15 +172,19 @@
     grid-column: 1 / -1;
 }
 
-.wz-savings-row {
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
-    gap: 0.5rem;
+.wz-grid {
+    display: grid;
+    gap: 0.6rem 1.5rem;
+    align-items: start;
 }
 
-.wz-savings-row .gender-options {
-    align-self: flex-start;
+.wz-grid > * + *:not(.form-msg) {
+    border-top: 1px solid var(--border);
+    padding-top: 0.6rem;
+}
+
+.wz-grid .wz-grid-wide {
+    grid-column: 1 / -1;
 }
 
 /* --- Suwak + pole liczbowe (Pensja / Odkładasz %) --------------- */
@@ -239,14 +243,6 @@
     display: block;
     margin-bottom: 0.35rem;
     font-weight: 600;
-}
-
-.wz-savings-row {
-    grid-column: 1 / -1;
-    display: flex;
-    gap: 1rem;
-    align-items: center;
-    flex-wrap: wrap;
 }
 
 /* --- Capital rows (Kapitał) -------------------------------------------------- */
@@ -644,6 +640,21 @@
     border-top: 1px solid var(--border);
     color: var(--text-dim);
     font-size: 0.8rem;
+}
+
+@media (min-width: 821px) {
+    .wz-grid {
+        grid-template-columns: auto 1fr;
+    }
+    .wz-grid > * + *:not(.form-msg) {
+        border-top: 0;
+        padding-top: 0;
+    }
+    .wz-grid .wz-inline-field {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.35rem;
+    }
 }
 
 @media (max-width: 640px) {
