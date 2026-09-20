@@ -92,6 +92,10 @@ const harness = `
         const titles = panels.map((p) => p.querySelector(".wz-panel-title")?.textContent.trim());
         return JSON.stringify(titles) === JSON.stringify(["Ty", "Praca i dochód", "Odkładasz miesięcznie"]);
     });
+    check("krok 2: płeć = Kobieta / Mężczyzna", () => {
+        const labels = [...document.querySelectorAll('input[name="wzGender"]')].map((i) => i.parentElement.textContent.trim());
+        return JSON.stringify(labels) === JSON.stringify(["Kobieta", "Mężczyzna"]);
+    });
     check("krok 2: suwaki oszczędności — tryb % (0-50) i kwota (pensja/2)", () => {
         const pctRange = document.getElementById("wzSavingsRange");
         const amtRange = document.getElementById("wzSavingsAmtRange");

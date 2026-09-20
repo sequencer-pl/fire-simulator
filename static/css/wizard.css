@@ -183,6 +183,14 @@
     padding-top: 0.6rem;
 }
 
+.wz-grid > .gender-options {
+    width: 100%;
+}
+
+.wz-grid > .gender-options .gender-option {
+    flex: 1 1 0%;
+}
+
 .wz-grid .wz-grid-wide {
     grid-column: 1 / -1;
 }
@@ -211,7 +219,9 @@
 }
 
 .wz-step .wz-slider .acc-field {
-    max-width: 10ch;
+    width: 11ch;
+    min-width: 11ch;
+    max-width: 15ch;
 }
 
 .field-group.is-disabled {
@@ -654,6 +664,12 @@
         flex-direction: column;
         align-items: flex-start;
         gap: 0.35rem;
+    }
+    .wz-grid > .gender-options {
+        width: auto;
+    }
+    .wz-grid > .gender-options .gender-option {
+        flex: initial;
     }
 }
 
