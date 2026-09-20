@@ -202,8 +202,27 @@ const harness = `
         const pos = row && grid ? row.compareDocumentPosition(grid) : 0;
         return !!range && range.disabled === true && (pos & 4) !== 0 && !!document.getElementById("wzAllocCashMoney");
     });
+    check("krok 4: panele Podział/Dodaj/Wpłaty ukryte przed wyborem trybu", () => {
+        return ["wzAllocPanel", "wzAllocPillsPanel", "wzPayrollPanel"].every(
+            (id) => document.getElementById(id).classList.contains("hidden"),
+        );
+    });
+    check("krok 4: „Podziel ręcznie” odsłania Podział i Dodaj instrument", () => {
+        document.getElementById("wzManualBtn").click();
+        return !document.getElementById("wzAllocPanel").classList.contains("hidden")
+            && !document.getElementById("wzAllocPillsPanel").classList.contains("hidden");
+    });
     check("payroll panel ukryty gdy brak PPK/PPE", () => document.getElementById("wzPayrollPanel").classList.contains("hidden"));
-    check("pills panel widoczny gdy brak aktywnych kont", () => !document.getElementById("wzAllocPillsPanel").classList.contains("hidden"));
+    check("strategia: pigułki naturalnej szerokości (bez slotu), przyciski pod spodem", () => {
+        const box = document.querySelector(".wz-alloc-strategy-options");
+        const actions = document.querySelector(".wz-strategy-actions");
+        return !!box
+            && !!actions
+            && box.querySelectorAll(".gender-option").length === 3
+            && actions.contains(document.getElementById("wzAutoBtn"))
+            && actions.contains(document.getElementById("wzManualBtn"))
+            && !document.querySelector(".wz-alloc-panel .wz-grid");
+    });
 
     // ---- Gotówka jako bufor: 100% na starcie ----
     check("cash row: 100% i pełna pula gdy nic rozdysponowane", () => {

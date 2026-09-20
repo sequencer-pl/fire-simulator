@@ -34,6 +34,7 @@ let wzNavStep = 1;
 let wzWeights = {};
 let wzLimits = null;
 let wzStrategyValue = "zbilansowana";
+let wzAllocMode = null;
 
 function capitalLabel(account) {
     return WZ_CAPITAL_OVERRIDES[account] || ACCOUNT_LABELS[account] || account;
@@ -150,7 +151,16 @@ function setStep(n, focus = false) {
     bar.style.width = (n / WZ_TOTAL_STEPS) * 100 + "%";
     bar.setAttribute("aria-valuenow", String(n));
     window.scrollTo({ top: 0, behavior: "smooth" });
-    if (n === 4) buildAllocationStep();
+    if (n === 4) {
+        if (wzAllocMode) {
+            buildAllocationStep();
+        } else {
+            ["wzAllocPanel", "wzAllocPillsPanel", "wzPayrollPanel"].forEach((id) => {
+                const el = document.getElementById(id);
+                if (el) el.classList.add("hidden");
+            });
+        }
+    }
     wzNavStep = n;
     updateFooterNav(n);
     if (focus) {
@@ -256,6 +266,21 @@ function renderSolved(solved) {
     }
 }
 
+async function postJson(url, body, errorLabel) {
+    const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+        let msg = data.detail;
+        if (Array.isArray(msg)) msg = msg.map((d) => d.msg || JSON.stringify(d)).join("; ");
+        throw new Error(msg || errorLabel);
+    }
+    return data;
+}
+
 async function runPlan() {
     const answers = collectAnswers();
     const path = currentPath();
@@ -270,19 +295,7 @@ async function runPlan() {
     runBtn.disabled = true;
     runBtn.textContent = "Wyliczam...";
     try {
-        const res = await fetch("/api/wizard/plan", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(body),
-        });
-        const data = await res.json();
-        if (!res.ok) {
-            let msg = data.detail;
-            if (Array.isArray(msg)) {
-                msg = msg.map((d) => d.msg || JSON.stringify(d)).join("; ");
-            }
-            throw new Error(msg || "Błąd planowania.");
-        }
+        const data = await postJson("/api/wizard/plan", body, "Błąd planowania.");
         wzPlan = data;
         document.getElementById("wzResult").classList.remove("hidden");
         renderMetrics(data.projection);
@@ -388,6 +401,7 @@ function initSavingsMode() {
     const pctRange = document.getElementById("wzSavingsRange");
     const amtRange = document.getElementById("wzSavingsAmtRange");
     const amountMode = () => (radioChecked("wzSavingsMode") || "pct") === "amount";
+    const clampPct = (v) => Math.min(50, Math.max(0, v));
     const sync = () => {
         if (amountMode()) {
             input.step = "50";
@@ -403,8 +417,8 @@ function initSavingsMode() {
             if (pctRange) pctRange.classList.remove("hidden");
             if (amtRange) amtRange.classList.add("hidden");
             const v = parseFloat(input.value) || 0;
-            input.value = String(Math.min(50, Math.max(0, v > 100 ? 10 : v)));
-            if (pctRange) pctRange.value = String(Math.min(50, Math.max(0, parseFloat(input.value) || 0)));
+            input.value = String(clampPct(v > 100 ? 10 : v));
+            if (pctRange) pctRange.value = String(clampPct(parseFloat(input.value) || 0));
         }
         updateSavingsAmtMax();
         updateSavingsWarn();
@@ -413,7 +427,7 @@ function initSavingsMode() {
         if (amountMode()) {
             if (amtRange) amtRange.value = String(Math.min(parseFloat(amtRange.max) || 0, Math.max(0, parseFloat(input.value) || 0)));
         } else if (pctRange) {
-            const v = Math.min(50, Math.max(0, parseFloat(input.value) || 0));
+            const v = clampPct(parseFloat(input.value) || 0);
             input.value = String(v);
             pctRange.value = String(v);
         }
@@ -421,7 +435,7 @@ function initSavingsMode() {
     };
     if (pctRange) {
         pctRange.addEventListener("input", () => {
-            input.value = String(Math.min(50, Math.max(0, parseFloat(pctRange.value) || 0)));
+            input.value = String(clampPct(parseFloat(pctRange.value) || 0));
             updateSavingsWarn();
         });
     }
@@ -466,7 +480,7 @@ function updateSavingsWarn() {
         }
     }
     warn.textContent = msg;
-    warn.hidden = msg === "";
+    warn.hidden = !msg;
 }
 
 function initEmploymentToggle() {
@@ -616,29 +630,26 @@ function refreshAllocationDisplay() {
     const remainingPct = Math.max(0, 100 - usedPct);
     const cashRow = document.getElementById("wzAllocCashRow");
     if (cashRow) {
+        const readonly = wzAllocMode === "auto";
         cashRow.classList.toggle("is-over", over);
+        cashRow.classList.toggle("wz-alloc-readonly", readonly);
         const range = cashRow.querySelector(".wz-alloc-range");
-        if (range) range.value = String(Math.round(remainingPct));
+        if (range && !readonly) range.value = String(Math.round(remainingPct));
         const money = document.getElementById("wzAllocCashMoney");
         if (money) money.textContent = poolKnown ? fmtZloty(remainingMoney) + " zł/mies." : "—";
     }
 
     const cash = document.getElementById("wzAllocCash");
     if (cash) {
-        if (!poolKnown) {
-            cash.textContent = "";
-        } else if (usedPct >= 99.999) {
-            cash.textContent = "W pełni rozdysponowano.";
-        } else if (anyOverflow) {
-            cash.textContent = `Nadwyżka ponad limit trafia do Gotówki — rozważ uaktywnienie kolejnego instrumentu pastylką poniżej.`;
-        } else {
-            cash.textContent = "";
-        }
+        cash.textContent = poolKnown && usedPct < 99.999 && anyOverflow
+            ? "Nadwyżka ponad limit trafia do Gotówki — rozważ uaktywnienie kolejnego instrumentu pastylką poniżej."
+            : "";
     }
     const sum = document.getElementById("wzAllocSum");
     if (sum) {
         sum.textContent = "Rozdysponowano: " + fmtPct(usedPct);
         sum.classList.toggle("wz-alloc-over", over);
+        sum.classList.toggle("wz-alloc-ok", !over && usedPct >= 99.999);
     }
 }
 
@@ -654,19 +665,24 @@ function bindAllocInputs() {
 function buildAllocationStep() {
     const grid = document.getElementById("wzAllocGrid");
     if (!grid) return;
+    const readonly = wzAllocMode === "auto";
     grid.innerHTML = "";
     wzActiveAllocAccounts().forEach((acc) => {
         const icon = ACCOUNT_ICONS[acc] || "";
         const label = capitalLabel(acc);
         const w = wzWeights[acc] != null ? wzWeights[acc] : 0;
         const cap = wzShelterCap(acc);
-        const badge = cap
-            ? `<span class="wz-alloc-cap">limit ${fmtZloty(cap)} zł/rok</span>`
-            : "";
+        const labelTip = cap ? `title="Limit roczny wpłat: ${fmtZloty(cap)} zł"` : "";
         const wrap = document.createElement("div");
-        wrap.className = "wz-alloc-row";
-        wrap.innerHTML = `
-            <div class="wz-alloc-label">${icon} ${label} ${badge}</div>
+        wrap.className = "wz-alloc-row" + (readonly ? " wz-alloc-readonly" : "");
+        wrap.innerHTML = readonly
+            ? `
+            <div class="wz-alloc-label" ${labelTip}>${icon} ${label}</div>
+            <span class="wz-alloc-static" aria-label="Udział: ${fmtPct(w)}">${fmtPct(w)}</span>
+            <span class="wz-alloc-money" data-account="${acc}">—</span>
+            <span class="wz-alloc-overflow hidden" data-account="${acc}"></span>`
+            : `
+            <div class="wz-alloc-label" ${labelTip}>${icon} ${label}</div>
             <input type="range" class="wz-alloc-range" data-account="${acc}" min="0" max="100" step="1" value="${w}" aria-label="Udział ${label}">
             ${numControlsHtml({
                 value: w,
@@ -678,9 +694,8 @@ function buildAllocationStep() {
                 attrs: ` data-account="${acc}"`,
             })}
             <span class="wz-alloc-money" data-account="${acc}">—</span>
-            <span class="wz-alloc-overflow hidden" data-account="${acc}"></span>
-        `;
-        if (capitalSaldo(acc) <= 0) {
+            <span class="wz-alloc-overflow hidden" data-account="${acc}"></span>`;
+        if (!readonly && capitalSaldo(acc) <= 0) {
             const rm = document.createElement("button");
             rm.type = "button";
             rm.className = "wz-pill-remove";
@@ -694,10 +709,16 @@ function buildAllocationStep() {
         }
         grid.appendChild(wrap);
     });
-    document.getElementById("wzAllocCash").innerHTML = "";
-    renderPayrollActive();
-    buildAllocationPills();
-    bindAllocInputs();
+    if (!readonly) {
+        renderPayrollActive();
+        buildAllocationPills();
+        bindAllocInputs();
+    } else {
+        const pills = document.getElementById("wzAllocPillsPanel");
+        if (pills) pills.classList.add("hidden");
+        const payroll = document.getElementById("wzPayrollPanel");
+        if (payroll) payroll.classList.add("hidden");
+    }
     refreshAllocationDisplay();
 }
 
@@ -750,10 +771,6 @@ function buildAllocationPills() {
         return;
     }
     if (panel) panel.classList.remove("hidden");
-    const hint = document.createElement("p");
-    hint.className = "wz-pills-hint";
-    hint.textContent = "Nie uwzględnione — kliknij, aby dodać:";
-    box.appendChild(hint);
     const wrap = document.createElement("div");
     wrap.className = "wz-pills";
     const pill = (acc) => {
@@ -782,17 +799,7 @@ async function runSuggestAllocation() {
     if (!btn) return;
     btn.disabled = true;
     try {
-        const res = await fetch("/api/wizard/suggest", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ answers: collectAnswers() }),
-        });
-        const data = await res.json();
-        if (!res.ok) {
-            let msg = data.detail;
-            if (Array.isArray(msg)) msg = msg.map((d) => d.msg || JSON.stringify(d)).join("; ");
-            throw new Error(msg || "Błąd sugestii.");
-        }
+        const data = await postJson("/api/wizard/suggest", { answers: collectAnswers() }, "Błąd sugestii.");
         wzWeights = {};
         Object.entries(data.allocations || {}).forEach(([acc, v]) => {
             if (acc !== "gotowka") {
@@ -808,6 +815,17 @@ async function runSuggestAllocation() {
     }
 }
 
+function setAllocMode(mode) {
+    wzAllocMode = mode;
+    const panel = document.getElementById("wzAllocPanel");
+    if (panel) panel.classList.remove("hidden");
+    const autoBtn = document.getElementById("wzAutoBtn");
+    const manualBtn = document.getElementById("wzManualBtn");
+    if (autoBtn) autoBtn.setAttribute("aria-pressed", String(mode === "auto"));
+    if (manualBtn) manualBtn.setAttribute("aria-pressed", String(mode === "manual"));
+    buildAllocationStep();
+}
+
 async function loadWzLimits() {
     if (wzLimits) return;
     try {
@@ -817,8 +835,8 @@ async function loadWzLimits() {
         wzLimits = cfg.limits;
         const step = document.querySelector(".wz-step:not(.hidden)");
         if (step && parseInt(step.dataset.step, 10) === 4) buildAllocationStep();
-    } catch (err) {
-        wzLimits = null;
+    } catch {
+        // best-effort: brak limitów = brak pasków limitów
     }
 }
 
@@ -868,7 +886,12 @@ function initNav() {
     document.getElementById("wzBackBtn").addEventListener("click", () => {
         if (wzNavStep > 1) setStep(wzNavStep - 1, true);
     });
-    document.getElementById("wzAutoBtn").addEventListener("click", runSuggestAllocation);
+    document.getElementById("wzAutoBtn").addEventListener("click", () => {
+        setAllocMode("auto");
+        runSuggestAllocation();
+    });
+    const manualBtn = document.getElementById("wzManualBtn");
+    if (manualBtn) manualBtn.addEventListener("click", () => setAllocMode("manual"));
 }
 
 function initWizard() {

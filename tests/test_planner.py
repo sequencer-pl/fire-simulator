@@ -483,11 +483,11 @@ def test_allocation_unknown_account_rejected():
         answers(allocations={"gotowka": 100})
 
 
-def test_suggest_allocation_includes_capital_holder():
-    # Account with money but no explicit participation flag is still suggested
-    # as a target for future savings (BASE capital: broker 100k, use_broker off).
+def test_suggest_capital_holder_opens_shelter():
+    # BASE capital: broker 100k (use_broker off). Broker is an unlimited account,
+    # so the "magic" first fills a tax shelter instead of parking 100% in broker.
     out = suggest_allocations(answers(allocations={}), default_config(), 12_000)
-    assert "broker" in out
+    assert out == {"ike": 100.0}
 
 
 def test_capital_payroll_instruments_seeded():
@@ -503,57 +503,50 @@ def test_capital_payroll_instruments_seeded():
     assert accum["zus"].starting_balance == 100_000
 
 
-def test_suggest_equal_roi_split():
-    """Zbilansowana: ike/ikze/oipe/broker all 6% → equal 25% each at modest pool."""
+def test_suggest_minimal_single_account_for_small_pool():
+    # 2 000 zł/rok → jedno konto (pierwsza kuratowana ulga), nie 15 kont.
+    a = answers(allocations={}, capital={})
+    s = suggest_allocations(a, default_config(), 2_000)
+    assert set(s) == {"ike"}
+    assert abs(s["ike"] - 100.0) < 0.01
+
+
+def test_suggest_fills_capacity_then_adds_accounts():
+    # 40k/rok: ikze 28 260 + ikze 11 304 (limit etat) + oki_inw na resztę —
+    # kolejne konto otwierane dopiero przy przekroczeniu limitu poprzedniego.
+    a = answers(allocations={}, capital={})
+    s = suggest_allocations(a, default_config(), 40_000)
+    assert abs(s["ike"] - 70.65) < 0.05
+    assert abs(s["ikze"] - 28.26) < 0.05
+    assert abs(s["oki_inw"] - 1.09) < 0.05
+    assert sum(s.values()) <= 100 + 1e-6
+
+
+def test_suggest_equal_capacity_fills_shelters_first():
+    # ikze/ike/oipe/broker: ulgi (posiadane) wypełniane do limitów, broker bez
+    # udziału — broker (bez limitu) dostaje dopiero nadwyżkę ponad pojemność ulg.
     a = answers(allocations={}, use_ikze=True, use_ike=True, use_oipe=True, use_broker=True)
-    pool = 40_000
-    s = suggest_allocations(a, default_config(), pool)
-    for k in ("ikze", "ike", "oipe", "broker"):
-        assert k in s
-        assert abs(s[k] - 25.0) < 0.1
-    assert sum(s.values()) <= 100 + 1e-6
+    small = suggest_allocations(a, default_config(), 40_000)
+    assert small == {"ike": 70.65, "ikze": 28.26, "oipe": 1.09}
+    large = suggest_allocations(a, default_config(), 200_000)
+    assert large == {
+        "ike": 14.13, "ikze": 5.65, "oipe": 14.13, "oki_inw": 66.09,
+    }
 
 
-def test_suggest_sole_active_account_gets_full_weight():
-    """Agresywna: tylko krypto → całość na jedyne aktywne konto."""
-    a = answers(allocations={}, capital={}, use_krypto=True)
-    s = suggest_allocations(a, default_config(), 120_000)
-    assert abs(s.get("krypto", 0) - 100) < 0.1
-    assert sum(s.values()) <= 100 + 1e-6
-
-
-def test_suggest_equal_roi_split_large_pool():
-    """Zbilansowana: ike/ikze/oipe/broker all 6% → equal 25% even at large pool
-    (limits are applied later in _resolve_allocation, not in the suggestion)."""
-    a = answers(allocations={}, use_ikze=True, use_ike=True, use_oipe=True, use_broker=True)
-    s = suggest_allocations(a, default_config(), 200_000)
-    for k in ("ikze", "ike", "oipe", "broker"):
-        assert abs(s[k] - 25.0) < 0.1
-    assert sum(s.values()) <= 100 + 1e-6
-
-
-def test_suggest_weights_monotonic_by_roi():
-    """Zbilansowana: strażnice (6%) dostają więcej niż lokata (4%)."""
-    a = answers(
-        allocations={},
-        capital={},
-        use_ikze=True,
-        use_ike=True,
-        use_oipe=True,
-        use_lokata=True,
+def test_suggest_sole_active_account_opens_shelters():
+    # Agresywna, sam krypto: kuratowane ulgi ike+ikze+oipe do limitów, reszta
+    # (43,48%) do brokera (w pref agresywnej, bez limitu).
+    s = suggest_allocations(
+        answers(strategy="agresywna", allocations={}, capital={}, use_krypto=True),
+        default_config(),
+        120_000,
     )
-    pool = 120_000
-    s = suggest_allocations(a, default_config(), pool)
-    assert abs(s["ikze"] - 30.0) < 0.1
-    assert abs(s["ike"] - 30.0) < 0.1
-    assert abs(s["oipe"] - 30.0) < 0.1
-    assert abs(s["lokata"] - 10.0) < 0.1
-    assert s["ikze"] > s["lokata"]
-    assert sum(s.values()) <= 100 + 1e-6
+    assert s == {"ike": 23.55, "ikze": 9.42, "oipe": 23.55, "broker": 43.48}
 
 
-def test_suggest_konserwatywna_prefers_safe():
-    """Konserwatywna: strażnice (5%) dominują; broker/lokata (4%) mniej, ale >0."""
+def test_suggest_konserwatywna_fills_ikze_then_ike():
+    """Konserwatywna: pref ikze przed ike — ulgi wypełniane do limitów (60k)."""
     a = answers(
         strategy="konserwatywna",
         allocations={},
@@ -564,35 +557,29 @@ def test_suggest_konserwatywna_prefers_safe():
         use_lokata=True,
     )
     s = suggest_allocations(a, default_config(), 60_000)
-    for k in ("ikze", "ike", "oipe"):
-        assert abs(s[k] - 26.53) < 0.1
-    assert abs(s["broker"] - 10.2) < 0.1
-    assert abs(s["lokata"] - 10.2) < 0.1
-    assert s["ikze"] > s["lokata"]
-    assert sum(s.values()) <= 100 + 1e-6
+    assert s == {"ikze": 18.84, "ike": 47.10, "oipe": 34.06}
 
 
-def test_suggest_agresywna_weights_higher_roi_more():
-    """Agresywna: krypto (9%) > broker (8%) > obligacje (6%) > lokata (4%),
-    a lokata nadal dostaje cząstkę (nigdy zero)."""
-    a = answers(
-        strategy="agresywna",
-        allocations={},
-        use_krypto=True,
-        use_broker=True,
-        use_obligacje=True,
-        use_lokata=True,
+def test_suggest_agresywna_fills_shelters_then_broker():
+    """Agresywna: ulgi ike+ikze+oipe, nadwyżka do brokera (bez limitu)."""
+    s = suggest_allocations(
+        answers(
+            strategy="agresywna",
+            allocations={},
+            use_krypto=True,
+            use_broker=True,
+            use_obligacje=True,
+            use_lokata=True,
+        ),
+        default_config(),
+        90_000,
     )
-    s = suggest_allocations(a, default_config(), 90_000)
-    assert s["krypto"] > s["broker"] > s["obligacje"] > s["lokata"] > 0
-    assert abs(s["krypto"] - 42.31) < 0.1
-    assert abs(s["lokata"] - 3.85) < 0.15
-    assert sum(s.values()) <= 100 + 1e-6
+    assert s == {"ike": 31.40, "ikze": 12.56, "oipe": 31.40, "broker": 24.64}
 
 
-def test_suggest_konserwatywna_punishes_risky_hardest():
-    """Krypto vs obligacje (te same dwa konta): konserwatywna daje krypto MNIEJ
-    niż zbilansowana — absolutny dystans stóp (2% vs 4,5%) jest tu sankcjonowany."""
+def test_suggest_strategy_decides_which_shelter_opens():
+    # Krypto+obligacje, brak kapitału: konserwatywna otwiera IKZE (obligacje już
+    # ma, dalej w pref ikze), zbilansowana — IKE (pierwsza w pref).
     cons = suggest_allocations(
         answers(
             strategy="konserwatywna",
@@ -615,19 +602,26 @@ def test_suggest_konserwatywna_punishes_risky_hardest():
         default_config(),
         12_000,
     )
-    assert abs(cons["krypto"] - 16.67) < 0.1
-    assert abs(cons["obligacje"] - 83.33) < 0.1
-    assert abs(zbil["krypto"] - 33.33) < 0.1
-    assert abs(zbil["obligacje"] - 66.67) < 0.1
-    assert cons["krypto"] < zbil["krypto"]
-    assert cons["krypto"] < cons["obligacje"]
-    assert zbil["krypto"] < zbil["obligacje"]
+    assert abs(cons["ikze"] - 94.20) < 0.05
+    assert abs(cons["ike"] - 5.80) < 0.05
+    assert zbil == {"ike": 100.0}
 
 
-def test_suggest_no_activations_returns_empty():
-    a = answers(allocations={}, capital={})
-    s = suggest_allocations(a, default_config(), 12_000)
-    assert s == {}
+def test_suggest_ikze_b2b_higher_capacity():
+    # b2b ma wyższy limit IKZE (16 956): ike+ikze pokrywają 40k bez oki_inw,
+    # podczas gdy etat (11 304) wymaga dokładki na oki_inw.
+    etat = suggest_allocations(answers(allocations={}, capital={}), default_config(), 40_000)
+    b2b = suggest_allocations(
+        answers(allocations={}, capital={}, employment="b2b"),
+        default_config(),
+        40_000,
+    )
+    assert abs(etat["ike"] - 70.65) < 0.05
+    assert "oki_inw" in etat
+    assert "oki_inw" not in b2b
+    assert abs(b2b["ike"] - 70.65) < 0.05
+    assert abs(b2b["ikze"] - 29.35) < 0.05
+    assert sum(b2b.values()) <= 100 + 1e-6
 
 
 def test_gotowka_accums_when_all_cash():

@@ -13,21 +13,17 @@ from app.simulation.schemas import (
 
 SAVINGS_ACCOUNTS = ("broker", "lokata", "obligacje", "krypto")
 
-# Risk-appetite per strategy: turns relative return into an allocation weight
-# via  w = 1 + TILT * rel(roi). High TILT concentrates on the best ROI,
-# low TILT stays close to a flat split (which favours the many "safe" accounts
-# in a conservative world because those carry the highest ROI there).
-STRATEGY_TILT: dict[str, float] = {
-    "konserwatywna": 8.0,
-    "zbilansowana": 5.0,
-    "agresywna": 10.0,
+# Curated preference order used to open NEW accounts the user lacks. Capacity
+# logic (suggest_allocations) absorbs the annual pool account by account in this
+# order and only opens the next one when the previous hits its annual limit.
+STRATEGY_SUGGEST: dict[str, tuple[str, ...]] = {
+    "konserwatywna": ("obligacje", "ikze", "ike", "oki_osk", "oki_inw"),
+    "zbilansowana": ("ike", "ikze", "oki_inw", "obligacje", "broker"),
+    "agresywna": ("ike", "ikze", "oipe", "broker", "krypto"),
 }
 
-# Fixed reference spread for rel(roi) = (roi - roi_min) / ROI_REF. Using a fixed
-# reference instead of the active-set span keeps absolute return gaps meaningful:
-# a risky account far below the best one (e.g. krypto at 2% vs obligacje 4.5%) is
-# penalized hard under conservative assumptions instead of being normalized away.
-ROI_REF = 0.05
+# Accounts with statutory annual contribution caps (limits in config.limits).
+TAX_SHELTER_ACCOUNTS = ("ike", "ikze", "oipe")
 
 STRATEGY_ROI: dict[str, dict[str, float]] = {
     "konserwatywna": {
@@ -240,31 +236,45 @@ def _resolve_allocation(a: WizardAnswers, config, annual_pool: float) -> dict[st
     return alloc
 
 
+def _suggest_order(a: WizardAnswers, active: set[str]) -> list[str]:
+    """Priority order for absorbing the annual pool: first the tax-sheltered
+    accounts the user already holds (in the strategy preference order, then any
+    remaining shelters), then curated "magic" accounts the user lacks, and only
+    then the user's other active accounts. The pool walks this order up to the
+    accounts' annual caps, so few accounts are opened when the pool is small."""
+    pref = STRATEGY_SUGGEST[a.strategy]
+    preferred = [n for n in pref if n in TAX_SHELTER_ACCOUNTS and n in active]
+    preferred += [n for n in TAX_SHELTER_ACCOUNTS if n in active and n not in preferred]
+    curated = [n for n in pref if n not in active]
+    rest = [n for n in ALLOCATABLE_ACCOUNTS if n in active and n not in preferred]
+    return preferred + curated + rest
+
+
 def suggest_allocations(a: WizardAnswers, config, annual_pool: float) -> dict[str, float]:
-    """Auto % split: each active account gets a weight of the form
-    w = 1 + TILT * rel(roi), where rel(roi) = (roi - roi_min) / ROI_REF with an
-    absolute 5pp reference spread (ROI_REF). Equal ROI always means equal
-    weight; absolute ROI gaps stay meaningful, so a low-return risky account is
-    penalized hard under conservative assumptions while never hitting zero.
-    Annual limits are NOT applied here — they clamp inside _resolve_allocation
-    and any overflow falls back to "gotowka"."""
+    """Auto % split by annual capacity: accounts absorb the pool in priority
+    order, each up to its annual contribution limit (unlimited accounts take the
+    remainder). Opening the next account only happens when the previous one is
+    full, so a small pool lands in a single account. Shares == pool absorption,
+    hence 100% in total with no fall-through to "gotowka"."""
     if annual_pool <= 0:
         return {}
     # Active = participation flag OR existing capital — an account the user
     # already holds money in is a valid target for future savings even without
     # an explicit "use_*" checkbox (wizard auto-checks on any non-zero balance).
-    active = [n for n in ALLOCATABLE_ACCOUNTS if _account_present(a, n, {})]
-    if not active:
+    active = {n for n in ALLOCATABLE_ACCOUNTS if _account_present(a, n, {})}
+    remaining = annual_pool
+    shares: dict[str, float] = {}
+    for name in _suggest_order(a, active):
+        if remaining <= 0:
+            break
+        cap = _shelter_cap(a, config, name)
+        take = min(remaining, cap) if cap else remaining
+        if take > 1e-6:
+            shares[name] = take
+            remaining -= take
+    if not shares:
         return {}
-    rois = {n: _roi(a, n) for n in active}
-    r_min = min(rois.values())
-    tilt = STRATEGY_TILT[a.strategy]
-    weights: dict[str, float] = {}
-    for n in active:
-        rel = (rois[n] - r_min) / ROI_REF
-        weights[n] = 1.0 + tilt * rel
-    total = sum(weights.values())
-    out = {n: round(w / total * 100.0, 2) for n, w in weights.items()}
+    out = {n: round(share / annual_pool * 100.0, 2) for n, share in shares.items()}
     drift = 100.0 - sum(out.values())
     if abs(drift) > 1e-6 and out:
         biggest = max(out, key=out.__getitem__)

@@ -83,8 +83,30 @@ bez TypeScript), SQLite, pytest. Odpowiadaj i pisz UI po polsku.
 - Suwak z wartością `.wz-slider`: **`.num-control` zawsze PRZED `input[type="range"]`**
   — na desktopie liczba po lewej, suwak po prawej (wartość nie zasłaniana);
   **≤480px** num-control na górnej linii, range pełnej szerokości pod nim
-  (`flex: 1 1 100%`, bez `order`). Input kwot: `width/min-width: 11ch` (mieści ≥7 cyfr).
+  (`flex: 1 1 100%`, bez `order`).
+- **Pole kwotowe (pensja, salda, cel, kwota oszczędności, limity): `width/min-width: 11ch`,
+  `flex-shrink: 0`, `font-variant-numeric: tabular-nums`** — input KWOTOWY nigdy nie
+  kompresuje się w wierszu i mieści 7-cyfrową kwotę w całości. To się powtarza —
+  nie dodawaj pola kwotowego bez tej reguły (11ch = baza; większe wartości wymagają
+  więcej).
 - Ostrzeżenia `.form-msg.warn` — pełna szerokość (`grid-column: 1 / -1`).
+- Panel bez pary „opcja|wartość" (np. Strategia w kroku 4): pigułki `.gender-options`
+  rozciągnięte na CAŁĄ szerokość panelu (komórka = panel) — to nie jest slot; do
+  niego nie stosuje się reguły `300px 1fr`. Przyciski akcji pod selektorem
+  (`.wz-strategy-actions`: „Podziel ręcznie"/„Zaproponuj podział", `space-between`,
+  jedna wysokość `.btn nowrap`). Panele „Podział"/„Dodaj instrument"/„Wpłaty z pensji"
+  są **bramkowane trybem** (`wzAllocMode`, auto/manual) — przed wyborem ukryte.
+  „Zaproponuj podział" (`.btn-gradient`) = tryb **auto**: stawia sugestię wg
+  pojemności limitów (`suggest_allocations`/`STRATEGY_SUGGEST`, planner.py) i pokazuje
+  TYLKO sekcję „Podział" w **read-only** (statyczne wiersze `.wz-alloc-readonly`,
+  bez suwaków, pigułek i „wpłat z pensji"; przycisk `aria-pressed`). „Podziel ręcznie"
+  = tryb **manual**: pełny interaktywny układ (suwaki/pola, wiersz Gotówki, pigułki
+  „Dodaj instrument", „Wpłaty z pensji") z zachowanymi wagami sugestii do dostrojenia.
+  Układ wiersza podziału: **desktop = etykieta | suwak | % | zł** (% i zł wyrównane do
+  prawego brzegu — suwak `flex: 1 1 auto` wypełnia środek); **≤560px (container) =
+  etykieta | % | zł w jednej linii przy prawym brzegu, suwak pełnej szerokości pod
+  spodem** (`order: 5`); w trybie auto statyczne „%"/„zł" też do prawego brzegu
+  (`.wz-alloc-static`/`.wz-alloc-money { margin-left: auto }`).
 
 ### Założenia projektowe układu wierszowego (dlaczego tak — stosuj przy innych widokach)
 

@@ -225,6 +225,7 @@ h2 {
     min-width: 0;
     max-width: 15ch;
     width: 100%;
+    font-variant-numeric: tabular-nums;
     border: none;
     background: transparent;
     color: var(--text);

@@ -113,7 +113,7 @@
     <!-- KROK 3: KAPITAŁ -->
     <section class="wz-step hidden" data-step="3">
         <h2>Kapitał</h2>
-        <p class="subtitle">Wpisz zgromadzone salda — konto z saldem 0 jest pomijane. Instrumenty, których nie masz, możesz dodać w kroku Podział.</p>
+        <p class="subtitle">Wpisz zgromadzone salda — konto z saldem 0 jest pomijane. Konta, których jeszcze nie masz, dodasz w kroku Podział — bez środków, jako udział w przyszłych oszczędnościach.</p>
         <div class="wz-capital-grid" id="wzCapitalGrid"></div>
     </section>
 
@@ -124,19 +124,18 @@
 
         <div class="wz-alloc-panel">
             <h3 class="wz-panel-title">Strategia</h3>
-            <div class="wz-alloc-controls">
-                <span class="wz-alloc-strategy-label">Preferujesz</span>
-                <div class="gender-options wz-alloc-strategy-options">
-                    <label class="gender-option" title="Niski apetyt na ryzyko — bezpieczne aktywa, mało w ryzykowne"><input type="radio" name="wzStrategy" value="konserwatywna" /> Konserwatywna</label>
-                    <label class="gender-option" title="Umiarkowane ryzyko i umiarkowany zysk"><input type="radio" name="wzStrategy" value="zbilansowana" checked /> Zbilansowana</label>
-                    <label class="gender-option" title="Wysoki potencjał zysku, większe ryzyko"><input type="radio" name="wzStrategy" value="agresywna" /> Agresywna</label>
-                </div>
-                <button type="button" class="btn btn-secondary" id="wzAutoBtn">Zaproponuj podział</button>
-                <span class="wz-alloc-strategy-hint">Decyduje o zakładanych stopach zwrotu (ROI) poszczególnych kont.</span>
+            <div class="gender-options wz-alloc-strategy-options">
+                <label class="gender-option" title="Niski apetyt na ryzyko — bezpieczne aktywa, mało w ryzykowne"><input type="radio" name="wzStrategy" value="konserwatywna" /> Konserwatywna</label>
+                <label class="gender-option" title="Umiarkowane ryzyko i umiarkowany zysk"><input type="radio" name="wzStrategy" value="zbilansowana" checked /> Zbilansowana</label>
+                <label class="gender-option" title="Wysoki potencjał zysku, większe ryzyko"><input type="radio" name="wzStrategy" value="agresywna" /> Agresywna</label>
+            </div>
+            <div class="wz-strategy-actions">
+                <button type="button" class="btn btn-secondary" id="wzManualBtn">Podziel ręcznie</button>
+                <button type="button" class="btn btn-gradient" id="wzAutoBtn">Zaproponuj podział</button>
             </div>
         </div>
 
-        <div class="wz-alloc-panel">
+        <div class="wz-alloc-panel" id="wzAllocPanel">
             <div class="wz-alloc-panel-head">
                 <h3 class="wz-panel-title">Podział</h3>
                 <div id="wzAllocSum" class="wz-alloc-sum"></div>
