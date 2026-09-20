@@ -789,6 +789,7 @@ h2 {
     min-height: var(--control-min-height);
     padding: 0.35rem 0.8rem;
     font-size: var(--fs-sm);
+    white-space: nowrap;
     cursor: pointer;
     color: var(--text-dim);
     transition: background 0.15s, color 0.15s;

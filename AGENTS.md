@@ -70,13 +70,16 @@ bez TypeScript), SQLite, pytest. Odpowiadaj i pisz UI po polsku.
 
 ### Układ wierszowy formularza (wzór: krok 2 asystenta, wizard.css)
 
-- Pole w panelu = `.wz-grid`: **≥821px dwie kolumny `240px 1fr`** (lewy slot opcji
+- Pole w panelu = `.wz-grid`: **≥821px dwie kolumny `300px 1fr`** (lewy slot opcji
   wyboru | prawa wartość) — sloty i kontrolki wyrównane w całym widoku; **<821px
   jedna kolumna** ze separatorami `1px solid var(--border)` między polami
   (`.wz-grid > * + *:not(.form-msg)`).
 - Selektory pigułkowe `.gender-options` **zawsze `width: 100%`** swojej komórki,
-  segmenty `.gender-option { flex: 1 1 0% }` (równy podział); etykieta nad
-  pigułkami (`.wz-inline-field` w układzie kolumnowym).
+  segmenty `.gender-option { flex: 1 0 auto }` + `white-space: nowrap` (proporcjonalne
+  od naturalnej szerokości, nigdy się nie ściskają → tekst zawsze w jednej linii,
+  slot min. 300px mieści najszerszą grupę); etykieta nad pigułkami (`.wz-inline-field`
+  w układzie kolumnowym). Na ≤480px bokowy padding pigułek `.8rem → .5rem` (miejsce
+  dla 3-segmentowej Formy w wąskich widokach).
 - Suwak z wartością `.wz-slider`: **`.num-control` zawsze PRZED `input[type="range"]`**
   — na desktopie liczba po lewej, suwak po prawej (wartość nie zasłaniana);
   **≤480px** num-control na górnej linii, range pełnej szerokości pod nim

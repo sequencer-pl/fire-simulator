@@ -188,7 +188,7 @@
 }
 
 .wz-grid .gender-options .gender-option {
-    flex: 1 1 0%;
+    flex: 1 0 auto;
 }
 
 .wz-grid .wz-inline-field {
@@ -660,7 +660,7 @@
 
 @media (min-width: 821px) {
     .wz-grid {
-        grid-template-columns: 240px 1fr;
+        grid-template-columns: 300px 1fr;
     }
     .wz-grid > * + *:not(.form-msg) {
         border-top: 0;
@@ -705,5 +705,8 @@
     }
     .wz-slider input[type="range"] {
         flex: 1 1 100%;
+    }
+    .wz-grid .gender-options .gender-option {
+        padding: 0.35rem 0.5rem;
     }
 }
