@@ -626,6 +626,13 @@ h2 {
 
 .btn-primary:hover { background: var(--primary-hover); }
 
+.btn-gradient {
+    background: linear-gradient(90deg, var(--primary), var(--orange));
+    color: white;
+}
+
+.btn-gradient:hover { filter: brightness(1.08); }
+
 .btn-secondary {
     background: var(--bg-elevated);
     color: var(--text-dim);

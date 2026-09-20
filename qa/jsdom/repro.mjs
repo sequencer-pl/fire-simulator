@@ -206,9 +206,9 @@ const harness = `
         return document.getElementById("wzNextBtn").textContent.trim() === "Wylicz plan"
             && wzPlan === null;
     });
-    check("footer: krok 7 -> 'Przejdź do edytora'", () => {
+    check("footer: krok 7 -> 'Przejdź do symulatora'", () => {
         setStep(7);
-        return document.getElementById("wzNextBtn").textContent.trim() === "Przejdź do edytora";
+        return document.getElementById("wzNextBtn").textContent.trim() === "Przejdź do symulatora";
     });
     check("footer: krok 5 -> 'Dalej'", () => {
         setStep(5);

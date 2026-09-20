@@ -365,7 +365,7 @@ function updateFooterNav(n) {
     if (n === 6) {
         next.textContent = wzPlan ? "Podsumowanie" : "Wylicz plan";
     } else if (n === 7) {
-        next.textContent = "Przejdź do edytora";
+        next.textContent = "Przejdź do symulatora";
     } else {
         next.textContent = "Dalej";
     }
