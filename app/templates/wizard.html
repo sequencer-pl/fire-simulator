@@ -39,9 +39,6 @@
                 <span class="wz-path-desc">Cel wypłaty + oszczędności → najwcześniejszy wiek FIRE.</span>
             </label>
         </div>
-        <div class="wz-step-actions">
-            <button type="button" class="btn btn-primary wz-next">Dalej</button>
-        </div>
     </section>
 
     <!-- KROK 2: PODSTAWY -->
@@ -96,10 +93,6 @@
                 <p class="wz-hint" id="wzSavingsHint">Oszczędności „na czysto” — dodatkowe do wpłat w PPK/ZUS.</p>
             </div>
         </div>
-        <div class="wz-step-actions">
-            <button type="button" class="btn btn-secondary wz-back">Wstecz</button>
-            <button type="button" class="btn btn-primary wz-next">Dalej</button>
-        </div>
     </section>
 
     <!-- KROK 3: KAPITAŁ -->
@@ -107,10 +100,6 @@
         <h2>Kapitał</h2>
         <p class="subtitle">Wpisz zgromadzone salda — konto z saldem 0 jest pomijane. Instrumenty, których nie masz, możesz dodać w kroku Podział.</p>
         <div class="wz-capital-grid" id="wzCapitalGrid"></div>
-        <div class="wz-step-actions">
-            <button type="button" class="btn btn-secondary wz-back">Wstecz</button>
-            <button type="button" class="btn btn-primary wz-next">Dalej</button>
-        </div>
     </section>
 
     <!-- KROK 4: PODZIAŁ OSZCZĘDNOŚCI -->
@@ -156,10 +145,6 @@
             <div id="wzPayrollActive" class="wz-payroll-active hidden"></div>
         </div>
 
-        <div class="wz-step-actions">
-            <button type="button" class="btn btn-secondary wz-back">Wstecz</button>
-            <button type="button" class="btn btn-primary wz-next">Dalej</button>
-        </div>
     </section>
 
     <!-- KROK 5: CELE I HORYZONT -->
@@ -204,25 +189,16 @@
                 <p class="wz-hint">Do tego wieku trwa wypłata z kapitału (planowanie dożywotnie).</p>
             </div>
         </div>
-        <div class="wz-step-actions">
-            <button type="button" class="btn btn-secondary wz-back">Wstecz</button>
-            <button type="button" class="btn btn-primary wz-next">Dalej</button>
-        </div>
     </section>
 
     <!-- KROK 6: WYNIK -->
     <section class="wz-step hidden" data-step="6">
         <h2>Wynik</h2>
-        <button type="button" class="btn btn-primary" id="wzRunBtn">Wylicz plan</button>
         <div id="wzResult" class="wz-result hidden">
             <div id="wzResultError" class="wz-result-error hidden"></div>
             <div class="wz-metric-line" id="wzMetrics"></div>
             <div id="wzSolved" class="wz-solved"></div>
             <div id="wzWarnings" class="wz-warnings" aria-live="polite"></div>
-        </div>
-        <div class="wz-step-actions">
-            <button type="button" class="btn btn-secondary wz-back">Wstecz</button>
-            <button type="button" class="btn btn-primary wz-next" id="wzToSummary" disabled>Podsumowanie</button>
         </div>
     </section>
 
@@ -232,11 +208,15 @@
         <p class="subtitle">Tak wyglądać będą Twoje etapy. Możesz je dalej edytować w edytorze.</p>
         <div class="wz-timeline" id="wzTimeline"></div>
         <div id="wzStagePreview" class="wz-stage-preview"></div>
-        <div class="wz-step-actions">
-            <button type="button" class="btn btn-secondary wz-back">Wstecz</button>
-            <button type="button" class="btn btn-primary" id="wzFinishBtn">Przejdź do edytora</button>
-        </div>
     </section>
+
+    <nav class="wz-footer" id="wzFooter" aria-label="Nawigacja asystenta">
+        <span class="wz-step-count" id="wzStepCount">Krok 1 / 7</span>
+        <div class="wz-footer-right">
+            <button type="button" class="btn btn-secondary" id="wzBackBtn">Wstecz</button>
+            <button type="button" class="btn btn-primary" id="wzNextBtn">Dalej</button>
+        </div>
+    </nav>
 
     <div class="wizard-footnote">
         <p>Wypłaty pokazane są netto (po podatku). Symulacja jest deterministyczna — opiera się na założonych stopach zwrotu i nie gwarantuje przyszłych wyników.</p>

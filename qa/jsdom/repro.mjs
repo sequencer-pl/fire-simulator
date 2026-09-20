@@ -155,6 +155,41 @@ const harness = `
         return input.value === "66";
     });
 
+    // ---- Pasek nawigacji wz-footer ----
+    check("footer: pasek z licznikiem i przyciskami", () => {
+        return !!document.getElementById("wzFooter")
+            && !!document.getElementById("wzStepCount")
+            && !!document.getElementById("wzBackBtn")
+            && !!document.getElementById("wzNextBtn");
+    });
+    check("footer: krok 1 -> licznik 'Krok 1 / 7' i Wstecz ukryty", () => {
+        setStep(1);
+        return document.getElementById("wzStepCount").textContent.trim() === "Krok 1 / 7"
+            && document.getElementById("wzBackBtn").classList.contains("hidden");
+    });
+    check("footer: krok 4 -> licznik 'Krok 4 / 7' i Wstecz widoczny", () => {
+        setStep(4);
+        return document.getElementById("wzStepCount").textContent.trim() === "Krok 4 / 7"
+            && !document.getElementById("wzBackBtn").classList.contains("hidden");
+    });
+    check("footer: krok 6 -> etykieta 'Wylicz plan'", () => {
+        setStep(6);
+        return document.getElementById("wzNextBtn").textContent.trim() === "Wylicz plan";
+    });
+    check("footer: błąd planu -> etykieta wraca do 'Wylicz plan'", async () => {
+        await runPlan();
+        return document.getElementById("wzNextBtn").textContent.trim() === "Wylicz plan"
+            && wzPlan === null;
+    });
+    check("footer: krok 7 -> 'Przejdź do edytora'", () => {
+        setStep(7);
+        return document.getElementById("wzNextBtn").textContent.trim() === "Przejdź do edytora";
+    });
+    check("footer: krok 5 -> 'Dalej'", () => {
+        setStep(5);
+        return document.getElementById("wzNextBtn").textContent.trim() === "Dalej";
+    });
+
     const failed = results.filter((r) => !r.ok);
     const NL = String.fromCharCode(10);
     console.log(NL + "=== FIRE wizard.js — harness jsdom ===");

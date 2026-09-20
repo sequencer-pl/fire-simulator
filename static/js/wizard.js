@@ -30,6 +30,7 @@ const WZ_CAPITAL_OVERRIDES = { zus: "ZUS", "zus:ofe": "OFE" };
 // Accounts added explicitly via the step-4 pills (no capital, participation only).
 let wzPill = new Set();
 let wzPlan = null;
+let wzNavStep = 1;
 let wzWeights = {};
 let wzLimits = null;
 let wzStrategyValue = "zbilansowana";
@@ -149,8 +150,8 @@ function setStep(n, focus = false) {
     bar.style.width = (n / WZ_TOTAL_STEPS) * 100 + "%";
     window.scrollTo({ top: 0, behavior: "smooth" });
     if (n === 4) buildAllocationStep();
-    const finalStep = document.getElementById("wzToSummary");
-    if (finalStep) finalStep.disabled = true;
+    wzNavStep = n;
+    updateFooterNav(n);
     if (focus) {
         const heading = document.querySelector(`.wz-step[data-step="${n}"] h2`);
         if (heading) {
@@ -261,7 +262,7 @@ async function runPlan() {
     if (path !== 1) {
         body.target_monthly = parseFloat(document.getElementById("wzTarget").value) || null;
     }
-    const runBtn = document.getElementById("wzRunBtn");
+    const runBtn = document.getElementById("wzNextBtn");
     const errorBox = document.getElementById("wzResultError");
     errorBox.classList.add("hidden");
     errorBox.textContent = "";
@@ -286,15 +287,13 @@ async function runPlan() {
         renderMetrics(data.projection);
         renderSolved(data.solved);
         renderWarnings(data.projection.warnings);
-        document.getElementById("wzToSummary").disabled = false;
     } catch (err) {
         wzPlan = null;
-        document.getElementById("wzToSummary").disabled = true;
         errorBox.textContent = "Błąd: " + err.message;
         errorBox.classList.remove("hidden");
     } finally {
         runBtn.disabled = false;
-        runBtn.textContent = "Wylicz plan";
+        updateFooterNav(wzNavStep);
     }
 }
 
@@ -346,6 +345,29 @@ function renderStagePreview(input) {
             accounts: stage.accounts,
         }));
     });
+}
+
+function toSummary() {
+    if (!wzPlan) return;
+    renderTimeline(wzPlan.input);
+    renderStagePreview(wzPlan.input);
+    setStep(7, true);
+}
+
+function updateFooterNav(n) {
+    const count = document.getElementById("wzStepCount");
+    if (count) count.textContent = `Krok ${n} / ${WZ_TOTAL_STEPS}`;
+    const back = document.getElementById("wzBackBtn");
+    if (back) back.classList.toggle("hidden", n === 1);
+    const next = document.getElementById("wzNextBtn");
+    if (!next) return;
+    if (n === 6) {
+        next.textContent = wzPlan ? "Podsumowanie" : "Wylicz plan";
+    } else if (n === 7) {
+        next.textContent = "Przejdź do edytora";
+    } else {
+        next.textContent = "Dalej";
+    }
 }
 
 function finishWizard() {
@@ -735,28 +757,27 @@ function initSteppers() {
 }
 
 function initNav() {
-    document.querySelectorAll(".wz-next").forEach((btn) => {
-        btn.addEventListener("click", () => {
-            const step = parseInt(btn.closest(".wz-step").dataset.step, 10);
-            if (!validateStep(step)) return;
-            setStep(step + 1, true);
-        });
+    document.getElementById("wzNextBtn").addEventListener("click", () => {
+        const n = wzNavStep;
+        if (n === 6) {
+            if (wzPlan) {
+                toSummary();
+            } else {
+                runPlan();
+            }
+            return;
+        }
+        if (n === 7) {
+            finishWizard();
+            return;
+        }
+        if (!validateStep(n)) return;
+        setStep(n + 1, true);
     });
-    document.querySelectorAll(".wz-back").forEach((btn) => {
-        btn.addEventListener("click", () => {
-            const step = parseInt(btn.closest(".wz-step").dataset.step, 10);
-            setStep(step - 1, true);
-        });
+    document.getElementById("wzBackBtn").addEventListener("click", () => {
+        if (wzNavStep > 1) setStep(wzNavStep - 1, true);
     });
-    document.getElementById("wzRunBtn").addEventListener("click", runPlan);
     document.getElementById("wzAutoBtn").addEventListener("click", runSuggestAllocation);
-    document.getElementById("wzToSummary").addEventListener("click", () => {
-        if (!wzPlan) return;
-        renderTimeline(wzPlan.input);
-        renderStagePreview(wzPlan.input);
-        setStep(7, true);
-    });
-    document.getElementById("wzFinishBtn").addEventListener("click", finishWizard);
 }
 
 function initWizard() {
