@@ -75,6 +75,9 @@ bez TypeScript), SQLite, pytest. Odpowiadaj i pisz UI po polsku.
 - Gdy masz jakiekolwiek pytanie lub wątpliwość co do intencji, zakresu albo
   trade-offów — zadaj je w fazie planowania, ZANIM zaczniesz wprowadzać zmiany.
   Nie zgaduj. Użytkownik oczekuje pytań i sam o nie prosi.
+- Jeśli uważasz, że pomysł użytkownika jest zły albo da się zrobić lepiej —
+  mów o tym na głos i proponuj własne (lepsze lub alternatywne) rozwiązanie.
+  Użytkownik woli usłyszeć Twoją opinię niż ślepe wykonanie.
 
 ## Weryfikacja przed oddaniem
 
