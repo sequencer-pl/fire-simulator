@@ -67,21 +67,46 @@ const harness = `
     document.getElementById("wzSavings").value = "10";
     setStep(4);
 
-    // ---- Pkt 1: nazwy kroków ----
-    check("7 etykiet kroków", () => {
-        const labels = [...document.querySelectorAll(".wz-step-label")].map((e) => e.textContent.trim());
-        return JSON.stringify(labels) === JSON.stringify([
-            "1. Twoje pytanie", "2. Twoje dane", "3. Kapitał",
-            "4. Podział oszczędności", "5. Cel i horyzont", "6. Wynik", "7. Podsumowanie",
-        ]);
+    // ---- Pkt 1: pasek postępu (podziałki bez etykiet nazw) ----
+    check("pasek postępu: track + progressbar, bez etykiet nazw", () => {
+        const track = document.getElementById("wizardProgressTrack");
+        const bar = document.getElementById("wizardProgressBar");
+        return !!track
+            && !!bar
+            && bar.getAttribute("role") === "progressbar"
+            && bar.getAttribute("aria-valuemin") === "1"
+            && bar.getAttribute("aria-valuemax") === "7"
+            && document.querySelectorAll(".wz-step-label").length === 0;
+    });
+    check("pasek postępu: aria-valuenow = bieżący krok", () => {
+        setStep(4);
+        return document.getElementById("wizardProgressBar").getAttribute("aria-valuenow") === "4";
     });
     check("h2 kroku 2 = Twoje dane", () => document.querySelector('.wz-step[data-step="2"] h2').textContent.trim() === "Twoje dane");
     check("h2 kroku 5 = Cel i horyzont", () => document.querySelector('.wz-step[data-step="5"] h2').textContent.trim() === "Cel i horyzont");
 
-    // ---- Pkt 2: krok 2 — struktura ----
-    check("krok 2: 4 field-group + savings-row (full-width)", () => {
-        const fields = document.querySelector('.wz-step[data-step="2"] .wz-fields');
-        return fields.querySelectorAll(":scope > .field-group").length === 4 && !!fields.querySelector(".wz-savings-row");
+    // ---- Pkt 2: krok 2 — 3 panele, suwak oszczędności tylko w trybie % ----
+    check("krok 2: 3 panele w kolejności", () => {
+        const panels = [...document.querySelector('.wz-step[data-step="2"]').querySelectorAll(".wz-panel")];
+        if (panels.length !== 3) return false;
+        const titles = panels.map((p) => p.querySelector(".wz-panel-title")?.textContent.trim());
+        return JSON.stringify(titles) === JSON.stringify(["Ty", "Praca i dochód", "Odkładasz miesięcznie"]);
+    });
+    check("krok 2: suwak oszczędności tylko w trybie % pensji", () => {
+        const range = document.getElementById("wzSavingsRange");
+        document.querySelector('input[name="wzSavingsMode"][value="pct"]').checked = true;
+        document.querySelector('input[name="wzSavingsMode"][value="pct"]').dispatchEvent(new Event("change"));
+        const pctVisible = !!range && !range.classList.contains("hidden")
+            && document.getElementById("wzSavings").max === "50";
+        document.querySelector('input[name="wzSavingsMode"][value="amount"]').checked = true;
+        document.querySelector('input[name="wzSavingsMode"][value="amount"]').dispatchEvent(new Event("change"));
+        const amountHidden = !!range && range.classList.contains("hidden")
+            && !document.getElementById("wzSavings").hasAttribute("max");
+        document.querySelector('input[name="wzSavingsMode"][value="pct"]').checked = true;
+        document.querySelector('input[name="wzSavingsMode"][value="pct"]').dispatchEvent(new Event("change"));
+        document.getElementById("wzSavings").value = "10";
+        document.getElementById("wzSavingsRange").value = "10";
+        return pctVisible === true && amountHidden === true;
     });
 
     // ---- Pkt 4/5: struktura kroku 4 ----
@@ -188,6 +213,15 @@ const harness = `
     check("footer: krok 5 -> 'Dalej'", () => {
         setStep(5);
         return document.getElementById("wzNextBtn").textContent.trim() === "Dalej";
+    });
+
+    // ---- Notatka o wypłatach netto w bloku wyniku (krok 6) ----
+    check("notatka o wypłatach netto w bloku wyniku, brak footnote pod kartą", () => {
+        setStep(6);
+        const note = document.querySelector('.wz-step[data-step="6"] .wz-result-note');
+        return !!note
+            && note.textContent.includes("Wypłaty pokazane są netto")
+            && document.querySelector(".wizard-footnote") === null;
     });
 
     const failed = results.filter((r) => !r.ok);

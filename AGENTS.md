@@ -70,6 +70,12 @@ bez TypeScript), SQLite, pytest. Odpowiadaj i pisz UI po polsku.
 - Aktywa wersjonowane przez `?v={{ version }}` (`_asset_version`, routes.py:37) —
   dodaj do każdego nowego pliku JS/CSS w template.
 
+## Współpraca z użytkownikiem
+
+- Gdy masz jakiekolwiek pytanie lub wątpliwość co do intencji, zakresu albo
+  trade-offów — zadaj je w fazie planowania, ZANIM zaczniesz wprowadzać zmiany.
+  Nie zgaduj. Użytkownik oczekuje pytań i sam o nie prosi.
+
 ## Weryfikacja przed oddaniem
 
 - `uv run ruff check app/ tests/ scripts/`

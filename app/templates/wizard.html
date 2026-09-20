@@ -6,15 +6,9 @@
 {% block content %}
 <div class="wizard">
     <div class="wizard-progress" id="wizardProgress">
-        <div class="wizard-progress-bar" id="wizardProgressBar"></div>
-        <div class="wizard-progress-labels">
-            <span class="wz-step-label">1. Twoje pytanie</span>
-            <span class="wz-step-label">2. Twoje dane</span>
-            <span class="wz-step-label">3. Kapitał</span>
-            <span class="wz-step-label">4. Podział oszczędności</span>
-            <span class="wz-step-label">5. Cel i horyzont</span>
-            <span class="wz-step-label">6. Wynik</span>
-            <span class="wz-step-label">7. Podsumowanie</span>
+        <div class="wizard-progress-track" id="wizardProgressTrack">
+            <div class="wizard-progress-bar" id="wizardProgressBar" role="progressbar"
+                 aria-label="Postęp asystenta" aria-valuemin="1" aria-valuemax="7" aria-valuenow="1"></div>
         </div>
     </div>
 
@@ -26,17 +20,17 @@
             <label class="wz-path">
                 <input type="radio" name="wzPath" value="1" checked>
                 <span class="wz-path-title">Ile dostanę?</span>
-                <span class="wz-path-desc">Znany kapitał + oszczędności + wiek FIRE → przewidywana wypłata miesięczna.</span>
+                <span class="wz-path-desc">Wiem, ile mam dziś pieniędzy i kiedy planuję przestać pracować. Podpowiedz, z jakiej miesięcznej wypłaty będę wtedy żyć.</span>
             </label>
             <label class="wz-path">
                 <input type="radio" name="wzPath" value="2">
                 <span class="wz-path-title">Ile muszę odkładać?</span>
-                <span class="wz-path-desc">Cel wypłaty + wiek FIRE → wymagane miesięczne oszczędności.</span>
+                <span class="wz-path-desc">Wiem, ile miesięcznie chcę wypłacać po zakończeniu pracy. Powiedz, ile muszę odkładać, żeby to osiągnąć.</span>
             </label>
             <label class="wz-path">
                 <input type="radio" name="wzPath" value="3">
                 <span class="wz-path-title">Kiedy mogę przestać pracować?</span>
-                <span class="wz-path-desc">Cel wypłaty + oszczędności → najwcześniejszy wiek FIRE.</span>
+                <span class="wz-path-desc">Mam już oszczędności i konkretny cel wypłaty. Sprawdź, w jakim wieku mogę zakończyć pracę zarobkową.</span>
             </label>
         </div>
     </section>
@@ -45,52 +39,69 @@
     <section class="wz-step hidden" data-step="2">
         <h2>Twoje dane</h2>
         <p class="subtitle">Zacznijmy od danych o Tobie i Twojej pracy.</p>
-        <div class="wz-fields">
-            <div class="field-group">
-                <label>Płeć</label>
-                <div class="gender-options">
-                    <label class="gender-option"><input type="radio" name="wzGender" value="k" /> K</label>
-                    <label class="gender-option"><input type="radio" name="wzGender" value="m" checked /> M</label>
-                </div>
-            </div>
-            <div class="field-group">
-                <label>Obecny wiek</label>
-                <div class="num-control">
-                    <button type="button" class="stepper stepper-down" tabindex="-1" aria-label="Zmniejsz wiek">&minus;</button>
-                    <input type="number" id="wzAge" class="acc-field" value="40" min="16" max="90">
-                    <button type="button" class="stepper stepper-up" tabindex="-1" aria-label="Zwiększ wiek">+</button>
-                </div>
-            </div>
-            <div class="field-group">
-                <label>Forma zatrudnienia</label>
-                <div class="gender-options">
-                    <label class="gender-option" title="Umowa o pracę"><input type="radio" name="wzEmployment" value="etat" checked /> Etat</label>
-                    <label class="gender-option" title="Samozatrudnienie / jednoosobowa działalność"><input type="radio" name="wzEmployment" value="b2b" /> B2B</label>
-                    <label class="gender-option" title="Brak dochodów z pracy"><input type="radio" name="wzEmployment" value="niepracujacy" /> Nie pracuję</label>
-                </div>
-            </div>
-            <div class="field-group" id="wzGrossGroup">
-                <label>Pensja brutto (mies.)</label>
-                <div class="num-control">
-                    <button type="button" class="stepper stepper-down" tabindex="-1" aria-label="Zmniejsz pensję">&minus;</button>
-                    <input type="number" id="wzGross" class="acc-field" value="8000" min="0" step="100">
-                    <button type="button" class="stepper stepper-up" tabindex="-1" aria-label="Zwiększ pensję">+</button>
-                </div>
-            </div>
-            <div class="wz-savings-row" id="wzSavingsGroup">
+
+        <div class="wz-panel">
+            <h3 class="wz-panel-title">Ty</h3>
+            <div class="wz-fields">
                 <div class="field-group">
-                    <label>Odkładasz miesięcznie</label>
+                    <label>Płeć</label>
                     <div class="gender-options">
-                        <label class="gender-option" title="Ile odkładasz co miesiąc „na czysto” — w złotych"><input type="radio" name="wzSavingsMode" value="amount" /> Kwotę (zł)</label>
-                        <label class="gender-option" title="Jaki procent pensji brutto odkładasz co miesiąc"><input type="radio" name="wzSavingsMode" value="pct" checked /> % pensji</label>
+                        <label class="gender-option"><input type="radio" name="wzGender" value="k" /> K</label>
+                        <label class="gender-option"><input type="radio" name="wzGender" value="m" checked /> M</label>
                     </div>
+                </div>
+                <div class="field-group">
+                    <label>Obecny wiek</label>
+                    <div class="num-control">
+                        <button type="button" class="stepper stepper-down" tabindex="-1" aria-label="Zmniejsz wiek">&minus;</button>
+                        <input type="number" id="wzAge" class="acc-field" value="40" min="16" max="90">
+                        <button type="button" class="stepper stepper-up" tabindex="-1" aria-label="Zwiększ wiek">+</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="wz-panel">
+            <h3 class="wz-panel-title">Praca i dochód</h3>
+            <div class="wz-fields">
+                <div class="field-group wz-field-full">
+                    <label>Forma zatrudnienia</label>
+                    <div class="gender-options">
+                        <label class="gender-option" title="Umowa o pracę"><input type="radio" name="wzEmployment" value="etat" checked /> Etat</label>
+                        <label class="gender-option" title="Samozatrudnienie / jednoosobowa działalność"><input type="radio" name="wzEmployment" value="b2b" /> B2B</label>
+                        <label class="gender-option" title="Brak dochodów z pracy"><input type="radio" name="wzEmployment" value="niepracujacy" /> Nie pracuję</label>
+                    </div>
+                </div>
+                <div class="field-group wz-field-full" id="wzGrossGroup">
+                    <label>Pensja brutto (mies.)</label>
+                    <div class="wz-slider">
+                        <input type="range" id="wzGrossRange" min="0" max="24000" step="250" value="8000" aria-label="Pensja brutto (mies.)">
+                        <div class="num-control">
+                            <button type="button" class="stepper stepper-down" tabindex="-1" aria-label="Zmniejsz pensję">&minus;</button>
+                            <input type="number" id="wzGross" class="acc-field" value="8000" min="0" step="100">
+                            <button type="button" class="stepper stepper-up" tabindex="-1" aria-label="Zwiększ pensję">+</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="wz-panel" id="wzSavingsPanel">
+            <h3 class="wz-panel-title">Odkładasz miesięcznie</h3>
+            <div class="wz-savings-row">
+                <div class="gender-options">
+                    <label class="gender-option" title="Ile odkładasz co miesiąc „na czysto” — w złotych"><input type="radio" name="wzSavingsMode" value="amount" /> Kwotę (zł)</label>
+                    <label class="gender-option" title="Jaki procent pensji brutto odkładasz co miesiąc"><input type="radio" name="wzSavingsMode" value="pct" checked /> % pensji</label>
+                </div>
+                <div class="wz-slider">
+                    <input type="range" id="wzSavingsRange" min="0" max="50" step="0.5" value="10" aria-label="Odkładasz miesięcznie (%)">
                     <div class="num-control">
                         <button type="button" class="stepper stepper-down" tabindex="-1" aria-label="Zmniejsz oszczędności">&minus;</button>
-                        <input type="number" id="wzSavings" class="acc-field" value="10" min="0" step="50">
+                        <input type="number" id="wzSavings" class="acc-field" value="10" min="0" step="1">
                         <button type="button" class="stepper stepper-up" tabindex="-1" aria-label="Zwiększ oszczędności">+</button>
                     </div>
                 </div>
-                <p class="wz-hint" id="wzSavingsHint">Oszczędności „na czysto” — dodatkowe do wpłat w PPK/ZUS.</p>
+                <p class="wz-hint" id="wzSavingsHint">Procent pensji brutto odkładany miesięcznie na inwestycje.</p>
             </div>
         </div>
     </section>
@@ -199,6 +210,7 @@
             <div class="wz-metric-line" id="wzMetrics"></div>
             <div id="wzSolved" class="wz-solved"></div>
             <div id="wzWarnings" class="wz-warnings" aria-live="polite"></div>
+            <p class="wz-result-note">Wypłaty pokazane są netto (po podatku). Symulacja jest deterministyczna — opiera się na założonych stopach zwrotu i nie gwarantuje przyszłych wyników.</p>
         </div>
     </section>
 
@@ -217,10 +229,6 @@
             <button type="button" class="btn btn-primary" id="wzNextBtn">Dalej</button>
         </div>
     </nav>
-
-    <div class="wizard-footnote">
-        <p>Wypłaty pokazane są netto (po podatku). Symulacja jest deterministyczna — opiera się na założonych stopach zwrotu i nie gwarantuje przyszłych wyników.</p>
-    </div>
 </div>
 {% endblock %}
 {% block scripts %}

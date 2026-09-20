@@ -15,26 +15,40 @@
     position: relative;
     background: var(--bg-elevated);
     border-radius: 8px;
-    padding: 0.75rem 1rem;
-    margin-bottom: 1.5rem;
+    padding: 0.5rem 0.75rem;
+    margin-bottom: 1.25rem;
+}
+
+.wizard-progress-track {
+    position: relative;
+    height: 12px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+/* Podziałki na 7 segmentów — nakładka nad wypełnieniem, zawsze widoczna. */
+.wizard-progress-track::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-image: repeating-linear-gradient(
+        90deg,
+        transparent 0,
+        transparent calc(100% / 7 - 1px),
+        var(--border) calc(100% / 7 - 1px),
+        var(--border) calc(100% / 7)
+    );
+    pointer-events: none;
 }
 
 .wizard-progress-bar {
-    height: 6px;
-    background: linear-gradient(90deg, var(--primary), var(--accent));
-    border-radius: 3px;
+    height: 100%;
     width: 0;
+    background: linear-gradient(90deg, var(--primary), var(--orange));
+    border-radius: 5px;
     transition: width 0.35s ease;
-    margin-bottom: 0.5rem;
-}
-
-.wizard-progress-labels {
-    display: flex;
-    justify-content: space-between;
-    gap: 0.5rem;
-    flex-wrap: wrap;
-    color: var(--text-dim);
-    font-size: 0.8rem;
 }
 
 .wz-step {
@@ -132,6 +146,52 @@
     flex-wrap: wrap;
 }
 
+.wz-panel .wz-fields {
+    gap: 0.75rem 1rem;
+}
+
+.wz-field-full {
+    grid-column: 1 / -1;
+}
+
+.wz-savings-row {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+}
+
+.wz-savings-row .gender-options {
+    align-self: flex-start;
+}
+
+/* --- Suwak + pole liczbowe (Pensja / Odkładasz %) --------------- */
+
+.wz-slider {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    width: 100%;
+    min-width: 0;
+}
+
+.wz-slider input[type="range"] {
+    flex: 1;
+    min-width: 0;
+    margin: 0;
+    accent-color: var(--primary);
+}
+
+.wz-step .wz-slider .num-control {
+    width: auto;
+    max-width: none;
+    flex-shrink: 0;
+}
+
+.wz-step .wz-slider .acc-field {
+    max-width: 10ch;
+}
+
 .field-group.is-disabled {
     opacity: 0.5;
 }
@@ -193,7 +253,8 @@
 
 /* --- Allocation step (Podział oszczędności) -------------------------------- */
 
-.wz-alloc-panel {
+.wz-alloc-panel,
+.wz-panel {
     background: var(--bg);
     border: 1px solid var(--border);
     border-radius: 12px;
@@ -559,13 +620,19 @@
     margin-top: 1rem;
 }
 
-.wizard-footnote {
+.wz-result-note {
+    margin-top: 0.75rem;
+    padding-top: 0.6rem;
+    border-top: 1px solid var(--border);
     color: var(--text-dim);
     font-size: 0.8rem;
-    margin-top: 1rem;
 }
 
 @media (max-width: 640px) {
+    .wizard {
+        --control-min-height: 36px;
+        padding: var(--sp-4) var(--sp-4) max(5.5rem, calc(4.75rem + env(safe-area-inset-bottom)));
+    }
     .wz-timeline-segment .wz-tl-label {
         display: none;
     }

@@ -148,6 +148,7 @@ function setStep(n, focus = false) {
     });
     const bar = document.getElementById("wizardProgressBar");
     bar.style.width = (n / WZ_TOTAL_STEPS) * 100 + "%";
+    bar.setAttribute("aria-valuenow", String(n));
     window.scrollTo({ top: 0, behavior: "smooth" });
     if (n === 4) buildAllocationStep();
     wzNavStep = n;
@@ -384,15 +385,25 @@ function finishWizard() {
 
 function initSavingsMode() {
     const input = document.getElementById("wzSavings");
+    const range = document.getElementById("wzSavingsRange");
     const hint = document.getElementById("wzSavingsHint");
     const sync = () => {
         if ((radioChecked("wzSavingsMode") || "pct") === "amount") {
             input.step = "50";
+            input.min = "0";
+            input.removeAttribute("max");
             hint.textContent = "Kwota miesięcznie „na czysto” — dodatkowa do wpłat w PPK/ZUS.";
+            if (range) range.classList.add("hidden");
             if (parseFloat(input.value) < 100) input.value = "1000";
         } else {
             input.step = "1";
+            input.min = "0";
+            input.max = "50";
             hint.textContent = "Procent pensji brutto odkładany miesięcznie na inwestycje.";
+            if (range) {
+                range.classList.remove("hidden");
+                range.value = String(Math.min(50, Math.max(0, parseFloat(input.value) || 0)));
+            }
             if (parseFloat(input.value) > 100) input.value = "10";
         }
     };
@@ -405,6 +416,7 @@ function initSavingsMode() {
 function initEmploymentToggle() {
     const group = document.getElementById("wzGrossGroup");
     const gross = document.getElementById("wzGross");
+    const range = document.getElementById("wzGrossRange");
     if (!group || !gross) return;
     let lastGross = parseFloat(gross.value) || 8000;
     const sync = () => {
@@ -418,11 +430,28 @@ function initEmploymentToggle() {
         gross.disabled = disabled;
         group.classList.toggle("is-disabled", disabled);
         group.querySelectorAll(".stepper").forEach((b) => (b.disabled = disabled));
+        if (range) {
+            range.disabled = disabled;
+            range.value = String(Math.min(24000, Math.max(0, parseFloat(gross.value) || 0)));
+        }
     };
     document.querySelectorAll('input[name="wzEmployment"]').forEach((r) => {
         r.addEventListener("change", sync);
     });
     sync();
+}
+
+// Suwak + pole liczbowe: pole pozostaje kanonem wartości, suwak je synchronizuje
+// (ruch suwaka → pole zaokrąglone do kroku; wpisanie → pozycja suwaka).
+function bindSliderRange(range, input, min, max) {
+    if (!range || !input) return;
+    const clamp = (v) => Math.min(max, Math.max(min, v));
+    range.addEventListener("input", () => {
+        input.value = String(clamp(parseFloat(range.value) || min));
+    });
+    input.addEventListener("input", () => {
+        range.value = String(clamp(parseFloat(input.value) || min));
+    });
 }
 
 // --- Allocation step (Gotówka as the default sink) ---------------------------
@@ -745,11 +774,11 @@ function initStrategy() {
 function syncPathUI() {
     const goalField = document.getElementById("wzGoalField");
     const reGroup = document.getElementById("wzReGroup");
-    const savingsGroup = document.getElementById("wzSavingsGroup");
+    const savingsPanel = document.getElementById("wzSavingsPanel");
     const path = currentPath();
     if (goalField) goalField.classList.toggle("hidden", path === 1);
     if (reGroup) reGroup.classList.toggle("hidden", path === 3);
-    if (savingsGroup) savingsGroup.classList.toggle("hidden", path === 2);
+    if (savingsPanel) savingsPanel.classList.toggle("hidden", path === 2);
 }
 
 function initSteppers() {
@@ -785,6 +814,8 @@ function initWizard() {
     initSteppers();
     initSavingsMode();
     initEmploymentToggle();
+    bindSliderRange(document.getElementById("wzGrossRange"), document.getElementById("wzGross"), 0, 24000);
+    bindSliderRange(document.getElementById("wzSavingsRange"), document.getElementById("wzSavings"), 0, 50);
     initStrategy();
     syncPathUI();
     document.querySelectorAll('input[name="wzPath"]').forEach((r) => {
