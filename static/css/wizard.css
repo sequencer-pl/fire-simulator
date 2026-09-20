@@ -151,9 +151,17 @@
     text-align: left;
 }
 
-.wz-fields .gender-options {
-    width: 100%;
+.wz-inline-field {
+    display: flex;
     flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 0.75rem;
+}
+
+.wz-field-block {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
 }
 
 .wz-panel .wz-fields {
@@ -669,5 +677,12 @@
     .wz-footer .btn {
         padding: 0.3rem 1.15rem;
         font-size: 0.75rem;
+    }
+    .wz-slider {
+        flex-wrap: wrap;
+    }
+    .wz-slider input[type="range"] {
+        flex: 1 1 100%;
+        order: -1;
     }
 }

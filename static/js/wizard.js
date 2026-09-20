@@ -385,32 +385,87 @@ function finishWizard() {
 
 function initSavingsMode() {
     const input = document.getElementById("wzSavings");
-    const range = document.getElementById("wzSavingsRange");
-    const hint = document.getElementById("wzSavingsHint");
+    const pctRange = document.getElementById("wzSavingsRange");
+    const amtRange = document.getElementById("wzSavingsAmtRange");
+    const amountMode = () => (radioChecked("wzSavingsMode") || "pct") === "amount";
     const sync = () => {
-        if ((radioChecked("wzSavingsMode") || "pct") === "amount") {
+        if (amountMode()) {
             input.step = "50";
             input.min = "0";
             input.removeAttribute("max");
-            hint.textContent = "Kwota miesięcznie „na czysto” — dodatkowa do wpłat w PPK/ZUS.";
-            if (range) range.classList.add("hidden");
+            if (pctRange) pctRange.classList.add("hidden");
+            if (amtRange) amtRange.classList.remove("hidden");
             if (parseFloat(input.value) < 100) input.value = "1000";
         } else {
             input.step = "1";
             input.min = "0";
             input.max = "50";
-            hint.textContent = "Procent pensji brutto odkładany miesięcznie na inwestycje.";
-            if (range) {
-                range.classList.remove("hidden");
-                range.value = String(Math.min(50, Math.max(0, parseFloat(input.value) || 0)));
+            if (pctRange) {
+                pctRange.classList.remove("hidden");
+                pctRange.value = String(Math.min(50, Math.max(0, parseFloat(input.value) || 0)));
             }
+            if (amtRange) amtRange.classList.add("hidden");
             if (parseFloat(input.value) > 100) input.value = "10";
         }
+        updateSavingsAmtMax();
+        updateSavingsWarn();
     };
+    const onInput = () => {
+        if (amountMode()) {
+            if (amtRange) amtRange.value = String(Math.min(parseFloat(amtRange.max) || 0, Math.max(0, parseFloat(input.value) || 0)));
+        } else if (pctRange) {
+            pctRange.value = String(Math.min(50, Math.max(0, parseFloat(input.value) || 0)));
+        }
+        updateSavingsWarn();
+    };
+    if (pctRange) {
+        pctRange.addEventListener("input", () => {
+            input.value = String(Math.min(50, Math.max(0, parseFloat(pctRange.value) || 0)));
+            updateSavingsWarn();
+        });
+    }
+    if (amtRange) {
+        amtRange.addEventListener("input", () => {
+            input.value = String(Math.max(0, parseFloat(amtRange.value) || 0));
+            updateSavingsWarn();
+        });
+    }
+    input.addEventListener("input", onInput);
     document.querySelectorAll('input[name="wzSavingsMode"]').forEach((r) => {
         r.addEventListener("change", sync);
     });
     sync();
+}
+
+function updateSavingsAmtMax() {
+    const amtRange = document.getElementById("wzSavingsAmtRange");
+    if (!amtRange) return;
+    const gross = parseFloat(document.getElementById("wzGross")?.value) || 0;
+    const max = Math.floor(gross / 2 / 50) * 50;
+    amtRange.max = String(Math.max(0, max));
+    if ((radioChecked("wzSavingsMode") || "pct") === "amount") {
+        const input = document.getElementById("wzSavings");
+        amtRange.value = String(Math.min(amtRange.max, Math.max(0, parseFloat(input?.value) || 0)));
+    }
+    updateSavingsWarn();
+}
+
+function updateSavingsWarn() {
+    const warn = document.getElementById("wzSavingsWarn");
+    if (!warn) return;
+    let msg = "";
+    if ((radioChecked("wzSavingsMode") || "pct") === "amount") {
+        const amount = parseFloat(document.getElementById("wzSavings")?.value) || 0;
+        const gross = parseFloat(document.getElementById("wzGross")?.value) || 0;
+        const notWorking = radioChecked("wzEmployment") === "niepracujacy";
+        if (notWorking && amount > 0) {
+            msg = "Nie pracujesz — skąd pochodzić będą te wpłaty?";
+        } else if (amount > gross) {
+            msg = "Odkładasz więcej, niż wynosi pensja brutto (" + Math.round(gross) + " zł/mc).";
+        }
+    }
+    warn.textContent = msg;
+    warn.hidden = msg === "";
 }
 
 function initEmploymentToggle() {
@@ -432,8 +487,9 @@ function initEmploymentToggle() {
         group.querySelectorAll(".stepper").forEach((b) => (b.disabled = disabled));
         if (range) {
             range.disabled = disabled;
-            range.value = String(Math.min(24000, Math.max(0, parseFloat(gross.value) || 0)));
+            range.value = String(Math.min(50000, Math.max(0, parseFloat(gross.value) || 0)));
         }
+        updateSavingsAmtMax();
     };
     document.querySelectorAll('input[name="wzEmployment"]').forEach((r) => {
         r.addEventListener("change", sync);
@@ -443,14 +499,19 @@ function initEmploymentToggle() {
 
 // Suwak + pole liczbowe: pole pozostaje kanonem wartości, suwak je synchronizuje
 // (ruch suwaka → pole zaokrąglone do kroku; wpisanie → pozycja suwaka).
-function bindSliderRange(range, input, min, max) {
+function bindSliderRange(range, input, min, max, onChange) {
     if (!range || !input) return;
     const clamp = (v) => Math.min(max, Math.max(min, v));
+    const after = () => {
+        if (typeof onChange === "function") onChange();
+    };
     range.addEventListener("input", () => {
         input.value = String(clamp(parseFloat(range.value) || min));
+        after();
     });
     input.addEventListener("input", () => {
         range.value = String(clamp(parseFloat(input.value) || min));
+        after();
     });
 }
 
@@ -814,8 +875,8 @@ function initWizard() {
     initSteppers();
     initSavingsMode();
     initEmploymentToggle();
-    bindSliderRange(document.getElementById("wzGrossRange"), document.getElementById("wzGross"), 0, 24000);
-    bindSliderRange(document.getElementById("wzSavingsRange"), document.getElementById("wzSavings"), 0, 50);
+    bindSliderRange(document.getElementById("wzGrossRange"), document.getElementById("wzGross"), 0, 50000, updateSavingsAmtMax);
+    bindSliderRange(document.getElementById("wzAgeRange"), document.getElementById("wzAge"), 16, 90);
     initStrategy();
     syncPathUI();
     document.querySelectorAll('input[name="wzPath"]').forEach((r) => {

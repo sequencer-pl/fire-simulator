@@ -92,21 +92,66 @@ const harness = `
         const titles = panels.map((p) => p.querySelector(".wz-panel-title")?.textContent.trim());
         return JSON.stringify(titles) === JSON.stringify(["Ty", "Praca i dochód", "Odkładasz miesięcznie"]);
     });
-    check("krok 2: suwak oszczędności tylko w trybie % pensji", () => {
-        const range = document.getElementById("wzSavingsRange");
+    check("krok 2: suwaki oszczędności — tryb % (0-50) i kwota (pensja/2)", () => {
+        const pctRange = document.getElementById("wzSavingsRange");
+        const amtRange = document.getElementById("wzSavingsAmtRange");
         document.querySelector('input[name="wzSavingsMode"][value="pct"]').checked = true;
         document.querySelector('input[name="wzSavingsMode"][value="pct"]').dispatchEvent(new Event("change"));
-        const pctVisible = !!range && !range.classList.contains("hidden")
-            && document.getElementById("wzSavings").max === "50";
+        const pctOk = !!pctRange && !pctRange.classList.contains("hidden")
+            && document.getElementById("wzSavings").max === "50"
+            && amtRange.classList.contains("hidden");
         document.querySelector('input[name="wzSavingsMode"][value="amount"]').checked = true;
         document.querySelector('input[name="wzSavingsMode"][value="amount"]').dispatchEvent(new Event("change"));
-        const amountHidden = !!range && range.classList.contains("hidden")
+        const amtOk = pctRange.classList.contains("hidden")
+            && !!amtRange && !amtRange.classList.contains("hidden")
+            && amtRange.max === "4000"
             && !document.getElementById("wzSavings").hasAttribute("max");
         document.querySelector('input[name="wzSavingsMode"][value="pct"]').checked = true;
         document.querySelector('input[name="wzSavingsMode"][value="pct"]').dispatchEvent(new Event("change"));
         document.getElementById("wzSavings").value = "10";
         document.getElementById("wzSavingsRange").value = "10";
-        return pctVisible === true && amountHidden === true;
+        return pctOk === true && amtOk === true;
+    });
+    check("krok 2: suwak wieku bind (16-90)", () => {
+        const range = document.getElementById("wzAgeRange");
+        const input = document.getElementById("wzAge");
+        if (!range || !input) return false;
+        range.value = "60";
+        range.dispatchEvent(new Event("input", { bubbles: true }));
+        const a = input.value;
+        input.value = "25";
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+        const b = range.value;
+        input.value = "40";
+        return range.min === "16" && range.max === "90" && a === "60" && b === "25";
+    });
+    check("krok 2: pensja suwak max 50000 + bind", () => {
+        const range = document.getElementById("wzGrossRange");
+        const input = document.getElementById("wzGross");
+        if (!range || !input) return false;
+        range.value = "46000";
+        range.dispatchEvent(new Event("input", { bubbles: true }));
+        const a = input.value;
+        input.value = "32000";
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+        const b = range.value;
+        input.value = "8000";
+        return range.max === "50000" && a === "46000" && b === "32000";
+    });
+    check("krok 2: warning przy kwocie > pensji brutto", () => {
+        const warn = document.getElementById("wzSavingsWarn");
+        document.querySelector('input[name="wzSavingsMode"][value="amount"]').checked = true;
+        document.querySelector('input[name="wzSavingsMode"][value="amount"]').dispatchEvent(new Event("change"));
+        document.getElementById("wzSavings").value = "9500";
+        document.getElementById("wzSavings").dispatchEvent(new Event("input", { bubbles: true }));
+        const shown = !warn.hidden && warn.textContent.includes("więcej");
+        document.getElementById("wzSavings").value = "3000";
+        document.getElementById("wzSavings").dispatchEvent(new Event("input", { bubbles: true }));
+        const hidden = warn.hidden;
+        document.querySelector('input[name="wzSavingsMode"][value="pct"]').checked = true;
+        document.querySelector('input[name="wzSavingsMode"][value="pct"]').dispatchEvent(new Event("change"));
+        document.getElementById("wzSavings").value = "10";
+        return shown === true && hidden === true;
     });
 
     // ---- Pkt 4/5: struktura kroku 4 ----

@@ -1576,6 +1576,7 @@ body[data-section="konfiguracja"] a.nav-item[data-nav="konfiguracja"] {
 
 .form-msg.ok { color: var(--success); }
 .form-msg.err { color: var(--danger); }
+.form-msg.warn { color: var(--orange); }
 
 /* --- Dedicated login page --- */
 .login-section {
