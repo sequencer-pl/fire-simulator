@@ -164,43 +164,53 @@
     <!-- KROK 5: CELE I HORYZONT -->
     <section class="wz-step hidden" data-step="5">
         <h2>Cel i horyzont</h2>
-        <p class="subtitle">Ustaw cel i horyzont — asystent wstecznie wyliczy resztę Twojej ścieżki.</p>
-        <div class="wz-fields">
-            <div class="field-group" id="wzGoalField">
-                <label>Cel wypłaty miesięcznej (netto, zł)</label>
-                <div class="num-control">
-                    <button type="button" class="stepper stepper-down" tabindex="-1" aria-label="Zmniejsz cel">&minus;</button>
-                    <input type="number" id="wzTarget" class="acc-field" value="6000" min="100" step="100">
-                    <button type="button" class="stepper stepper-up" tabindex="-1" aria-label="Zwiększ cel">+</button>
+        <p class="subtitle">Określ cel wypłat i horyzont planu — resztę ścieżki wyliczymy wstecz.</p>
+        <div class="wz-panel">
+            <div class="wz-rows">
+                <div class="wz-field-block" id="wzGoalField">
+                    <label>Cel wypłaty miesięcznej (netto, zł)</label>
+                    <div class="wz-slider">
+                        <div class="num-control">
+                            <button type="button" class="stepper stepper-down" tabindex="-1" aria-label="Zmniejsz cel">&minus;</button>
+                            <input type="number" id="wzTarget" class="acc-field" value="6000" min="100" max="50000" step="100">
+                            <button type="button" class="stepper stepper-up" tabindex="-1" aria-label="Zwiększ cel">+</button>
+                        </div>
+                        <input type="range" id="wzTargetRange" min="0" max="50000" step="250" value="6000" aria-label="Cel wypłaty miesięcznej (netto, zł)">
+                    </div>
                 </div>
-                <p class="wz-hint">Ile netto miesięcznie chcesz wypłacać po przejściu na FIRE.</p>
-            </div>
-            <div class="field-group" id="wzReGroup">
-                <label>Wiek przejścia na FIRE</label>
-                <div class="num-control">
-                    <button type="button" class="stepper stepper-down" tabindex="-1" aria-label="Zmniejsz wiek FIRE">&minus;</button>
-                    <input type="number" id="wzRe" class="acc-field" value="55" min="0" max="110">
-                    <button type="button" class="stepper stepper-up" tabindex="-1" aria-label="Zwiększ wiek FIRE">+</button>
+                <div class="wz-field-block" id="wzReGroup">
+                    <label>Wiek przejścia na FIRE</label>
+                    <div class="wz-slider">
+                        <div class="num-control">
+                            <button type="button" class="stepper stepper-down" tabindex="-1" aria-label="Zmniejsz wiek FIRE">&minus;</button>
+                            <input type="number" id="wzRe" class="acc-field" value="55" min="16" max="95">
+                            <button type="button" class="stepper stepper-up" tabindex="-1" aria-label="Zwiększ wiek FIRE">+</button>
+                        </div>
+                        <input type="range" id="wzReRange" min="16" max="95" step="1" value="55" aria-label="Wiek przejścia na FIRE">
+                    </div>
                 </div>
-                <p class="wz-hint">Koniec fazy akumulacji — od tego momentu żyjesz z kapitału.</p>
-            </div>
-            <div class="field-group">
-                <label>Wiek emerytury</label>
-                <div class="num-control">
-                    <button type="button" class="stepper stepper-down" tabindex="-1" aria-label="Zmniejsz wiek emerytury">&minus;</button>
-                    <input type="number" id="wzRetirement" class="acc-field" placeholder="domyślny" min="0" max="110" data-empty="65">
-                    <button type="button" class="stepper stepper-up" tabindex="-1" aria-label="Zwiększ wiek emerytury">+</button>
+                <div class="wz-field-block">
+                    <label title="Ustawowy wiek emerytalny: 60 lat (kobiety) / 65 lat (mężczyźni) — możesz go zmienić">Wiek emerytury</label>
+                    <div class="wz-slider">
+                        <div class="num-control">
+                            <button type="button" class="stepper stepper-down" tabindex="-1" aria-label="Zmniejsz wiek emerytury">&minus;</button>
+                            <input type="number" id="wzRetirement" class="acc-field" value="65" min="50" max="95">
+                            <button type="button" class="stepper stepper-up" tabindex="-1" aria-label="Zwiększ wiek emerytury">+</button>
+                        </div>
+                        <input type="range" id="wzRetirementRange" min="50" max="95" step="1" value="65" aria-label="Wiek emerytury">
+                    </div>
                 </div>
-                <p class="wz-hint">Wiek przejścia na emeryturę ustawową — zostaw puste, by użyć wieku ZUS.</p>
-            </div>
-            <div class="field-group">
-                <label>Koniec planu</label>
-                <div class="num-control">
-                    <button type="button" class="stepper stepper-down" tabindex="-1" aria-label="Zmniejsz wiek końca planu">&minus;</button>
-                    <input type="number" id="wzPlanEnd" class="acc-field" value="96" min="1" max="120">
-                    <button type="button" class="stepper stepper-up" tabindex="-1" aria-label="Zwiększ wiek końca planu">+</button>
+                <div class="wz-field-block">
+                    <label title="Domyślnie: obecny wiek + średnie dalsze trwanie życia wg płci (GUS)">Koniec planu</label>
+                    <div class="wz-slider">
+                        <div class="num-control">
+                            <button type="button" class="stepper stepper-down" tabindex="-1" aria-label="Zmniejsz wiek końca planu">&minus;</button>
+                            <input type="number" id="wzPlanEnd" class="acc-field" value="96" min="1" max="120">
+                            <button type="button" class="stepper stepper-up" tabindex="-1" aria-label="Zwiększ wiek końca planu">+</button>
+                        </div>
+                        <input type="range" id="wzPlanEndRange" min="65" max="115" step="1" value="96" aria-label="Koniec planu">
+                    </div>
                 </div>
-                <p class="wz-hint">Do tego wieku trwa wypłata z kapitału (planowanie dożywotnie).</p>
             </div>
         </div>
     </section>

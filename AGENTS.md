@@ -107,6 +107,16 @@ bez TypeScript), SQLite, pytest. Odpowiadaj i pisz UI po polsku.
   etykieta | % | zł w jednej linii przy prawym brzegu, suwak pełnej szerokości pod
   spodem** (`order: 5`); w trybie auto statyczne „%"/„zł" też do prawego brzegu
   (`.wz-alloc-static`/`.wz-alloc-money { margin-left: auto }`).
+- Krok 5 „Cel i horyzont": 4 pełnowymiarowe wiersze `.wz-slider` w kontenerze
+  `.wz-rows` (pionowy stack, separatory `1px solid var(--border)` między wierszami
+  w każdej szerokości — układ zawsze pionowy; bez hint-podpowiedzi, ewentualny
+  kontekst w `title` labela). Domyślne wartości **wg płci i wieku** przeliczane
+  automatycznie dopóki pola nie były ręcznie edytowane (flagi `wzRetirementTouched`/
+  `wzPlanEndTouched`): „Wiek emerytury" = `RETIREMENT_DEFAULT` (60 k / 65 m, spójne
+  z `config.zus.wiek_emerytalny_*`); „Koniec planu" = wiek + `LIFE_EXPECTANCY`
+  (średnie dalsze trwanie życia wg płci i wieku — GUS, tablica trwania życia za
+  2024 r., dane w wizard.js, to dane UI a nie backendu). Traktuj jak krok 2:
+  `.num-control` PRZED range, `bindSliderRange`.
 
 ### Założenia projektowe układu wierszowego (dlaczego tak — stosuj przy innych widokach)
 

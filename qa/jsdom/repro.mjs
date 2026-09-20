@@ -267,15 +267,52 @@ const harness = `
 
     // ---- Pkt 6: krok 5 ----
     setStep(5);
-    check("krok 5: 4 pola, każde z .num-control i .wz-hint", () => {
-        const groups = [...document.querySelector('.wz-step[data-step="5"] .wz-fields').querySelectorAll(".field-group")];
-        return groups.length === 4 && groups.every((g) => g.querySelector(".num-control .acc-field") && g.querySelector(".wz-hint"));
+    check("krok 5: 4 pola w pełnych wierszach (.wz-slider), bez .wz-hint", () => {
+        const step = document.querySelector('.wz-step[data-step="5"]');
+        const rows = [...step.querySelector(".wz-rows").children];
+        return rows.length === 4
+            && rows.every((r) => r.querySelector(".wz-slider .num-control .acc-field")
+                && r.querySelector('.wz-slider input[type="range"]'))
+            && step.querySelectorAll(".wz-hint").length === 0;
     });
-    check("wiek emerytury: puste -> stepper od data-empty=65", () => {
-        const input = document.getElementById("wzRetirement");
-        input.value = "";
-        input.closest(".num-control").querySelector(".stepper-up").dispatchEvent(new Event("click", { bubbles: true }));
-        return input.value === "66";
+    check("krok 5: domyślne wg płci (m): emerytura 65, koniec planu = wiek + dalsze trwanie życia", () => {
+        const age = document.getElementById("wzAge");
+        age.value = "40";
+        age.dispatchEvent(new Event("input", { bubbles: true }));
+        const retirement = document.getElementById("wzRetirement");
+        const planEnd = document.getElementById("wzPlanEnd");
+        return retirement.value === "65"
+            && document.getElementById("wzRetirementRange").value === "65"
+            && planEnd.value === String(planEndDefault("m", 40))
+            && document.getElementById("wzPlanEndRange").value === planEnd.value;
+    });
+    check("krok 5: zmiana płci (nietknięte) -> emerytura 60, koniec planu wg kobiet", () => {
+        document.querySelector('input[name="wzGender"][value="k"]').click();
+        return document.getElementById("wzRetirement").value === "60"
+            && document.getElementById("wzPlanEnd").value === String(planEndDefault("k", 40));
+    });
+    check("krok 5: zmiana wieku (nietknięty koniec planu) przelicza koniec planu", () => {
+        const age = document.getElementById("wzAge");
+        age.value = "50";
+        age.dispatchEvent(new Event("input", { bubbles: true }));
+        return document.getElementById("wzPlanEnd").value === String(planEndDefault("k", 50));
+    });
+    check("krok 5: ręczna edycja nie jest nadpisywana (płeć i wiek)", () => {
+        const planEnd = document.getElementById("wzPlanEnd");
+        planEnd.value = "100";
+        planEnd.dispatchEvent(new Event("input", { bubbles: true }));
+        document.getElementById("wzAge").dispatchEvent(new Event("input", { bubbles: true }));
+        document.querySelector('input[name="wzGender"][value="m"]').click();
+        return planEnd.value === "100"
+            && document.getElementById("wzRetirement").value === "65";
+    });
+    check("krok 5: ręcznie ustawiona emerytura też nie jest nadpisywana zmianą płci", () => {
+        document.querySelector('input[name="wzGender"][value="k"]').click();
+        const retirement = document.getElementById("wzRetirement");
+        retirement.value = "67";
+        retirement.dispatchEvent(new Event("input", { bubbles: true }));
+        document.querySelector('input[name="wzGender"][value="m"]').click();
+        return retirement.value === "67";
     });
 
     // ---- Pasek nawigacji wz-footer ----

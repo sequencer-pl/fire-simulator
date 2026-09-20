@@ -24,6 +24,48 @@ const WZ_ALWAYS_ON = new Set(["gotowka", "zus"]);
 // contributions come from the salary, never from the discretionary pool.
 const WZ_PAYROLL = new Set(["ppk", "ppe"]);
 
+// Ustawowy wiek emerytalny wg płci (spójny z config.zus.wiek_emerytalny_*).
+const RETIREMENT_DEFAULT = { k: 60, m: 65 };
+
+// Średnie dalsze trwanie życia (lata) wg wieku i płci — GUS, tablica trwania
+// życia za 2024 r. Domyślny „Koniec planu" = obecny wiek + wartość z tabeli.
+const LIFE_EXPECTANCY = {
+    m: {
+        16: 59.4, 17: 58.4, 18: 57.4, 19: 56.5, 20: 55.5,
+        21: 54.5, 22: 53.5, 23: 52.6, 24: 51.6, 25: 50.7,
+        26: 49.7, 27: 48.8, 28: 47.8, 29: 46.9, 30: 45.9,
+        31: 45.0, 32: 44.0, 33: 43.1, 34: 42.2, 35: 41.2,
+        36: 40.3, 37: 39.4, 38: 38.5, 39: 37.5, 40: 36.6,
+        41: 35.7, 42: 34.8, 43: 33.9, 44: 33.0, 45: 32.1,
+        46: 31.2, 47: 30.4, 48: 29.5, 49: 28.6, 50: 27.8,
+        51: 26.9, 52: 26.1, 53: 25.2, 54: 24.4, 55: 23.6,
+        56: 22.8, 57: 22.1, 58: 21.3, 59: 20.5, 60: 19.8,
+        61: 19.1, 62: 18.4, 63: 17.7, 64: 17.0, 65: 16.3,
+        66: 15.7, 67: 15.0, 68: 14.4, 69: 13.8, 70: 13.2,
+        71: 12.6, 72: 12.1, 73: 11.5, 74: 10.9, 75: 10.4,
+        76: 9.9, 77: 9.4, 78: 8.8, 79: 8.4, 80: 7.9,
+        81: 7.4, 82: 7.0, 83: 6.5, 84: 6.1, 85: 5.7,
+        86: 5.4, 87: 5.0, 88: 4.7, 89: 4.4, 90: 4.2,
+    },
+    k: {
+        16: 66.6, 17: 65.6, 18: 64.7, 19: 63.7, 20: 62.7,
+        21: 61.7, 22: 60.7, 23: 59.7, 24: 58.8, 25: 57.8,
+        26: 56.8, 27: 55.8, 28: 54.8, 29: 53.8, 30: 52.8,
+        31: 51.9, 32: 50.9, 33: 49.9, 34: 48.9, 35: 48.0,
+        36: 47.0, 37: 46.0, 38: 45.0, 39: 44.1, 40: 43.1,
+        41: 42.1, 42: 41.2, 43: 40.2, 44: 39.3, 45: 38.3,
+        46: 37.4, 47: 36.4, 48: 35.5, 49: 34.5, 50: 33.6,
+        51: 32.6, 52: 31.7, 53: 30.8, 54: 29.9, 55: 29.0,
+        56: 28.1, 57: 27.2, 58: 26.3, 59: 25.4, 60: 24.5,
+        61: 23.7, 62: 22.8, 63: 22.0, 64: 21.1, 65: 20.3,
+        66: 19.5, 67: 18.7, 68: 17.9, 69: 17.1, 70: 16.4,
+        71: 15.6, 72: 14.9, 73: 14.1, 74: 13.4, 75: 12.7,
+        76: 12.0, 77: 11.4, 78: 10.7, 79: 10.1, 80: 9.4,
+        81: 8.8, 82: 8.3, 83: 7.7, 84: 7.2, 85: 6.7,
+        86: 6.2, 87: 5.8, 88: 5.4, 89: 5.0, 90: 4.6,
+    },
+};
+
 // Etykiety kont: ACCOUNT_LABELS (sim-metadata.js) + kontekstowe nadpisania (krok 3).
 const WZ_CAPITAL_OVERRIDES = { zus: "ZUS", "zus:ofe": "OFE" };
 
@@ -35,6 +77,8 @@ let wzWeights = {};
 let wzLimits = null;
 let wzStrategyValue = "zbilansowana";
 let wzAllocMode = null;
+let wzRetirementTouched = false;
+let wzPlanEndTouched = false;
 
 function capitalLabel(account) {
     return WZ_CAPITAL_OVERRIDES[account] || ACCOUNT_LABELS[account] || account;
@@ -530,6 +574,57 @@ function bindSliderRange(range, input, min, max, onChange) {
     });
 }
 
+// --- Krok 5: Cel i horyzont (domyślne wg płci i wieku) ----------------------
+
+function planEndDefault(gender, age) {
+    const table = LIFE_EXPECTANCY[gender] || LIFE_EXPECTANCY.m;
+    const years = table[age]
+        ?? (age < 16 ? table[16] : age > 90 ? table[90] : 0);
+    return Math.min(120, Math.max(2, age + Math.round(years)));
+}
+
+function applyStep5Value(input, value) {
+    input.value = String(value);
+    const range = document.getElementById(input.id + "Range");
+    if (range) {
+        const lo = parseFloat(range.min) ?? value;
+        const hi = parseFloat(range.max) ?? value;
+        range.value = String(Math.min(hi, Math.max(lo, value)));
+    }
+}
+
+function applyGenderDefaults() {
+    const gender = radioChecked("wzGender") || "m";
+    const age = parseInt(document.getElementById("wzAge")?.value, 10) || 0;
+    const retirement = document.getElementById("wzRetirement");
+    const planEnd = document.getElementById("wzPlanEnd");
+    if (retirement && !wzRetirementTouched) applyStep5Value(retirement, RETIREMENT_DEFAULT[gender]);
+    if (planEnd && !wzPlanEndTouched) applyStep5Value(planEnd, planEndDefault(gender, age));
+}
+
+function initGoalHorizon() {
+    bindSliderRange(document.getElementById("wzTargetRange"), document.getElementById("wzTarget"), 0, 50000);
+    bindSliderRange(document.getElementById("wzReRange"), document.getElementById("wzRe"), 16, 95);
+    bindSliderRange(document.getElementById("wzRetirementRange"), document.getElementById("wzRetirement"), 50, 95);
+    bindSliderRange(document.getElementById("wzPlanEndRange"), document.getElementById("wzPlanEnd"), 65, 115);
+    ["wzRetirement", "wzRetirementRange"].forEach((id) => {
+        document.getElementById(id)?.addEventListener("input", () => { wzRetirementTouched = true; });
+    });
+    ["wzPlanEnd", "wzPlanEndRange"].forEach((id) => {
+        document.getElementById(id)?.addEventListener("input", () => { wzPlanEndTouched = true; });
+    });
+    document.querySelectorAll('input[name="wzGender"]').forEach((r) => {
+        r.addEventListener("change", applyGenderDefaults);
+    });
+    document.getElementById("wzAge")?.addEventListener("input", () => {
+        if (wzPlanEndTouched) return;
+        const gender = radioChecked("wzGender") || "m";
+        const age = parseInt(document.getElementById("wzAge").value, 10) || 0;
+        applyStep5Value(document.getElementById("wzPlanEnd"), planEndDefault(gender, age));
+    });
+    applyGenderDefaults();
+}
+
 // --- Allocation step (Gotówka as the default sink) ---------------------------
 
 function round2(v) {
@@ -901,6 +996,7 @@ function initWizard() {
     initEmploymentToggle();
     bindSliderRange(document.getElementById("wzGrossRange"), document.getElementById("wzGross"), 0, 50000, updateSavingsAmtMax);
     bindSliderRange(document.getElementById("wzAgeRange"), document.getElementById("wzAge"), 16, 90);
+    initGoalHorizon();
     initStrategy();
     syncPathUI();
     document.querySelectorAll('input[name="wzPath"]').forEach((r) => {
