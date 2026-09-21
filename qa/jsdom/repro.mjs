@@ -259,10 +259,88 @@ const harness = `
     });
 
     // ---- suggest ----
-    check("Zaproponuj podział: 2 wiersze, bez gotówki w wagach", async () => {
+    check("Zaproponuj: 2 wiersze, bez gotówki w wagach", async () => {
         await runSuggestAllocation();
         return document.querySelectorAll("#wzAllocGrid .wz-alloc-row").length === 2
             && !Object.keys(wzWeights).includes("gotowka");
+    });
+
+    // ---- bug: usuwanie instrumentu czyści wagę (martwe udziały nie wracają) ----
+    check("Usuń wiersz czyści wagę — gotówka rośnie o usunięty udział", () => {
+        wzPill.clear();
+        Object.keys(wzWeights).forEach((k) => delete wzWeights[k]);
+        ["broker", "lokata", "ike"].forEach((a) => wzPill.add(a));
+        buildAllocationStep();
+        setWzWeight("broker", 25); setWzWeight("lokata", 50); setWzWeight("ike", 25);
+        document.querySelector('.wz-alloc-grid .wz-pill-remove[aria-label="Usuń Lokata"]').click();
+        const cashMid = document.querySelector("#wzAllocCashRow input[type=range]").value;
+        document.querySelector('.wz-alloc-grid .wz-pill-remove[aria-label="Usuń Broker"]').click();
+        document.querySelector('.wz-alloc-grid .wz-pill-remove[aria-label="Usuń IKE"]').click();
+        const cash = document.querySelector("#wzAllocCashRow input[type=range]").value;
+        const total = Object.values(collectAllocations()).reduce((a, b) => a + (b || 0), 0);
+        return cashMid === "50" && cash === "100" && total === 0 && wzPill.size === 0;
+    });
+    check("regresja: po usunięciu i domieszaniu % suma ≤ 100 (bez błędu sugerowania)", () => {
+        wzPill.clear();
+        Object.keys(wzWeights).forEach((k) => delete wzWeights[k]);
+        ["broker", "lokata", "ike"].forEach((a) => wzPill.add(a));
+        buildAllocationStep();
+        setWzWeight("broker", 25); setWzWeight("lokata", 50); setWzWeight("ike", 25);
+        document.querySelector('.wz-alloc-grid .wz-pill-remove[aria-label="Usuń Lokata"]').click();
+        document.querySelector('.wz-alloc-grid .wz-pill-remove[aria-label="Usuń IKE"]').click();
+        setWzWeight("broker", 100);
+        const total = Object.values(collectAllocations()).reduce((a, b) => a + (b || 0), 0);
+        return total <= 100.001
+            && wzWeights["lokata"] == null && wzWeights["ike"] == null
+            && !Object.keys(collectAllocations()).includes("lokata");
+    });
+
+    // ---- gate kroku 4: wymóg wyboru trybu ----
+    check("krok 4: bez trybu „Dalej” zablokowane + tooltip; klik pokazuje dymek; tryb odblokowuje", () => {
+        wzAllocMode = null;
+        setStep(4);
+        const next = document.getElementById("wzNextBtn");
+        const tip = document.getElementById("wzNextTip");
+        const pop = document.getElementById("wzNextPop");
+        const blocked = next.disabled === true && tip && tip.title.trim().length > 0
+            && tip.classList.contains("is-locked");
+        tip.dispatchEvent(new Event("click", { bubbles: true }));
+        const popShown = pop && !pop.hidden && pop.textContent === tip.title;
+        setAllocMode("manual");
+        return blocked && popShown && next.disabled === false && tip.title === ""
+            && pop.hidden === true && !tip.classList.contains("is-locked");
+    });
+    check("gate: powrót na krok 1 odblokowuje „Dalej” (stan nie przykleja się)", () => {
+        setStep(1);
+        return document.getElementById("wzNextBtn").disabled === false;
+    });
+    check("gate: klik „Dalej” z kroku 3 nie pokazuje dymka (bubbling po setStep)", () => {
+        wzAllocMode = null;
+        setStep(3);
+        const pop = document.getElementById("wzNextPop");
+        document.getElementById("wzNextBtn").click();
+        return wzNavStep === 4
+            && document.getElementById("wzNextBtn").disabled === true
+            && pop && pop.hidden === true;
+    });
+    check("gate: nagłówek podziału (pula oszczędności) widoczny od wejścia na krok 4 — przed wyborem trybu", () => {
+        wzAllocMode = null;
+        setStep(4);
+        const header = document.getElementById("wzAllocHeader");
+        const note = document.getElementById("wzAllocCashNote");
+        const panel = document.getElementById("wzAllocPanel");
+        return wzNavStep === 4
+            && header && header.textContent.trim().length > 0
+            && header.textContent.trim().includes("zł/mies")
+            && note && note.hidden === false
+            && panel && panel.classList.contains("hidden");
+    });
+    check("strategie: emoji w labelach + nazwa Zrównoważona", () => {
+        const labelsOnes = document.querySelectorAll('.wz-alloc-strategy-options .gender-option');
+        return labelsOnes.length === 3
+            && [...labelsOnes].some((l) => l.textContent.includes("🛡️"))
+            && [...labelsOnes].some((l) => l.textContent.includes("⚖️") && l.textContent.includes("Zrównoważona"))
+            && [...labelsOnes].some((l) => l.textContent.includes("🚀"));
     });
 
     // ---- Pkt 6: krok 5 ----

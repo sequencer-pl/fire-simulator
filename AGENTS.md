@@ -93,10 +93,17 @@ bez TypeScript), SQLite, pytest. Odpowiadaj i pisz UI po polsku.
 - Panel bez pary „opcja|wartość" (np. Strategia w kroku 4): pigułki `.gender-options`
   rozciągnięte na CAŁĄ szerokość panelu (komórka = panel) — to nie jest slot; do
   niego nie stosuje się reguły `300px 1fr`. Przyciski akcji pod selektorem
-  (`.wz-strategy-actions`: „Podziel ręcznie"/„Zaproponuj podział", `space-between`,
+  (`.wz-strategy-actions`: „Podziel ręcznie"/„Zaproponuj", `space-between`,
   jedna wysokość `.btn nowrap`). Panele „Podział"/„Dodaj instrument"/„Wpłaty z pensji"
   są **bramkowane trybem** (`wzAllocMode`, auto/manual) — przed wyborem ukryte.
-  „Zaproponuj podział" (`.btn-gradient`) = tryb **auto**: stawia sugestię wg
+  Podtytuł kroku (`#wzAllocHeader`, subscript „Odkładasz X zł/mies…”/
+  „Kliknij Wylicz plan…") jest renderowany przy KAŻDYM wejściu na krok 4
+  (`setStep` → `buildAllocationStep`), więc pula oszczędności jest widoczna
+  zanim użytkownik wybierze tryb. Podtytuł to `.wz-alloc-head` z dwoma
+  wierszami: pula (`.wz-alloc-pool`, kwota `<strong>` w kolorze `--primary`)
+  + nota Gotówka (`#wzAllocCashNote`, widoczna gdy pula znana). Emotki przy
+  nazwach strategii (🛡️ / ⚖️ / 🚀) — w labelach radio.
+  „Zaproponuj" (`.btn-gradient`) = tryb **auto**: stawia sugestię wg
   pojemności limitów (`suggest_allocations`/`STRATEGY_SUGGEST`, planner.py) i pokazuje
   TYLKO sekcję „Podział" w **read-only** (statyczne wiersze `.wz-alloc-readonly`,
   bez suwaków, pigułek i „wpłat z pensji"; przycisk `aria-pressed`). „Podziel ręcznie"
@@ -107,6 +114,22 @@ bez TypeScript), SQLite, pytest. Odpowiadaj i pisz UI po polsku.
   etykieta | % | zł w jednej linii przy prawym brzegu, suwak pełnej szerokości pod
   spodem** (`order: 5`); w trybie auto statyczne „%"/„zł" też do prawego brzegu
   (`.wz-alloc-static`/`.wz-alloc-money { margin-left: auto }`).
+  Wybór trybu jest **wymagany**: bez niego „Dalej" jest wyłączony
+  (`wzNextBtn.disabled`, `.btn:disabled`), a wyjaśnienie jest tylko tooltipem
+  (natywny `title` na wrapperze `.wz-next-tip` — na disabled buttonie title się
+  nie pokazuje) oraz **dymkiem po kliknięciu** (`.wz-next-pop`, `role=status`,
+  klika się wrapper, bo `#wzNextBtn:disabled { pointer-events: none }`; tekst
+  współdzielony przez stałą `ALLOC_GATE_MSG`, auto-ukrycie ~4 s) — refresh
+  bramki w `updateFooterNav`/`setAllocMode`/`runSuggestAllocation.finally`,
+  a `validateStep(4)` to siatka bezpieczeństwa (`allocReady()` =
+  `wzAllocMode != null`). Na **≤640px selektor Strategii zmienia się w pionową
+  radio-listę** (pełnowymiarowe wiersze z `border`, kontener bez obramowania;
+  na >640px zostaje segment).
+  Usuwanie instrumentu („Usuń"/pastylka) czyści też wagę
+  (`deactivateAllocAccount`/`togglePill` — `delete wzWeights[acc]`), a
+  `collectAllocations` pomija wagi nieaktywnych kont
+  (`isCapActive(acc) && wzWeights[acc] > 0`) — martwe udziały nigdy nie wracają
+  do sumy (inaczej sugerowanie/plan potrafiły błędnie przekroczyć 100%).
 - Krok 5 „Cel i horyzont": 4 pełnowymiarowe wiersze `.wz-slider` w kontenerze
   `.wz-rows` (pionowy stack, separatory `1px solid var(--border)` między wierszami
   w każdej szerokości — układ zawsze pionowy; bez hint-podpowiedzi, ewentualny

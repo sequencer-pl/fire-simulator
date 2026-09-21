@@ -134,6 +134,42 @@
     padding-inline: 1.75rem;
 }
 
+/* Zablokowany „Dalej” (bramka kroku 4): klik trafia w wrapper,
+   żeby pokazać dymek z wyjaśnieniem (pointer-events wyłącznie tu). */
+.wz-next-tip {
+    position: relative;
+    display: inline-flex;
+}
+
+.wz-next-tip.is-locked {
+    cursor: not-allowed;
+}
+
+#wzNextBtn:disabled {
+    pointer-events: none;
+}
+
+.wz-next-pop {
+    position: absolute;
+    bottom: calc(100% + 8px);
+    right: 0;
+    z-index: 60;
+    width: max-content;
+    max-width: 280px;
+    padding: 0.6rem 0.75rem;
+    font-size: var(--fs-sm);
+    line-height: 1.4;
+    color: var(--text);
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
+}
+
+.wz-next-pop[hidden] {
+    display: none;
+}
+
 .wz-rows {
     display: grid;
     gap: 0.6rem 1.5rem;
@@ -331,6 +367,19 @@
 
 .wz-alloc-strategy-options .gender-option {
     flex: 1 0 auto;
+}
+
+.wz-alloc-head {
+    margin-bottom: var(--sp-6);
+}
+
+.wz-alloc-head .subtitle {
+    margin-bottom: 0.25rem;
+}
+
+.wz-alloc-pool strong {
+    color: var(--primary);
+    font-weight: 700;
 }
 
 .wz-alloc-cash-row {
@@ -667,6 +716,26 @@
 @media (max-width: 640px) {
     .wizard {
         padding: var(--sp-4) var(--sp-4) max(5.5rem, calc(4.75rem + env(safe-area-inset-bottom)));
+    }
+    .wz-alloc-strategy-options {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.4rem;
+        border: none;
+        border-radius: 0;
+        overflow: visible;
+        background: transparent;
+    }
+    .wz-alloc-strategy-options .gender-option {
+        width: 100%;
+        justify-content: flex-start;
+        padding: 0.6rem 0.75rem;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        background: var(--bg);
+    }
+    .wz-alloc-strategy-options .gender-option:has(input:checked) {
+        border-color: var(--primary);
     }
     .wz-footer .btn {
         min-height: 44px;

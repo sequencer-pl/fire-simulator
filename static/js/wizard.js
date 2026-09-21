@@ -130,9 +130,18 @@ function togglePill(account) {
     const on = isCapActive(account);
     if (on && !WZ_ALWAYS_ON.has(account) && capitalSaldo(account) <= 0) {
         wzPill.delete(account);
+        delete wzWeights[account];
     } else if (!on) {
         wzPill.add(account);
     }
+}
+
+// Dezaktywacja instrumentu (przycisk „Usuń” wiersza / payroll) — czyści też
+// wagę, żeby martwe udziały nie wracały do sumy (collectAllocations, suggest).
+function deactivateAllocAccount(acc) {
+    wzPill.delete(acc);
+    delete wzWeights[acc];
+    buildAllocationStep();
 }
 
 function collectAnswers() {
@@ -176,7 +185,7 @@ function collectAnswers() {
 function collectAllocations() {
     const alloc = {};
     Object.keys(wzWeights).forEach((acc) => {
-        if (wzWeights[acc] > 0) alloc[acc] = wzWeights[acc];
+        if (isCapActive(acc) && wzWeights[acc] > 0) alloc[acc] = wzWeights[acc];
     });
     return alloc;
 }
@@ -196,9 +205,10 @@ function setStep(n, focus = false) {
     bar.setAttribute("aria-valuenow", String(n));
     window.scrollTo({ top: 0, behavior: "smooth" });
     if (n === 4) {
-        if (wzAllocMode) {
-            buildAllocationStep();
-        } else {
+        // Nagłówek podziału (pula oszczędności) renderuj przy każdym wejściu —
+        // ma być widoczny zanim użytkownik wybierze tryb podziału.
+        buildAllocationStep();
+        if (!wzAllocMode) {
             ["wzAllocPanel", "wzAllocPillsPanel", "wzPayrollPanel"].forEach((id) => {
                 const el = document.getElementById(id);
                 if (el) el.classList.add("hidden");
@@ -218,7 +228,11 @@ function setStep(n, focus = false) {
 
 function validateStep(n) {
     if (n === 4) {
-        const total = Object.values(wzWeights).reduce((a, b) => a + (b || 0), 0);
+        if (!allocReady()) {
+            alert("Wybierz „Zaproponuj” albo „Podziel ręcznie”, zanim przejdziesz dalej.");
+            return false;
+        }
+        const total = Object.values(collectAllocations()).reduce((a, b) => a + (b || 0), 0);
         if (total > 100 + 1e-6) {
             alert("Suma udziałów przekracza 100%. Zmniejsz któreś z kont albo zostaw resztę w gotówce.");
             return false;
@@ -253,6 +267,51 @@ function validateStep(n) {
         return wzPlan !== null;
     }
     return true;
+}
+
+// --- Bramka kroku 4: wybór trybu podziału przed przejściem dalej -------------
+
+function allocReady() {
+    return wzAllocMode != null;
+}
+
+const ALLOC_GATE_MSG = "Rozdziel środki, aby przejść dalej — wybierz „Zaproponuj” albo „Podziel ręcznie”. Bez tego całość trafi do Gotówki.";
+
+let wzPopTimer = null;
+
+function showAllocGatePop() {
+    const pop = document.getElementById("wzNextPop");
+    if (pop) {
+        pop.hidden = false;
+        pop.textContent = ALLOC_GATE_MSG;
+        if (wzPopTimer) clearTimeout(wzPopTimer);
+        wzPopTimer = setTimeout(() => {
+            pop.hidden = true;
+            wzPopTimer = null;
+        }, 4000);
+    }
+}
+
+function refreshAllocGate() {
+    const ready = allocReady();
+    const next = document.getElementById("wzNextBtn");
+    if (next) next.disabled = wzNavStep === 4 && !ready;
+    // Tooltip na wrapperze przycisku (natywny title na disabled button
+    // nie pokazuje się w większości przeglądarek).
+    const tip = document.getElementById("wzNextTip");
+    if (tip) {
+        const locked = wzNavStep === 4 && !ready;
+        tip.title = locked ? ALLOC_GATE_MSG : "";
+        tip.classList.toggle("is-locked", locked);
+    }
+    const pop = document.getElementById("wzNextPop");
+    if (pop) {
+        if (wzPopTimer) {
+            clearTimeout(wzPopTimer);
+            wzPopTimer = null;
+        }
+        pop.hidden = true;
+    }
 }
 
 function renderWarnings(list) {
@@ -425,6 +484,11 @@ function updateFooterNav(n) {
         next.textContent = "Przejdź do symulatora";
     } else {
         next.textContent = "Dalej";
+    }
+if (n === 4) {
+        refreshAllocGate();
+    } else {
+        next.disabled = false;
     }
 }
 
@@ -711,15 +775,15 @@ function refreshAllocationDisplay() {
     document.querySelectorAll(".wz-alloc-row:not(.wz-alloc-cash-row)").forEach((r) => r.classList.toggle("is-over", over));
 
     const header = document.getElementById("wzAllocHeader");
+    const cashNote = document.getElementById("wzAllocCashNote");
     if (header) {
         if (!poolKnown) {
             header.innerHTML = `Kliknij <strong>„Wylicz plan”</strong> w kroku Wynik — pula oszczędności zostanie wyznaczona z Twojego celu wypłaty.`;
         } else {
-            header.innerHTML = `Odkładasz <strong>${fmtZloty(poolMonthly)} zł/mies.</strong> ` +
-                `(${fmtZloty(poolAnnual)} zł/rok). Na start wszystko zostaje w <strong>Gotówce</strong> ` +
-                `— przypisz udział, gdzie ma trafiać.`;
+            header.innerHTML = `Odkładasz <strong>${fmtZloty(poolMonthly)} zł/mies. (${fmtZloty(poolAnnual)} zł/rok)</strong>`;
         }
     }
+    if (cashNote) cashNote.hidden = !poolKnown;
 
     const remainingMoney = poolKnown ? Math.max(0, poolMonthly - effectiveTotal / 12) : 0;
     const remainingPct = Math.max(0, 100 - usedPct);
@@ -797,8 +861,7 @@ function buildAllocationStep() {
             rm.textContent = "Usuń";
             rm.setAttribute("aria-label", `Usuń ${label}`);
             rm.addEventListener("click", () => {
-                wzPill.delete(acc);
-                buildAllocationStep();
+                deactivateAllocAccount(acc);
             });
             wrap.appendChild(rm);
         }
@@ -843,8 +906,7 @@ function renderPayrollActive() {
             rm.textContent = "Usuń";
             rm.setAttribute("aria-label", `Usuń ${capitalLabel(acc)}`);
             rm.addEventListener("click", () => {
-                wzPill.delete(acc);
-                buildAllocationStep();
+                deactivateAllocAccount(acc);
             });
             row.appendChild(rm);
         }
@@ -907,6 +969,7 @@ async function runSuggestAllocation() {
         alert("Błąd: " + err.message);
     } finally {
         btn.disabled = false;
+        refreshAllocGate();
     }
 }
 
@@ -919,6 +982,7 @@ function setAllocMode(mode) {
     if (autoBtn) autoBtn.setAttribute("aria-pressed", String(mode === "auto"));
     if (manualBtn) manualBtn.setAttribute("aria-pressed", String(mode === "manual"));
     buildAllocationStep();
+    refreshAllocGate();
 }
 
 async function loadWzLimits() {
@@ -987,6 +1051,20 @@ function initNav() {
     });
     const manualBtn = document.getElementById("wzManualBtn");
     if (manualBtn) manualBtn.addEventListener("click", () => setAllocMode("manual"));
+    const tip = document.getElementById("wzNextTip");
+    if (tip) {
+        tip.addEventListener("click", (e) => {
+            // Tylko fizyczny tap na zablokowany przycisk (pointer-events:none
+            // sprawia, że target to wrapper, nie button). Klik na aktywnym
+            // „Dalej” (nawigacja) bubble'uje tu po setStep — tą ścieżką
+            // nie pokazujemy dymka.
+            if (e.target !== tip) return;
+            if (wzNavStep === 4 && !allocReady()) {
+                e.preventDefault();
+                showAllocGatePop();
+            }
+        });
+    }
 }
 
 function initWizard() {

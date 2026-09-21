@@ -120,18 +120,21 @@
     <!-- KROK 4: PODZIAŁ OSZCZĘDNOŚCI -->
     <section class="wz-step hidden" data-step="4">
         <h2>Podział oszczędności</h2>
-        <p class="subtitle" id="wzAllocHeader"></p>
+        <div class="wz-alloc-head">
+            <p class="subtitle wz-alloc-pool" id="wzAllocHeader"></p>
+            <p class="subtitle wz-alloc-cash-note" id="wzAllocCashNote" hidden>Na start wszystko zostaje w <strong>Gotówce</strong> — przydziel środki między instrumenty.</p>
+        </div>
 
         <div class="wz-alloc-panel">
             <h3 class="wz-panel-title">Strategia</h3>
             <div class="gender-options wz-alloc-strategy-options">
-                <label class="gender-option" title="Niski apetyt na ryzyko — bezpieczne aktywa, mało w ryzykowne"><input type="radio" name="wzStrategy" value="konserwatywna" /> Konserwatywna</label>
-                <label class="gender-option" title="Umiarkowane ryzyko i umiarkowany zysk"><input type="radio" name="wzStrategy" value="zbilansowana" checked /> Zbilansowana</label>
-                <label class="gender-option" title="Wysoki potencjał zysku, większe ryzyko"><input type="radio" name="wzStrategy" value="agresywna" /> Agresywna</label>
+                <label class="gender-option" title="Niski apetyt na ryzyko — bezpieczne aktywa, mało w ryzykowne"><input type="radio" name="wzStrategy" value="konserwatywna" /> 🛡️ Konserwatywna</label>
+                <label class="gender-option" title="Umiarkowane ryzyko i umiarkowany zysk"><input type="radio" name="wzStrategy" value="zbilansowana" checked /> ⚖️ Zrównoważona</label>
+                <label class="gender-option" title="Wysoki potencjał zysku, większe ryzyko"><input type="radio" name="wzStrategy" value="agresywna" /> 🚀 Agresywna</label>
             </div>
             <div class="wz-strategy-actions">
                 <button type="button" class="btn btn-secondary" id="wzManualBtn">Podziel ręcznie</button>
-                <button type="button" class="btn btn-gradient" id="wzAutoBtn">Zaproponuj podział</button>
+                <button type="button" class="btn btn-gradient" id="wzAutoBtn">Zaproponuj</button>
             </div>
         </div>
 
@@ -241,7 +244,7 @@
         </div>
         <span class="wz-step-count" id="wzStepCount">Krok 1 / 7</span>
         <div class="wz-footer-right">
-            <button type="button" class="btn btn-primary" id="wzNextBtn">Dalej</button>
+            <span class="wz-next-tip" id="wzNextTip" title=""><button type="button" class="btn btn-primary" id="wzNextBtn">Dalej</button><div class="wz-next-pop" id="wzNextPop" role="status" aria-live="polite" hidden></div></span>
         </div>
     </nav>
 </div>
