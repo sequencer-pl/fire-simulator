@@ -8,6 +8,6 @@
     "test": "node repro.mjs"
   },
   "dependencies": {
-    "jsdom": "^24.1.3"
+    "jsdom": "^30.1.1"
   }
 }
