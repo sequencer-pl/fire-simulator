@@ -41,25 +41,6 @@
                 <span class="landing-card-arrow">→</span>
             </a>
         </section>
-
-        <section class="landing-session">
-            {% include "_auth_panel.html" %}
-            <div id="recentSection" class="hidden">
-                <div class="recent-head">
-                    <h2>Ostatnie symulacje</h2>
-                    <a href="/moje-symulacje" class="recent-all">Zobacz wszystkie →</a>
-                </div>
-                <p id="greetingText" class="greeting"></p>
-                <div id="recentList" class="recent-list"></div>
-                <div id="recentEmpty" class="empty-state empty-cta hidden">
-                    <p>Nie masz jeszcze zapisanych symulacji.</p>
-                    <div class="empty-actions">
-                        <a href="/sim" class="btn btn-primary">Stwórz pierwszą symulację</a>
-                        <a href="/wizard" class="btn btn-gradient">Wypróbuj Asystenta</a>
-                    </div>
-                </div>
-            </div>
-        </section>
 {% endblock %}
 {% block scripts %}
     <script src="/static/js/session.js?v={{ version }}"></script>

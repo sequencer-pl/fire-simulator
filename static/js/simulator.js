@@ -319,6 +319,10 @@ function switchMode(mode) {
     document.getElementById("simulatorView").classList.toggle("hidden", mode !== "sim");
     document.getElementById("configView").classList.toggle("hidden", mode !== "config");
     document.body.dataset.section = mode === "config" ? "konfiguracja" : "edytor";
+    const subtitleEl = document.querySelector('.topbar .subtitle');
+    if (subtitleEl) {
+        subtitleEl.textContent = mode === "config" ? "Konfigurator niezależności finansowej" : "Symulator niezależności finansowej";
+    }
     const url = new URL(window.location.href);
     if (mode === "config") {
         url.searchParams.set("view", "config");
