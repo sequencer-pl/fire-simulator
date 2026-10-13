@@ -5,8 +5,7 @@ bez TypeScript), SQLite, pytest. Odpowiadaj i pisz UI po polsku.
 
 ## Pewniki modelu FIRE (aktualne, nie do zmiany bez uzgodnienia)
 
-- **ROI netto wszędzie.** Wszystkie konta rosną według ROI *po* podatkach; podatek
-  naliczany jest od wypłat (`_apply_tax`, engine.py). Wyjątek: lokata
+- **ROI realne (ponad inflacją) wszędzie.** Wszystkie konta rosną według ROI *po* podatkach; podatek od zysków naliczany jest od wypłat (`_apply_tax`, engine.py). Wyjątek: lokata
   (`tax_periodic`) — podatek Belka pobierany w trakcie akumulacji, wzrost już netto
   (użycia `_periodic_net_roi`, engine.py; definicja `periodic_net_roi`, core/roi.py).
 - **Inflacja świadomie pomijana** w większości wyliczeń — wartości realne traktujemy

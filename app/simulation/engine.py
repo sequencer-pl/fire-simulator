@@ -601,7 +601,7 @@ def _accumulate_periodic_multi_year(
     corocznie na STAWCE BRUTTO (bez odejmowania Belki), a Belka pobierana
     jest dopiero na koniec okresu (co term_months mies.). Dzięki temu
     dłuższy termin = rzadsza Belka = realnie wyższe saldo przy tym samym
-    realnym ROI netto (efekt odroczenia podatku / kapitalizacji na brutto).
+    realnym ROI (zwrocie realnym ponad inflacją) (efekt odroczenia podatku / kapitalizacji na brutto).
 
     ROI jest realny netto; Belka liczona jest na nominalnym oprocentowaniu
     brutto wyprowadzonym z realnego ROI + inflacji.

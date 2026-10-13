@@ -1,7 +1,7 @@
 // sim-cards.js — Account card creation and field rendering
 
 function fieldLabelHtml(fieldDef) {
-    const suffix = fieldDef.percent ? (fieldDef.noNetto ? " (%)" : " (netto, %)") : "";
+    const suffix = fieldDef.percent ? (fieldDef.noNetto ? " (%)" : " (realne, %)") : "";
     const tip = fieldDef.hint ? tipHtml(fieldDef.hint) : "";
     return `${fieldDef.label}${suffix}${tip}`;
 }

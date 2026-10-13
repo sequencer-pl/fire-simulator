@@ -107,7 +107,7 @@ ACCOUNT_INFO = {
 FIELD_HINTS = {
     "starting_balance": "Saldo zgromadzone na starcie etapu (przenoszone między etapami).",
     "annual_contribution": "Dopłata wnoszona co roku (równymi ratami przez cały etap).",
-    "roi": "Roczna stopa zwrotu (kapitalizacja odsetek/zysków raz w roku).",
+    "roi": "Roczna stopa zwrotu realna (ponad inflacją), po opłatach i podatkach od zysków (kapitalizacja raz w roku).",
     "buffer": "Kwota, która zostaje na koncie po etapie (nie jest wypłacana).",
     "monthly_base": (
         "Miesięczne wynagrodzenie brutto — podstawa wymiaru składek "
@@ -472,7 +472,7 @@ STAGE_META: dict[str, dict[str, Any]] = {
                         "step": 1,
                         "percent": True,
                         "hint": (
-                            "Roczne oprocentowanie netto realne (po Belce i inflacji) "
+                            "Roczne oprocentowanie realne (ponad inflacją), po Belce i po inflacji "
                             "w dzisiejszych zł; Belka liczona na nominalnym odpowiedniku "
                             "z inflacji globalnej."
                         ),
@@ -520,7 +520,7 @@ STAGE_META: dict[str, dict[str, Any]] = {
                         "step": 1,
                         "percent": True,
                         "hint": (
-                            "Roczna stopa zwrotu. Dla obligacji indeksowanych "
+                            "Roczna stopa zwrotu realna (ponad inflacją). Dla obligacji indeksowanych "
                             "(EDO, COI) wpisz realną marżę ponad inflację (np. 2%)."
                         ),
                     },
@@ -771,7 +771,7 @@ STAGE_META: dict[str, dict[str, Any]] = {
                         "step": 1,
                         "percent": True,
                         "hint": (
-                            "Roczne oprocentowanie netto realne (po Belce i inflacji) "
+                            "Roczne oprocentowanie realne (ponad inflacją), po Belce i po inflacji "
                             "w dzisiejszych zł; Belka liczona na nominalnym odpowiedniku "
                             "z inflacji globalnej."
                         ),
@@ -813,7 +813,7 @@ STAGE_META: dict[str, dict[str, Any]] = {
                         "step": 1,
                         "percent": True,
                         "hint": (
-                            "Roczna stopa zwrotu. Dla obligacji indeksowanych "
+                            "Roczna stopa zwrotu realna (ponad inflacją). Dla obligacji indeksowanych "
                             "(EDO, COI) wpisz realną marżę ponad inflację (np. 2%)."
                         ),
                     },

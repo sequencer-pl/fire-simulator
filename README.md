@@ -28,9 +28,9 @@ Etapy mogą się nakładać (np. IKE + ZUS jednocześnie), a jedno konto może w
 
 Symulator celowo jest **prostym modelem deterministycznym**, a nie symulacją Monte Carlo. To, czego nie modeluje, jest równie ważne jak to, co modeluje:
 
-1. **Wszystko w dzisiejszych złotych, inflacja tylko do podatków.** Silnik przechowuje i pokazuje wyniki w sile nabywczej (realnie). `ROI` wpisujesz **realnie netto** (po Belce i po inflacji), a globalna `inflacja` (`Konfiguracja → Skala podatkowa`, domyślnie 2,5% w presetach) służy tylko do wyliczenia nominalnego podatku Belki/OKI i PIT z realnych kwot. Gotówka domyślnie `-2,5%/rok` (erozja = inflacja).
+1. **Wszystko w dzisiejszych złotych, inflacja tylko do podatków.** Silnik przechowuje i pokazuje wyniki w sile nabywczej (realnie). `ROI` wpisujesz **realne (ponad inflacją)** (po Belce i po inflacji), a globalna `inflacja` (`Konfiguracja → Skala podatkowa`, domyślnie 2,5% w presetach) służy tylko do wyliczenia nominalnego podatku Belki/OKI i PIT z realnych kwot. Gotówka domyślnie `-2,5%/rok` (erozja = inflacja).
 
-2. **ROI to realna stopa netto i jest stała w każdym roku.** Roczny, płaski zwrot *po opłatach i po Belce/OKI oraz po inflacji* (realny), ale **przed** podatkiem odroczonym od wypłat — ten rozlicza silnik na nominalnym odpowiedniku. Np. lokata 2% realnie + inflacja 2,5% → brutto nominalne ≈5,5% → Belka 19% liczona co okres (3m/12m) i urealniona. Nie ma zmienności rynku: 6% średnio nie znaczy 6% co roku.
+2. **ROI to realna stopa zwrotu (ponad inflacją) i jest stała w każdym roku.** Roczny, płaski zwrot *po opłatach i po Belce/OKI oraz po inflacji* (realny), ale **przed** podatkiem odroczonym od wypłat — ten rozlicza silnik na nominalnym odpowiedniku. Np. lokata 2% realnie + inflacja 2,5% → brutto nominalne ≈5,5% → Belka 19% liczona co okres (3m/12m) i urealniona. Nie ma zmienności rynku: 6% średnio nie znaczy 6% co roku.
 
 3. **Emerytura ZUS = kapitał ÷ ŚDTŻ(GUS).** Dla danego wieku emeryturę liczy się jako zgromadzony kapitał podzielony przez tablicę średniego dalszego trwania życia. Tablica jest **wspólna dla obu płci** (GUS publikuje jedną; zróżnicowanie usunął wyrok TK K 1/13) — płeć zmienia jedynie **wiek emerytalny: kobiety 60, mężczyźni 65**. Silnik nie sprawdza warunków stażowych ani nie wyrównuje do emerytury minimalnej — o tym tylko ostrzega.
 
