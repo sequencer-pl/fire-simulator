@@ -310,14 +310,28 @@ async def api_user_config(request: Request):
     return {"config": json.loads(saved)}
 
 
+def _validate_tax_config(body: dict) -> TaxConfig:
+    try:
+        cfg = TaxConfig.model_validate(body)
+    except Exception as e:
+        raise HTTPException(status_code=422, detail=f"Invalid config: {e}") from e
+    if cfg.prog2 is not None:
+        if cfg.rate_middle is None:
+            raise HTTPException(
+                status_code=422, detail="rate_middle wymagane gdy prog2 jest ustawione"
+            )
+        if cfg.prog2 <= cfg.prog:
+            raise HTTPException(status_code=422, detail="prog2 musi być większe od prog")
+        if not 0 <= cfg.rate_middle <= 1:
+            raise HTTPException(status_code=422, detail="rate_middle musi być w [0, 1]")
+    return cfg
+
+
 @router.put("/api/config/user")
 async def api_save_user_config(request: Request):
     user_id = _require_user(request)
     body = await request.json()
-    try:
-        TaxConfig.model_validate(body)
-    except Exception as e:
-        raise HTTPException(status_code=422, detail=f"Invalid config: {e}") from e
+    _validate_tax_config(body)
     db.save_user_config(user_id, json.dumps(body, separators=(",", ":")), _now())
     return {"ok": True}
 
@@ -376,10 +390,7 @@ async def api_create_preset(request: Request):
     config = data.get("config")
     if config is None:
         raise HTTPException(status_code=400, detail="Config required")
-    try:
-        TaxConfig.model_validate(config)
-    except Exception as e:
-        raise HTTPException(status_code=422, detail=f"Invalid config: {e}") from e
+    _validate_tax_config(config)
     now = datetime.now(UTC).isoformat()
     try:
         preset_id = db.save_preset(user_id, name, json.dumps(config), now)

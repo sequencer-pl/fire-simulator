@@ -238,11 +238,15 @@ function updateStageHints(container) {
                     if (rules.early_tax_model === "scale") {
                         const lower = Math.round(CONFIG.rate_lower * 100);
                         const upper = Math.round(CONFIG.rate_upper * 100);
+                        const skala =
+                            CONFIG.prog2 != null && CONFIG.rate_middle != null
+                                ? `${lower}/${Math.round(CONFIG.rate_middle * 100)}/${upper}%`
+                                : `${lower}/${upper}%`;
                         hints.push({
                             level: "warning",
                             text:
                                 `${label} wypłacane od ${startAge} r.ż. — przed ${rules.min_withdrawal_age} r.ż. ` +
-                                `jednorazowy zwrot całości w pierwszym roku (podatek wg skali ${lower}/${upper}% od całości); ` +
+                                `jednorazowy zwrot całości w pierwszym roku (podatek wg skali ${skala} od całości); ` +
                                 `wypłaty ratalne liczone od kapitału netto. Po ${rules.min_withdrawal_age} r.ż. ${normalTaxDescription(acc)}.`
                         });
                     } else {

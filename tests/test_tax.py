@@ -1,8 +1,8 @@
 import pytest
 from conftest import acc, accumulation_stage, realization_stage
 
-from app.core.tax import scale_tax
-from app.simulation.config import TaxConfig, default_config
+from app.core.tax import danina_solidarnosciowa, scale_tax
+from app.simulation.config import TaxConfig, backfill_tax_config, default_config
 from app.simulation.engine import simulate
 from app.simulation.schemas import SimulationInput
 
@@ -23,6 +23,106 @@ CFG_NOINFL = TaxConfig(inflation=0.0)
 )
 def test_scale_tax(income, expected):
     assert scale_tax(income) == pytest.approx(expected)
+
+
+# --- Skala PIT 2027 (projekt UD458): 12% do 130k, 24% do 150k, 32% powyżej ---
+
+
+def _scale_2027(income: float) -> float:
+    return scale_tax(
+        income,
+        kwota_wolna=30_000,
+        prog=130_000,
+        prog2=150_000,
+        rate_lower=0.12,
+        rate_middle=0.24,
+        rate_upper=0.32,
+    )
+
+
+@pytest.mark.parametrize(
+    "income,expected",
+    [
+        (0, 0),
+        (30_000, 0),  # kwota wolna bez zmian
+        (130_000, 12_000),  # koniec I progu: 130k*12% - 3600
+        (140_000, 14_400),  # 12000 + 24%*10k
+        (150_000, 16_800),  # 12000 + 24%*20k
+        (180_000, 26_400),  # 16800 + 32%*30k
+    ],
+)
+def test_scale_tax_2027_draft(income, expected):
+    assert _scale_2027(income) == pytest.approx(expected)
+
+
+@pytest.mark.parametrize(
+    "income,old,new,saving",
+    [
+        (120_000, 10_800, 10_800, 0),
+        (125_000, 12_400, 11_400, 1_000),
+        (130_000, 14_000, 12_000, 2_000),
+        (140_000, 17_200, 14_400, 2_800),
+        (150_000, 20_400, 16_800, 3_600),
+        (180_000, 30_000, 26_400, 3_600),
+    ],
+)
+def test_scale_2027_savings_vs_2026(income, old, new, saving):
+    assert scale_tax(income) == pytest.approx(old)
+    assert _scale_2027(income) == pytest.approx(new)
+    assert scale_tax(income) - _scale_2027(income) == pytest.approx(saving)
+
+
+def test_scale_tax_backward_compat_none():
+    # prog2=None musi dawać bit-w-bit stary wynik 2-progowy.
+    for income in (0, 30_000, 100_000, 120_000, 200_000, 1_500_000):
+        assert scale_tax(income, prog2=None, rate_middle=None) == pytest.approx(
+            scale_tax(income)
+        )
+
+
+def test_danina_solidarnosciowa():
+    assert danina_solidarnosciowa(900_000) == 0
+    assert danina_solidarnosciowa(1_200_000) == pytest.approx(200_000 * 0.04)
+    assert danina_solidarnosciowa(1_200_000, danina_rate=0.05) == pytest.approx(
+        200_000 * 0.05
+    )
+
+
+def test_default_config_years():
+    cfg26 = default_config()
+    assert cfg26.year == 2026
+    assert cfg26.prog == 120_000
+    assert cfg26.prog2 is None
+    assert cfg26.rate_middle is None
+    assert cfg26.danina_rate == pytest.approx(0.04)
+    cfg27 = default_config(2027)
+    assert cfg27.year == 2027
+    assert cfg27.prog == 130_000
+    assert cfg27.prog2 == 150_000
+    assert cfg27.rate_middle == pytest.approx(0.24)
+    assert cfg27.danina_rate == pytest.approx(0.05)
+    assert cfg27.kup_50_limit == 130_000
+
+
+def test_backfill_tax_config_old_shape():
+    old = {"kwota_wolna": 30_000, "prog": 120_000, "inflation": 0.0}
+    filled = backfill_tax_config(dict(old))
+    cfg = TaxConfig.model_validate(filled)
+    assert cfg.prog2 is None
+    assert cfg.rate_middle is None
+    assert cfg.year == 2026
+    assert cfg.danina_rate == pytest.approx(0.04)
+
+
+def test_engine_2027_zus_bracket():
+    # ZUS 140k/rok: 2026 -> 17200, 2027 -> 14400 (oszczędność 2800).
+    cfg27 = default_config(2027)
+    cfg27.inflation = 0.0
+    stages = [realization_stage("ZUS", {"zus": acc(monthly_pension=140_000 / 12)}, 67, 68)]
+    r27 = simulate(SimulationInput(stages=stages, max_age=67, config=cfg27))
+    r26 = simulate(SimulationInput(stages=stages, max_age=67, config=CFG_NOINFL))
+    assert r27.years[0].tax_paid == pytest.approx(14_400, rel=1e-3)
+    assert r26.years[0].tax_paid == pytest.approx(17_200, rel=1e-3)
 
 
 # --- IKZE po 65: 10% ryczałt od całości ---

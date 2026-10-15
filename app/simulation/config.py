@@ -172,6 +172,14 @@ class TaxConfig(BaseModel):
     prog: float = 120_000
     rate_lower: float = 0.12
     rate_upper: float = 0.32
+    # Trzy progi PIT (projekt UD458 na 2027 r.): None = stara skala 2-progowa.
+    prog2: float | None = None
+    rate_middle: float | None = None
+    # Danina solidarnościowa od nadwyżki ponad próg (4% do 2026, projekt 5% od 2027).
+    danina_prog: float = 1_000_000
+    danina_rate: float = 0.04
+    # Limit przychodów dla 50% KUP (projekt: powiązany z progiem 130k).
+    kup_50_limit: float = 120_000
     kup: float = 3600.0
     inflation: float = 0.025
     limits: Limits = Field(default_factory=Limits)
@@ -180,13 +188,51 @@ class TaxConfig(BaseModel):
     ppk: PpkConfig = Field(default_factory=PpkConfig)
     ppe: PpeConfig = Field(default_factory=PpeConfig)
 
+    def scale_kwargs(self) -> dict:
+        """Parametry skali PIT do przekazania wprost do scale_tax()."""
+        return {
+            "kwota_wolna": self.kwota_wolna,
+            "prog": self.prog,
+            "rate_lower": self.rate_lower,
+            "rate_upper": self.rate_upper,
+            "prog2": self.prog2,
+            "rate_middle": self.rate_middle,
+        }
 
-def default_config() -> TaxConfig:
-    return TaxConfig()
+
+def default_config(year: int = 2026) -> TaxConfig:
+    cfg = TaxConfig()
+    if year == 2027:
+        cfg.year = 2027
+        cfg.prog = 130_000
+        cfg.prog2 = 150_000
+        cfg.rate_middle = 0.24
+        cfg.danina_rate = 0.05
+        cfg.kup_50_limit = 130_000
+    return cfg
+
+
+def backfill_tax_config(data: dict) -> dict:
+    """Uzupełnia stare zapisane configi o pola 2027 (bez migracji SQL)."""
+    defaults = TaxConfig().model_dump()
+    for key, val in defaults.items():
+        data.setdefault(key, val)
+    return data
 
 
 BUILTIN_PRESETS: dict[str, dict] = {
-    "Domyślne 2026": {"inflation": 0.025},
+    "Domyślne 2026": {"year": 2026, "inflation": 0.025},
+    "2027 (projekt UD458)": {
+        "year": 2027,
+        "prog": 130_000,
+        "prog2": 150_000,
+        "rate_lower": 0.12,
+        "rate_middle": 0.24,
+        "rate_upper": 0.32,
+        "danina_rate": 0.05,
+        "kup_50_limit": 130_000,
+        "inflation": 0.025,
+    },
     "Konserwatywne": {
         "inflation": 0.035,
         "zus": {"waloryzacja_skladek": 0.01, "waloryzacja_swiadczenia": 0.01},

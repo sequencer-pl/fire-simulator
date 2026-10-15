@@ -410,12 +410,24 @@ function renderConfigView() {
     const root = document.getElementById("config-content");
     root.innerHTML = "";
 
-    root.appendChild(configSection("Skala podatkowa", [
-        configNumberField("kwota_wolna", "Kwota wolna od podatku", USER_CONFIG.kwota_wolna, "Kwota wolna od podatku (2026 r.: 30 000 zł)."),
-        configNumberField("prog", "Próg podatkowy", USER_CONFIG.prog, "Próg dochodowy: powyżej kwoty obowiązuje wyższa stawka (2026 r.: 120 000 zł)."),
-        configPercentField("rate_lower", "Stawka niższa", USER_CONFIG.rate_lower, "Stawka podatku do progu (2026 r.: 12%)."),
-        configPercentField("rate_upper", "Stawka wyższa", USER_CONFIG.rate_upper, "Stawka podatku powyżej progu (2026 r.: 32%)."),
+    const skalaBadge = (() => {
+        const p1 = USER_CONFIG.prog;
+        const p2 = USER_CONFIG.prog2;
+        const rm = USER_CONFIG.rate_middle;
+        if (p1 === 130000 && p2 === 150000 && rm === 0.24) return "Skala podatkowa — 2027 (projekt UD458 ⚠️)";
+        if (p1 === 120000 && p2 == null && rm == null) return "Skala podatkowa — 2026 (obowiązuje)";
+        return "Skala podatkowa — custom";
+    })();
+    root.appendChild(configSection(skalaBadge, [
+        configNumberField("kwota_wolna", "Kwota wolna od podatku", USER_CONFIG.kwota_wolna, "Kwota wolna od podatku (2026 i projekt 2027: 30 000 zł)."),
+        configNumberField("prog", "Próg I", USER_CONFIG.prog, "Próg wejścia w stawkę środkową/wyższą (2026: 120 000 zł; projekt 2027: 130 000 zł)."),
+        configNullableNumberField("prog2", "Próg II (3 progi)", USER_CONFIG.prog2, "Drugi próg skali 3-progowej (projekt 2027: 150 000 zł). Puste = stara skala 2-progowa."),
+        configPercentField("rate_lower", "Stawka niższa", USER_CONFIG.rate_lower, "Stawka podatku do progu I (12%)."),
+        configNullablePercentField("rate_middle", "Stawka środkowa", USER_CONFIG.rate_middle, "Stawka między progiem I a II (projekt 2027: 24%). Puste = stara skala 2-progowa."),
+        configPercentField("rate_upper", "Stawka wyższa", USER_CONFIG.rate_upper, "Stawka podatku powyżej progu (2026: 32% od 120k; projekt 2027: 32% od 150k)."),
         configNumberField("kup", "Koszty uzyskania przychodu", USER_CONFIG.kup, "Roczne koszty uzyskania przychodu (2026 r.: 3 000–3 600 zł)."),
+        configNumberField("kup_50_limit", "Limit 50% KUP", USER_CONFIG.kup_50_limit, "Limit przychodów dla 50% kosztów autorskich (projekt 2027: powiązany z progiem 130k)."),
+        configPercentField("danina_rate", "Danina solidarnościowa", USER_CONFIG.danina_rate, "Stawka daniny od nadwyżki ponad 1 mln zł (2026: 4%; projekt 2027: 5%)."),
         configPercentField("inflation", "Inflacja roczna", USER_CONFIG.inflation, "Roczna inflacja — jedyne źródło dla całej symulacji. Używana do wyliczenia nominalnego podatku Belki/OKI z realnego ROI oraz realnej erozji gotówki (wyniki zawsze w dzisiejszych zł)."),
     ]));
 
@@ -551,6 +563,55 @@ function configNumberField(path, label, value, hint) {
 
 function configPercentField(path, label, value, hint, ticks) {
     return configField(path, label, value, true, hint, ticks);
+}
+
+function configNullableField(path, label, value, percent, hint) {
+    const wrap = document.createElement("div");
+    wrap.className = "field-group";
+    const displayVal = value == null ? "" : percent ? value * 100 : value;
+    const emptyDefault = percent ? "24" : "150000";
+    wrap.innerHTML = `
+        <label>${label}${hint ? tipHtml(hint) : ""}</label>
+        <div class="num-control">
+            <button type="button" class="stepper stepper-down" tabindex="-1" aria-label="Zmniejsz">&minus;</button>
+            <input type="number" class="acc-field" min="0" step="any" value="${displayVal}" placeholder="—" data-empty="${emptyDefault}" />
+            <button type="button" class="stepper stepper-up" tabindex="-1" aria-label="Zwiększ">+</button>
+            <button type="button" class="field-reset" title="Przywróć wartość domyślną" hidden>&#x21ba;</button>
+        </div>`;
+    const input = wrap.querySelector("input");
+    const resetBtn = wrap.querySelector(".field-reset");
+    function updateIndicator() {
+        const def = getConfigDefault(path);
+        const curEmpty = input.value === "";
+        const defEmpty = def == null;
+        resetBtn.hidden = curEmpty ? defEmpty : !defEmpty && Math.abs((parseFloat(input.value) || 0) - (percent ? def * 100 : def)) < 1e-9;
+    }
+    input.addEventListener("input", () => {
+        if (input.value === "" || parseFloat(input.value) === 0) {
+            setConfigPath(path, null);
+        } else {
+            const parsed = parseFloat(input.value) || 0;
+            setConfigPath(path, percent ? parsed / 100 : parsed);
+        }
+        updateStageHints(document.getElementById("stages-container"));
+        updateIndicator();
+    });
+    resetBtn.addEventListener("click", () => {
+        const def = getConfigDefault(path);
+        setConfigPath(path, def);
+        input.value = def == null ? "" : percent ? def * 100 : def;
+        updateIndicator();
+    });
+    updateIndicator();
+    return wrap;
+}
+
+function configNullableNumberField(path, label, value, hint) {
+    return configNullableField(path, label, value, false, hint);
+}
+
+function configNullablePercentField(path, label, value, hint) {
+    return configNullableField(path, label, value, true, hint);
 }
 
 function renderAccountRulesCard(key, rules) {
@@ -790,7 +851,18 @@ async function applyPresetByName(name) {
 }
 
 const BUILTIN_PRESETS_CLIENT = {
-    "Domyślne 2026": { inflation: 0.025 },
+    "Domyślne 2026": { year: 2026, inflation: 0.025 },
+    "2027 (projekt UD458)": {
+        year: 2027,
+        prog: 130_000,
+        prog2: 150_000,
+        rate_lower: 0.12,
+        rate_middle: 0.24,
+        rate_upper: 0.32,
+        danina_rate: 0.05,
+        kup_50_limit: 130_000,
+        inflation: 0.025,
+    },
     "Konserwatywne": {
         inflation: 0.035,
         zus: { waloryzacja_skladek: 0.01, waloryzacja_swiadczenia: 0.01 },

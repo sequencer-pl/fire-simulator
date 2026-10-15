@@ -3,7 +3,7 @@ from dataclasses import dataclass, field
 from app.core.base import resolve_base
 from app.core.inflation import cumulative_factor, deflate, fisher_nominal
 from app.core.roi import effective_roi
-from app.core.tax import scale_tax
+from app.core.tax import danina_solidarnosciowa, scale_tax
 from app.simulation.config import ACCOUNT_LABELS, AccountRules, TaxConfig
 from app.simulation.constants import DEFAULT_ROI, MONTHS_PER_YEAR, PPE_ZUS_FRACTION
 from app.simulation.schemas import (
@@ -68,20 +68,8 @@ def _compute_ikze_tax_saving(
     """
     if ikze_contribution <= 0 or annual_income <= 0:
         return 0.0
-    tax_without = scale_tax(
-        annual_income,
-        kwota_wolna=config.kwota_wolna,
-        prog=config.prog,
-        rate_lower=config.rate_lower,
-        rate_upper=config.rate_upper,
-    )
-    tax_with = scale_tax(
-        max(0.0, annual_income - ikze_contribution),
-        kwota_wolna=config.kwota_wolna,
-        prog=config.prog,
-        rate_lower=config.rate_lower,
-        rate_upper=config.rate_upper,
-    )
+    tax_without = scale_tax(annual_income, **config.scale_kwargs())
+    tax_with = scale_tax(max(0.0, annual_income - ikze_contribution), **config.scale_kwargs())
     return max(0.0, tax_without - tax_with)
 
 
@@ -243,21 +231,19 @@ def _process_ikze_returns(
     if inflation and state is not None:
         factor = cumulative_factor(inflation, age - state.start_age)
         combined_nom = combined * factor
-        combined_tax_nom = scale_tax(
+        combined_tax_nom = scale_tax(combined_nom, **config.scale_kwargs())
+        combined_tax_nom += danina_solidarnosciowa(
             combined_nom,
-            kwota_wolna=config.kwota_wolna,
-            prog=config.prog,
-            rate_lower=config.rate_lower,
-            rate_upper=config.rate_upper,
+            danina_prog=config.danina_prog,
+            danina_rate=config.danina_rate,
         )
         combined_tax = combined_tax_nom / factor
     else:
-        combined_tax = scale_tax(
+        combined_tax = scale_tax(combined, **config.scale_kwargs())
+        combined_tax += danina_solidarnosciowa(
             combined,
-            kwota_wolna=config.kwota_wolna,
-            prog=config.prog,
-            rate_lower=config.rate_lower,
-            rate_upper=config.rate_upper,
+            danina_prog=config.danina_prog,
+            danina_rate=config.danina_rate,
         )
 
     early_return_tax: dict[str, float] = {}
@@ -1191,21 +1177,19 @@ def _apply_tax(
         if inflation and state is not None and age is not None:
             factor = cumulative_factor(inflation, age - state.start_age + 1)
             scale_income_nom = scale_income * factor
-            total_scale_nom = scale_tax(
+            total_scale_nom = scale_tax(scale_income_nom, **config.scale_kwargs())
+            total_scale_nom += danina_solidarnosciowa(
                 scale_income_nom,
-                kwota_wolna=config.kwota_wolna,
-                prog=config.prog,
-                rate_lower=config.rate_lower,
-                rate_upper=config.rate_upper,
+                danina_prog=config.danina_prog,
+                danina_rate=config.danina_rate,
             )
             total_scale = total_scale_nom / factor
         else:
-            total_scale = scale_tax(
+            total_scale = scale_tax(scale_income, **config.scale_kwargs())
+            total_scale += danina_solidarnosciowa(
                 scale_income,
-                kwota_wolna=config.kwota_wolna,
-                prog=config.prog,
-                rate_lower=config.rate_lower,
-                rate_upper=config.rate_upper,
+                danina_prog=config.danina_prog,
+                danina_rate=config.danina_rate,
             )
         for account, amount in scale_accounts:
             tax[account] = tax.get(account, 0.0) + total_scale * (amount / scale_income)
@@ -1241,12 +1225,17 @@ def _collect_warnings(data: SimulationInput) -> list[str]:
                 if early == "scale":
                     lower = int(config.rate_lower * 100)
                     upper = int(config.rate_upper * 100)
+                    if config.prog2 is not None and config.rate_middle is not None:
+                        middle = int(config.rate_middle * 100)
+                        skala = f"{lower}/{middle}/{upper}%"
+                    else:
+                        skala = f"{lower}/{upper}%"
                     flat = rules.tax_rate * 100
                     before = f"przed {rules.min_withdrawal_age} r.ż."
                     after = f"po {rules.min_withdrawal_age} r.ż."
                     warnings.append(
                         f"{label} wypłacane od {si.start_age} r.ż. ({before}) — jednorazowy zwrot "
-                        f"całości w pierwszym roku etapu, podatek wg skali {lower}/{upper}% "
+                        f"całości w pierwszym roku etapu, podatek wg skali {skala} "
                         f"od całości; {after} ryczałt {flat:.0f}% od każdej wypłaty."
                     )
                 elif early in ("flat", "none") and rules.early_tax_rate != rules.tax_rate:

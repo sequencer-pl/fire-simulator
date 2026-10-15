@@ -100,6 +100,9 @@ function getAccountInfo(accountKey) {
 function earlyTaxDescription(acc) {
     const rules = CONFIG.accounts[acc];
     if (rules.early_tax_model === "scale") {
+        if (CONFIG.prog2 != null && CONFIG.rate_middle != null) {
+            return `skalą ${(CONFIG.rate_lower * 100).toFixed(0)}/${(CONFIG.rate_middle * 100).toFixed(0)}/${(CONFIG.rate_upper * 100).toFixed(0)}% od całości`;
+        }
         return `skalą ${(CONFIG.rate_lower * 100).toFixed(0)}/${(CONFIG.rate_upper * 100).toFixed(0)}% od całości`;
     }
     if (rules.early_tax_model === "flat") {
