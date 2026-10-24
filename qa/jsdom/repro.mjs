@@ -65,25 +65,38 @@ const harness = `
     document.getElementById("wzGross").value = "8000";
     document.querySelector('input[name="wzSavingsMode"][value="pct"]').checked = true;
     document.getElementById("wzSavings").value = "10";
-    setStep(4);
+    setStep(5);
 
-    // ---- Pkt 1: pasek postępu (podziałki bez etykiet nazw) ----
-    check("pasek postępu: track + progressbar, bez etykiet nazw", () => {
+    // ---- Pkt 1: pasek postępu (podziałki bez etykiet nazw, 6 kroków) ----
+    check("pasek postępu: track + progressbar (6 kroków), bez etykiet nazw", () => {
         const track = document.getElementById("wizardProgressTrack");
         const bar = document.getElementById("wizardProgressBar");
         return !!track
             && !!bar
             && bar.getAttribute("role") === "progressbar"
             && bar.getAttribute("aria-valuemin") === "1"
-            && bar.getAttribute("aria-valuemax") === "7"
+            && bar.getAttribute("aria-valuemax") === "6"
             && document.querySelectorAll(".wz-step-label").length === 0;
     });
     check("pasek postępu: aria-valuenow = bieżący krok", () => {
-        setStep(4);
-        return document.getElementById("wizardProgressBar").getAttribute("aria-valuenow") === "4";
+        setStep(5);
+        return document.getElementById("wizardProgressBar").getAttribute("aria-valuenow") === "5";
     });
     check("h2 kroku 2 = Twoje dane", () => document.querySelector('.wz-step[data-step="2"] h2').textContent.trim() === "Twoje dane");
-    check("h2 kroku 5 = Cel i horyzont", () => document.querySelector('.wz-step[data-step="5"] h2').textContent.trim() === "Cel i horyzont");
+    check("h2 kroku 4 = Cel i horyzont", () => document.querySelector('.wz-step[data-step="4"] h2').textContent.trim() === "Cel i horyzont");
+    check("h2 kroku 5 = Podział oszczędności", () => document.querySelector('.wz-step[data-step="5"] h2').textContent.trim() === "Podział oszczędności");
+    check("h2 kroku 6 = Wynik i podsumowanie", () => document.querySelector('.wz-step[data-step="6"] h2').textContent.trim() === "Wynik i podsumowanie");
+    check("krok 3: odchudzona lista kont + rozwijanie pozostałych", () => {
+        const primary = document.querySelectorAll("#wzCapitalGrid .wz-capital-item").length;
+        const extra = document.querySelectorAll("#wzCapitalMoreGrid .wz-capital-item").length;
+        const moreGrid = document.getElementById("wzCapitalMoreGrid");
+        const moreBtn = document.getElementById("wzCapitalMoreBtn");
+        const initHidden = moreGrid.classList.contains("hidden");
+        moreBtn.click();
+        const expanded = !moreGrid.classList.contains("hidden");
+        moreBtn.click();
+        return primary === 8 && extra === 6 && initHidden && expanded && moreGrid.classList.contains("hidden");
+    });
 
     // ---- Pkt 2: krok 2 — 3 panele, suwak oszczędności tylko w trybie % ----
     check("krok 2: 3 panele w kolejności", () => {
@@ -188,9 +201,9 @@ const harness = `
         return ok === true;
     });
 
-    // ---- Pkt 4/5: struktura kroku 4 ----
-    check("krok 4: 4 panele w kolejności", () => {
-        const panels = [...document.querySelector('.wz-step[data-step="4"]').querySelectorAll(".wz-alloc-panel")];
+    // ---- Pkt 4/5: struktura kroku 5 (Podział oszczędności) ----
+    check("krok 5: 4 panele w kolejności", () => {
+        const panels = [...document.querySelector('.wz-step[data-step="5"]').querySelectorAll(".wz-alloc-panel")];
         if (panels.length !== 4) return false;
         const titles = panels.map((p) => p.querySelector(".wz-panel-title")?.textContent.trim());
         return JSON.stringify(titles) === JSON.stringify(["Strategia", "Podział", "Dodaj instrument", "Wpłaty z pensji"]);
@@ -202,12 +215,14 @@ const harness = `
         const pos = row && grid ? row.compareDocumentPosition(grid) : 0;
         return !!range && range.disabled === true && (pos & 4) !== 0 && !!document.getElementById("wzAllocCashMoney");
     });
-    check("krok 4: panele Podział/Dodaj/Wpłaty ukryte przed wyborem trybu", () => {
-        return ["wzAllocPanel", "wzAllocPillsPanel", "wzPayrollPanel"].every(
-            (id) => document.getElementById(id).classList.contains("hidden"),
-        );
+    check("krok 5: domyślnie aktywny tryb auto (panel Podział widoczny, Dodaj ukryty)", () => {
+        return wzAllocMode === "auto"
+            && !document.getElementById("wzAllocPanel").classList.contains("hidden")
+            && document.getElementById("wzAllocPillsPanel").classList.contains("hidden");
     });
-    check("krok 4: „Podziel ręcznie” odsłania Podział i Dodaj instrument", () => {
+    check("krok 5: „Podziel ręcznie” odsłania Podział i Dodaj instrument", () => {
+        wzPill.clear();
+        Object.keys(wzWeights).forEach((k) => delete wzWeights[k]);
         document.getElementById("wzManualBtn").click();
         return !document.getElementById("wzAllocPanel").classList.contains("hidden")
             && !document.getElementById("wzAllocPillsPanel").classList.contains("hidden");
@@ -295,10 +310,10 @@ const harness = `
             && !Object.keys(collectAllocations()).includes("lokata");
     });
 
-    // ---- gate kroku 4: wymóg wyboru trybu ----
-    check("krok 4: bez trybu „Dalej” zablokowane + tooltip; klik pokazuje dymek; tryb odblokowuje", () => {
+    // ---- gate kroku 5: wymóg wyboru trybu ----
+    check("krok 5: bez trybu „Wylicz plan” zablokowane + tooltip; klik pokazuje dymek; tryb odblokowuje", () => {
         wzAllocMode = null;
-        setStep(4);
+        setStep(5);
         const next = document.getElementById("wzNextBtn");
         const tip = document.getElementById("wzNextTip");
         const pop = document.getElementById("wzNextPop");
@@ -314,22 +329,22 @@ const harness = `
         setStep(1);
         return document.getElementById("wzNextBtn").disabled === false;
     });
-    check("gate: klik „Dalej” z kroku 3 nie pokazuje dymka (bubbling po setStep)", () => {
+    check("gate: klik „Dalej” z kroku 4 nie pokazuje dymka (bubbling po setStep)", () => {
         wzAllocMode = null;
-        setStep(3);
+        setStep(4);
         const pop = document.getElementById("wzNextPop");
         document.getElementById("wzNextBtn").click();
-        return wzNavStep === 4
+        return wzNavStep === 5
             && document.getElementById("wzNextBtn").disabled === true
             && pop && pop.hidden === true;
     });
-    check("gate: nagłówek podziału (pula oszczędności) widoczny od wejścia na krok 4 — przed wyborem trybu", () => {
+    check("gate: nagłówek podziału (pula oszczędności) widoczny od wejścia na krok 5 — przed wyborem trybu", () => {
         wzAllocMode = null;
-        setStep(4);
+        setStep(5);
         const header = document.getElementById("wzAllocHeader");
         const note = document.getElementById("wzAllocCashNote");
         const panel = document.getElementById("wzAllocPanel");
-        return wzNavStep === 4
+        return wzNavStep === 5
             && header && header.textContent.trim().length > 0
             && header.textContent.trim().includes("zł/mies")
             && note && note.hidden === false
@@ -343,17 +358,17 @@ const harness = `
             && [...labelsOnes].some((l) => l.textContent.includes("🚀"));
     });
 
-    // ---- Pkt 6: krok 5 ----
-    setStep(5);
-    check("krok 5: 4 pola w pełnych wierszach (.wz-slider), bez .wz-hint", () => {
-        const step = document.querySelector('.wz-step[data-step="5"]');
+    // ---- Pkt 6: krok 4 (Cel i horyzont) ----
+    setStep(4);
+    check("krok 4: 4 pola w pełnych wierszach (.wz-slider), bez .wz-hint", () => {
+        const step = document.querySelector('.wz-step[data-step="4"]');
         const rows = [...step.querySelector(".wz-rows").children];
         return rows.length === 4
             && rows.every((r) => r.querySelector(".wz-slider .num-control .acc-field")
                 && r.querySelector('.wz-slider input[type="range"]'))
             && step.querySelectorAll(".wz-hint").length === 0;
     });
-    check("krok 5: domyślne wg płci (m): emerytura 65, koniec planu = wiek + dalsze trwanie życia", () => {
+    check("krok 4: domyślne wg płci (m): emerytura 65, koniec planu = wiek + dalsze trwanie życia", () => {
         const age = document.getElementById("wzAge");
         age.value = "40";
         age.dispatchEvent(new Event("input", { bubbles: true }));
@@ -364,18 +379,18 @@ const harness = `
             && planEnd.value === String(planEndDefault("m", 40))
             && document.getElementById("wzPlanEndRange").value === planEnd.value;
     });
-    check("krok 5: zmiana płci (nietknięte) -> emerytura 60, koniec planu wg kobiet", () => {
+    check("krok 4: zmiana płci (nietknięte) -> emerytura 60, koniec planu wg kobiet", () => {
         document.querySelector('input[name="wzGender"][value="k"]').click();
         return document.getElementById("wzRetirement").value === "60"
             && document.getElementById("wzPlanEnd").value === String(planEndDefault("k", 40));
     });
-    check("krok 5: zmiana wieku (nietknięty koniec planu) przelicza koniec planu", () => {
+    check("krok 4: zmiana wieku (nietknięty koniec planu) przelicza koniec planu", () => {
         const age = document.getElementById("wzAge");
         age.value = "50";
         age.dispatchEvent(new Event("input", { bubbles: true }));
         return document.getElementById("wzPlanEnd").value === String(planEndDefault("k", 50));
     });
-    check("krok 5: ręczna edycja nie jest nadpisywana (płeć i wiek)", () => {
+    check("krok 4: ręczna edycja nie jest nadpisywana (płeć i wiek)", () => {
         const planEnd = document.getElementById("wzPlanEnd");
         planEnd.value = "100";
         planEnd.dispatchEvent(new Event("input", { bubbles: true }));
@@ -384,7 +399,7 @@ const harness = `
         return planEnd.value === "100"
             && document.getElementById("wzRetirement").value === "65";
     });
-    check("krok 5: ręcznie ustawiona emerytura też nie jest nadpisywana zmianą płci", () => {
+    check("krok 4: ręcznie ustawiona emerytura też nie jest nadpisywana zmianą płci", () => {
         document.querySelector('input[name="wzGender"][value="k"]').click();
         const retirement = document.getElementById("wzRetirement");
         retirement.value = "67";
@@ -400,32 +415,34 @@ const harness = `
             && !!document.getElementById("wzBackBtn")
             && !!document.getElementById("wzNextBtn");
     });
-    check("footer: krok 1 -> licznik 'Krok 1 / 7' i Wstecz ukryty", () => {
+    check("footer: krok 1 -> licznik 'Krok 1 / 6' i Wstecz ukryty", () => {
         setStep(1);
-        return document.getElementById("wzStepCount").textContent.trim() === "Krok 1 / 7"
+        return document.getElementById("wzStepCount").textContent.trim() === "Krok 1 / 6"
             && document.getElementById("wzBackBtn").classList.contains("hidden");
     });
-    check("footer: krok 4 -> licznik 'Krok 4 / 7' i Wstecz widoczny", () => {
+    check("footer: krok 4 -> licznik 'Krok 4 / 6', Wstecz widoczny, etykieta 'Dalej'", () => {
         setStep(4);
-        return document.getElementById("wzStepCount").textContent.trim() === "Krok 4 / 7"
-            && !document.getElementById("wzBackBtn").classList.contains("hidden");
+        return document.getElementById("wzStepCount").textContent.trim() === "Krok 4 / 6"
+            && !document.getElementById("wzBackBtn").classList.contains("hidden")
+            && document.getElementById("wzNextBtn").textContent.trim() === "Dalej";
     });
-    check("footer: krok 6 -> etykieta 'Wylicz plan'", () => {
-        setStep(6);
+    check("footer: krok 5 -> etykieta 'Wylicz plan'", () => {
+        setAllocMode("auto");
+        setStep(5);
         return document.getElementById("wzNextBtn").textContent.trim() === "Wylicz plan";
     });
     check("footer: błąd planu -> etykieta wraca do 'Wylicz plan'", async () => {
+        setStep(6);
         await runPlan();
         return document.getElementById("wzNextBtn").textContent.trim() === "Wylicz plan"
             && wzPlan === null;
     });
-    check("footer: krok 7 -> 'Przejdź do symulatora'", () => {
-        setStep(7);
-        return document.getElementById("wzNextBtn").textContent.trim() === "Przejdź do symulatora";
-    });
-    check("footer: krok 5 -> 'Dalej'", () => {
-        setStep(5);
-        return document.getElementById("wzNextBtn").textContent.trim() === "Dalej";
+    check("footer: krok 6 z planem -> 'Przejdź do symulatora'", () => {
+        wzPlan = { input: { stages: [] } };
+        setStep(6);
+        const ok = document.getElementById("wzNextBtn").textContent.trim() === "Przejdź do symulatora";
+        wzPlan = null;
+        return ok;
     });
 
     // ---- Notatka o wypłatach netto w bloku wyniku (krok 6) ----

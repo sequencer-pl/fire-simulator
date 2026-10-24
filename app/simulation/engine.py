@@ -196,6 +196,7 @@ def _process_ikze_returns(
     early_returned: set[str] | None = None,
     zus_pension: float = 0.0,
     state: SimulationState | None = None,
+    target: float | None = None,
 ) -> tuple[dict[str, float], set[str]]:
     if state is not None:
         balances = state.balances
@@ -208,8 +209,32 @@ def _process_ikze_returns(
     # before PMT, so installments are based on net capital.
     ikze_accounts: list[tuple[str, float]] = []
     for si in active_stages:
-        if si.stage_type != "realizacja" or age != si.start_age:
+        if si.stage_type != "realizacja":
             continue
+        stage_target = target if target is not None else si.withdrawal_target_monthly
+        is_const_target = (
+            "zus" not in si.accounts and stage_target is not None and stage_target > 0
+        )
+        if not is_const_target and age != si.start_age:
+            continue
+        if is_const_target:
+            assert stage_target is not None
+            desired = max(0.0, stage_target * MONTHS_PER_YEAR - zus_pension)
+            prior_bal = 0.0
+            for a in si.accounts:
+                if a == "zus":
+                    continue
+                r = config.accounts.get(a)
+                if (
+                    not r
+                    or r.min_withdrawal_age <= 0
+                    or age >= r.min_withdrawal_age
+                    or a in early_returned
+                    or r.early_tax_model != "scale"
+                ):
+                    prior_bal += max(0.0, balances.get(a, 0.0))
+            if prior_bal >= desired - 1e-6:
+                continue
         for acc in si.accounts:
             rules = config.accounts.get(acc)
             if (
@@ -227,24 +252,12 @@ def _process_ikze_returns(
 
     total_ikze = sum(bal for _, bal in ikze_accounts)
     combined = total_ikze + zus_pension
-    inflation = getattr(config, "inflation", 0.0) or 0.0
-    if inflation and state is not None:
-        factor = cumulative_factor(inflation, age - state.start_age)
-        combined_nom = combined * factor
-        combined_tax_nom = scale_tax(combined_nom, **config.scale_kwargs())
-        combined_tax_nom += danina_solidarnosciowa(
-            combined_nom,
-            danina_prog=config.danina_prog,
-            danina_rate=config.danina_rate,
-        )
-        combined_tax = combined_tax_nom / factor
-    else:
-        combined_tax = scale_tax(combined, **config.scale_kwargs())
-        combined_tax += danina_solidarnosciowa(
-            combined,
-            danina_prog=config.danina_prog,
-            danina_rate=config.danina_rate,
-        )
+    combined_tax = scale_tax(combined, **config.scale_kwargs())
+    combined_tax += danina_solidarnosciowa(
+        combined,
+        danina_prog=config.danina_prog,
+        danina_rate=config.danina_rate,
+    )
 
     early_return_tax: dict[str, float] = {}
     handled_scale: set[str] = set()
@@ -273,6 +286,8 @@ def _process_ppk_forfeits(
     forfeited: set[str] | None = None,
     year_start_balances: dict[str, float] | None = None,
     state: SimulationState | None = None,
+    target: float | None = None,
+    zus_pension: float = 0.0,
 ) -> None:
     if state is not None:
         balances = state.balances
@@ -290,8 +305,32 @@ def _process_ppk_forfeits(
     )
     # PPK: employer and state contribution forfeit on early withdrawal before age 60.
     for si in active_stages:
-        if si.stage_type != "realizacja" or age != si.start_age:
+        if si.stage_type != "realizacja":
             continue
+        stage_target = target if target is not None else si.withdrawal_target_monthly
+        is_const_target = (
+            "zus" not in si.accounts and stage_target is not None and stage_target > 0
+        )
+        if not is_const_target and age != si.start_age:
+            continue
+        if is_const_target:
+            assert stage_target is not None
+            desired = max(0.0, stage_target * MONTHS_PER_YEAR - zus_pension)
+            early_ret = state.early_returned if state is not None else set()
+            unlocked_bal = 0.0
+            for a in si.accounts:
+                if a == "zus":
+                    continue
+                r = config.accounts.get(a)
+                if (
+                    not r
+                    or r.min_withdrawal_age <= 0
+                    or age >= r.min_withdrawal_age
+                    or a in early_ret
+                ):
+                    unlocked_bal += max(0.0, balances.get(a, 0.0))
+            if unlocked_bal >= desired - 1e-6:
+                continue
         for acc in si.accounts:
             rules = config.accounts.get(acc)
             if (
@@ -310,6 +349,11 @@ def _process_ppk_forfeits(
                 forfeited_amount = bal * (1.0 - fraction)
                 balances[acc] = max(0.0, bal - forfeited_amount)
                 basis[acc] = total_basis * fraction
+                if state is not None and acc in state.basis_vintages:
+                    state.basis_vintages[acc] = [
+                        (v_age, v_amt * fraction)
+                        for v_age, v_amt in state.basis_vintages[acc]
+                    ]
                 year_start_balances[acc] = balances[acc]
                 forfeited.add(acc)
 
@@ -360,6 +404,13 @@ def _process_stages(
         for n, c in accounts_config.items():
             if n == "gotowka":
                 c["roi"] = -config.inflation
+            acc_rules = config.accounts.get(n)
+            if acc_rules:
+                c["min_withdrawal_age"] = acc_rules.min_withdrawal_age
+                c["early_tax_model"] = acc_rules.early_tax_model
+                c["early_returned"] = n in (
+                    state.early_returned if state is not None else set()
+                )
 
         # Constant-target withdrawal for non-ZUS realization stages (wizard FIRE
         # model): the portfolio pays out a fixed monthly amount, reduced by the
@@ -406,10 +457,20 @@ def _process_stages(
                     config,
                     welcomed_ppk,
                     monthly_gross,
+                    age=age,
+                    state=state,
                 )
                 processed_accounts.add("ppk")
             if "ppe" in accounts_config:
-                _accumulate_ppe(accounts_config["ppe"], balances, basis, config, monthly_gross)
+                _accumulate_ppe(
+                    accounts_config["ppe"],
+                    balances,
+                    basis,
+                    config,
+                    monthly_gross,
+                    age=age,
+                    state=state,
+                )
                 processed_accounts.add("ppe")
 
         # Periodic-tax accounts (lokata) — Belka deducted on each term.
@@ -587,7 +648,7 @@ def _accumulate_periodic_multi_year(
     corocznie na STAWCE BRUTTO (bez odejmowania Belki), a Belka pobierana
     jest dopiero na koniec okresu (co term_months mies.). Dzięki temu
     dłuższy termin = rzadsza Belka = realnie wyższe saldo przy tym samym
-    realnym ROI (zwrocie realnym ponad inflacją) (efekt odroczenia podatku / kapitalizacji na brutto).
+    realnym ROI (efekt odroczenia podatku / kapitalizacji na brutto).
 
     ROI jest realny netto; Belka liczona jest na nominalnym oprocentowaniu
     brutto wyprowadzonym z realnego ROI + inflacji.
@@ -709,6 +770,17 @@ def _assemble_years(
     return years, total_withdrawn_net, total_tax
 
 
+_IKZE_REINVEST_ORDER = (
+    "broker",
+    "oki_inw",
+    "obligacje",
+    "lokata",
+    "oki_osk",
+    "krypto",
+    "gotowka",
+)
+
+
 def _apply_ikze_savings(
     state: SimulationState,
     active_stages: list[StageInput],
@@ -716,7 +788,6 @@ def _apply_ikze_savings(
     merged_tax: dict[str, float],
     age: int | None = None,
 ) -> None:
-    inflation = getattr(state.config, "inflation", 0.0) or 0.0
     for si in active_stages:
         if si.stage_type != "akumulacja":
             continue
@@ -730,16 +801,24 @@ def _apply_ikze_savings(
             if base <= 0:
                 continue
             dochód = _compute_monthly_gross_dochod(base, state.config)
-            if inflation and age is not None and state.start_age is not None:
-                factor = cumulative_factor(inflation, age - state.start_age + 1)
-                dochód_nom = dochód * factor
-                contrib_nom = contribution * factor
-                saving_nom = _compute_ikze_tax_saving(contrib_nom, dochód_nom, state.config)
-                saving = saving_nom / factor if factor else saving_nom
-            else:
-                saving = _compute_ikze_tax_saving(contribution, dochód, state.config)
+            saving = _compute_ikze_tax_saving(contribution, dochód, state.config)
             if saving > 0:
                 merged_tax[name] = merged_tax.get(name, 0.0) - saving
+                for target_acc in _IKZE_REINVEST_ORDER:
+                    if target_acc in si.accounts:
+                        state.balances[target_acc] = (
+                            state.balances.get(target_acc, 0.0) + saving
+                        )
+                        rules = state.config.accounts.get(target_acc)
+                        if target_acc != "gotowka" and not (rules and rules.tax_periodic):
+                            state.basis[target_acc] = (
+                                state.basis.get(target_acc, 0.0) + saving
+                            )
+                            v_age = age if age is not None else state.start_age
+                            state.basis_vintages.setdefault(target_acc, []).append(
+                                (v_age, saving)
+                            )
+                        break
 
 
 def _run_year(
@@ -758,12 +837,21 @@ def _run_year(
 
     zus_pension = _estimate_zus_pension(state=state, active_stages=active_stages, age=age)
 
-    early_return_tax, yearly_scale_handled = _process_ikze_returns(
-        state=state, active_stages=active_stages, age=age, zus_pension=zus_pension
+    _process_ppk_forfeits(
+        state=state,
+        active_stages=active_stages,
+        age=age,
+        year_start_balances=year_start_balances,
+        target=target,
+        zus_pension=zus_pension,
     )
 
-    _process_ppk_forfeits(
-        state=state, active_stages=active_stages, age=age, year_start_balances=year_start_balances
+    early_return_tax, yearly_scale_handled = _process_ikze_returns(
+        state=state,
+        active_stages=active_stages,
+        age=age,
+        zus_pension=zus_pension,
+        target=target,
     )
 
     merged_withdrawal, stage_label_parts, periodic_tax = _process_stages(
@@ -804,14 +892,16 @@ def _run_year(
     }
 
 
-def _finalize_result(data: SimulationInput, state: SimulationState) -> SimulationResult:
+def _finalize_result(
+    data: SimulationInput, state: SimulationState, target: float | None = None
+) -> SimulationResult:
     years, total_withdrawn_net, total_tax = _assemble_years(state.computed)
     sorted_ages = sorted(state.computed.keys())
     final_balances = state.computed[sorted_ages[-1]]["ending_balances"] if sorted_ages else {}
     peak_wealth = max((y.total_wealth for y in years), default=0.0)
     display_accounts = sorted(a for a in state.all_accounts if a != "zus")
     has_pension = any("zus" in si.accounts for si in data.stages)
-    warnings = _collect_warnings(data)
+    warnings = _collect_warnings(data, state, target)
     for name, pension in state.zus_pensions.items():
         if pension <= 0:
             warnings.append(
@@ -879,7 +969,7 @@ def simulate(data: SimulationInput, target: float | None = None) -> SimulationRe
     for age in range(min_age, max_age + 1):
         _run_year(state, age, data.monthly_gross, data.stages, target)
 
-    return _finalize_result(data, state)
+    return _finalize_result(data, state, target)
 
 
 def _accumulate_ppk(
@@ -890,6 +980,8 @@ def _accumulate_ppk(
     config: TaxConfig,
     welcomed: set[str],
     monthly_gross: float = 0.0,
+    age: int | None = None,
+    state: SimulationState | None = None,
 ) -> None:
     """Annual % contribution from base + state top-ups (PPK accumulation).
 
@@ -909,16 +1001,19 @@ def _accumulate_ppk(
     employer_pct = cfg.get("employer_pct", ppk_cfg.employer_pct)
     emp_contrib = base_annual * emp_pct
     employer_contrib = base_annual * employer_pct
-    state = 0.0
+    state_topup = 0.0
     if cfg.get("state_topups", True):
-        state += ppk_cfg.state_annual
+        state_topup += ppk_cfg.state_annual
         if "ppk" not in welcomed:
-            state += ppk_cfg.state_welcoming
+            state_topup += ppk_cfg.state_welcoming
             welcomed.add("ppk")
-    total = emp_contrib + employer_contrib + state
+    total = emp_contrib + employer_contrib + state_topup
     balances["ppk"] = balances.get("ppk", 0.0) * (1 + cfg.get("roi", DEFAULT_ROI)) + total
     basis["ppk"] = basis.get("ppk", 0.0) + total
     basis_employee["ppk"] = basis_employee.get("ppk", 0.0) + emp_contrib
+    if state is not None and total > 0:
+        v_age = age if age is not None else state.start_age
+        state.basis_vintages.setdefault("ppk", []).append((v_age, total))
 
 
 def _accumulate_ppe(
@@ -927,6 +1022,8 @@ def _accumulate_ppe(
     basis: dict,
     config: TaxConfig,
     monthly_gross: float = 0.0,
+    age: int | None = None,
+    state: SimulationState | None = None,
 ) -> None:
     """Annual base contribution (employer, % of base) + additional contribution (fixed amount).
 
@@ -945,6 +1042,9 @@ def _accumulate_ppe(
     total_ppe = employer_to_ppe + additional
     balances["ppe"] = balances.get("ppe", 0.0) * (1 + cfg.get("roi", DEFAULT_ROI)) + total_ppe
     basis["ppe"] = basis.get("ppe", 0.0) + total_ppe
+    if state is not None and total_ppe > 0:
+        v_age = age if age is not None else state.start_age
+        state.basis_vintages.setdefault("ppe", []).append((v_age, total_ppe))
     if employer_to_zus > 0:
         balances["zus"] = balances.get("zus", 0.0) + employer_to_zus
 
@@ -1173,31 +1273,23 @@ def _apply_tax(
                 basis[account] = max(0.0, account_basis - principal)
 
     if scale_income > 0:
-        inflation = getattr(config, "inflation", 0.0) or 0.0
-        if inflation and state is not None and age is not None:
-            factor = cumulative_factor(inflation, age - state.start_age + 1)
-            scale_income_nom = scale_income * factor
-            total_scale_nom = scale_tax(scale_income_nom, **config.scale_kwargs())
-            total_scale_nom += danina_solidarnosciowa(
-                scale_income_nom,
-                danina_prog=config.danina_prog,
-                danina_rate=config.danina_rate,
-            )
-            total_scale = total_scale_nom / factor
-        else:
-            total_scale = scale_tax(scale_income, **config.scale_kwargs())
-            total_scale += danina_solidarnosciowa(
-                scale_income,
-                danina_prog=config.danina_prog,
-                danina_rate=config.danina_rate,
-            )
+        total_scale = scale_tax(scale_income, **config.scale_kwargs())
+        total_scale += danina_solidarnosciowa(
+            scale_income,
+            danina_prog=config.danina_prog,
+            danina_rate=config.danina_rate,
+        )
         for account, amount in scale_accounts:
             tax[account] = tax.get(account, 0.0) + total_scale * (amount / scale_income)
 
     return tax
 
 
-def _collect_warnings(data: SimulationInput) -> list[str]:
+def _collect_warnings(
+    data: SimulationInput,
+    state: SimulationState | None = None,
+    target: float | None = None,
+) -> list[str]:
     """Warnings about suboptimal configuration (premature withdrawals, contribution limits)."""
     warnings: list[str] = []
     config = data.config
@@ -1205,6 +1297,12 @@ def _collect_warnings(data: SimulationInput) -> list[str]:
 
     for si in data.stages:
         if si.stage_type == "realizacja":
+            stage_target = target if target is not None else si.withdrawal_target_monthly
+            is_const_target = (
+                "zus" not in si.accounts
+                and stage_target is not None
+                and stage_target > 0
+            )
             for name, cfg in si.accounts.items():
                 if name == "zus" and cfg.monthly_pension <= 0:
                     if si.start_age < retirement_age:
@@ -1220,6 +1318,14 @@ def _collect_warnings(data: SimulationInput) -> list[str]:
                     continue
                 if si.start_age >= rules.min_withdrawal_age:
                     continue
+                if is_const_target and state is not None:
+                    tapped_early = any(
+                        age < rules.min_withdrawal_age
+                        and state.computed.get(age, {}).get("withdrawal", {}).get(name, 0.0) > 1e-6
+                        for age in state.computed
+                    )
+                    if not tapped_early and name not in state.early_returned:
+                        continue
                 label = ACCOUNT_LABELS.get(name, name)
                 early = rules.early_tax_model
                 if early == "scale":

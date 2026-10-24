@@ -74,7 +74,7 @@ def default_account_rules() -> dict[str, AccountRules]:
             min_withdrawal_age=60,
             early_tax_model="flat",
             early_tax_rate=0.19,
-            early_tax_basis="full",
+            early_tax_basis="gains",
         ),
         "ikze": AccountRules(
             tax_model="flat",
@@ -88,14 +88,14 @@ def default_account_rules() -> dict[str, AccountRules]:
             min_withdrawal_age=60,
             early_tax_model="flat",
             early_tax_rate=0.19,
-            early_tax_basis="full",
+            early_tax_basis="gains",
         ),
         "ppe": AccountRules(
             tax_model="none",
             min_withdrawal_age=60,
             early_tax_model="flat",
             early_tax_rate=0.19,
-            early_tax_basis="full",
+            early_tax_basis="gains",
         ),
         "oipe": AccountRules(
             tax_model="flat",
@@ -104,7 +104,7 @@ def default_account_rules() -> dict[str, AccountRules]:
             min_withdrawal_age=60,
             early_tax_model="flat",
             early_tax_rate=0.19,
-            early_tax_basis="full",
+            early_tax_basis="gains",
         ),
         "oki_inw": AccountRules(
             tax_model="assets",
@@ -140,6 +140,7 @@ class ZusConfig(BaseModel):
     wiek_emerytalny_k: int = 60
     wiek_emerytalny_m: int = 65
     min_emerytura: float = 2_000
+    b2b_base_monthly: float = 5_652.0
 
 
 class PpkConfig(BaseModel):

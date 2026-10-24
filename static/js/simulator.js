@@ -912,6 +912,47 @@ function defaultSimName() {
 
 function initSaveButton() {
     const btn = document.getElementById("saveSimBtn");
+    const exportBtn = document.getElementById("exportSimBtn");
+    const importInput = document.getElementById("importSimInput");
+
+    if (exportBtn) {
+        exportBtn.addEventListener("click", () => {
+            const data = lastInput || gatherFormData();
+            const payload = {
+                name: defaultSimName(),
+                exported_at: new Date().toISOString(),
+                input: data,
+            };
+            const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+            const a = document.createElement("a");
+            a.href = URL.createObjectURL(blob);
+            a.download = "symulacja_fire_" + new Date().toISOString().slice(0, 10) + ".json";
+            a.click();
+            URL.revokeObjectURL(a.href);
+        });
+    }
+
+    if (importInput) {
+        importInput.addEventListener("change", async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            try {
+                const text = await file.text();
+                const parsed = JSON.parse(text);
+                const item = Array.isArray(parsed) ? parsed[0] : parsed;
+                const inputData = item?.input && Array.isArray(item.input.stages) ? item.input : item;
+                if (!inputData || !Array.isArray(inputData.stages)) {
+                    throw new Error("Brak listy etapów (stages) w pliku JSON.");
+                }
+                populateStages(inputData);
+                switchToConfig();
+            } catch (err) {
+                alert("Nieprawidłowy plik symulacji JSON: " + err.message);
+            }
+            importInput.value = "";
+        });
+    }
+
     btn.addEventListener("click", async () => {
         if (!lastInput) return;
         const session = await fetch("/api/session").then((r) => r.json()).catch(() => ({ email: null }));

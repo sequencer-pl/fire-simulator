@@ -17,9 +17,27 @@ _RATE_LIMIT = 10
 _RATE_WINDOW = 60.0
 
 
+def _client_ip(request: Request) -> str:
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        first = forwarded.split(",")[0].strip()
+        if first:
+            return first
+    return request.client.host if request.client else "unknown"
+
+
 def _check_rate_limit(request: Request) -> None:
-    ip = request.client.host if request.client else "unknown"
+    ip = _client_ip(request)
     now = time.monotonic()
+    # Prune expired keys periodically to avoid unbounded memory growth
+    if len(_login_attempts) > 256:
+        stale = [
+            k
+            for k, v in _login_attempts.items()
+            if not v or now - v[-1] >= _RATE_WINDOW
+        ]
+        for k in stale:
+            _login_attempts.pop(k, None)
     attempts = _login_attempts[ip]
     attempts[:] = [t for t in attempts if now - t < _RATE_WINDOW]
     if len(attempts) >= _RATE_LIMIT:

@@ -669,3 +669,44 @@ def test_suggest_endpoint(client):
     body = resp.json()
     assert "allocations" in body
     assert sum(body["allocations"].values()) <= 100 + 1e-6
+
+
+def test_suggest_endpoint_path2_returns_estimated_pool(client):
+    resp = client.post(
+        "/api/wizard/suggest",
+        json={
+            "path": 2,
+            "target_monthly": 6000,
+            "answers": dict(BASE, allocations={}),
+        },
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["pool_monthly"] > 0
+    assert sum(body["allocations"].values()) <= 100 + 1e-6
+
+
+def test_b2b_zus_uses_flat_base():
+    cfg = default_config()
+    a = answers(employment="b2b", gross_monthly=25_000)
+    data = P.build_stages(a)
+    zus_acc = data.stages[0].accounts["zus"]
+    assert zus_acc.monthly_base == pytest.approx(cfg.zus.b2b_base_monthly)
+
+
+def test_bridge_protects_retirement_accounts_before_min_age():
+    # Mając wystarczający kapitał na koncie maklerskim, w wieku 50-59 lat
+    # brydż nie rusza IKE, PPK ani IKZE i nie generuje fałszywych ostrzeżeń.
+    a = answers(
+        age_now=45,
+        retire_early_age=50,
+        capital={"broker": 1_500_000, "ike": 100_000, "ikze": 100_000, "ppk": 50_000},
+        use_ike=True,
+        use_ikze=True,
+        use_ppk=True,
+        allocations={"broker": 100},
+    )
+    r = plan(3, a, 4000)
+    assert r.solved.feasible
+    assert not any("IKZE wypłacane" in w for w in r.projection.warnings)
+    assert not any("IKE wypłacane" in w for w in r.projection.warnings)

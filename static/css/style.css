@@ -932,18 +932,21 @@ h2 {
     display: none;
 }
 
-/* STAN 0 (default): saveSimBtn and editConfigBtn hidden */
+/* STAN 0 (default): saveSimBtn, exportSimBtn and editConfigBtn hidden */
 #saveSimBtn[hidden],
+#exportSimBtn[hidden],
 #editConfigBtn[hidden] {
     display: none;
 }
 
 /* STAN 1 (config-collapsed): swap buttons */
 .form-actions.config-collapsed .add-stage-btns,
+.form-actions.config-collapsed #importSimBtn,
 .form-actions.config-collapsed #clearStagesBtn,
 .form-actions.config-collapsed #simulateBtn {
     display: none;
 }
+.form-actions.config-collapsed #exportSimBtn,
 .form-actions.config-collapsed #saveSimBtn,
 .form-actions.config-collapsed #editConfigBtn {
     display: inline-flex;

@@ -165,12 +165,14 @@ document.addEventListener("DOMContentLoaded", () => {
         });
         await loadSims();
     });
-    $("exportBtn").addEventListener("click", () => {
+    $("exportBtn").addEventListener("click", async () => {
         const checked = document.querySelectorAll(".sim-check:checked");
-        const selected = sims.filter((s) =>
-            Array.from(checked).some((c) => c.dataset.id === String(s.id))
+        const ids = Array.from(checked).map((c) => c.dataset.id);
+        if (!ids.length) return;
+        const selected = await Promise.all(
+            ids.map((id) => api(`/api/simulations/${id}`).catch(() => sims.find((s) => String(s.id) === String(id))))
         );
-        const blob = new Blob([JSON.stringify(selected, null, 2)], {
+        const blob = new Blob([JSON.stringify(selected.filter(Boolean), null, 2)], {
             type: "application/json",
         });
         const a = document.createElement("a");

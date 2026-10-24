@@ -28,7 +28,7 @@
     overflow: hidden;
 }
 
-/* Podziałki na 7 segmentów — nakładka nad wypełnieniem, zawsze widoczna. */
+/* Podziałki na 6 segmentów — nakładka nad wypełnieniem, zawsze widoczna. */
 .wizard-progress-track::after {
     content: "";
     position: absolute;
@@ -36,9 +36,9 @@
     background-image: repeating-linear-gradient(
         90deg,
         transparent 0,
-        transparent calc(100% / 7 - 1px),
-        var(--border) calc(100% / 7 - 1px),
-        var(--border) calc(100% / 7)
+        transparent calc(100% / 6 - 1px),
+        var(--border) calc(100% / 6 - 1px),
+        var(--border) calc(100% / 6)
     );
     pointer-events: none;
 }
@@ -267,6 +267,14 @@
     grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
     gap: 0.75rem;
     margin-bottom: 1.25rem;
+}
+
+.wz-capital-more {
+    margin-bottom: 1rem;
+}
+
+.wz-capital-more-btn {
+    margin: 0;
 }
 
 .wz-capital-item {

@@ -71,7 +71,10 @@
                     <button type="button" id="addRealizationBtn" class="btn btn-secondary btn-add-realization">+ Dodaj etap realizacji</button>
                 </div>
                 <div class="form-actions-right">
+                    <label for="importSimInput" id="importSimBtn" class="btn btn-secondary" title="Wczytaj symulację z pliku JSON">Importuj JSON</label>
+                    <input type="file" id="importSimInput" accept=".json" hidden />
                     <button type="button" id="clearStagesBtn" class="btn btn-danger">Wyczyść etapy</button>
+                    <button type="button" id="exportSimBtn" class="btn btn-secondary" hidden>Eksportuj JSON</button>
                     <button type="button" id="saveSimBtn" class="btn btn-secondary" hidden>Zapisz symulację</button>
                     <button type="button" id="simulateBtn" class="btn btn-primary">Symuluj</button>
                     <button type="button" id="editConfigBtn" class="btn btn-primary" title="Wróć do edycji etapów i konfiguracji" hidden>Edytuj</button>

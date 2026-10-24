@@ -89,18 +89,29 @@ bez TypeScript), SQLite, pytest. Odpowiadaj i pisz UI po polsku.
   nie dodawaj pola kwotowego bez tej reguły (11ch = baza; większe wartości wymagają
   więcej).
 - Ostrzeżenia `.form-msg.warn` — pełna szerokość (`grid-column: 1 / -1`).
-- Panel bez pary „opcja|wartość" (np. Strategia w kroku 4): pigułki `.gender-options`
-  rozciągnięte na CAŁĄ szerokość panelu (komórka = panel) — to nie jest slot; do
-  niego nie stosuje się reguły `300px 1fr`. Przyciski akcji pod selektorem
-  (`.wz-strategy-actions`: „Podziel ręcznie"/„Zaproponuj", `space-between`,
-  jedna wysokość `.btn nowrap`). Panele „Podział"/„Dodaj instrument"/„Wpłaty z pensji"
-  są **bramkowane trybem** (`wzAllocMode`, auto/manual) — przed wyborem ukryte.
-  Podtytuł kroku (`#wzAllocHeader`, subscript „Odkładasz X zł/mies…”/
-  „Kliknij Wylicz plan…") jest renderowany przy KAŻDYM wejściu na krok 4
-  (`setStep` → `buildAllocationStep`), więc pula oszczędności jest widoczna
-  zanim użytkownik wybierze tryb. Podtytuł to `.wz-alloc-head` z dwoma
-  wierszami: pula (`.wz-alloc-pool`, kwota `<strong>` w kolorze `--primary`)
-  + nota Gotówka (`#wzAllocCashNote`, widoczna gdy pula znana). Emotki przy
+- Krok 3 „Kapitał": na start widoczne 8 głównych kont (`#wzCapitalGrid`), a pozostałe
+  6 niszowych (`#wzCapitalMoreGrid`) rozwijane przyciskiem `#wzCapitalMoreBtn`.
+- Krok 4 „Cel i horyzont" (przed podziałem oszczędności!): 4 pełnowymiarowe wiersze
+  `.wz-slider` w kontenerze `.wz-rows` (pionowy stack, separatory `1px solid var(--border)`
+  między wierszami w każdej szerokości — układ zawsze pionowy; bez hint-podpowiedzi,
+  ewentualny kontekst w `title` labela). Domyślne wartości **wg płci i wieku**
+  przeliczane automatycznie dopóki pola nie były ręcznie edytowane (flagi
+  `wzRetirementTouched`/`wzPlanEndTouched`): „Wiek emerytury" = `RETIREMENT_DEFAULT`
+  (60 k / 65 m, spójne z `config.zus.wiek_emerytalny_*`); „Koniec planu" = wiek +
+  `LIFE_EXPECTANCY` (średnie dalsze trwanie życia wg płci i wieku — GUS, tablica
+  trwania życia za 2024 r., dane w wizard.js, to dane UI a nie backendu). Traktuj jak
+  krok 2: `.num-control` PRZED range, `bindSliderRange`.
+- Panel bez pary „opcja|wartość" (np. Strategia w kroku 5 „Podział oszczędności"):
+  pigułki `.gender-options` rozciągnięte na CAŁĄ szerokość panelu (komórka = panel) —
+  to nie jest slot; do niego nie stosuje się reguły `300px 1fr`. Przyciski akcji pod
+  selektorem (`.wz-strategy-actions`: „Podziel ręcznie"/„Zaproponuj", `space-between`,
+  jedna wysokość `.btn nowrap`). Domyślnie aktywny jest tryb `wzAllocMode = "auto"`,
+  który przy wejściu na krok 5 i przy zmianie strategii automatycznie pobiera sugestię
+  (w ścieżce 2 z uwzględnieniem celu wypłaty z kroku 4 i szacowanej puli `pool_monthly`).
+  Podtytuł kroku (`#wzAllocHeader`, subscript „Odkładasz X zł/mies…") jest renderowany
+  przy KAŻDYM wejściu na krok 5 (`setStep` → `buildAllocationStep`). Podtytuł to
+  `.wz-alloc-head` z dwoma wierszami: pula (`.wz-alloc-pool`, kwota `<strong>` w kolorze
+  `--primary`) + nota Gotówka (`#wzAllocCashNote`, widoczna gdy pula znana). Emotki przy
   nazwach strategii (🛡️ / ⚖️ / 🚀) — w labelach radio.
   „Zaproponuj" (`.btn-gradient`) = tryb **auto**: stawia sugestię wg
   pojemności limitów (`suggest_allocations`/`STRATEGY_SUGGEST`, planner.py) i pokazuje
@@ -113,14 +124,14 @@ bez TypeScript), SQLite, pytest. Odpowiadaj i pisz UI po polsku.
   etykieta | % | zł w jednej linii przy prawym brzegu, suwak pełnej szerokości pod
   spodem** (`order: 5`); w trybie auto statyczne „%"/„zł" też do prawego brzegu
   (`.wz-alloc-static`/`.wz-alloc-money { margin-left: auto }`).
-  Wybór trybu jest **wymagany**: bez niego „Dalej" jest wyłączony
+  Wybór trybu jest **wymagany**: bez niego „Wylicz plan" jest wyłączony
   (`wzNextBtn.disabled`, `.btn:disabled`), a wyjaśnienie jest tylko tooltipem
   (natywny `title` na wrapperze `.wz-next-tip` — na disabled buttonie title się
   nie pokazuje) oraz **dymkiem po kliknięciu** (`.wz-next-pop`, `role=status`,
   klika się wrapper, bo `#wzNextBtn:disabled { pointer-events: none }`; tekst
   współdzielony przez stałą `ALLOC_GATE_MSG`, auto-ukrycie ~4 s) — refresh
   bramki w `updateFooterNav`/`setAllocMode`/`runSuggestAllocation.finally`,
-  a `validateStep(4)` to siatka bezpieczeństwa (`allocReady()` =
+  a `validateStep(5)` to siatka bezpieczeństwa (`allocReady()` =
   `wzAllocMode != null`). Na **≤640px selektor Strategii zmienia się w pionową
   radio-listę** (pełnowymiarowe wiersze z `border`, kontener bez obramowania;
   na >640px zostaje segment).
@@ -129,16 +140,9 @@ bez TypeScript), SQLite, pytest. Odpowiadaj i pisz UI po polsku.
   `collectAllocations` pomija wagi nieaktywnych kont
   (`isCapActive(acc) && wzWeights[acc] > 0`) — martwe udziały nigdy nie wracają
   do sumy (inaczej sugerowanie/plan potrafiły błędnie przekroczyć 100%).
-- Krok 5 „Cel i horyzont": 4 pełnowymiarowe wiersze `.wz-slider` w kontenerze
-  `.wz-rows` (pionowy stack, separatory `1px solid var(--border)` między wierszami
-  w każdej szerokości — układ zawsze pionowy; bez hint-podpowiedzi, ewentualny
-  kontekst w `title` labela). Domyślne wartości **wg płci i wieku** przeliczane
-  automatycznie dopóki pola nie były ręcznie edytowane (flagi `wzRetirementTouched`/
-  `wzPlanEndTouched`): „Wiek emerytury" = `RETIREMENT_DEFAULT` (60 k / 65 m, spójne
-  z `config.zus.wiek_emerytalny_*`); „Koniec planu" = wiek + `LIFE_EXPECTANCY`
-  (średnie dalsze trwanie życia wg płci i wieku — GUS, tablica trwania życia za
-  2024 r., dane w wizard.js, to dane UI a nie backendu). Traktuj jak krok 2:
-  `.num-control` PRZED range, `bindSliderRange`.
+- Krok 6 „Wynik i podsumowanie": łączy wynik solvera (`#wzResult`), oś czasu
+  (`#wzTimeline`) i podgląd etapów (`#wzStagePreview`); przejście z kroku 5 od razu
+  uruchamia `runPlan()`.
 
 ### Założenia projektowe układu wierszowego (dlaczego tak — stosuj przy innych widokach)
 

@@ -66,18 +66,42 @@ class RealizacjaStage(BaseStage):
                 withdrawal[account] = withdrawal_amount
                 tax[account] = 0.0
         else:
-            total_balance = sum(max(0.0, balances.get(account, 0.0)) for account in investable)
-            for account, cfg in investable.items():
-                balance = max(0.0, balances.get(account, 0.0))
-                roi = cfg.get("roi", 0.02)
-                if total_balance > 0:
-                    share = min(balance, desired_withdrawal * (balance / total_balance))
+            tier_0 = [
+                acc
+                for acc, cfg in investable.items()
+                if cfg.get("min_withdrawal_age", 0) <= 0
+                or age >= cfg.get("min_withdrawal_age", 0)
+                or cfg.get("early_returned", False)
+            ]
+            tier_1 = [
+                acc
+                for acc, cfg in investable.items()
+                if acc not in tier_0 and cfg.get("early_tax_model", "none") != "scale"
+            ]
+            tier_2 = [
+                acc for acc in investable if acc not in tier_0 and acc not in tier_1
+            ]
+
+            remaining_needed = max(0.0, desired_withdrawal)
+            for tier in (tier_0, tier_1, tier_2):
+                tier_balance = sum(max(0.0, balances.get(acc, 0.0)) for acc in tier)
+                if remaining_needed > 1e-9 and tier_balance > 0:
+                    tier_draw = min(tier_balance, remaining_needed)
+                    for account in tier:
+                        balance = max(0.0, balances.get(account, 0.0))
+                        roi = investable[account].get("roi", 0.02)
+                        withdrawn = min(balance, tier_draw * (balance / tier_balance))
+                        new_balances[account] = (balance - withdrawn) * (1 + roi)
+                        withdrawal[account] = withdrawn
+                        tax[account] = 0.0
+                    remaining_needed = max(0.0, remaining_needed - tier_draw)
                 else:
-                    share = 0.0
-                withdrawn = max(0.0, share)
-                new_balances[account] = (balance - withdrawn) * (1 + roi)
-                withdrawal[account] = withdrawn
-                tax[account] = 0.0
+                    for account in tier:
+                        balance = max(0.0, balances.get(account, 0.0))
+                        roi = investable[account].get("roi", 0.02)
+                        new_balances[account] = balance * (1 + roi)
+                        withdrawal[account] = 0.0
+                        tax[account] = 0.0
 
         return {
             "balances": new_balances,

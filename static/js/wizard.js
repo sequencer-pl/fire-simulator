@@ -1,14 +1,16 @@
 // wizard.js — Asystent FIRE: 3 ścieżki planowania oparte o backend planner.py
 
-const WZ_TOTAL_STEPS = 7;
+const WZ_TOTAL_STEPS = 6;
 
-// Step 3 rows: every account is a plain balance field — participation follows
-// the declared capital (zero/nonzero). OFE lives as its own row beneath ZUS.
-const WZ_CAPITAL_ROWS = [
-    "gotowka", "zus", "zus:ofe", "ppk", "ppe",
-    "ike", "ikze", "oipe", "oki_inw", "oki_osk",
-    "krypto", "lokata", "obligacje", "broker",
+// Step 3 rows: primary accounts visible by default, niche accounts expandable.
+const WZ_PRIMARY_CAPITAL_ROWS = [
+    "gotowka", "zus", "ppk", "ike", "ikze",
+    "lokata", "obligacje", "broker",
 ];
+const WZ_EXTRA_CAPITAL_ROWS = [
+    "zus:ofe", "ppe", "oipe", "oki_inw", "oki_osk", "krypto",
+];
+const WZ_CAPITAL_ROWS = [...WZ_PRIMARY_CAPITAL_ROWS, ...WZ_EXTRA_CAPITAL_ROWS];
 
 // Accounts allocatable from the discretionary pool (sliders + pills in step 4).
 // Payroll vehicles (ZUS, PPK, PPE) are excluded — savings can't be routed there.
@@ -76,7 +78,8 @@ let wzNavStep = 1;
 let wzWeights = {};
 let wzLimits = null;
 let wzStrategyValue = "zbilansowana";
-let wzAllocMode = null;
+let wzAllocMode = "auto";
+let wzEstimatedPoolMonthly = null;
 let wzRetirementTouched = false;
 let wzPlanEndTouched = false;
 
@@ -100,20 +103,40 @@ function numControl(account, ariaLabel) {
     });
 }
 
+function buildCapitalRow(account) {
+    const icon = ACCOUNT_ICONS[account] || "";
+    const wrap = document.createElement("div");
+    wrap.className = "wz-capital-item wz-instrument-row";
+    wrap.innerHTML = `
+        <label class="wz-instrument-name">${icon} ${capitalLabel(account)}</label>
+        <div class="wz-instrument-fields">
+            ${numControl(account, capitalLabel(account))}
+        </div>`;
+    return wrap;
+}
+
 function buildCapitalGrid() {
     const grid = document.getElementById("wzCapitalGrid");
+    const moreGrid = document.getElementById("wzCapitalMoreGrid");
+    const moreBtn = document.getElementById("wzCapitalMoreBtn");
     grid.innerHTML = "";
-    WZ_CAPITAL_ROWS.forEach((account) => {
-        const icon = ACCOUNT_ICONS[account] || "";
-        const wrap = document.createElement("div");
-        wrap.className = "wz-capital-item wz-instrument-row";
-        wrap.innerHTML = `
-            <label class="wz-instrument-name">${icon} ${capitalLabel(account)}</label>
-            <div class="wz-instrument-fields">
-                ${numControl(account, capitalLabel(account))}
-            </div>`;
-        grid.appendChild(wrap);
-    });
+    if (moreGrid) {
+        moreGrid.innerHTML = "";
+        WZ_PRIMARY_CAPITAL_ROWS.forEach((account) => grid.appendChild(buildCapitalRow(account)));
+        WZ_EXTRA_CAPITAL_ROWS.forEach((account) => moreGrid.appendChild(buildCapitalRow(account)));
+        if (moreBtn && !moreBtn.dataset.bound) {
+            moreBtn.dataset.bound = "1";
+            moreBtn.addEventListener("click", () => {
+                const hidden = moreGrid.classList.toggle("hidden");
+                moreBtn.setAttribute("aria-expanded", String(!hidden));
+                moreBtn.textContent = hidden
+                    ? "Pokaż pozostałe konta (OFE, PPE, OIPE, OKI, Krypto)"
+                    : "Ukryj pozostałe konta";
+            });
+        }
+    } else {
+        WZ_CAPITAL_ROWS.forEach((account) => grid.appendChild(buildCapitalRow(account)));
+    }
 }
 
 function capitalSaldo(account) {
@@ -204,15 +227,21 @@ function setStep(n, focus = false) {
     bar.style.width = (n / WZ_TOTAL_STEPS) * 100 + "%";
     bar.setAttribute("aria-valuenow", String(n));
     window.scrollTo({ top: 0, behavior: "smooth" });
-    if (n === 4) {
-        // Nagłówek podziału (pula oszczędności) renderuj przy każdym wejściu —
-        // ma być widoczny zanim użytkownik wybierze tryb podziału.
+    if (n === 5) {
         buildAllocationStep();
         if (!wzAllocMode) {
             ["wzAllocPanel", "wzAllocPillsPanel", "wzPayrollPanel"].forEach((id) => {
                 const el = document.getElementById(id);
                 if (el) el.classList.add("hidden");
             });
+        } else if (wzAllocMode === "auto") {
+            const panel = document.getElementById("wzAllocPanel");
+            if (panel) panel.classList.remove("hidden");
+            const autoBtn = document.getElementById("wzAutoBtn");
+            const manualBtn = document.getElementById("wzManualBtn");
+            if (autoBtn) autoBtn.setAttribute("aria-pressed", "true");
+            if (manualBtn) manualBtn.setAttribute("aria-pressed", "false");
+            runSuggestAllocation();
         }
     }
     wzNavStep = n;
@@ -228,17 +257,6 @@ function setStep(n, focus = false) {
 
 function validateStep(n) {
     if (n === 4) {
-        if (!allocReady()) {
-            alert("Wybierz „Zaproponuj” albo „Podziel ręcznie”, zanim przejdziesz dalej.");
-            return false;
-        }
-        const total = Object.values(collectAllocations()).reduce((a, b) => a + (b || 0), 0);
-        if (total > 100 + 1e-6) {
-            alert("Suma udziałów przekracza 100%. Zmniejsz któreś z kont albo zostaw resztę w gotówce.");
-            return false;
-        }
-    }
-    if (n === 5) {
         const path = currentPath();
         const age = parseInt(document.getElementById("wzAge").value, 10) || 0;
         const reGroup = document.getElementById("wzReGroup");
@@ -263,13 +281,24 @@ function validateStep(n) {
             }
         }
     }
+    if (n === 5) {
+        if (!allocReady()) {
+            alert("Wybierz „Zaproponuj” albo „Podziel ręcznie”, zanim przejdziesz dalej.");
+            return false;
+        }
+        const total = Object.values(collectAllocations()).reduce((a, b) => a + (b || 0), 0);
+        if (total > 100 + 1e-6) {
+            alert("Suma udziałów przekracza 100%. Zmniejsz któreś z kont albo zostaw resztę w gotówce.");
+            return false;
+        }
+    }
     if (n === 6) {
         return wzPlan !== null;
     }
     return true;
 }
 
-// --- Bramka kroku 4: wybór trybu podziału przed przejściem dalej -------------
+// --- Bramka kroku 5: wybór trybu podziału przed przejściem dalej -------------
 
 function allocReady() {
     return wzAllocMode != null;
@@ -295,12 +324,12 @@ function showAllocGatePop() {
 function refreshAllocGate() {
     const ready = allocReady();
     const next = document.getElementById("wzNextBtn");
-    if (next) next.disabled = wzNavStep === 4 && !ready;
+    if (next) next.disabled = wzNavStep === 5 && !ready;
     // Tooltip na wrapperze przycisku (natywny title na disabled button
     // nie pokazuje się w większości przeglądarek).
     const tip = document.getElementById("wzNextTip");
     if (tip) {
-        const locked = wzNavStep === 4 && !ready;
+        const locked = wzNavStep === 5 && !ready;
         tip.title = locked ? ALLOC_GATE_MSG : "";
         tip.classList.toggle("is-locked", locked);
     }
@@ -404,6 +433,8 @@ async function runPlan() {
         renderMetrics(data.projection);
         renderSolved(data.solved);
         renderWarnings(data.projection.warnings);
+        renderTimeline(data.input);
+        renderStagePreview(data.input);
     } catch (err) {
         wzPlan = null;
         errorBox.textContent = "Błąd: " + err.message;
@@ -478,14 +509,14 @@ function updateFooterNav(n) {
     if (back) back.classList.toggle("hidden", n === 1);
     const next = document.getElementById("wzNextBtn");
     if (!next) return;
-    if (n === 6) {
-        next.textContent = wzPlan ? "Podsumowanie" : "Wylicz plan";
-    } else if (n === 7) {
-        next.textContent = "Przejdź do symulatora";
+    if (n === 5) {
+        next.textContent = "Wylicz plan";
+    } else if (n === 6) {
+        next.textContent = wzPlan ? "Przejdź do symulatora" : "Wylicz plan";
     } else {
         next.textContent = "Dalej";
     }
-if (n === 4) {
+    if (n === 5) {
         refreshAllocGate();
     } else {
         next.disabled = false;
@@ -708,10 +739,15 @@ function wzActiveAllocAccounts() {
 }
 
 function wzPoolMonthly() {
-    if (currentPath() === 2 && wzPlan && wzPlan.solved && wzPlan.solved.savings_monthly != null) {
-        return wzPlan.solved.savings_monthly;
+    if (currentPath() === 2) {
+        if (wzPlan && wzPlan.solved && wzPlan.solved.savings_monthly != null) {
+            return wzPlan.solved.savings_monthly;
+        }
+        if (wzEstimatedPoolMonthly != null) {
+            return wzEstimatedPoolMonthly;
+        }
+        return null;
     }
-    if (currentPath() === 2) return null;
     const mode = radioChecked("wzSavingsMode") || "pct";
     const v = parseFloat(document.getElementById("wzSavings").value) || 0;
     if (mode === "amount") return v;
@@ -956,7 +992,16 @@ async function runSuggestAllocation() {
     if (!btn) return;
     btn.disabled = true;
     try {
-        const data = await postJson("/api/wizard/suggest", { answers: collectAnswers() }, "Błąd sugestii.");
+        const path = currentPath();
+        const target = path !== 1 ? (parseFloat(document.getElementById("wzTarget")?.value) || null) : null;
+        const data = await postJson(
+            "/api/wizard/suggest",
+            { answers: collectAnswers(), path: path, target_monthly: target },
+            "Błąd sugestii."
+        );
+        if (data.pool_monthly != null) {
+            wzEstimatedPoolMonthly = data.pool_monthly;
+        }
         wzWeights = {};
         Object.entries(data.allocations || {}).forEach(([acc, v]) => {
             if (acc !== "gotowka") {
@@ -993,7 +1038,7 @@ async function loadWzLimits() {
         const cfg = await res.json();
         wzLimits = cfg.limits;
         const step = document.querySelector(".wz-step:not(.hidden)");
-        if (step && parseInt(step.dataset.step, 10) === 4) buildAllocationStep();
+        if (step && parseInt(step.dataset.step, 10) === 5) buildAllocationStep();
     } catch {
         // best-effort: brak limitów = brak pasków limitów
     }
@@ -1004,7 +1049,12 @@ function initStrategy() {
     if (!opts.length) return;
     const update = () => {
         const checked = document.querySelector('input[name="wzStrategy"]:checked');
-        if (checked) wzStrategyValue = checked.value;
+        if (checked) {
+            wzStrategyValue = checked.value;
+            if (wzNavStep === 5 && wzAllocMode === "auto") {
+                runSuggestAllocation();
+            }
+        }
     };
     opts.forEach((r) => r.addEventListener("change", update));
     update();
@@ -1029,17 +1079,18 @@ function initNav() {
         const n = wzNavStep;
         if (n === 6) {
             if (wzPlan) {
-                toSummary();
+                finishWizard();
             } else {
                 runPlan();
             }
             return;
         }
-        if (n === 7) {
-            finishWizard();
+        if (!validateStep(n)) return;
+        if (n === 5) {
+            setStep(6, true);
+            runPlan();
             return;
         }
-        if (!validateStep(n)) return;
         setStep(n + 1, true);
     });
     document.getElementById("wzBackBtn").addEventListener("click", () => {
@@ -1054,12 +1105,8 @@ function initNav() {
     const tip = document.getElementById("wzNextTip");
     if (tip) {
         tip.addEventListener("click", (e) => {
-            // Tylko fizyczny tap na zablokowany przycisk (pointer-events:none
-            // sprawia, że target to wrapper, nie button). Klik na aktywnym
-            // „Dalej” (nawigacja) bubble'uje tu po setStep — tą ścieżką
-            // nie pokazujemy dymka.
             if (e.target !== tip) return;
-            if (wzNavStep === 4 && !allocReady()) {
+            if (wzNavStep === 5 && !allocReady()) {
                 e.preventDefault();
                 showAllocGatePop();
             }

@@ -155,6 +155,8 @@ class WizardPlanRequest(BaseModel):
 
 class WizardSuggestRequest(BaseModel):
     answers: WizardAnswers
+    path: Literal[1, 2, 3] = 1
+    target_monthly: float | None = Field(default=None, ge=0.0)
 
 
 class PlanProjection(BaseModel):
@@ -196,6 +198,21 @@ def _savings_monthly(a: WizardAnswers) -> float:
     return a.savings / 100.0 * max(0.0, a.gross_monthly)
 
 
+def estimate_pool_monthly(
+    a: WizardAnswers, path: int = 1, target_monthly: float | None = None
+) -> float:
+    """Monthly savings pool: direct for paths 1/3, solved from target for path 2."""
+    if path == 2 and target_monthly is not None and target_monthly > 0:
+        na = a.model_copy(deep=True)
+        if not na.allocations:
+            na.allocations = suggest_allocations(
+                na, default_config(), max(12_000.0, target_monthly * 12.0)
+            )
+        amount, _ = _solve_savings(na, target_monthly)
+        return round(amount, 2)
+    return _savings_monthly(a)
+
+
 def _roi(a: WizardAnswers, name: str) -> float:
     if name in a.roi_overrides:
         return a.roi_overrides[name]
@@ -203,7 +220,7 @@ def _roi(a: WizardAnswers, name: str) -> float:
 
 
 def _with_basis(name: str) -> bool:
-    return name in ("broker", "obligacje", "krypto")
+    return name in ("broker", "obligacje", "krypto", "ike", "oipe")
 
 
 def _shelter_cap(a: WizardAnswers, config, name: str) -> float:
@@ -378,11 +395,16 @@ def build_stages(a: WizardAnswers) -> SimulationInput:
                 roi=_roi(a, "ppe"),
             )
         if employed and a.use_zus:
+            zus_base = (
+                min(gross, config.zus.b2b_base_monthly)
+                if a.employment == "b2b"
+                else gross
+            )
             accum_accounts["zus"] = AccountConfig(
                 starting_balance=a.capital.get("zus", 0.0),
                 starting_balance_ofe=a.capital.get("zus:ofe", 0.0),
                 ofe_member=a.ofe_member,
-                monthly_base=gross,
+                monthly_base=zus_base,
                 roi=DEFAULT_ZUS_ROI,
             )
         if accum_accounts:
@@ -526,7 +548,9 @@ def _drawn_floor(data: SimulationInput, result: SimulationResult) -> float:
     return min(nets) if nets else 0.0
 
 
-def _net_to_gross(data: SimulationInput, target: float) -> float:
+def _net_to_gross(
+    data: SimulationInput, target: float
+) -> tuple[float, SimulationResult]:
     """Monthly gross draw whose minimum net take-home equals ``target``.
 
     The engine pays out gross; taxes eat a growing share as principal is
@@ -535,26 +559,29 @@ def _net_to_gross(data: SimulationInput, target: float) -> float:
     the target. Infeasible targets diverge upward (min stays below target).
     """
     if target <= 0:
-        return 0.0
+        return 0.0, simulate(data, 0.0)
     G = target
     tol = _tl(target)
-    for _ in range(60):
-        net = _drawn_floor(data, simulate(data, G))
+    res = simulate(data, G)
+    for _ in range(25):
+        net = _drawn_floor(data, res)
         if net <= 0:
             break
         if abs(net - target) <= tol:
             break
         G = G * target / net
         if G > 1e12:
+            res = simulate(data, G)
             break
-    return G
+        res = simulate(data, G)
+    return G, res
 
 
 def _evaluate(data: SimulationInput, target: float | None) -> PlanProjection:
     if target is None or target <= 0:
         return _project(data, simulate(data, target), target)
-    G = _net_to_gross(data, target)
-    return _project(data, simulate(data, G), target)
+    _G, res = _net_to_gross(data, target)
+    return _project(data, res, target)
 
 
 def _solve_payout(data: SimulationInput) -> tuple[float, bool]:
@@ -573,7 +600,7 @@ def _solve_payout(data: SimulationInput) -> tuple[float, bool]:
     hi = max(100.0, data.monthly_gross)
     while _evaluate(data, hi).met and hi < 1e9:
         hi *= 2.0
-    for _ in range(50):
+    for _ in range(32):
         mid = (lo + hi) / 2.0
         if _evaluate(data, mid).met:
             lo = mid
@@ -637,7 +664,7 @@ def _solve_savings(a: WizardAnswers, target: float) -> tuple[float, bool]:
         return hi, False
     if _evaluate(_vary_savings(a, lo), target).min_monthly >= target - tol:
         return 0.0, True
-    for _ in range(40):
+    for _ in range(30):
         mid = (lo + hi) / 2.0
         if _evaluate(_vary_savings(a, mid), target).min_monthly >= target - tol:
             hi = mid
@@ -667,9 +694,10 @@ def plan(path: int, a: WizardAnswers, target: float | None = None) -> WizardPlan
     if path == 1:
         data = build_stages(a)
         payout, _ = _solve_payout(data)
+        gross_target, _ = _net_to_gross(data, payout)
         for si in data.stages:
             if si.stage_type == "realizacja" and "zus" not in si.accounts:
-                si.withdrawal_target_monthly = float(_net_to_gross(data, payout))
+                si.withdrawal_target_monthly = float(gross_target)
         return WizardPlanResult(
             path=1,
             input=data,

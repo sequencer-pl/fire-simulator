@@ -49,3 +49,27 @@ def test_login_page_renders_auth_panel(client):
     assert "loginForm" in html
     assert "registerForm" in html
     assert "/static/js/login.js" in html
+
+
+def test_rate_limit_respects_x_forwarded_for(client):
+    client.post("/api/register", json={"email": "rl@b.pl", "password": "haslo12345"})
+    for _ in range(10):
+        r = client.post(
+            "/api/login",
+            json={"email": "rl@b.pl", "password": "zle"},
+            headers={"X-Forwarded-For": "203.0.113.10, 10.0.0.1"},
+        )
+        assert r.status_code == 401
+    blocked = client.post(
+        "/api/login",
+        json={"email": "rl@b.pl", "password": "zle"},
+        headers={"X-Forwarded-For": "203.0.113.10, 10.0.0.1"},
+    )
+    assert blocked.status_code == 429
+    # Inny użytkownik za tym samym reverse proxy nie jest zablokowany
+    other = client.post(
+        "/api/login",
+        json={"email": "rl@b.pl", "password": "haslo12345"},
+        headers={"X-Forwarded-For": "198.51.100.22, 10.0.0.1"},
+    )
+    assert other.status_code == 200

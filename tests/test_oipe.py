@@ -34,7 +34,7 @@ def test_oipe_withdrawal_after_60_tax_free():
     assert result.total_withdrawn > 0
 
 
-def test_oipe_early_withdrawal_belka_from_full():
+def test_oipe_early_withdrawal_belka_from_gains():
     accumulation = accumulation_stage(
         {"oipe": acc(annual_contribution=10000, roi=0.06)}, start=40, end=55
     )
@@ -49,8 +49,8 @@ def test_oipe_early_withdrawal_belka_from_full():
     ]
     result = simulate(SimulationInput(stages=stages, max_age=55, config=CFG_NOINFL))
     y = result.years[-1]
-    # early_tax_basis="full" — podatek 19% od CAŁEJ kwoty
-    assert y.tax_paid == pytest.approx(bal * 0.19, abs=0.5)
+    # early_tax_basis="gains" — podatek 19% wyłącznie od wypracowanego zysku
+    assert y.tax_paid == pytest.approx((bal - contributions) * 0.19, abs=0.5)
 
 
 def test_oipe_in_accounts_list():

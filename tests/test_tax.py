@@ -291,3 +291,45 @@ def test_warning_ikze_limit_self_employed_over():
     ]
     result = simulate(SimulationInput(stages=stages, max_age=44, config=CFG_NOINFL))
     assert any("16,956" in w and "IKZE" in w for w in result.warnings)
+
+
+def test_scale_tax_indexed_with_inflation():
+    # Emerytura 4500 zł/mies. (54k/rok) po 35 latach akumulacji nie wpada w II próg 32%
+    # wskutek inflacji — progi podatkowe rosną razem z inflacją.
+    stages = [
+        accumulation_stage({"broker": acc(starting_balance=10_000, roi=0.0)}, start=30, end=65),
+        realization_stage("ZUS", {"zus": acc(monthly_pension=4_500)}, 65, 70),
+    ]
+    r_noinfl = simulate(SimulationInput(stages=stages, max_age=69, config=TaxConfig(inflation=0.0)))
+    r_infl = simulate(
+        SimulationInput(stages=stages, max_age=69, config=TaxConfig(inflation=0.025))
+    )
+    y_noinfl = next(y for y in r_noinfl.years if y.age == 65)
+    y_infl = next(y for y in r_infl.years if y.age == 65)
+    assert y_infl.tax_paid == pytest.approx(y_noinfl.tax_paid, abs=0.01)
+
+
+def test_ikze_saving_reinvested_into_broker():
+    # Zwrot podatku z wpłaty na IKZE powiększa saldo aktywnego konta maklerskiego.
+    stages_solo = [
+        accumulation_stage({"broker": acc(starting_balance=10_000, roi=0.0)}, start=40, end=42),
+    ]
+    stages_with_ikze = [
+        accumulation_stage(
+            {
+                "broker": acc(starting_balance=10_000, roi=0.0),
+                "ikze": acc(annual_contribution=11_304, roi=0.0),
+            },
+            start=40,
+            end=42,
+        ),
+    ]
+    r_solo = simulate(
+        SimulationInput(stages=stages_solo, max_age=41, monthly_gross=10_000, config=CFG_NOINFL)
+    )
+    r_ikze = simulate(
+        SimulationInput(
+            stages=stages_with_ikze, max_age=41, monthly_gross=10_000, config=CFG_NOINFL
+        )
+    )
+    assert r_ikze.years[1].balances["broker"] > r_solo.years[1].balances["broker"]

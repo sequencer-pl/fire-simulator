@@ -8,7 +8,7 @@
     <div class="wizard-progress" id="wizardProgress">
         <div class="wizard-progress-track" id="wizardProgressTrack">
             <div class="wizard-progress-bar" id="wizardProgressBar" role="progressbar"
-                 aria-label="Postęp asystenta" aria-valuemin="1" aria-valuemax="7" aria-valuenow="1"></div>
+                 aria-label="Postęp asystenta" aria-valuemin="1" aria-valuemax="6" aria-valuenow="1"></div>
         </div>
     </div>
 
@@ -115,57 +115,14 @@
         <h2>Kapitał</h2>
         <p class="subtitle">Wpisz zgromadzone salda — konto z saldem 0 jest pomijane. Konta, których jeszcze nie masz, dodasz w kroku Podział — bez środków, jako udział w przyszłych oszczędnościach.</p>
         <div class="wz-capital-grid" id="wzCapitalGrid"></div>
+        <div class="wz-capital-more">
+            <button type="button" class="btn btn-secondary wz-capital-more-btn" id="wzCapitalMoreBtn" aria-expanded="false">Pokaż pozostałe konta (OFE, PPE, OIPE, OKI, Krypto)</button>
+        </div>
+        <div class="wz-capital-grid hidden" id="wzCapitalMoreGrid"></div>
     </section>
 
-    <!-- KROK 4: PODZIAŁ OSZCZĘDNOŚCI -->
+    <!-- KROK 4: CELE I HORYZONT -->
     <section class="wz-step hidden" data-step="4">
-        <h2>Podział oszczędności</h2>
-        <div class="wz-alloc-head">
-            <p class="subtitle wz-alloc-pool" id="wzAllocHeader"></p>
-            <p class="subtitle wz-alloc-cash-note" id="wzAllocCashNote" hidden>Na start wszystko zostaje w <strong>Gotówce</strong> — przydziel środki między instrumenty.</p>
-        </div>
-
-        <div class="wz-alloc-panel">
-            <h3 class="wz-panel-title">Strategia</h3>
-            <div class="gender-options wz-alloc-strategy-options">
-                <label class="gender-option" title="Niski apetyt na ryzyko — bezpieczne aktywa, mało w ryzykowne"><input type="radio" name="wzStrategy" value="konserwatywna" /> 🛡️ Konserwatywna</label>
-                <label class="gender-option" title="Umiarkowane ryzyko i umiarkowany zysk"><input type="radio" name="wzStrategy" value="zbilansowana" checked /> ⚖️ Zrównoważona</label>
-                <label class="gender-option" title="Wysoki potencjał zysku, większe ryzyko"><input type="radio" name="wzStrategy" value="agresywna" /> 🚀 Agresywna</label>
-            </div>
-            <div class="wz-strategy-actions">
-                <button type="button" class="btn btn-secondary" id="wzManualBtn">Podziel ręcznie</button>
-                <button type="button" class="btn btn-gradient" id="wzAutoBtn">Zaproponuj</button>
-            </div>
-        </div>
-
-        <div class="wz-alloc-panel" id="wzAllocPanel">
-            <div class="wz-alloc-panel-head">
-                <h3 class="wz-panel-title">Podział</h3>
-                <div id="wzAllocSum" class="wz-alloc-sum"></div>
-            </div>
-            <div class="wz-alloc-cash-row wz-alloc-row" id="wzAllocCashRow">
-                <div class="wz-alloc-label">💵 Gotówka</div>
-                <input type="range" class="wz-alloc-range" disabled aria-label="Udział gotówkowy (read-only)">
-                <span class="wz-alloc-money" id="wzAllocCashMoney">—</span>
-            </div>
-            <div id="wzAllocGrid" class="wz-alloc-grid"></div>
-            <div id="wzAllocCash" class="wz-alloc-cash"></div>
-        </div>
-
-        <div class="wz-alloc-panel" id="wzAllocPillsPanel">
-            <h3 class="wz-panel-title">Dodaj instrument</h3>
-            <div id="wzAllocPills" class="wz-alloc-pills hidden"></div>
-        </div>
-
-        <div class="wz-alloc-panel" id="wzPayrollPanel">
-            <h3 class="wz-panel-title">Wpłaty z pensji</h3>
-            <div id="wzPayrollActive" class="wz-payroll-active hidden"></div>
-        </div>
-
-    </section>
-
-    <!-- KROK 5: CELE I HORYZONT -->
-    <section class="wz-step hidden" data-step="5">
         <h2>Cel i horyzont</h2>
         <p class="subtitle">Określ cel wypłat i horyzont planu — resztę ścieżki wyliczymy wstecz.</p>
         <div class="wz-panel">
@@ -218,9 +175,57 @@
         </div>
     </section>
 
-    <!-- KROK 6: WYNIK -->
+    <!-- KROK 5: PODZIAŁ OSZCZĘDNOŚCI -->
+    <section class="wz-step hidden" data-step="5">
+        <h2>Podział oszczędności</h2>
+        <div class="wz-alloc-head">
+            <p class="subtitle wz-alloc-pool" id="wzAllocHeader"></p>
+            <p class="subtitle wz-alloc-cash-note" id="wzAllocCashNote" hidden>Nierozdysponowane środki zostają w <strong>Gotówce</strong> — możesz zaakceptować propozycję lub podzielić je ręcznie.</p>
+        </div>
+
+        <div class="wz-alloc-panel">
+            <h3 class="wz-panel-title">Strategia</h3>
+            <div class="gender-options wz-alloc-strategy-options">
+                <label class="gender-option" title="Niski apetyt na ryzyko — bezpieczne aktywa, mało w ryzykowne"><input type="radio" name="wzStrategy" value="konserwatywna" /> 🛡️ Konserwatywna</label>
+                <label class="gender-option" title="Umiarkowane ryzyko i umiarkowany zysk"><input type="radio" name="wzStrategy" value="zbilansowana" checked /> ⚖️ Zrównoważona</label>
+                <label class="gender-option" title="Wysoki potencjał zysku, większe ryzyko"><input type="radio" name="wzStrategy" value="agresywna" /> 🚀 Agresywna</label>
+            </div>
+            <div class="wz-strategy-actions">
+                <button type="button" class="btn btn-secondary" id="wzManualBtn">Podziel ręcznie</button>
+                <button type="button" class="btn btn-gradient" id="wzAutoBtn">Zaproponuj</button>
+            </div>
+        </div>
+
+        <div class="wz-alloc-panel" id="wzAllocPanel">
+            <div class="wz-alloc-panel-head">
+                <h3 class="wz-panel-title">Podział</h3>
+                <div id="wzAllocSum" class="wz-alloc-sum"></div>
+            </div>
+            <div class="wz-alloc-cash-row wz-alloc-row" id="wzAllocCashRow">
+                <div class="wz-alloc-label">💵 Gotówka</div>
+                <input type="range" class="wz-alloc-range" disabled aria-label="Udział gotówkowy (read-only)">
+                <span class="wz-alloc-money" id="wzAllocCashMoney">—</span>
+            </div>
+            <div id="wzAllocGrid" class="wz-alloc-grid"></div>
+            <div id="wzAllocCash" class="wz-alloc-cash"></div>
+        </div>
+
+        <div class="wz-alloc-panel" id="wzAllocPillsPanel">
+            <h3 class="wz-panel-title">Dodaj instrument</h3>
+            <div id="wzAllocPills" class="wz-alloc-pills hidden"></div>
+        </div>
+
+        <div class="wz-alloc-panel" id="wzPayrollPanel">
+            <h3 class="wz-panel-title">Wpłaty z pensji</h3>
+            <div id="wzPayrollActive" class="wz-payroll-active hidden"></div>
+        </div>
+
+    </section>
+
+    <!-- KROK 6: WYNIK I PODSUMOWANIE -->
     <section class="wz-step hidden" data-step="6">
-        <h2>Wynik</h2>
+        <h2>Wynik i podsumowanie</h2>
+        <p class="subtitle">Oto wyliczony plan oraz oś czasu etapów. Możesz od razu przejść do szczegółowej edycji w symulatorze.</p>
         <div id="wzResult" class="wz-result hidden">
             <div id="wzResultError" class="wz-result-error hidden"></div>
             <div class="wz-metric-line" id="wzMetrics"></div>
@@ -228,12 +233,6 @@
             <div id="wzWarnings" class="wz-warnings" aria-live="polite"></div>
             <p class="wz-result-note">Wypłaty pokazane są netto (po podatku). Symulacja jest deterministyczna — opiera się na założonych stopach zwrotu i nie gwarantuje przyszłych wyników.</p>
         </div>
-    </section>
-
-    <!-- KROK 7: PODSUMOWANIE -->
-    <section class="wz-step hidden" data-step="7">
-        <h2>Podsumowanie</h2>
-        <p class="subtitle">Tak wyglądać będą Twoje etapy. Możesz je dalej edytować w symulatorze.</p>
         <div class="wz-timeline" id="wzTimeline"></div>
         <div id="wzStagePreview" class="wz-stage-preview"></div>
     </section>
@@ -242,7 +241,7 @@
         <div class="wz-footer-left">
             <button type="button" class="btn btn-secondary" id="wzBackBtn">Wstecz</button>
         </div>
-        <span class="wz-step-count" id="wzStepCount">Krok 1 / 7</span>
+        <span class="wz-step-count" id="wzStepCount">Krok 1 / 6</span>
         <div class="wz-footer-right">
             <span class="wz-next-tip" id="wzNextTip" title=""><button type="button" class="btn btn-primary" id="wzNextBtn">Dalej</button><div class="wz-next-pop" id="wzNextPop" role="status" aria-live="polite" hidden></div></span>
         </div>

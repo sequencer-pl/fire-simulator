@@ -19,7 +19,7 @@ from app.simulation.engine import simulate
 from app.simulation.planner import (
     WizardPlanRequest,
     WizardSuggestRequest,
-    _savings_monthly,
+    estimate_pool_monthly,
     plan,
     suggest_allocations,
 )
@@ -259,7 +259,7 @@ async def wizard(request: Request):
 
 
 @router.post("/api/wizard/plan")
-async def api_wizard_plan(body: WizardPlanRequest):
+def api_wizard_plan(body: WizardPlanRequest):
     try:
         return plan(body.path, body.answers, body.target_monthly)
     except Exception as e:
@@ -267,16 +267,22 @@ async def api_wizard_plan(body: WizardPlanRequest):
 
 
 @router.post("/api/wizard/suggest")
-async def api_wizard_suggest(body: WizardSuggestRequest):
+def api_wizard_suggest(body: WizardSuggestRequest):
     try:
-        pool = _savings_monthly(body.answers) * 12.0
-        return {"allocations": suggest_allocations(body.answers, default_config(), pool)}
+        pool_monthly = estimate_pool_monthly(
+            body.answers, body.path, body.target_monthly
+        )
+        pool = pool_monthly * 12.0
+        return {
+            "allocations": suggest_allocations(body.answers, default_config(), pool),
+            "pool_monthly": round(pool_monthly, 2),
+        }
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @router.post("/api/simulate")
-async def api_simulate(input_data: SimulationInput):
+def api_simulate(input_data: SimulationInput):
     try:
         result = simulate(input_data)
     except Exception as e:
