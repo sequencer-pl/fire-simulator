@@ -8,6 +8,9 @@ let DEFAULT_CONFIG = null;
 let PRESETS = [];
 let _currentPresetId = null;
 let _currentPresetName = "Domyślne 2026";
+let CONFIG_BASELINE = null;
+let CONFIG_BASELINE_NAME = "Domyślne 2026";
+let CONFIG_OVERRIDE_PATHS = new Set();
 
 let lastInput = null;
 let lastResult = null;
@@ -348,7 +351,29 @@ async function initConfig() {
         ]);
         DEFAULT_CONFIG = await defaultsRes.json();
         const userData = await userRes.json();
-        USER_CONFIG = userData.config ? backfillConfig(userData.config) : structuredClone(DEFAULT_CONFIG);
+        if (userData.config) {
+            USER_CONFIG = backfillConfig(userData.config);
+            if (userData.baseline) {
+                CONFIG_BASELINE = backfillConfig(userData.baseline);
+                CONFIG_BASELINE_NAME = userData.preset_name || "Własna konfiguracja";
+                _currentPresetId = userData.preset_id ?? null;
+                _currentPresetName = CONFIG_BASELINE_NAME === "Własna konfiguracja" ? null : CONFIG_BASELINE_NAME;
+                CONFIG_OVERRIDE_PATHS = new Set(userData.overrides || []);
+            } else {
+                CONFIG_BASELINE = structuredClone(USER_CONFIG);
+                CONFIG_BASELINE_NAME = "Własna konfiguracja";
+                _currentPresetId = null;
+                _currentPresetName = null;
+                CONFIG_OVERRIDE_PATHS = new Set();
+            }
+        } else {
+            USER_CONFIG = structuredClone(DEFAULT_CONFIG);
+            CONFIG_BASELINE = structuredClone(DEFAULT_CONFIG);
+            CONFIG_BASELINE_NAME = "Domyślne 2026";
+            _currentPresetId = null;
+            _currentPresetName = "Domyślne 2026";
+            CONFIG_OVERRIDE_PATHS = new Set();
+        }
         const presetsData = await presetsRes.json();
         PRESETS = presetsData.presets || [];
         if (!CONFIG) CONFIG = structuredClone(USER_CONFIG);
@@ -386,13 +411,6 @@ function setConfigPath(path, value) {
     scheduleConfigSave();
 }
 
-function getConfigDefault(path) {
-    const parts = path.split(".");
-    let val = DEFAULT_CONFIG;
-    for (const p of parts) val = val?.[p];
-    return val;
-}
-
 let _configSaveTimeout = null;
 function scheduleConfigSave() {
     if (!window.getCurrentUserEmail?.()) return;
@@ -401,7 +419,13 @@ function scheduleConfigSave() {
         fetch("/api/config/user", {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(USER_CONFIG),
+            body: JSON.stringify({
+                config: USER_CONFIG,
+                baseline: CONFIG_BASELINE || USER_CONFIG,
+                preset_id: _currentPresetId,
+                preset_name: CONFIG_BASELINE_NAME,
+                overrides: [...CONFIG_OVERRIDE_PATHS],
+            }),
         }).catch((err) => console.error("Błąd zapisu konfiguracji:", err));
     }, 500);
 }
@@ -485,75 +509,129 @@ function configSection(title, fields) {
     return section;
 }
 
-function configField(path, label, value, percent, hint, ticks) {
+function configPathValue(config, path) {
+    return path.split(".").reduce((value, part) => value?.[part], config);
+}
+
+function configValuesEqual(a, b) {
+    if (typeof a === "number" && typeof b === "number") return Math.abs(a - b) < 1e-9;
+    return a === b;
+}
+
+function formatConfigValue(value, percent = false) {
+    if (value == null) return "Nie ustawiono";
+    const number = percent ? value * 100 : value;
+    const formatted = Number(number).toLocaleString("pl-PL", { maximumFractionDigits: 4 });
+    return percent ? `${formatted}%` : formatted;
+}
+
+function configFieldShell(path, label, hint, editorMarkup, displayValue, inputValue = (current) => current) {
     const wrap = document.createElement("div");
-    wrap.className = "field-group";
-    const raw = percent ? value * 100 : value;
-    const displayVal = Math.round(raw * 1e4) / 1e4;
+    wrap.className = "field-group config-field";
+    wrap.innerHTML = `
+        <div class="config-field-heading">
+            <label class="config-field-label">${tipLabelHtml(label, hint)}</label>
+            <span class="config-override-indicator" role="img" hidden></span>
+        </div>
+        <div class="config-readonly-row">
+            <output class="config-readonly-value"></output>
+            <button type="button" class="btn btn-secondary config-edit-btn">Zmień</button>
+            <div class="config-inline-editor" hidden>${editorMarkup}</div>
+            <div class="config-edit-actions" hidden>
+                <button type="button" class="btn btn-primary config-confirm-btn">OK</button>
+                <button type="button" class="btn btn-secondary config-restore-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7v6h6"/><path d="M5.1 13a8 8 0 1 0 2.3-5.7L3 10"/></svg></button>
+            </div>
+        </div>
+    `;
+
+    const input = wrap.querySelector(".acc-field, select");
+    const valueEl = wrap.querySelector(".config-readonly-value");
+    const editor = wrap.querySelector(".config-inline-editor");
+    const editBtn = wrap.querySelector(".config-edit-btn");
+    const editActions = wrap.querySelector(".config-edit-actions");
+    const confirmBtn = wrap.querySelector(".config-confirm-btn");
+    const indicator = wrap.querySelector(".config-override-indicator");
+    const restoreBtn = wrap.querySelector(".config-restore-btn");
+    const restoreLabel = CONFIG_BASELINE_NAME === "Własna konfiguracja"
+        ? "Przywróć zapisaną wartość"
+        : "Przywróć z presetu";
+    restoreBtn.title = restoreLabel;
+    restoreBtn.setAttribute("aria-label", restoreLabel);
+    input.setAttribute("aria-label", label);
+
+    function updateState() {
+        const isChanged = !configValuesEqual(
+            configPathValue(USER_CONFIG, path),
+            configPathValue(CONFIG_BASELINE || DEFAULT_CONFIG, path)
+        );
+        if (isChanged) CONFIG_OVERRIDE_PATHS.add(path);
+        else CONFIG_OVERRIDE_PATHS.delete(path);
+        indicator.hidden = !isChanged;
+        indicator.title = CONFIG_BASELINE_NAME === "Własna konfiguracja"
+            ? "Wartość różni się od zapisanej konfiguracji"
+            : "Wartość różni się od presetu";
+        indicator.setAttribute("aria-label", indicator.title);
+        wrap.classList.toggle("has-override", isChanged);
+        restoreBtn.disabled = !isChanged;
+        valueEl.textContent = displayValue(configPathValue(USER_CONFIG, path));
+    }
+
+    editBtn.addEventListener("click", () => {
+        valueEl.hidden = true;
+        editor.hidden = false;
+        editBtn.hidden = true;
+        editActions.hidden = false;
+        input.focus();
+    });
+    confirmBtn.addEventListener("click", () => {
+        valueEl.hidden = false;
+        editor.hidden = true;
+        editBtn.hidden = false;
+        editActions.hidden = true;
+        editBtn.focus();
+    });
+    restoreBtn.addEventListener("click", () => {
+        const baselineValue = configPathValue(CONFIG_BASELINE || DEFAULT_CONFIG, path);
+        const restoredValue = inputValue(baselineValue);
+        input.value = restoredValue == null ? "" : String(restoredValue);
+        input.dispatchEvent(new Event(input.tagName === "SELECT" ? "change" : "input", { bubbles: true }));
+    });
+
+    updateState();
+    wrap._updateConfigState = updateState;
+    return wrap;
+}
+
+function configField(path, label, value, percent, hint, ticks, nullable = false) {
+    const raw = value == null ? null : percent ? value * 100 : value;
+    const displayVal = raw == null ? "" : Math.round(raw * 1e4) / 1e4;
     const inputMin = ticks && ticks.length ? Math.min(...ticks) : 0;
     const hasTicks = Boolean(ticks && ticks.length);
-    wrap.innerHTML = `
-        <label>${label}${hint ? tipHtml(hint) : ""}</label>
-        ${hasTicks ? `
-        <div class="pct-control">
-            <div class="pct-row pct-row-head">
-                <button type="button" class="stepper stepper-down" tabindex="-1" aria-label="Zmniejsz">&minus;</button>
-                <input type="number" class="acc-field" min="${inputMin}" step="any" value="${displayVal}" />
-                <button type="button" class="stepper stepper-up" tabindex="-1" aria-label="Zwiększ">+</button>
-                <button type="button" class="field-reset" title="Przywróć wartość domyślną" hidden>&#x21ba;</button>
-            </div>
-            <div class="pct-row pct-row-slider"><div class="pct-slider-host"></div></div>
-        </div>` : `
-        <div class="num-control">
-            <button type="button" class="stepper stepper-down" tabindex="-1" aria-label="Zmniejsz">&minus;</button>
-            <input type="number" class="acc-field" min="0" step="any" value="${displayVal}" />
-            <button type="button" class="stepper stepper-up" tabindex="-1" aria-label="Zwiększ">+</button>
-            <button type="button" class="field-reset" title="Przywróć wartość domyślną" hidden>&#x21ba;</button>
-        </div>`}
-    `;
-    const input = wrap.querySelector("input");
-    const resetBtn = wrap.querySelector(".field-reset");
+    const emptyDefault = percent ? "24" : "150000";
+    const editorMarkup = `<div class="num-control">
+                <button type="button" class="stepper stepper-down" tabindex="-1" aria-label="Zmniejsz ${escapeHtml(label)}">&minus;</button>
+                <input type="number" class="acc-field" min="${inputMin}" step="any" value="${displayVal}" ${nullable ? `placeholder="—" data-empty="${emptyDefault}"` : ""} />
+                <button type="button" class="stepper stepper-up" tabindex="-1" aria-label="Zwiększ ${escapeHtml(label)}">+</button>
+            </div>`;
+    const wrap = configFieldShell(
+        path,
+        label,
+        hint,
+        editorMarkup,
+        (current) => formatConfigValue(current, percent),
+        (current) => current == null ? null : percent ? current * 100 : current
+    );
+    const input = wrap.querySelector(".acc-field");
 
-    if (hasTicks) {
-        input.dataset.ticks = JSON.stringify(ticks);
-        const host = wrap.querySelector(".pct-slider-host");
-        const slider = percentSlider(host, {
-            ticks,
-            value: displayVal,
-            fallback: displayVal,
-            label,
-            onChange: (t) => {
-                input.value = String(t);
-                input.dispatchEvent(new Event("input", { bubbles: true }));
-            },
-        });
-        input.addEventListener("input", () => slider.setValue(parseFloat(input.value) || 0));
-    }
-
-    function updateIndicator() {
-        const cur = percent ? (parseFloat(input.value) || 0) / 100 : (parseFloat(input.value) || 0);
-        const def = getConfigDefault(path);
-        resetBtn.hidden = Math.abs(cur - def) < 1e-9;
-    }
+    if (hasTicks) input.dataset.ticks = JSON.stringify(ticks);
 
     input.addEventListener("input", () => {
-        const parsed = parseFloat(input.value) || 0;
-        setConfigPath(path, percent ? parsed / 100 : parsed);
+        const parsed = input.value === "" ? (nullable ? null : 0) : (parseFloat(input.value) || 0);
+        const normalized = nullable && parsed === 0 ? null : parsed;
+        setConfigPath(path, normalized == null ? null : percent ? normalized / 100 : normalized);
+        wrap._updateConfigState();
         updateStageHints(document.getElementById("stages-container"));
-        updateIndicator();
     });
-
-    resetBtn.addEventListener("click", () => {
-        const def = getConfigDefault(path);
-        setConfigPath(path, def);
-        input.value = percent ? def * 100 : def;
-        updateIndicator();
-        if (ticks && ticks.length) {
-            input.dispatchEvent(new Event("input", { bubbles: true }));
-        }
-    });
-
-    updateIndicator();
     return wrap;
 }
 
@@ -565,60 +643,24 @@ function configPercentField(path, label, value, hint, ticks) {
     return configField(path, label, value, true, hint, ticks);
 }
 
-function configNullableField(path, label, value, percent, hint) {
-    const wrap = document.createElement("div");
-    wrap.className = "field-group";
-    const displayVal = value == null ? "" : percent ? value * 100 : value;
-    const emptyDefault = percent ? "24" : "150000";
-    wrap.innerHTML = `
-        <label>${label}${hint ? tipHtml(hint) : ""}</label>
-        <div class="num-control">
-            <button type="button" class="stepper stepper-down" tabindex="-1" aria-label="Zmniejsz">&minus;</button>
-            <input type="number" class="acc-field" min="0" step="any" value="${displayVal}" placeholder="—" data-empty="${emptyDefault}" />
-            <button type="button" class="stepper stepper-up" tabindex="-1" aria-label="Zwiększ">+</button>
-            <button type="button" class="field-reset" title="Przywróć wartość domyślną" hidden>&#x21ba;</button>
-        </div>`;
-    const input = wrap.querySelector("input");
-    const resetBtn = wrap.querySelector(".field-reset");
-    function updateIndicator() {
-        const def = getConfigDefault(path);
-        const curEmpty = input.value === "";
-        const defEmpty = def == null;
-        resetBtn.hidden = curEmpty ? defEmpty : !defEmpty && Math.abs((parseFloat(input.value) || 0) - (percent ? def * 100 : def)) < 1e-9;
-    }
-    input.addEventListener("input", () => {
-        if (input.value === "" || parseFloat(input.value) === 0) {
-            setConfigPath(path, null);
-        } else {
-            const parsed = parseFloat(input.value) || 0;
-            setConfigPath(path, percent ? parsed / 100 : parsed);
-        }
-        updateStageHints(document.getElementById("stages-container"));
-        updateIndicator();
-    });
-    resetBtn.addEventListener("click", () => {
-        const def = getConfigDefault(path);
-        setConfigPath(path, def);
-        input.value = def == null ? "" : percent ? def * 100 : def;
-        updateIndicator();
-    });
-    updateIndicator();
-    return wrap;
-}
-
 function configNullableNumberField(path, label, value, hint) {
-    return configNullableField(path, label, value, false, hint);
+    return configField(path, label, value, false, hint, null, true);
 }
 
 function configNullablePercentField(path, label, value, hint) {
-    return configNullableField(path, label, value, true, hint);
+    return configField(path, label, value, true, hint, null, true);
 }
 
 function renderAccountRulesCard(key, rules) {
     const info = getAccountInfo(key);
-    const card = document.createElement("div");
+    const card = document.createElement("details");
     card.className = "account-rules-card";
-    card.innerHTML = `<h4>${ACCOUNT_LABELS[key] || key}${info ? tipHtml(info) : ""}</h4>`;
+    card.open = !window.matchMedia("(max-width: 768px)").matches;
+    card.innerHTML = `<summary class="account-rules-summary">${tipLabelHtml(ACCOUNT_LABELS[key] || key, info)}<span class="account-rules-chevron" aria-hidden="true">⌄</span></summary>`;
+    card.querySelector(".account-rules-summary .tip")?.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+    });
 
     card.appendChild(configSelect("accounts." + key + ".tax_model", "Model podatkowy", rules.tax_model, TAX_MODEL_LABELS, "Sposób opodatkowania wypłat z konta."));
     card.appendChild(configPercentField("accounts." + key + ".tax_rate", "Stawka ryczałtowa", rules.tax_rate, "Stawka podatku od zysku/całości po osiągnięciu docelowego wieku."));
@@ -633,13 +675,12 @@ function renderAccountRulesCard(key, rules) {
 }
 
 function configSelect(path, label, value, options, hint) {
-    const wrap = document.createElement("div");
-    wrap.className = "field-group";
-    wrap.innerHTML = `<label>${label}${hint ? tipHtml(hint) : ""}</label>`;
-    const row = document.createElement("div");
-    row.style.cssText = "display:flex;align-items:center;gap:0.25rem;";
-    const select = document.createElement("select");
-    select.style.flex = "1";
+    const editorMarkup = `<select class="config-select"></select>`;
+    const wrap = configFieldShell(path, label, hint, editorMarkup, (current) => {
+        const option = options[current];
+        return option || current;
+    });
+    const select = wrap.querySelector("select");
     for (const [val, text] of Object.entries(options)) {
         const opt = document.createElement("option");
         opt.value = val;
@@ -647,39 +688,19 @@ function configSelect(path, label, value, options, hint) {
         if (val === value) opt.selected = true;
         select.appendChild(opt);
     }
-
-    const resetBtn = document.createElement("button");
-    resetBtn.type = "button";
-    resetBtn.className = "field-reset";
-    resetBtn.title = "Przywróć wartość domyślną";
-    resetBtn.innerHTML = "&#x21ba;";
-
-    function updateIndicator() {
-        resetBtn.hidden = select.value === getConfigDefault(path);
-    }
-
     select.addEventListener("change", () => {
         setConfigPath(path, select.value);
+        wrap._updateConfigState();
         updateStageHints(document.getElementById("stages-container"));
-        updateIndicator();
     });
-
-    resetBtn.addEventListener("click", () => {
-        const def = getConfigDefault(path);
-        setConfigPath(path, def);
-        select.value = def;
-        updateIndicator();
-    });
-
-    row.appendChild(select);
-    row.appendChild(resetBtn);
-    wrap.appendChild(row);
-    updateIndicator();
     return wrap;
 }
 
 async function resetConfig() {
     USER_CONFIG = structuredClone(DEFAULT_CONFIG);
+    CONFIG_BASELINE = structuredClone(DEFAULT_CONFIG);
+    CONFIG_BASELINE_NAME = "Domyślne 2026";
+    CONFIG_OVERRIDE_PATHS.clear();
     _currentPresetId = null;
     _currentPresetName = "Domyślne 2026";
     renderConfigView();
@@ -700,16 +721,25 @@ function initPresetBar() {
     const exportBtn = document.getElementById("presetExportBtn");
     const importInput = document.getElementById("presetImportInput");
 
-    select.addEventListener("change", () => {
+    select.addEventListener("change", async () => {
         const opt = select.selectedOptions[0];
         if (!opt) return;
+        if (opt.dataset.isCustom === "true") return;
         const presetId = opt.dataset.presetId;
         const presetName = opt.dataset.presetName;
         const isBuiltin = opt.dataset.isBuiltin === "true";
+        const samePreset = isBuiltin
+            ? presetName === CONFIG_BASELINE_NAME
+            : Number(presetId) === _currentPresetId;
+        if (samePreset) return;
+        if (CONFIG_OVERRIDE_PATHS.size && !confirm("Zmiana presetu zastąpi bieżące wartości i usunie ich nadpisania. Kontynuować?")) {
+            refreshPresetBar();
+            return;
+        }
         if (isBuiltin) {
-            applyPresetByName(presetName);
+            await applyPresetByName(presetName);
         } else if (presetId) {
-            applyPresetById(parseInt(presetId));
+            await applyPresetById(parseInt(presetId, 10));
         }
     });
 
@@ -730,21 +760,26 @@ function initPresetBar() {
             const saved = await res.json();
             _currentPresetId = saved.id;
             _currentPresetName = null;
+            CONFIG_BASELINE = structuredClone(USER_CONFIG);
+            CONFIG_BASELINE_NAME = saved.name;
+            CONFIG_OVERRIDE_PATHS.clear();
             await refreshPresets();
+            renderConfigView();
+            initTipAnchoring();
             refreshPresetBar();
+            scheduleConfigSave();
         } catch (err) {
             console.error("Błąd zapisu presetu:", err);
         }
     });
 
     deleteBtn.addEventListener("click", async () => {
-        if (_currentPresetId === null || !confirm("Na pewno usunąć ten preset?")) return;
+        if (_currentPresetId === null || !confirm("Na pewno usunąć ten preset? Po usunięciu zostanie wczytana konfiguracja Domyślne 2026.")) return;
         try {
-            await fetch(`/api/presets/${_currentPresetId}`, { method: "DELETE" });
-            _currentPresetId = null;
-            _currentPresetName = "Domyślne 2026";
+            const response = await fetch(`/api/presets/${_currentPresetId}`, { method: "DELETE" });
+            if (!response.ok) throw new Error("Nie udało się usunąć presetu.");
             await refreshPresets();
-            refreshPresetBar();
+            await applyPresetByName("Domyślne 2026");
         } catch (err) {
             console.error("Błąd usuwania presetu:", err);
         }
@@ -753,7 +788,7 @@ function initPresetBar() {
     exportBtn.addEventListener("click", () => {
         const name = _currentPresetId !== null
             ? (PRESETS.find(p => p.id === _currentPresetId)?.name || "preset")
-            : (_currentPresetName || "preset");
+            : (CONFIG_BASELINE_NAME || "preset");
         const blob = new Blob([JSON.stringify(USER_CONFIG, null, 2)], { type: "application/json" });
         const a = document.createElement("a");
         a.href = URL.createObjectURL(blob);
@@ -770,6 +805,7 @@ function initPresetBar() {
             const config = JSON.parse(text);
             const name = prompt("Nazwa dla zaimportowanego presetu:", file.name.replace(/\.json$/, ""));
             if (!name) return;
+            if (CONFIG_OVERRIDE_PATHS.size && !confirm("Importowany preset zastąpi bieżące wartości i usunie ich nadpisania. Kontynuować?")) return;
             const res = await fetch("/api/presets", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -781,14 +817,13 @@ function initPresetBar() {
                 return;
             }
             const saved = await res.json();
-            _currentPresetId = saved.id;
-            _currentPresetName = null;
             await refreshPresets();
-            applyPresetById(saved.id);
+            await applyPresetById(saved.id);
         } catch (err) {
             alert("Nieprawidłowy plik JSON: " + err.message);
+        } finally {
+            importInput.value = "";
         }
-        importInput.value = "";
     });
 
     refreshPresetBar();
@@ -805,12 +840,19 @@ function refreshPresetBar() {
         opt.dataset.presetId = p.id ?? "";
         opt.dataset.presetName = p.name;
         opt.dataset.isBuiltin = p.is_builtin;
-        if (p.is_builtin && p.name === _currentPresetName) opt.selected = true;
+        if (p.is_builtin && p.name === CONFIG_BASELINE_NAME) opt.selected = true;
         else if (_currentPresetId !== null && p.id === _currentPresetId) opt.selected = true;
         select.appendChild(opt);
     }
 
-    // If no option is selected, mark "Domyślne 2026"
+    if (CONFIG_BASELINE_NAME === "Własna konfiguracja") {
+        const opt = document.createElement("option");
+        opt.textContent = "Własna konfiguracja";
+        opt.dataset.isCustom = "true";
+        opt.selected = true;
+        select.appendChild(opt);
+    }
+
     if (!select.value && select.options.length > 0) {
         select.selectedIndex = 0;
     }
@@ -833,11 +875,12 @@ async function applyPresetByName(name) {
         const res = await fetch("/api/config");
         const defaults = await res.json();
         const overrides = BUILTIN_PRESETS_CLIENT[name];
-        if (overrides) {
-            USER_CONFIG = deepMerge(structuredClone(defaults), overrides);
-        } else {
-            USER_CONFIG = backfillConfig(defaults);
-        }
+        USER_CONFIG = overrides
+            ? deepMerge(structuredClone(defaults), overrides)
+            : backfillConfig(defaults);
+        CONFIG_BASELINE = structuredClone(USER_CONFIG);
+        CONFIG_BASELINE_NAME = name;
+        CONFIG_OVERRIDE_PATHS.clear();
         _currentPresetId = null;
         _currentPresetName = name;
         renderConfigView();
@@ -893,9 +936,13 @@ async function applyPresetById(presetId) {
         const res = await fetch(`/api/presets/${presetId}`);
         const data = await res.json();
         USER_CONFIG = backfillConfig(data.config);
+        CONFIG_BASELINE = structuredClone(USER_CONFIG);
+        CONFIG_BASELINE_NAME = PRESETS.find(preset => preset.id === presetId)?.name || "Własna konfiguracja";
+        CONFIG_OVERRIDE_PATHS.clear();
         _currentPresetId = presetId;
         _currentPresetName = null;
         renderConfigView();
+        initTipAnchoring();
         updateStageHints(document.getElementById("stages-container"));
         scheduleConfigSave();
         refreshPresetBar();

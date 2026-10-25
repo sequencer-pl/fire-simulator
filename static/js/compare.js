@@ -111,6 +111,7 @@ function render(sims) {
     renderWithdrawalChart(sims);
     renderStageComparison(sims);
     renderMilestones(sims);
+    initTipAnchoring();
 }
 
 /* ── Section 2: Simulation cards (home-page style) ────────────── */
@@ -274,8 +275,7 @@ function renderMetricsTable(sims) {
 
         g.metrics.forEach(m => {
             const tr = document.createElement("tr");
-            const tip = m.hint ? ` <span class="tip" tabindex="0">?<span class="tooltip">${escapeHtml(m.hint)}</span></span>` : "";
-            let html = `<td class="col-name">${m.label}${tip}</td>`;
+            let html = `<td class="col-name">${tipLabelHtml(m.label, m.hint)}</td>`;
             sims.forEach(s => {
                 const v = metricValue(s, m);
                 if (v == null) { html += `<td class="amount">—</td>`; return; }
@@ -524,7 +524,7 @@ function renderMilestones(sims) {
     const fixed = [minAge, 55, 60, 65, 70, maxAge];
     const milestones = [...new Set(fixed)].filter(a => a >= minAge && a <= maxAge).sort((a, b) => a - b);
 
-    const tip = (text) => ` <span class="tip" tabindex="0">?<span class="tooltip">${escapeHtml(text)}</span></span>`;
+    const tip = (label, text) => tipLabelHtml(label, text);
     const thead = document.querySelector("#milestonesTable thead");
     thead.innerHTML = "";
     const headRow1 = document.createElement("tr");
@@ -532,9 +532,9 @@ function renderMilestones(sims) {
     thead.appendChild(headRow1);
     const headRow2 = document.createElement("tr");
     headRow2.innerHTML = sims.map(() =>
-        `<th class="cmp-col-sub">Majątek${tip("Łączna wartość wszystkich kont.")}</th>` +
-        `<th class="cmp-col-sub">Wypłata mies.${tip("Miesięczna wypłata netto (po podatku).")}</th>` +
-        `<th class="cmp-col-sub">Podatek${tip("Suma podatków zapłaconych w danym roku.")}</th>`
+        `<th class="cmp-col-sub">${tip("Majątek", "Łączna wartość wszystkich kont.")}</th>` +
+        `<th class="cmp-col-sub">${tip("Wypłata mies.", "Miesięczna wypłata netto (po podatku).")}</th>` +
+        `<th class="cmp-col-sub">${tip("Podatek", "Suma podatków zapłaconych w danym roku.")}</th>`
     ).join("");
     thead.appendChild(headRow2);
     const tbody = document.querySelector("#milestonesTable tbody");

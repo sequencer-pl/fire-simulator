@@ -313,7 +313,16 @@ async def api_user_config(request: Request):
     saved = db.get_user_config(user_id)
     if not saved:
         return {"config": None}
-    return {"config": json.loads(saved)}
+    payload = json.loads(saved)
+    if isinstance(payload, dict) and "config" in payload and "baseline" in payload:
+        return payload
+    return {
+        "config": payload,
+        "baseline": None,
+        "preset_id": None,
+        "preset_name": "Własna konfiguracja",
+        "overrides": [],
+    }
 
 
 def _validate_tax_config(body: dict) -> TaxConfig:
@@ -337,8 +346,34 @@ def _validate_tax_config(body: dict) -> TaxConfig:
 async def api_save_user_config(request: Request):
     user_id = _require_user(request)
     body = await request.json()
-    _validate_tax_config(body)
-    db.save_user_config(user_id, json.dumps(body, separators=(",", ":")), _now())
+    if isinstance(body, dict) and "config" in body and "baseline" in body:
+        config = body["config"]
+        baseline = body["baseline"]
+        _validate_tax_config(config)
+        _validate_tax_config(baseline)
+        overrides = body.get("overrides", [])
+        preset_id = body.get("preset_id")
+        preset_name = body.get("preset_name", "Własna konfiguracja")
+        if not isinstance(overrides, list) or not all(isinstance(path, str) for path in overrides):
+            raise HTTPException(
+                status_code=422,
+                detail="overrides musi być listą ścieżek konfiguracji",
+            )
+        if preset_id is not None and not isinstance(preset_id, int):
+            raise HTTPException(status_code=422, detail="preset_id musi być liczbą lub null")
+        if not isinstance(preset_name, str):
+            raise HTTPException(status_code=422, detail="preset_name musi być tekstem")
+        payload = {
+            "config": config,
+            "baseline": baseline,
+            "preset_id": preset_id,
+            "preset_name": preset_name[:100],
+            "overrides": overrides,
+        }
+    else:
+        _validate_tax_config(body)
+        payload = body
+    db.save_user_config(user_id, json.dumps(payload, separators=(",", ":")), _now())
     return {"ok": True}
 
 

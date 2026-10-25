@@ -2,8 +2,7 @@
 
 function fieldLabelHtml(fieldDef) {
     const suffix = fieldDef.percent ? (fieldDef.noNetto ? " (%)" : " (realne, %)") : "";
-    const tip = fieldDef.hint ? tipHtml(fieldDef.hint) : "";
-    return `${fieldDef.label}${suffix}${tip}`;
+    return tipLabelHtml(fieldDef.label + suffix, fieldDef.hint);
 }
 
 function limitButtonsHtml(accountKey, fieldKey) {
@@ -162,10 +161,12 @@ function createAccountCard(stageType, accountKey, accountData) {
         `;
     }
 
-    const headerTip = meta.description ? tipHtml(meta.description, meta.url) : "";
+    const headerTip = tipLabelHtml(meta.label, meta.description, meta.url);
     card.innerHTML = `
-        <h4>${meta.label}${headerTip}</h4>
-        <button type="button" class="remove-account-btn" title="Usuń konto">&times;</button>
+        <div class="account-card-header">
+            <h4>${headerTip}</h4>
+            <button type="button" class="remove-account-btn" title="Usuń konto" aria-label="Usuń konto ${escapeHtml(meta.label)}">&times;</button>
+        </div>
         <div class="fields-row">${fieldsHtml}</div>
     `;
 

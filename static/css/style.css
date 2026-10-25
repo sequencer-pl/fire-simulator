@@ -437,7 +437,7 @@ h2 {
 /* --- Account cards --- */
 .accounts-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
     gap: 1rem;
     margin-top: 0.5rem;
 }
@@ -452,11 +452,52 @@ h2 {
 
 .account-card h4 {
     font-size: 0.95rem;
-    margin-bottom: 0.75rem;
+    margin-bottom: 0;
     color: var(--accent);
     display: flex;
     align-items: center;
     gap: 0.35rem;
+}
+
+.account-card h4 .tip-label-row { flex: 1 1 auto; }
+
+.account-card-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    min-width: 0;
+    margin-bottom: 0.75rem;
+}
+
+.account-card-header h4 {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.account-card .field-group > label {
+    display: block;
+    width: 100%;
+}
+
+.account-card .num-control {
+    width: 100%;
+}
+
+.account-card .num-control .acc-field {
+    max-width: none;
+}
+
+.account-card .remove-account-btn {
+    position: static;
+    flex: 0 0 36px;
+    width: 36px;
+    height: 36px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin: -0.35rem -0.35rem 0 0;
+    padding: 0;
+    opacity: 0.7;
 }
 
 /* --- Tooltipy (ikona "?") --- */
@@ -481,7 +522,8 @@ h2 {
 }
 
 .account-card h4 .tip,
-.account-rules-card h4 .tip {
+.account-rules-card h4 .tip,
+.account-rules-summary .tip {
     color: var(--accent);
     border-color: rgba(0, 206, 201, 0.45);
     background: rgba(0, 206, 201, 0.1);
@@ -530,6 +572,24 @@ h2 {
 .tip.is-positioned .tooltip {
     bottom: auto;
     transform: none;
+}
+
+.tip-label-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.4rem;
+    width: 100%;
+    min-width: 0;
+}
+
+.tip-label-text {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.tip-label-row > .tip {
+    flex: 0 0 auto;
+    margin-left: auto;
 }
 
 .account-card .fields-row {
@@ -817,60 +877,59 @@ h2 {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 0.75rem;
+    gap: 1rem;
     margin-bottom: 0.75rem;
-    padding: 0.5rem 0.85rem;
+    padding: 0.75rem 1rem;
     background: var(--card-bg);
     border: 1px solid var(--border);
     border-radius: 10px;
 }
 
-.preset-left,
-.preset-right {
+.preset-current {
     display: flex;
     align-items: center;
+    gap: 0.75rem;
+    min-width: 0;
+    flex: 0 1 380px;
+}
+
+.preset-current label {
+    flex: 0 0 auto;
+    font-size: var(--fs-sm);
+    color: var(--text-dim);
+    white-space: nowrap;
+}
+
+.preset-current select {
+    flex: 1 1 auto;
+    min-width: 0;
+    min-height: var(--control-min-height);
+    padding: 0.5rem 0.75rem;
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+    font: inherit;
+    width: auto;
+}
+
+.preset-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex: 1 1 auto;
+    flex-wrap: wrap;
     gap: 0.5rem;
 }
 
-.preset-bar label {
-    font-size: 0.75rem;
-    color: var(--text-dim);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    white-space: nowrap;
+.preset-actions .btn {
+    margin: 0;
+    min-height: var(--control-min-height);
 }
 
-.preset-bar select {
-    padding: 0.35rem 0.5rem;
-    background: var(--bg);
-    color: var(--text);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    font-size: 0.85rem;
-    min-width: 140px;
-}
-
-.preset-btn {
-    padding: 0.35rem 0.6rem;
-    background: var(--bg);
-    color: var(--text);
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    font-size: 0.8rem;
-    cursor: pointer;
-    white-space: nowrap;
-}
-
-.preset-btn:hover {
-    background: var(--border);
-}
-
-.preset-btn-danger {
-    color: var(--danger);
-}
-
-.preset-btn-danger:hover {
-    background: rgba(255, 99, 95, 0.15);
+.preset-actions label.btn {
+    display: inline-flex;
+    align-items: center;
 }
 
 /* --- Global config bar (above stages) --- */
@@ -1274,16 +1333,20 @@ tr.stage-accum td {
 
 .config-section h3 {
     margin-bottom: 1rem;
-    font-size: 1rem;
-    color: var(--text-dim);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
+    font-size: 1.1rem;
+    color: var(--text);
+    letter-spacing: normal;
 }
 
-.config-fields,
+.config-fields {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 1rem;
+}
+
 .config-accounts {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
     gap: 1rem;
 }
 
@@ -1297,9 +1360,29 @@ tr.stage-accum td {
     gap: 0.75rem;
 }
 
-.account-rules-card h4 {
+.account-rules-summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
     color: var(--accent);
     font-size: 0.95rem;
+    font-weight: 700;
+    cursor: pointer;
+    list-style: none;
+}
+
+.account-rules-summary .tip-label-row { flex: 1 1 auto; }
+
+.account-rules-summary::-webkit-details-marker { display: none; }
+
+.account-rules-chevron {
+    color: var(--text-dim);
+    transition: transform 0.15s ease;
+}
+
+.account-rules-card[open] .account-rules-chevron {
+    transform: rotate(180deg);
 }
 
 .config-section input:not(.acc-field),
@@ -1329,6 +1412,153 @@ tr.stage-accum td {
 
 .config-section .field-group {
     position: relative;
+}
+
+.config-field-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.4rem;
+}
+
+.config-field-label {
+    display: block;
+    flex: 1 1 auto;
+    min-width: 0;
+    margin-bottom: 0.25rem;
+    color: var(--text-dim);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.config-override-indicator {
+    flex: 0 0 auto;
+    width: 0.55rem;
+    height: 0.55rem;
+    border-radius: 50%;
+    background: var(--orange);
+}
+
+.config-override-indicator[hidden] { display: none; }
+
+.config-readonly-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 96px;
+    align-items: center;
+    gap: 0;
+    min-height: var(--control-min-height);
+    padding: 0 0.25rem 0 0.7rem;
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+    background: var(--bg-elevated);
+}
+
+.config-readonly-row:focus-within { border-color: var(--primary); }
+
+.config-field.has-override .config-readonly-row {
+    border-color: var(--orange);
+}
+
+.config-readonly-value {
+    display: flex;
+    align-items: center;
+    align-self: stretch;
+    min-width: 0;
+    grid-column: 1;
+    grid-row: 1;
+    color: var(--text);
+    font-size: 0.9rem;
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
+}
+
+.config-readonly-value[hidden] { display: none !important; }
+
+.config-inline-editor {
+    min-width: 0;
+    height: 100%;
+    align-self: stretch;
+    grid-column: 1;
+    grid-row: 1;
+}
+
+.config-inline-editor[hidden] { display: none !important; }
+
+.config-inline-editor .num-control {
+    width: 100%;
+    height: 100%;
+    max-width: none;
+    background: transparent;
+    border: 0;
+}
+
+.config-inline-editor .num-control .acc-field {
+    width: 100%;
+    max-width: none;
+}
+
+.config-inline-editor .num-control .stepper { min-height: 40px; }
+
+.config-edit-btn {
+    grid-column: 2;
+    grid-row: 1;
+    width: 72px;
+    min-width: 72px;
+    min-height: 44px;
+    justify-self: end;
+    margin: 0;
+    padding: 0.3rem;
+    font-size: var(--fs-sm);
+    white-space: nowrap;
+}
+
+.config-edit-btn[hidden] { display: none !important; }
+
+.config-edit-actions {
+    display: flex;
+    grid-column: 2;
+    grid-row: 1;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.5rem;
+}
+
+.config-edit-actions[hidden] { display: none !important; }
+
+.config-edit-actions .btn {
+    flex: 0 0 44px;
+    width: 44px;
+    min-width: 44px;
+    min-height: 44px;
+    margin: 0;
+    padding: 0.3rem;
+    font-size: var(--fs-sm);
+}
+
+.config-restore-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-style: solid;
+}
+
+.config-restore-btn svg {
+    width: 1rem;
+    height: 1rem;
+}
+
+.config-restore-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.config-inline-editor .config-select {
+    width: 100%;
+    min-height: 40px;
+    border: 0;
+    background: transparent;
+    outline: none;
 }
 
 .num-control .field-reset,
@@ -2537,7 +2767,9 @@ th.col-name { z-index: 3; }
     .topbar { flex-wrap: wrap; }
     .topnav { flex-wrap: wrap; }
     .account-widget { margin-left: auto; }
-    .preset-bar { flex-wrap: wrap; gap: 0.5rem; }
+    .preset-bar { align-items: stretch; flex-direction: column; gap: 0.75rem; }
+    .preset-current { width: 100%; flex: 0 1 auto; gap: 0.5rem; }
+    .preset-actions { justify-content: flex-start; }
     .global-config-bar { flex-wrap: wrap; gap: 0.5rem; }
 
     .global-config-bar .inflation-field {
@@ -2583,6 +2815,14 @@ th.col-name { z-index: 3; }
     .nav-item span { display: none; }
     .account-chip { padding: 0; }
     .account-widget { margin-left: auto; }
+
+    .preset-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .preset-actions .btn {
+        width: 100%;
+        justify-content: center;
+        padding: 0.45rem 0.55rem;
+        font-size: 0.85rem;
+    }
 
     /* --- stage header: stack fields --- */
     .stage-header { flex-wrap: wrap; }
@@ -2653,6 +2893,18 @@ th.col-name { z-index: 3; }
 
     /* --- stage summary --- */
     .cmp-card-metrics { gap: 0.25rem 0.5rem; }
+}
+
+@media (min-width: 361px) and (max-width: 480px) {
+    .preset-actions { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+@media (max-width: 360px) {
+    .preset-current {
+        align-items: stretch;
+        flex-direction: column;
+        gap: 0.25rem;
+    }
 }
 
 /* --- Suwak procentowy (percent-slider) --- */

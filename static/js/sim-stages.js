@@ -130,7 +130,7 @@ function createStageBlock(defaults) {
                 })}
             </div>
             <div class="field-group">
-                <label>Wiek koniec${tipHtml("Wiek końca etapu (wyłączny) — etap obejmuje lata od wieku start do wieku koniec minus 1.")}</label>
+                <label>${tipLabelHtml("Wiek koniec", "Wiek końca etapu (wyłączny) — etap obejmuje lata od wieku start do wieku koniec minus 1.")}</label>
                 ${numControlsHtml({
                     value: defaults?.end_age ?? 60,
                     min: "0",

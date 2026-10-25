@@ -8,6 +8,11 @@ function tipHtml(text, url, icon = "?") {
     return ` <span class="tip" tabindex="0">${icon}<span class="tooltip">${escapeHtml(text)}${link}</span></span>`;
 }
 
+function tipLabelHtml(label, description, url, icon = "?") {
+    const tip = description ? tipHtml(description, url, icon) : "";
+    return `<span class="tip-label-row"><span class="tip-label-text">${escapeHtml(label)}</span>${tip}</span>`;
+}
+
 // Pozycjonuje tooltip tak, by cały znalazł się w viewporcie (klamp 8px).
 // Współrzędne liczone lokalnie względem tipa (jego containing block), więc
 // nie zależą od scrolla strony ani transformów przodków.
@@ -34,38 +39,44 @@ function _repositionOpenTips() {
     document.querySelectorAll(".tip:hover, .tip:focus, .tip:focus-within").forEach(_positionTooltip);
 }
 
+function _positionAllTips() {
+    document.querySelectorAll(".tip").forEach(_positionTooltip);
+}
+
 // Kotwiczy tooltipy w viewporcie (JS), by nie wypadały poza ekran.
 let _tipAnchoringInit = false;
 function initTipAnchoring() {
-    if (_tipAnchoringInit) return;
-    _tipAnchoringInit = true;
-    document.addEventListener(
-        "mouseenter",
-        (e) => {
-            const tip = e.target.closest?.(".tip");
-            if (tip) _positionTooltip(tip);
-        },
-        true
-    );
-    document.addEventListener(
-        "focusin",
-        (e) => {
-            const tip = e.target.closest?.(".tip");
-            if (tip) _positionTooltip(tip);
-        },
-        true
-    );
-    let ticking = false;
-    const schedule = () => {
-        if (ticking) return;
-        ticking = true;
-        requestAnimationFrame(() => {
-            ticking = false;
-            _repositionOpenTips();
-        });
-    };
-    window.addEventListener("resize", schedule);
-    document.addEventListener("scroll", schedule, true);
+    if (!_tipAnchoringInit) {
+        _tipAnchoringInit = true;
+        document.addEventListener(
+            "mouseenter",
+            (e) => {
+                const tip = e.target.closest?.(".tip");
+                if (tip) _positionTooltip(tip);
+            },
+            true
+        );
+        document.addEventListener(
+            "focusin",
+            (e) => {
+                const tip = e.target.closest?.(".tip");
+                if (tip) _positionTooltip(tip);
+            },
+            true
+        );
+        let ticking = false;
+        const schedule = () => {
+            if (ticking) return;
+            ticking = true;
+            requestAnimationFrame(() => {
+                ticking = false;
+                _repositionOpenTips();
+            });
+        };
+        window.addEventListener("resize", schedule);
+        document.addEventListener("scroll", schedule, true);
+    }
+    _positionAllTips();
 }
 
 function formatMoney(val) {

@@ -86,16 +86,16 @@
         <div id="configView" class="hidden">
             <p class="subtitle" style="display:none"></p>
             <div id="presetBar" class="preset-bar">
-                <div class="preset-left">
-                    <label>Preset:</label>
+                <div class="preset-current">
+                    <label for="presetSelect">Aktywna konfiguracja</label>
                     <select id="presetSelect"></select>
-                    <button type="button" id="presetSaveBtn" class="preset-btn" title="Zapisz bieżącą konfigurację jako preset">💾 Zapisz jako</button>
-                    <button type="button" id="presetDeleteBtn" class="preset-btn preset-btn-danger" title="Usuń zaznaczony preset" hidden>🗑️ Usuń</button>
                 </div>
-                <div class="preset-right">
-                    <button type="button" id="presetExportBtn" class="preset-btn" title="Eksportuj preset do pliku JSON">📤 Eksportuj</button>
-                    <label for="presetImportInput" class="preset-btn" title="Importuj preset z pliku JSON">📥 Importuj</label>
+                <div class="preset-actions" aria-label="Akcje konfiguracji">
+                    <button type="button" id="presetSaveBtn" class="btn btn-secondary">Zapisz jako</button>
+                    <button type="button" id="presetExportBtn" class="btn btn-secondary">Eksportuj</button>
+                    <label for="presetImportInput" class="btn btn-secondary">Importuj</label>
                     <input type="file" id="presetImportInput" accept=".json" hidden />
+                    <button type="button" id="presetDeleteBtn" class="btn btn-danger" hidden>Usuń preset</button>
                 </div>
             </div>
             <div id="config-content"></div>
