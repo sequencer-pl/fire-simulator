@@ -195,3 +195,73 @@ test("karty kont zachowują szerokość kolumn, a ? nie nachodzi na usuwanie", a
         expect(Math.max(...widths) - Math.min(...widths)).toBeLessThanOrEqual(1);
     }
 });
+
+test("saldo startowe powtarzanego konta jest aktywne tylko w pierwszym etapie", async ({ page }) => {
+    await page.goto("/sim", { waitUntil: "networkidle" });
+    await page.locator("#addAccumulationBtn").click();
+
+    const stages = page.locator(".stage-block");
+    const firstStage = stages.nth(0);
+    await firstStage.locator('.account-toggle[data-account="ike"]').click();
+    await firstStage.locator(".end-age").fill("50");
+
+    await page.locator("#addAccumulationBtn").click();
+    const secondStage = stages.nth(1);
+    await secondStage.locator(".start-age").fill("50");
+    await secondStage.locator(".end-age").fill("60");
+    await secondStage.locator('.account-toggle[data-account="ike"]').click();
+
+    const firstBalance = firstStage.locator('.account-card[data-account="ike"] [data-key="starting_balance"]');
+    const secondBalance = secondStage.locator('.account-card[data-account="ike"] [data-key="starting_balance"]');
+    await expect(firstBalance).toBeEnabled();
+    await expect(secondBalance).toBeDisabled();
+    await expect(secondStage.locator(".starting-balance-note")).toHaveText("Kontynuacja poprzedniego etapu");
+
+    await firstBalance.fill("25000");
+    let input = await page.evaluate(() => gatherFormData());
+    expect(input.stages[0].accounts.ike.starting_balance).toBe(25000);
+    expect(input.stages[1].accounts.ike.starting_balance).toBeUndefined();
+
+    await secondStage.locator(".start-age").fill("35");
+    await expect(secondBalance).toBeEnabled();
+    await expect(secondBalance).toHaveValue("25000");
+    await expect(firstBalance).toBeDisabled();
+    await expect(firstStage.locator(".starting-balance-note")).toHaveText("Kontynuacja poprzedniego etapu");
+
+    input = await page.evaluate(() => gatherFormData());
+    expect(input.stages[0].accounts.ike.starting_balance).toBeUndefined();
+    expect(input.stages[1].accounts.ike.starting_balance).toBe(25000);
+});
+
+test("załadowane późniejsze saldo trafia do najwcześniejszego etapu", async ({ page }) => {
+    await page.goto("/sim", { waitUntil: "networkidle" });
+    await page.evaluate(() => populateStages({
+        stages: [
+            {
+                stage_type: "akumulacja",
+                name: "Akumulacja 40–50",
+                start_age: 40,
+                end_age: 50,
+                accounts: { ike: { starting_balance: 0 } },
+            },
+            {
+                stage_type: "akumulacja",
+                name: "Akumulacja 50–60",
+                start_age: 50,
+                end_age: 60,
+                accounts: { ike: { starting_balance: 20000 } },
+            },
+        ],
+    }));
+
+    const stages = page.locator(".stage-block");
+    const firstBalance = stages.nth(0).locator('.account-card[data-account="ike"] [data-key="starting_balance"]');
+    const secondBalance = stages.nth(1).locator('.account-card[data-account="ike"] [data-key="starting_balance"]');
+    await expect(firstBalance).toHaveValue("20000");
+    await expect(firstBalance).toBeEnabled();
+    await expect(secondBalance).toBeDisabled();
+
+    const input = await page.evaluate(() => gatherFormData());
+    expect(input.stages[0].accounts.ike.starting_balance).toBe(20000);
+    expect(input.stages[1].accounts.ike.starting_balance).toBeUndefined();
+});

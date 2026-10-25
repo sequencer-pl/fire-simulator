@@ -487,6 +487,27 @@ h2 {
     max-width: none;
 }
 
+.starting-balance-field.is-balance-carried .num-control {
+    display: none;
+}
+
+.starting-balance-note {
+    display: flex;
+    align-items: center;
+    min-height: var(--control-min-height);
+    padding: 0.45rem 0.65rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--bg-elevated);
+    color: var(--text-dim);
+    font-size: 0.78rem;
+    line-height: 1.4;
+}
+
+.starting-balance-note[hidden] {
+    display: none !important;
+}
+
 .account-card .remove-account-btn {
     position: static;
     flex: 0 0 36px;

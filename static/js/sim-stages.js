@@ -1,6 +1,94 @@
 // sim-stages.js — Stage block management and drag-drop
 
 let stageIndex = 0;
+const startingBalanceValues = new Map();
+
+function startingBalanceKey(input) {
+    return `${input.dataset.account}:${input.dataset.key}`;
+}
+
+function startingBalanceValue(input) {
+    return parseFloat(input.value) || 0;
+}
+
+function rememberStartingBalance(input) {
+    startingBalanceValues.set(startingBalanceKey(input), {
+        value: startingBalanceValue(input),
+        owner: input,
+    });
+}
+
+function resetStartingBalanceValues() {
+    startingBalanceValues.clear();
+}
+
+function refreshStartingBalanceOwnership(container) {
+    if (!container) return;
+    const groups = new Map();
+
+    getStageBlocks(container).forEach((block, order) => {
+        const startAge = parseInt(block.querySelector(".start-age")?.value, 10) || 0;
+
+        block.querySelectorAll('.account-card .acc-field[data-starting-balance="true"]').forEach((input) => {
+            const fieldKey = input.dataset.key;
+            const card = input.closest(".account-card");
+            if (fieldKey === "starting_balance_ofe" && !card.querySelector('[data-key="ofe_member"]')?.checked) return;
+
+            const key = startingBalanceKey(input);
+            if (!groups.has(key)) groups.set(key, []);
+            groups.get(key).push({ input, order, startAge });
+        });
+    });
+
+    const activeKeys = new Set(groups.keys());
+    for (const key of startingBalanceValues.keys()) {
+        if (!activeKeys.has(key)) startingBalanceValues.delete(key);
+    }
+
+    for (const [key, occurrences] of groups) {
+        occurrences.sort((a, b) => a.startAge - b.startAge || a.order - b.order);
+        const owner = occurrences[0];
+        if (!startingBalanceValues.has(key)) {
+            const firstInitialized = occurrences.find((entry) => startingBalanceValue(entry.input) > 0) || owner;
+            startingBalanceValues.set(key, {
+                value: startingBalanceValue(firstInitialized.input),
+                owner: firstInitialized.input,
+            });
+        }
+
+        const balanceState = startingBalanceValues.get(key);
+        if (balanceState.owner !== owner.input) {
+            owner.input.value = String(balanceState.value);
+            balanceState.owner = owner.input;
+        }
+
+        occurrences.forEach((entry, index) => {
+            const isOwner = index === 0;
+            const field = entry.input.closest(".starting-balance-field");
+            const note = field.querySelector(".starting-balance-note");
+            const noteId = `starting-balance-note-${entry.order}-${entry.input.dataset.account}-${entry.input.dataset.key}`;
+
+            entry.input.disabled = !isOwner;
+            if (isOwner) {
+                delete entry.input.dataset.skipSubmit;
+                entry.input.removeAttribute("aria-describedby");
+            } else {
+                entry.input.dataset.skipSubmit = "true";
+                note.id = noteId;
+                const noteText = "Kontynuacja poprzedniego etapu";
+                if (note.textContent !== noteText) note.textContent = noteText;
+                note.hidden = false;
+                entry.input.setAttribute("aria-describedby", noteId);
+            }
+
+            field.classList.toggle("is-balance-carried", !isOwner);
+            if (isOwner) note.hidden = true;
+            field.querySelectorAll(".num-control .stepper").forEach((button) => {
+                button.disabled = !isOwner;
+            });
+        });
+    }
+}
 
 function getActiveAccounts(stageBlock) {
     const accounts = [];
@@ -193,6 +281,7 @@ function renderStageHints(hintEl, hints) {
 
 function updateStageHints(container) {
     if (!container) return;
+    refreshStartingBalanceOwnership(container);
     const blocks = getStageBlocks(container);
     const lastEnd = lastAkumulacjaEnd(blocks);
 
@@ -691,7 +780,11 @@ function initStageEventHandlers(container) {
     updateStageHints(container);
 
     // Odświeżanie subtelnych podpowiedzi przy edycji pól
-    container.addEventListener("input", () => {
+    container.addEventListener("input", (event) => {
+        const input = event.target;
+        if (input?.matches?.('.acc-field[data-starting-balance="true"]') && !input.disabled) {
+            rememberStartingBalance(input);
+        }
         updateStageHints(container);
         updateDivider(container);
     });

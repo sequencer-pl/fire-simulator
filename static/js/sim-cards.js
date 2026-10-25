@@ -100,6 +100,7 @@ function createAccountCard(stageType, accountKey, accountData) {
         const displayVal = fieldDef.percent ? Math.round(rawVal * 100 * 100) / 100 : rawVal;
         const maxBtns = limitButtonsHtml(accountKey, key);
         const chipsHtml = maxBtns ? `<div class="max-chips">${maxBtns}</div>` : "";
+        const isStartingBalance = key === "starting_balance" || key === "starting_balance_ofe";
 
         if (fieldDef.type === "gender") {
             const uid = "gender-" + accountKey + "-" + (++_genderCardSeq);
@@ -146,7 +147,7 @@ function createAccountCard(stageType, accountKey, accountData) {
         }
 
         fieldsHtml += `
-            <div class="field-group" ${visibleWhen}>
+            <div class="field-group${isStartingBalance ? " starting-balance-field" : ""}" ${visibleWhen}>
                 <label>${fieldLabelHtml(fieldDef)}</label>
                 ${numControlsHtml({
                     type: fieldDef.type || "number",
@@ -154,8 +155,9 @@ function createAccountCard(stageType, accountKey, accountData) {
                     min: fieldDef.percent ? "-99" : "0",
                     step: fieldDef.step || "any",
                     aria: fieldDef.label || key,
-                    attrs: ` data-account="${accountKey}" data-key="${key}"${fieldDef.percent ? ' data-percent="true"' : ""}`,
+                    attrs: ` data-account="${accountKey}" data-key="${key}"${fieldDef.percent ? ' data-percent="true"' : ""}${isStartingBalance ? ' data-starting-balance="true"' : ""}`,
                 })}
+                ${isStartingBalance ? '<div class="starting-balance-note" role="status" hidden></div>' : ""}
                 ${chipsHtml}
             </div>
         `;

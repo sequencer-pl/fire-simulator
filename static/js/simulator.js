@@ -20,6 +20,7 @@ function gatherFormData() {
     document.querySelectorAll(".stage-block").forEach((block) => {
         const accounts = {};
         block.querySelectorAll(".acc-field").forEach((input) => {
+            if (input.dataset.skipSubmit === "true") return;
             const acc = input.dataset.account;
             const key = input.dataset.key;
             if (!acc || !key) return;
@@ -1052,6 +1053,7 @@ function populateStages(inputData) {
     const container = document.getElementById("stages-container");
     if (inputData.config) CONFIG = backfillConfig(inputData.config);
     if (inputData.gender) setGender(inputData.gender);
+    resetStartingBalanceValues();
     container.innerHTML = "";
     (inputData.stages || []).forEach((stage) => {
         migrateLegacyAccounts(stage);
