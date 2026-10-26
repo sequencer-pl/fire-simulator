@@ -30,14 +30,18 @@ window.fetch = (url) => {
     if (String(url).includes("/api/wizard/suggest")) {
         return Promise.resolve({
             ok: true,
-            json: () => Promise.resolve({ allocations: { broker: 40, lokata: 30 } }),
+            json: () => Promise.resolve({ allocations: { broker: 40, lokata: 30 }, pool_monthly: 800 }),
+        });
+    }
+    if (String(url).includes("/api/wizard/salary")) {
+        return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve({ gross_monthly: 8000, net_monthly: 5789.53 }),
         });
     }
     return Promise.resolve({ ok: false, json: () => Promise.resolve({}) });
 };
 
-// Wszystkie skrypty w jednym eval — współdzielą globalną leksykalną przestrzeń
-// (top-level `const`/`let`). helpers.js pierwszy, jak w base.html.
 const scripts = [
     "static/js/helpers.js",
     "static/js/sim-metadata.js",
@@ -56,15 +60,14 @@ const harness = `
             results.push({ name, ok: false, err: String((e && e.message) || e) });
         }
     };
-    const assert = (cond) => { if (!cond) throw new Error("assert failed"); };
+    const zl = (n) => Math.round(n).toLocaleString("pl-PL");
 
     function createStageBlock() { return document.createElement("div"); }
 
     initWizard();
     document.getElementById("wzAge").value = "40";
     document.getElementById("wzGross").value = "8000";
-    document.querySelector('input[name="wzSavingsMode"][value="pct"]').checked = true;
-    document.getElementById("wzSavings").value = "10";
+    document.getElementById("wzSavings").value = "1000";
     setStep(5);
 
     // ---- Pkt 1: pasek postępu (podziałki bez etykiet nazw, 6 kroków) ----
@@ -83,22 +86,20 @@ const harness = `
         return document.getElementById("wizardProgressBar").getAttribute("aria-valuenow") === "5";
     });
     check("h2 kroku 2 = Twoje dane", () => document.querySelector('.wz-step[data-step="2"] h2').textContent.trim() === "Twoje dane");
-    check("h2 kroku 4 = Cel i horyzont", () => document.querySelector('.wz-step[data-step="4"] h2').textContent.trim() === "Cel i horyzont");
-    check("h2 kroku 5 = Podział oszczędności", () => document.querySelector('.wz-step[data-step="5"] h2').textContent.trim() === "Podział oszczędności");
-    check("h2 kroku 6 = Wynik i podsumowanie", () => document.querySelector('.wz-step[data-step="6"] h2').textContent.trim() === "Wynik i podsumowanie");
-    check("krok 3: odchudzona lista kont + rozwijanie pozostałych", () => {
-        const primary = document.querySelectorAll("#wzCapitalGrid .wz-capital-item").length;
-        const extra = document.querySelectorAll("#wzCapitalMoreGrid .wz-capital-item").length;
-        const moreGrid = document.getElementById("wzCapitalMoreGrid");
-        const moreBtn = document.getElementById("wzCapitalMoreBtn");
-        const initHidden = moreGrid.classList.contains("hidden");
-        moreBtn.click();
-        const expanded = !moreGrid.classList.contains("hidden");
-        moreBtn.click();
-        return primary === 8 && extra === 6 && initHidden && expanded && moreGrid.classList.contains("hidden");
+    check("h2 kroku 4 dopasowane do ścieżki 1", () => document.querySelector('.wz-step[data-step="4"] h2').textContent.trim() === "Kiedy chcesz przejść na FIRE?");
+    check("h2 kroku 5 = Strategia i założenia", () => document.querySelector('.wz-step[data-step="5"] h2').textContent.trim() === "Strategia i założenia");
+    check("h2 kroku 6 = Twój plan FIRE", () => document.querySelector('.wz-step[data-step="6"] h2').textContent.trim() === "Twój plan FIRE");
+    check("krok 3: wszystkie 14 kont jako pastylki + dodawanie/usuwanie pola kwotowego", () => {
+        const pills = document.querySelectorAll("#wzCapitalPicker .wz-pill");
+        const initRows = document.querySelectorAll("#wzCapitalGrid .wz-capital-item").length;
+        document.querySelector('#wzCapitalPicker .wz-pill[data-account="ike"]').click();
+        const afterAdd = document.querySelectorAll("#wzCapitalGrid .wz-capital-item").length;
+        document.querySelector('#wzCapitalGrid .wz-capital-item[data-account="ike"] .wz-pill-remove').click();
+        const afterRm = document.querySelectorAll("#wzCapitalGrid .wz-capital-item").length;
+        return pills.length === 14 && initRows === 0 && afterAdd === 1 && afterRm === 0;
     });
 
-    // ---- Pkt 2: krok 2 — 3 panele, suwak oszczędności tylko w trybie % ----
+    // ---- Pkt 2: krok 2 — 3 panele, suwak oszczędności 0-100% i kwota do 100% pensji ----
     check("krok 2: 3 panele w kolejności", () => {
         const panels = [...document.querySelector('.wz-step[data-step="2"]').querySelectorAll(".wz-panel")];
         if (panels.length !== 3) return false;
@@ -109,25 +110,14 @@ const harness = `
         const labels = [...document.querySelectorAll('input[name="wzGender"]')].map((i) => i.parentElement.textContent.trim());
         return JSON.stringify(labels) === JSON.stringify(["Kobieta", "Mężczyzna"]);
     });
-    check("krok 2: suwaki oszczędności — tryb % (0-50) i kwota (pensja/2)", () => {
-        const pctRange = document.getElementById("wzSavingsRange");
+    check("krok 2: oszczędności tylko kwotowo — domyślnie 1000 zł, bez trybu %", () => {
+        const input = document.getElementById("wzSavings");
         const amtRange = document.getElementById("wzSavingsAmtRange");
-        document.querySelector('input[name="wzSavingsMode"][value="pct"]').checked = true;
-        document.querySelector('input[name="wzSavingsMode"][value="pct"]').dispatchEvent(new Event("change"));
-        const pctOk = !!pctRange && !pctRange.classList.contains("hidden")
-            && document.getElementById("wzSavings").max === "50"
-            && amtRange.classList.contains("hidden");
-        document.querySelector('input[name="wzSavingsMode"][value="amount"]').checked = true;
-        document.querySelector('input[name="wzSavingsMode"][value="amount"]').dispatchEvent(new Event("change"));
-        const amtOk = pctRange.classList.contains("hidden")
-            && !!amtRange && !amtRange.classList.contains("hidden")
-            && amtRange.max === "4000"
-            && !document.getElementById("wzSavings").hasAttribute("max");
-        document.querySelector('input[name="wzSavingsMode"][value="pct"]').checked = true;
-        document.querySelector('input[name="wzSavingsMode"][value="pct"]').dispatchEvent(new Event("change"));
-        document.getElementById("wzSavings").value = "10";
-        document.getElementById("wzSavingsRange").value = "10";
-        return pctOk === true && amtOk === true;
+        return !!input && input.value === "1000" && input.step === "50"
+            && !input.hasAttribute("max")
+            && !!amtRange && amtRange.value === "1000"
+            && document.getElementById("wzSavingsRange") === null
+            && document.querySelectorAll('input[name="wzSavingsMode"]').length === 0;
     });
     check("krok 2: suwak wieku bind (16-90)", () => {
         const range = document.getElementById("wzAgeRange");
@@ -142,7 +132,7 @@ const harness = `
         input.value = "40";
         return range.min === "16" && range.max === "90" && a === "60" && b === "25";
     });
-    check("krok 2: pensja suwak max 50000 + bind", () => {
+    check("krok 2: pensja suwak max 100000 + bind", () => {
         const range = document.getElementById("wzGrossRange");
         const input = document.getElementById("wzGross");
         if (!range || !input) return false;
@@ -153,60 +143,75 @@ const harness = `
         input.dispatchEvent(new Event("input", { bubbles: true }));
         const b = range.value;
         input.value = "8000";
-        return range.max === "50000" && a === "46000" && b === "32000";
+        return range.max === "100000" && a === "46000" && b === "32000";
     });
-    check("krok 2: warning przy kwocie > pensji brutto", () => {
-        const warn = document.getElementById("wzSavingsWarn");
-        document.querySelector('input[name="wzSavingsMode"][value="amount"]').checked = true;
-        document.querySelector('input[name="wzSavingsMode"][value="amount"]').dispatchEvent(new Event("change"));
-        document.getElementById("wzSavings").value = "9500";
-        document.getElementById("wzSavings").dispatchEvent(new Event("input", { bubbles: true }));
-        const shown = !warn.hidden && warn.textContent.includes("więcej");
-        document.getElementById("wzSavings").value = "3000";
-        document.getElementById("wzSavings").dispatchEvent(new Event("input", { bubbles: true }));
-        const hidden = warn.hidden;
-        document.querySelector('input[name="wzSavingsMode"][value="pct"]').checked = true;
-        document.querySelector('input[name="wzSavingsMode"][value="pct"]').dispatchEvent(new Event("change"));
-        document.getElementById("wzSavings").value = "10";
-        return shown === true && hidden === true;
+    check("krok 2: przełącznik Brutto/Netto tylko dla etatu", () => {
+        const mode = document.getElementById("wzSalaryMode");
+        const label = document.getElementById("wzGrossLabel");
+        const etat = document.querySelector('input[name="wzEmployment"][value="etat"]');
+        const row = mode.closest(".wz-choice-row");
+        const layoutOk = !!row
+            && row.querySelector('input[name="wzEmployment"]') !== null
+            && mode.closest("#wzGrossGroup") === null
+            && document.getElementById("wzSalaryHint").closest(".wz-field-head") !== null;
+        etat.checked = true;
+        etat.dispatchEvent(new Event("change"));
+        const visibleEtat = !mode.classList.contains("hidden");
+        const grossLabel = label.textContent;
+        const netRadio = document.querySelector('input[name="wzSalaryMode"][value="net"]');
+        netRadio.checked = true;
+        netRadio.dispatchEvent(new Event("change"));
+        const netLabel = label.textContent;
+        const b2b = document.querySelector('input[name="wzEmployment"][value="b2b"]');
+        b2b.checked = true;
+        b2b.dispatchEvent(new Event("change"));
+        const hiddenB2b = mode.classList.contains("hidden")
+            && document.getElementById("wzSalaryHint").textContent.includes("netto zależy");
+        etat.checked = true;
+        etat.dispatchEvent(new Event("change"));
+        return layoutOk
+            && visibleEtat
+            && grossLabel === "Pensja brutto (mies.)"
+            && netLabel === "Pensja netto (mies.)"
+            && hiddenB2b;
     });
-
-    check("krok 2: tryb % pensji — kwota >=100 wraca do 10, suwak zsynchronizowany", () => {
-        const setMode = (m) => {
-            const r = document.querySelector('input[name="wzSavingsMode"][value="' + m + '"]');
-            r.checked = true;
-            r.dispatchEvent(new Event("change"));
-        };
-        setMode("amount");
-        document.getElementById("wzSavings").value = "1000";
-        setMode("pct");
-        const ok = document.getElementById("wzSavings").value === "10"
-            && document.getElementById("wzSavingsRange").value === "10"
-            && !document.getElementById("wzSavingsRange").classList.contains("hidden");
-        setMode("amount");
-        document.getElementById("wzSavings").value = "500";
-        setMode("pct");
-        const ok2 = document.getElementById("wzSavings").value === "10"
-            && document.getElementById("wzSavingsRange").value === "10";
-        return ok === true && ok2 === true;
-    });
-    check("krok 2: % pensji — wpisanie >50 przycina do 50 (input i suwak)", () => {
+    check("krok 2: warning gdy kwota > pensja netto, hint % netto", () => {
         const input = document.getElementById("wzSavings");
-        const range = document.getElementById("wzSavingsRange");
-        input.value = "60";
+        const warn = document.getElementById("wzSavingsWarn");
+        const hint = document.getElementById("wzSavingsHint");
+        const etat = document.querySelector('input[name="wzEmployment"][value="etat"]');
+        etat.checked = true;
+        etat.dispatchEvent(new Event("change"));
+        wzNetMonthly = 5790;
+        updateSavingsAmtMax();
+        input.value = "6000";
         input.dispatchEvent(new Event("input", { bubbles: true }));
-        const ok = input.value === "50" && range.value === "50";
-        input.value = "10";
+        const shown = !warn.hidden && warn.textContent.includes("pensja netto");
+        const sliderMax = document.getElementById("wzSavingsAmtRange").max;
+        input.value = "1000";
         input.dispatchEvent(new Event("input", { bubbles: true }));
-        return ok === true;
+        const hidden = warn.hidden;
+        const hintOk = hint.textContent.includes("17,3% pensji netto");
+        return shown && hidden && sliderMax === "5750" && hintOk;
+    });
+    check("krok 2: brak pensji netto — suwak ma zapas 10000", () => {
+        wzNetMonthly = null;
+        updateSavingsAmtMax();
+        return document.getElementById("wzSavingsAmtRange").max === "10000";
     });
 
-    // ---- Pkt 4/5: struktura kroku 5 (Podział oszczędności) ----
-    check("krok 5: 4 panele w kolejności", () => {
+    // ---- Pkt 4/5: struktura kroku 5 (Strategia i założenia) ----
+    check("krok 5: 5 paneli w kolejności (Założenia, Strategia, Podział, Dodaj, Wpłaty)", () => {
         const panels = [...document.querySelector('.wz-step[data-step="5"]').querySelectorAll(".wz-alloc-panel")];
-        if (panels.length !== 4) return false;
+        if (panels.length !== 5) return false;
         const titles = panels.map((p) => p.querySelector(".wz-panel-title")?.textContent.trim());
-        return JSON.stringify(titles) === JSON.stringify(["Strategia", "Podział", "Dodaj instrument", "Wpłaty z pensji"]);
+        return JSON.stringify(titles) === JSON.stringify([
+            "Założenia rynkowe (koniunktura)",
+            "Strategia podziału oszczędności",
+            "Podział",
+            "Dodaj instrument",
+            "Wpłaty z pensji",
+        ]);
     });
     check("wiersz Gotówka disabled, nad siatką, z kwotą", () => {
         const row = document.getElementById("wzAllocCashRow");
@@ -215,55 +220,166 @@ const harness = `
         const pos = row && grid ? row.compareDocumentPosition(grid) : 0;
         return !!range && range.disabled === true && (pos & 4) !== 0 && !!document.getElementById("wzAllocCashMoney");
     });
-    check("krok 5: domyślnie aktywny tryb auto (panel Podział widoczny, Dodaj ukryty)", () => {
-        return wzAllocMode === "auto"
-            && !document.getElementById("wzAllocPanel").classList.contains("hidden")
-            && document.getElementById("wzAllocPillsPanel").classList.contains("hidden");
+    check("krok 5: na starcie przed wyborem strategii panele Podział/Dodaj/Wpłaty są ukryte", () => {
+        return wzAllocMode === null
+            && ["wzAllocPanel", "wzAllocPillsPanel", "wzPayrollPanel"].every(
+                (id) => document.getElementById(id).classList.contains("hidden"),
+            );
     });
-    check("krok 5: „Podziel ręcznie” odsłania Podział i Dodaj instrument", () => {
+    check("krok 5: wybór strategii „Manualna” odsłania Podział i Dodaj instrument", () => {
         wzPill.clear();
         Object.keys(wzWeights).forEach((k) => delete wzWeights[k]);
-        document.getElementById("wzManualBtn").click();
-        return !document.getElementById("wzAllocPanel").classList.contains("hidden")
+        const manualRadio = document.querySelector('input[name="wzStrategy"][value="manualna"]');
+        manualRadio.checked = true;
+        manualRadio.dispatchEvent(new Event("change"));
+        return wzAllocMode === "manual"
+            && !document.getElementById("wzAllocPanel").classList.contains("hidden")
             && !document.getElementById("wzAllocPillsPanel").classList.contains("hidden");
     });
     check("payroll panel ukryty gdy brak PPK/PPE", () => document.getElementById("wzPayrollPanel").classList.contains("hidden"));
-    check("strategia: pigułki naturalnej szerokości (bez slotu), przyciski pod spodem", () => {
-        const box = document.querySelector(".wz-alloc-strategy-options");
-        const actions = document.querySelector(".wz-strategy-actions");
-        return !!box
-            && !!actions
-            && box.querySelectorAll(".gender-option").length === 3
-            && actions.contains(document.getElementById("wzAutoBtn"))
-            && actions.contains(document.getElementById("wzManualBtn"))
-            && !document.querySelector(".wz-alloc-panel .wz-grid");
+    check("strategia: 4 opcje (Konserwatywna, Zrównoważona, Agresywna, Manualna) + 3 opcje założeń", () => {
+        const stratBox = document.querySelector(".wz-alloc-strategy-options");
+        const assumpBox = document.querySelector(".wz-assumptions-options");
+        return !!stratBox
+            && !!assumpBox
+            && stratBox.querySelectorAll(".gender-option").length === 4
+            && assumpBox.querySelectorAll(".gender-option").length === 3;
     });
 
-    // ---- Gotówka jako bufor: 100% na starcie ----
-    check("cash row: 100% i pełna pula gdy nic rozdysponowane", () => {
+    // ---- Gotówka jako bufor: pełna pula roczna/miesięczna na starcie ----
+    check("cash row: 100% i pełna pula roczna/miesięczna gdy nic rozdysponowane", () => {
         const r = document.querySelector("#wzAllocCashRow input[type=range]");
-        return r.value === "100" && document.getElementById("wzAllocCashMoney").textContent === "800 zł/mies.";
+        return r.value === "100"
+            && document.getElementById("wzAllocCashAnnual").textContent === zl(12000) + " zł/rok"
+            && document.getElementById("wzAllocCashMoney").textContent === "≈" + zl(1000) + " zł/mies."
+            && document.getElementById("wzAllocCashPct").textContent === "≈100%";
     });
 
-    // ---- pastylka dodaje wiersz; suwak kurczy gotówkę ----
-    check("pastylka Broker -> 1 wiersz, cash 75% / 600 zł", () => {
-        wzPill.add("broker"); buildAllocationStep(); setWzWeight("broker", 25);
+    // ---- pastylka dodaje wiersz; kwota roczna kurczy gotówkę ----
+    check("pastylka Broker -> 1 wiersz; 3 000 zł/rok = 25%, cash 9 000 zł/rok", () => {
+        wzPill.add("broker"); buildAllocationStep(); setWzAmount("broker", 3000);
         const rows = document.querySelectorAll("#wzAllocGrid .wz-alloc-row").length;
         const r = document.querySelector("#wzAllocCashRow input[type=range]");
-        return rows === 1 && r.value === "75" && document.getElementById("wzAllocCashMoney").textContent === "600 zł/mies.";
+        const input = document.querySelector('#wzAllocGrid .wz-alloc-annual-input[data-account="broker"]');
+        const pct = document.querySelector('#wzAllocGrid .wz-alloc-pct[data-account="broker"]');
+        return rows === 1 && r.value === "75" && input.value === "3000"
+            && pct.textContent === "≈25%"
+            && document.getElementById("wzAllocCashAnnual").textContent === zl(9000) + " zł/rok"
+            && document.getElementById("wzAllocCashMoney").textContent === "≈" + zl(750) + " zł/mies.";
     });
-    check("num-control alokacji zachowuje data-account i step", () => {
-        const input = document.querySelector('#wzAllocGrid .acc-field.wz-alloc-pct[data-account="broker"]');
-        return !!input && input.step === "1" && !!input.getAttribute("aria-label").startsWith("Udział Broker");
+    check("kwota blokuje przydział powyżej pozostałej puli (cap at remaining)", () => {
+        wzPill.add("lokata"); buildAllocationStep();
+        setWzAmount("broker", 8400);
+        setWzAmount("lokata", 99999); // powinno zatrzymać się na pozostałych 3 600 zł
+        return Math.round(wzAmounts["broker"]) === 8400 && Math.round(wzAmounts["lokata"]) === 3600
+            && document.getElementById("wzAllocCashAnnual").textContent === "0 zł/rok";
     });
-    check("zostało 10 pastylek (8 alokowalnych + PPK/PPE), panel wciąż widoczny", () => {
-        return document.querySelectorAll("#wzAllocPills .wz-pill").length === 10
+    check("pole roczne alokacji: data-account, step 10, aria-label", () => {
+        const input = document.querySelector('#wzAllocGrid .wz-alloc-annual-input[data-account="broker"]');
+        return !!input && input.step === "10"
+            && input.getAttribute("aria-label") === "Wpłata roczna Broker";
+    });
+    check("zostało 9 pastylek (7 alokowalnych + PPK/PPE), panel wciąż widoczny", () => {
+        return document.querySelectorAll("#wzAllocPills .wz-pill").length === 9
             && !document.getElementById("wzAllocPillsPanel").classList.contains("hidden");
     });
-    check("100% -> Gotówka 0 zł/mies. i 0%", () => {
-        setWzWeight("broker", 100);
+    check("100% -> Gotówka 0 zł/rok, 0 zł/mies. i 0%", () => {
+        setWzAmount("lokata", 0);
+        setWzAmount("broker", 12000);
         const r = document.querySelector("#wzAllocCashRow input[type=range]");
-        return r.value === "0" && document.getElementById("wzAllocCashMoney").textContent === "0 zł/mies.";
+        return r.value === "0"
+            && document.getElementById("wzAllocCashAnnual").textContent === "0 zł/rok"
+            && document.getElementById("wzAllocCashMoney").textContent === "≈0 zł/mies."
+            && document.getElementById("wzAllocCashPct").textContent === "0%";
+    });
+
+    // ---- roczne limity kont (IKE/IKZE/OIPE) blokują suwak i pole ----
+    check("IKE: kwota nie przekracza limitu rocznego 28 260 zł", () => {
+        wzLimits = { ike_annual: 28260, ikze_annual: 11304, ikze_annual_self_employed: 16956, oipe_annual: 28260 };
+        document.getElementById("wzSavings").value = "3000"; // 36 000 zł/rok
+        wzPill.clear();
+        Object.keys(wzWeights).forEach((k) => delete wzWeights[k]);
+        Object.keys(wzAmounts).forEach((k) => delete wzAmounts[k]);
+        wzPill.add("ike"); buildAllocationStep();
+        setWzAmount("ike", 99999);
+        const cap = document.querySelector('.wz-alloc-cap[data-account="ike"]');
+        const input = document.querySelector('#wzAllocGrid .wz-alloc-annual-input[data-account="ike"]');
+        return Math.round(wzAmounts["ike"]) === 28260
+            && input.max === "28260"
+            && cap.textContent.includes("limit roczny osiągnięty")
+            && document.getElementById("wzAllocCashAnnual").textContent === zl(7740) + " zł/rok";
+    });
+
+    // ---- nadwyżka nad limitem: tylko materialna (>= 1 zł/mies.) ----
+    check("mikronadwyżka (<1 zł/mies.) nie pokazuje komunikatu", () => {
+        document.querySelector('input[name="wzPath"][value="2"]').checked = true;
+        wzAllocMode = "auto";
+        wzEstimatedPoolMonthly = 28260.8 / 12;
+        wzWeights = { ike: 100 };
+        wzAmounts = {};
+        buildAllocationStep();
+        const ov = document.querySelector('.wz-alloc-overflow[data-account="ike"]');
+        return !!ov && ov.classList.contains("hidden") && ov.textContent === "";
+    });
+    check("realna nadwyżka (>= 1 zł/mies.) pokazuje komunikat i kwotę", () => {
+        wzEstimatedPoolMonthly = 40000 / 12;
+        buildAllocationStep();
+        const ov = document.querySelector('.wz-alloc-overflow[data-account="ike"]');
+        return !!ov && !ov.classList.contains("hidden")
+            && ov.textContent.includes("nadwyżka") && ov.textContent.includes("zł/mies.")
+            && !ov.textContent.includes("0 zł/mies.");
+    });
+
+    // ---- ścieżka 2: procenty są kanoniczne, kwoty przeliczają się z pulą ----
+    check("ścieżka 2: edycja kwoty ustawia wagę, zmiana puli skaluje kwotę", () => {
+        wzAllocMode = "manual";
+        wzPill.clear();
+        Object.keys(wzWeights).forEach((k) => delete wzWeights[k]);
+        Object.keys(wzAmounts).forEach((k) => delete wzAmounts[k]);
+        wzPill.add("broker");
+        wzEstimatedPoolMonthly = 1000; // 12 000 zł/rok
+        buildAllocationStep();
+        setWzAmount("broker", 3000);
+        const weight = wzWeights["broker"];
+        wzEstimatedPoolMonthly = 2000; // 24 000 zł/rok
+        buildAllocationStep();
+        const input = document.querySelector('#wzAllocGrid .wz-alloc-annual-input[data-account="broker"]');
+        const pct = document.querySelector('#wzAllocGrid .wz-alloc-pct[data-account="broker"]');
+        return Math.abs(weight - 25) < 1e-6 && input.value === "6000" && pct.textContent === "≈25%"
+            && document.getElementById("wzAllocCashAnnual").textContent === zl(18000) + " zł/rok";
+    });
+
+    // ---- ścieżka 1: kwoty stałe; wzrost puli -> Gotówka, spadek -> proporcjonalne cięcie ----
+    check("ścieżka 1: wzrost puli zostawia kwoty, nadwyżka -> Gotówka", () => {
+        document.querySelector('input[name="wzPath"][value="1"]').checked = true;
+        wzEstimatedPoolMonthly = null;
+        wzPill.clear();
+        Object.keys(wzWeights).forEach((k) => delete wzWeights[k]);
+        Object.keys(wzAmounts).forEach((k) => delete wzAmounts[k]);
+        wzPill.add("broker");
+        document.getElementById("wzSavings").value = "1000";
+        buildAllocationStep();
+        setWzAmount("broker", 6000);
+        document.getElementById("wzSavings").value = "2000";
+        refreshAllocationDisplay();
+        return Math.round(wzAmounts["broker"]) === 6000
+            && document.getElementById("wzAllocCashAnnual").textContent === zl(18000) + " zł/rok"
+            && document.getElementById("wzAllocCashMoney").textContent === "≈" + zl(1500) + " zł/mies.";
+    });
+    check("ścieżka 1: spadek puli przycina kwoty proporcjonalnie", () => {
+        wzPill.add("lokata"); buildAllocationStep();
+        setWzAmount("broker", 6000);
+        setWzAmount("lokata", 6000);
+        document.getElementById("wzSavings").value = "500"; // 6 000 zł/rok
+        refreshAllocationDisplay();
+        return Math.round(wzAmounts["broker"]) === 3000
+            && Math.round(wzAmounts["lokata"]) === 3000
+            && document.getElementById("wzAllocCashAnnual").textContent === "0 zł/rok";
+    });
+    check("ścieżka 1: kwoty i wagi wracają do stanu wyjściowego", () => {
+        document.getElementById("wzSavings").value = "1000";
+        refreshAllocationDisplay();
+        return Math.round(wzAmounts["broker"]) === 3000 && Math.round(wzAmounts["lokata"]) === 3000;
     });
 
     // ---- PPK pastylka -> belka payroll ----
@@ -274,44 +390,34 @@ const harness = `
     });
 
     // ---- suggest ----
-    check("Zaproponuj: 2 wiersze, bez gotówki w wagach", async () => {
+    check("Zaproponuj: 2 wiersze, kwoty z wag, bez gotówki w wagach", async () => {
         await runSuggestAllocation();
+        const broker = document.querySelector('#wzAllocGrid .wz-alloc-annual-input[data-account="broker"]');
         return document.querySelectorAll("#wzAllocGrid .wz-alloc-row").length === 2
-            && !Object.keys(wzWeights).includes("gotowka");
+            && !Object.keys(wzWeights).includes("gotowka")
+            && broker && broker.value === "4800";
     });
 
-    // ---- bug: usuwanie instrumentu czyści wagę (martwe udziały nie wracają) ----
-    check("Usuń wiersz czyści wagę — gotówka rośnie o usunięty udział", () => {
+    // ---- bug: usuwanie instrumentu czyści kwotę/wagę (martwe udziały nie wracają) ----
+    check("Usuń wiersz czyści kwotę — gotówka rośnie o usunięty udział", () => {
+        setAllocMode("manual");
         wzPill.clear();
         Object.keys(wzWeights).forEach((k) => delete wzWeights[k]);
+        Object.keys(wzAmounts).forEach((k) => delete wzAmounts[k]);
         ["broker", "lokata", "ike"].forEach((a) => wzPill.add(a));
         buildAllocationStep();
-        setWzWeight("broker", 25); setWzWeight("lokata", 50); setWzWeight("ike", 25);
+        setWzAmount("broker", 3000); setWzAmount("lokata", 6000); setWzAmount("ike", 3000);
         document.querySelector('.wz-alloc-grid .wz-pill-remove[aria-label="Usuń Lokata"]').click();
-        const cashMid = document.querySelector("#wzAllocCashRow input[type=range]").value;
+        const cashMid = document.getElementById("wzAllocCashAnnual").textContent;
         document.querySelector('.wz-alloc-grid .wz-pill-remove[aria-label="Usuń Broker"]').click();
         document.querySelector('.wz-alloc-grid .wz-pill-remove[aria-label="Usuń IKE"]').click();
-        const cash = document.querySelector("#wzAllocCashRow input[type=range]").value;
+        const cash = document.getElementById("wzAllocCashAnnual").textContent;
         const total = Object.values(collectAllocations()).reduce((a, b) => a + (b || 0), 0);
-        return cashMid === "50" && cash === "100" && total === 0 && wzPill.size === 0;
-    });
-    check("regresja: po usunięciu i domieszaniu % suma ≤ 100 (bez błędu sugerowania)", () => {
-        wzPill.clear();
-        Object.keys(wzWeights).forEach((k) => delete wzWeights[k]);
-        ["broker", "lokata", "ike"].forEach((a) => wzPill.add(a));
-        buildAllocationStep();
-        setWzWeight("broker", 25); setWzWeight("lokata", 50); setWzWeight("ike", 25);
-        document.querySelector('.wz-alloc-grid .wz-pill-remove[aria-label="Usuń Lokata"]').click();
-        document.querySelector('.wz-alloc-grid .wz-pill-remove[aria-label="Usuń IKE"]').click();
-        setWzWeight("broker", 100);
-        const total = Object.values(collectAllocations()).reduce((a, b) => a + (b || 0), 0);
-        return total <= 100.001
-            && wzWeights["lokata"] == null && wzWeights["ike"] == null
-            && !Object.keys(collectAllocations()).includes("lokata");
+        return cashMid === zl(6000) + " zł/rok" && cash === zl(12000) + " zł/rok" && total === 0 && wzPill.size === 0;
     });
 
-    // ---- gate kroku 5: wymóg wyboru trybu ----
-    check("krok 5: bez trybu „Wylicz plan” zablokowane + tooltip; klik pokazuje dymek; tryb odblokowuje", () => {
+    // ---- gate kroku 5: wymóg wyboru strategii ----
+    check("krok 5: bez strategii „Wylicz plan” zablokowane + tooltip; klik pokazuje dymek; wybór odblokowuje", () => {
         wzAllocMode = null;
         setStep(5);
         const next = document.getElementById("wzNextBtn");
@@ -338,7 +444,7 @@ const harness = `
             && document.getElementById("wzNextBtn").disabled === true
             && pop && pop.hidden === true;
     });
-    check("gate: nagłówek podziału (pula oszczędności) widoczny od wejścia na krok 5 — przed wyborem trybu", () => {
+    check("gate: nagłówek podziału (pula oszczędności) widoczny od wejścia na krok 5 — przed wyborem strategii", () => {
         wzAllocMode = null;
         setStep(5);
         const header = document.getElementById("wzAllocHeader");
@@ -350,12 +456,13 @@ const harness = `
             && note && note.hidden === false
             && panel && panel.classList.contains("hidden");
     });
-    check("strategie: emoji w labelach + nazwa Zrównoważona", () => {
+    check("strategie: 4 opcje z emoji (🛡️, ⚖️, 🚀, 🎛️)", () => {
         const labelsOnes = document.querySelectorAll('.wz-alloc-strategy-options .gender-option');
-        return labelsOnes.length === 3
+        return labelsOnes.length === 4
             && [...labelsOnes].some((l) => l.textContent.includes("🛡️"))
             && [...labelsOnes].some((l) => l.textContent.includes("⚖️") && l.textContent.includes("Zrównoważona"))
-            && [...labelsOnes].some((l) => l.textContent.includes("🚀"));
+            && [...labelsOnes].some((l) => l.textContent.includes("🚀"))
+            && [...labelsOnes].some((l) => l.textContent.includes("🎛️") && l.textContent.includes("Manualna"));
     });
 
     // ---- Pkt 6: krok 4 (Cel i horyzont) ----
@@ -368,7 +475,7 @@ const harness = `
                 && r.querySelector('.wz-slider input[type="range"]'))
             && step.querySelectorAll(".wz-hint").length === 0;
     });
-    check("krok 4: domyślne wg płci (m): emerytura 65, koniec planu = wiek + dalsze trwanie życia", () => {
+    check("krok 4: domyślne wg płci (m): emerytura 65, horyzont = wiek + dalsze trwanie życia", () => {
         const age = document.getElementById("wzAge");
         age.value = "40";
         age.dispatchEvent(new Event("input", { bubbles: true }));
@@ -379,12 +486,12 @@ const harness = `
             && planEnd.value === String(planEndDefault("m", 40))
             && document.getElementById("wzPlanEndRange").value === planEnd.value;
     });
-    check("krok 4: zmiana płci (nietknięte) -> emerytura 60, koniec planu wg kobiet", () => {
+    check("krok 4: zmiana płci (nietknięte) -> emerytura 60, horyzont wg kobiet", () => {
         document.querySelector('input[name="wzGender"][value="k"]').click();
         return document.getElementById("wzRetirement").value === "60"
             && document.getElementById("wzPlanEnd").value === String(planEndDefault("k", 40));
     });
-    check("krok 4: zmiana wieku (nietknięty koniec planu) przelicza koniec planu", () => {
+    check("krok 4: zmiana wieku (nietknięty horyzont) przelicza horyzont", () => {
         const age = document.getElementById("wzAge");
         age.value = "50";
         age.dispatchEvent(new Event("input", { bubbles: true }));
@@ -445,13 +552,175 @@ const harness = `
         return ok;
     });
 
+    // ---- Krok 6: klik scenariusza odświeża CAŁY wynik (hero, metryki, solved, ostrzeżenia, osie) ----
+    const norm = (el) => (el?.textContent || "").replace(/\\s+/g, " ");
+    const digits = (txt) => String(txt).replace(/ /g, "");
+    const mkStage = (name, type, start, end) => ({ name, stage_type: type, start_age: start, end_age: end, accounts: {} });
+    const scenInput = (label) => ({
+        stages: [
+            mkStage("Akumulacja do emerytury", "akumulacja", 40, 50),
+            mkStage("Realizacja " + label, "realizacja", 50, 85),
+        ],
+    });
+    const scenProj = (mean, min, met, label, stageName) => ({
+        mean_monthly: mean,
+        min_monthly: min,
+        target_monthly: 6000,
+        met,
+        peak_wealth: 100000,
+        final_wealth: 0,
+        exhaust_age: met ? null : 72,
+        warnings: met ? [] : ["W scenariuszu " + label + " kapitał wyczerpuje się przed horyzontem."],
+        stage_metrics: [
+            { name: "Akumulacja do emerytury", stage_type: "akumulacja", start_age: 40, end_age: 50, monthly: 1200 },
+            { name: stageName, stage_type: "realizacja", start_age: 50, end_age: 85, monthly: mean },
+        ],
+    });
+    const scenSolved = (feasible, savings, pct, label) => ({
+        feasible,
+        savings_monthly: savings,
+        savings_pct: pct,
+        retire_early_age: null,
+        note: feasible ? "" : "W scenariuszu " + label + " cel jest nieosiągalny.",
+    });
+    const scenarioPlan = {
+        path: 2,
+        input: scenInput("bazowa"),
+        projection: scenProj(5102, 5000, true, "realna", "Realizacja bazowa"),
+        solved: scenSolved(true, 7821, 65, "realna"),
+        scenarios: {
+            konserwatywne: {
+                assumptions: "konserwatywne", label: "Kryzys / ostrożne", feasible: false,
+                payout_monthly: 6000, savings_monthly: 15744, savings_pct: 131,
+                retire_early_age: null, peak_wealth: 10000, final_wealth: 0,
+            },
+            realne: {
+                assumptions: "realne", label: "Realne (bazowe)", feasible: true,
+                payout_monthly: 6000, savings_monthly: 7821, savings_pct: 65,
+                retire_early_age: null, peak_wealth: 100000, final_wealth: 0,
+            },
+            optymistyczne: {
+                assumptions: "optymistyczne", label: "Hossa / optymistyczne", feasible: true,
+                payout_monthly: 6000, savings_monthly: 3847, savings_pct: 32,
+                retire_early_age: null, peak_wealth: 300000, final_wealth: 0,
+            },
+        },
+        scenario_inputs: {
+            konserwatywne: scenInput("konserwatywna"),
+            realne: scenInput("realna"),
+            optymistyczne: scenInput("optymistyczna"),
+        },
+        scenario_projections: {
+            konserwatywne: scenProj(4800, 4000, false, "konserwatywnym", "Realizacja konserwatywna"),
+            realne: scenProj(5102, 5000, true, "realnym", "Realizacja realna"),
+            optymistyczne: scenProj(5600, 5400, true, "optymistycznym", "Realizacja optymistyczna"),
+        },
+        scenario_solved: {
+            konserwatywne: scenSolved(false, 15744, 131, "konserwatywnym"),
+            realne: scenSolved(true, 7821, 65, "realnym"),
+            optymistyczne: scenSolved(true, 3847, 32, "optymistycznym"),
+        },
+    };
+    wzPlan = scenarioPlan;
+    wzSelectedScenario = "realne";
+    setStep(6);
+    renderScenarios(scenarioPlan);
+    renderScenarioResult(scenarioPlan);
+    check("krok 6: 3 karty scenariuszy, wybrana = Realne", () => {
+        const cards = document.querySelectorAll("#wzScenariosBox .wz-scenario-card");
+        const sel = document.querySelector('#wzScenariosBox .wz-scenario-card[data-scenario="realne"]');
+        return cards.length === 3
+            && sel?.classList.contains("is-selected")
+            && sel?.getAttribute("aria-pressed") === "true"
+            && !document.querySelector("#wzHeroAnswer")?.classList.contains("is-warn")
+            && document.getElementById("wzWarnings")?.classList.contains("hidden") === true;
+    });
+    check("krok 6: klik scenariusza kryzysowego odświeża hero, metryki, solved i ostrzeżenia", () => {
+        document.querySelector('#wzScenariosBox .wz-scenario-card[data-scenario="konserwatywne"]').click();
+        const hero = norm(document.getElementById("wzHeroAnswer"));
+        const metrics = norm(document.getElementById("wzMetrics"));
+        const solved = norm(document.getElementById("wzSolved"));
+        const warn = document.getElementById("wzWarnings");
+        const selected = document.querySelector('#wzScenariosBox .wz-scenario-card[data-scenario="konserwatywne"]');
+        return hero.includes("wymaga korekty")
+            && hero.includes("konserwatywnym")
+            && digits(metrics).includes("4800")
+            && digits(metrics).includes("4000")
+            && metrics.includes("✖ nieosiągnięty")
+            && digits(solved).includes("15744")
+            && solved.includes("nieosiągalny")
+            && !warn.classList.contains("hidden")
+            && warn.textContent.includes("wyczerpuje się")
+            && document.getElementById("wzHeroAnswer").classList.contains("is-warn")
+            && selected.classList.contains("is-selected")
+            && selected.getAttribute("aria-pressed") === "true";
+    });
+    check("krok 6: klik scenariusza zmienia oś czasu, etapy i ich średnie kwoty", () => {
+        const timeline = norm(document.getElementById("wzTimeline"));
+        const stages = norm(document.getElementById("wzStageSummaryList"));
+        const finance = document.querySelectorAll("#wzStageSummaryList .stage-finance");
+        return timeline.includes("Realizacja konserwatywna")
+            && stages.includes("Realizacja konserwatywna")
+            && finance.length === 2
+            && digits(stages).includes("1200")
+            && digits(stages).includes("4800");
+    });
+    check("krok 6: powrót do scenariusza optymistycznego czyści ostrzeżenia i is-warn", () => {
+        document.querySelector('#wzScenariosBox .wz-scenario-card[data-scenario="optymistyczne"]').click();
+        const hero = norm(document.getElementById("wzHeroAnswer"));
+        const metrics = norm(document.getElementById("wzMetrics"));
+        return digits(hero).includes("3847")
+            && !hero.includes("wymaga korekty")
+            && digits(metrics).includes("5600")
+            && !document.getElementById("wzHeroAnswer").classList.contains("is-warn")
+            && document.getElementById("wzWarnings").classList.contains("hidden")
+            && norm(document.getElementById("wzTimeline")).includes("Realizacja optymistyczna")
+            && digits(norm(document.getElementById("wzStageSummaryList"))).includes("5600");
+    });
+    wzPlan = null;
+    wzSelectedScenario = "realne";
+
     // ---- Notatka o wypłatach netto w bloku wyniku (krok 6) ----
-    check("notatka o wypłatach netto w bloku wyniku, brak footnote pod kartą", () => {
+    check("notatka o wypłatach netto w bloku wyniku, brak #wzStagePreview", () => {
         setStep(6);
         const note = document.querySelector('.wz-step[data-step="6"] .wz-result-note');
         return !!note
-            && note.textContent.includes("Wypłaty pokazane są netto")
-            && document.querySelector(".wizard-footnote") === null;
+            && note.textContent.includes("netto")
+            && document.getElementById("wzStagePreview") === null;
+    });
+
+    // ---- migracja starego localStorage (tylko wagi) na kwoty roczne ----
+    check("restore: stary stan bez amounts migruje wagi na kwoty roczne (ścieżka 1)", () => {
+        localStorage.setItem("fire.wizardState", JSON.stringify({
+            step: 5,
+            path: 1,
+            answers: {
+                gender: "m",
+                age_now: 40,
+                employment: "etat",
+                gross_monthly: 8000,
+                salary_mode: "gross",
+                savings: 2000,
+                capital: {},
+                retire_early_age: 50,
+                retirement_age: 65,
+                plan_end_age: 85,
+            },
+            capitalSelected: [],
+            pills: ["broker", "lokata"],
+            weights: { broker: 25, lokata: 25 },
+            allocMode: "manual",
+            strategy: "manualna",
+            assumptions: "realne",
+        }));
+        window.history.replaceState({}, "", "/wizard?restore=1");
+        const ok = restoreWizardStateIfRequested();
+        return ok
+            && Math.round(wzAmounts["broker"]) === 6000
+            && Math.round(wzAmounts["lokata"]) === 6000
+            && Math.round(wzWeights["broker"]) === 25
+            && Math.round(wzWeights["lokata"]) === 25
+            && document.getElementById("wzAllocCashAnnual").textContent === zl(12000) + " zł/rok";
     });
 
     const failed = results.filter((r) => !r.ok);
@@ -465,7 +734,6 @@ const harness = `
 })();
 `;
 
-// Uruchom skrypty, a potem harness (async), w jednej globalnej przestrzeni.
 window.eval(scripts + "\n;\n" + harness);
 
 setTimeout(() => {

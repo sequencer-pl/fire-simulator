@@ -17,12 +17,14 @@ from app.simulation.config import (
 )
 from app.simulation.engine import simulate
 from app.simulation.planner import (
+    SalaryPreviewRequest,
     WizardPlanRequest,
     WizardSuggestRequest,
     estimate_pool_monthly,
     plan,
     suggest_allocations,
 )
+from app.simulation.salary import salary_preview
 from app.simulation.schemas import SimulationInput, SimulationResult
 from app.stages.metadata import STAGE_META
 from app.stages.registry import get_all_stage_types
@@ -279,6 +281,22 @@ def api_wizard_suggest(body: WizardSuggestRequest):
         }
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+@router.post("/api/wizard/salary")
+def api_wizard_salary(body: SalaryPreviewRequest):
+    ppk_pct = body.ppk_employee_pct if body.use_ppk else 0.0
+    gross, net = salary_preview(
+        body.amount,
+        body.salary_mode,
+        body.employment,
+        default_config(),
+        ppk_pct=ppk_pct,
+    )
+    return {
+        "gross_monthly": round(gross, 2),
+        "net_monthly": round(net, 2) if net is not None else None,
+    }
 
 
 @router.post("/api/simulate")

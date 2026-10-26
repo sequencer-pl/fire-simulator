@@ -43,6 +43,7 @@ class AccountRules(BaseModel):
     asset_exemption: float = 0.0
     asset_group: str | None = None  # accounts with the same asset_group share a common limit
     asset_class: str | None = None  # "inwestycyjne" | "oszczednosciowe" w ramach grupy
+    default_roi: float = 0.04  # domyślna realna stopa zwrotu (ponad inflacją)
 
 
 class Limits(BaseModel):
@@ -62,11 +63,13 @@ class Limits(BaseModel):
 
 def default_account_rules() -> dict[str, AccountRules]:
     return {
-        "broker": AccountRules(tax_model="flat", tax_rate=0.19),
-        "krypto": AccountRules(tax_model="flat", tax_rate=0.19),
-        "lokata": AccountRules(tax_model="flat", tax_rate=0.19, tax_periodic=True),
-        "obligacje": AccountRules(tax_model="flat", tax_rate=0.19),
-        "gotowka": AccountRules(tax_model="none"),
+        "broker": AccountRules(tax_model="flat", tax_rate=0.19, default_roi=0.05),
+        "krypto": AccountRules(tax_model="flat", tax_rate=0.19, default_roi=0.06),
+        "lokata": AccountRules(
+            tax_model="flat", tax_rate=0.19, tax_periodic=True, default_roi=0.01
+        ),
+        "obligacje": AccountRules(tax_model="flat", tax_rate=0.19, default_roi=0.02),
+        "gotowka": AccountRules(tax_model="none", default_roi=0.0),
         "ike": AccountRules(
             tax_model="flat",
             tax_rate=0.0,
@@ -75,6 +78,7 @@ def default_account_rules() -> dict[str, AccountRules]:
             early_tax_model="flat",
             early_tax_rate=0.19,
             early_tax_basis="gains",
+            default_roi=0.05,
         ),
         "ikze": AccountRules(
             tax_model="flat",
@@ -82,6 +86,7 @@ def default_account_rules() -> dict[str, AccountRules]:
             tax_basis="full",
             min_withdrawal_age=65,
             early_tax_model="scale",
+            default_roi=0.05,
         ),
         "ppk": AccountRules(
             tax_model="none",
@@ -89,6 +94,7 @@ def default_account_rules() -> dict[str, AccountRules]:
             early_tax_model="flat",
             early_tax_rate=0.19,
             early_tax_basis="gains",
+            default_roi=0.04,
         ),
         "ppe": AccountRules(
             tax_model="none",
@@ -96,6 +102,7 @@ def default_account_rules() -> dict[str, AccountRules]:
             early_tax_model="flat",
             early_tax_rate=0.19,
             early_tax_basis="gains",
+            default_roi=0.04,
         ),
         "oipe": AccountRules(
             tax_model="flat",
@@ -105,6 +112,7 @@ def default_account_rules() -> dict[str, AccountRules]:
             early_tax_model="flat",
             early_tax_rate=0.19,
             early_tax_basis="gains",
+            default_roi=0.05,
         ),
         "oki_inw": AccountRules(
             tax_model="assets",
@@ -112,6 +120,7 @@ def default_account_rules() -> dict[str, AccountRules]:
             asset_exemption=100_000,
             asset_group="oki",
             asset_class="inwestycyjne",
+            default_roi=0.045,
         ),
         "oki_osk": AccountRules(
             tax_model="assets",
@@ -119,8 +128,9 @@ def default_account_rules() -> dict[str, AccountRules]:
             asset_exemption=25_000,
             asset_group="oki",
             asset_class="oszczednosciowe",
+            default_roi=0.02,
         ),
-        "zus": AccountRules(tax_model="scale"),
+        "zus": AccountRules(tax_model="scale", default_roi=0.04),
     }
 
 
@@ -133,6 +143,7 @@ class ZusConfig(BaseModel):
     """
 
     skladka_rate: float = 0.1952
+    employee_rate: float = 0.1371
     ofe_rate: float = 0.0292
     limit_base_annual: float = 270_000
     waloryzacja_skladek: float = 0.01
@@ -179,6 +190,8 @@ class TaxConfig(BaseModel):
     # Danina solidarnościowa od nadwyżki ponad próg (4% do 2026, projekt 5% od 2027).
     danina_prog: float = 1_000_000
     danina_rate: float = 0.04
+    # Składka zdrowotna pracownika (9% podstawy po odjęciu ZUS pracownika).
+    health_rate: float = 0.09
     # Limit przychodów dla 50% KUP (projekt: powiązany z progiem 130k).
     kup_50_limit: float = 120_000
     kup: float = 3600.0
@@ -237,14 +250,56 @@ BUILTIN_PRESETS: dict[str, dict] = {
     "Konserwatywne": {
         "inflation": 0.035,
         "zus": {"waloryzacja_skladek": 0.01, "waloryzacja_swiadczenia": 0.01},
+        "accounts": {
+            "broker": {"default_roi": 0.035},
+            "ike": {"default_roi": 0.035},
+            "ikze": {"default_roi": 0.035},
+            "oipe": {"default_roi": 0.035},
+            "ppk": {"default_roi": 0.03},
+            "ppe": {"default_roi": 0.03},
+            "oki_inw": {"default_roi": 0.03},
+            "oki_osk": {"default_roi": 0.01},
+            "obligacje": {"default_roi": 0.015},
+            "lokata": {"default_roi": 0.005},
+            "krypto": {"default_roi": 0.03},
+            "zus": {"default_roi": 0.03},
+        },
     },
     "Realne": {
         "inflation": 0.025,
         "zus": {"waloryzacja_skladek": 0.02, "waloryzacja_swiadczenia": 0.02},
+        "accounts": {
+            "broker": {"default_roi": 0.05},
+            "ike": {"default_roi": 0.05},
+            "ikze": {"default_roi": 0.05},
+            "oipe": {"default_roi": 0.05},
+            "ppk": {"default_roi": 0.04},
+            "ppe": {"default_roi": 0.04},
+            "oki_inw": {"default_roi": 0.045},
+            "oki_osk": {"default_roi": 0.02},
+            "obligacje": {"default_roi": 0.02},
+            "lokata": {"default_roi": 0.01},
+            "krypto": {"default_roi": 0.06},
+            "zus": {"default_roi": 0.04},
+        },
     },
     "Optymistyczne": {
         "inflation": 0.015,
         "zus": {"waloryzacja_skladek": 0.025, "waloryzacja_swiadczenia": 0.025},
+        "accounts": {
+            "broker": {"default_roi": 0.065},
+            "ike": {"default_roi": 0.065},
+            "ikze": {"default_roi": 0.065},
+            "oipe": {"default_roi": 0.065},
+            "ppk": {"default_roi": 0.055},
+            "ppe": {"default_roi": 0.055},
+            "oki_inw": {"default_roi": 0.06},
+            "oki_osk": {"default_roi": 0.025},
+            "obligacje": {"default_roi": 0.025},
+            "lokata": {"default_roi": 0.015},
+            "krypto": {"default_roi": 0.08},
+            "zus": {"default_roi": 0.05},
+        },
     },
 }
 

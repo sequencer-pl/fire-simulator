@@ -26,7 +26,11 @@ bez TypeScript), SQLite, pytest. Odpowiadaj i pisz UI po polsku.
 - Klucze kont są stałe (`broker, gotowka, ike, ikze, krypto, lokata, obligacje, oipe,
   oki_inw, oki_osk, ppe, ppk, zus`) — patrz `ACCOUNT_LABELS` w config.py.
 - Wizard: path 1 = maks. stała wypłata netto (bisekcja + gross-up), path 2 = ile
-  odkładać, path 3 = kiedy FIRE. Gwarancja = żaden rok nie spada poniżej targetu.
+  odkładać (procent liczymy od pensji **netto**), path 3 = kiedy FIRE. Gwarancja =
+  żaden rok nie spada poniżej targetu. Path 2: górna granica bisekcji nie jest
+  dowodem niewykonalności, bo podatek od aktywów OKI rośnie z saldem — przy bardzo
+  wysokich oszczędnościach wypłata netto może spaść poniżej targetu; solver schodzi
+  wtedy do osiągalnego pułapu i bisekcjonuje od zera (`_solve_savings`).
 
 ## Architektura i konwencje kodu
 
@@ -89,60 +93,106 @@ bez TypeScript), SQLite, pytest. Odpowiadaj i pisz UI po polsku.
   nie dodawaj pola kwotowego bez tej reguły (11ch = baza; większe wartości wymagają
   więcej).
 - Ostrzeżenia `.form-msg.warn` — pełna szerokość (`grid-column: 1 / -1`).
-- Krok 3 „Kapitał": na start widoczne 8 głównych kont (`#wzCapitalGrid`), a pozostałe
-  6 niszowych (`#wzCapitalMoreGrid`) rozwijane przyciskiem `#wzCapitalMoreBtn`.
-- Krok 4 „Cel i horyzont" (przed podziałem oszczędności!): 4 pełnowymiarowe wiersze
-  `.wz-slider` w kontenerze `.wz-rows` (pionowy stack, separatory `1px solid var(--border)`
+- Krok 2 „Twoje dane": 3 panele w kolejności „Ty" | „Praca i dochód" |
+  „Odkładasz miesięcznie". Pensja ma segment **Brutto / Netto** (`#wzSalaryMode`)
+  **tylko dla etatu**; B2B zostaje przy brutto z tooltipem (netto zależy od formy
+  opodatkowania), a „Nie pracuję" chowa pole. Segment siedzi w `.wz-choice-row`
+  obok pastylek formy zatrudnienia (obie grupy mieszczą się w lewej kolumnie
+  300 px; na węższym ekranie Brutto/Netto zawija się pod spód). Obok labela
+  pensji `#wzSalaryHint` pokazuje kwotę odwrotną („≈ netto" / „≈ brutto")
+  z `POST /api/wizard/salary`
+  (`app/simulation/salary.py`: ZUS pracownika 13,71%, zdrowotna 9%, PIT wg skali
+  + danina; przy planie doliczana jest składka pracownika PPK, jeśli PPK jest
+  włączone w kroku 3). Oszczędności są **tylko kwotowe**: `#wzSavings` domyślnie
+  **1000 zł/mies.**, suwak `#wzSavingsAmtRange` 0–netto, bez trybu procentowego.
+  `#wzSavingsHint` pokazuje „`kwota` = `%` pensji netto", a `#wzSavingsWarn`
+  ostrzega tylko przy kwocie > pensja netto. `collectAnswers()` wysyła
+  `salary_mode` i `savings`; backend normalizuje netto→brutto **raz** na wejściu
+  `plan()`/`estimate_pool_monthly()`, więc solvery nie powtarzają konwersji.
+- Krok 3 „Kapitał": **wszystkie 14 kont** (w tym `zus:ofe`) jako pastylki wyboru
+  w `#wzCapitalPicker`; wybrane konto dodaje pole kwotowe do `#wzCapitalGrid`
+  (ponowne kliknięcie pastylki / „Usuń” je zabiera). Do odpowiedzi trafiają tylko
+  kwoty > 0.
+- Krok 4 („Kiedy chcesz przejść na FIRE?” / „Twój cel wypłaty i wiek FIRE” /
+  „Wymarzona wypłata i horyzont” wg ścieżki): 4 pełnowymiarowe wiersze `.wz-slider`
+  w kontenerze `.wz-rows` (pionowy stack, separatory `1px solid var(--border)`
   między wierszami w każdej szerokości — układ zawsze pionowy; bez hint-podpowiedzi,
-  ewentualny kontekst w `title` labela). Domyślne wartości **wg płci i wieku**
-  przeliczane automatycznie dopóki pola nie były ręcznie edytowane (flagi
-  `wzRetirementTouched`/`wzPlanEndTouched`): „Wiek emerytury" = `RETIREMENT_DEFAULT`
-  (60 k / 65 m, spójne z `config.zus.wiek_emerytalny_*`); „Koniec planu" = wiek +
-  `LIFE_EXPECTANCY` (średnie dalsze trwanie życia wg płci i wieku — GUS, tablica
+  ewentualny kontekst w `title` labela). Pola są ukrywane zależnie od ścieżki:
+  cel wypłaty tylko dla 2/3, wiek FIRE tylko dla 1/2. Domyślne wartości **wg płci
+  i wieku** przeliczane automatycznie dopóki pola nie były ręcznie edytowane (flagi
+  `wzRetirementTouched`/`wzPlanEndTouched`): „Wiek emerytury ZUS" = `RETIREMENT_DEFAULT`
+  (60 k / 65 m, spójne z `config.zus.wiek_emerytalny_*`); „Horyzont czasowy wypłat" =
+  wiek + `LIFE_EXPECTANCY` (średnie dalsze trwanie życia wg płci i wieku — GUS, tablica
   trwania życia za 2024 r., dane w wizard.js, to dane UI a nie backendu). Traktuj jak
   krok 2: `.num-control` PRZED range, `bindSliderRange`.
-- Panel bez pary „opcja|wartość" (np. Strategia w kroku 5 „Podział oszczędności"):
-  pigułki `.gender-options` rozciągnięte na CAŁĄ szerokość panelu (komórka = panel) —
-  to nie jest slot; do niego nie stosuje się reguły `300px 1fr`. Przyciski akcji pod
-  selektorem (`.wz-strategy-actions`: „Podziel ręcznie"/„Zaproponuj", `space-between`,
-  jedna wysokość `.btn nowrap`). Domyślnie aktywny jest tryb `wzAllocMode = "auto"`,
-  który przy wejściu na krok 5 i przy zmianie strategii automatycznie pobiera sugestię
-  (w ścieżce 2 z uwzględnieniem celu wypłaty z kroku 4 i szacowanej puli `pool_monthly`).
-  Podtytuł kroku (`#wzAllocHeader`, subscript „Odkładasz X zł/mies…") jest renderowany
-  przy KAŻDYM wejściu na krok 5 (`setStep` → `buildAllocationStep`). Podtytuł to
-  `.wz-alloc-head` z dwoma wierszami: pula (`.wz-alloc-pool`, kwota `<strong>` w kolorze
-  `--primary`) + nota Gotówka (`#wzAllocCashNote`, widoczna gdy pula znana). Emotki przy
-  nazwach strategii (🛡️ / ⚖️ / 🚀) — w labelach radio.
-  „Zaproponuj" (`.btn-gradient`) = tryb **auto**: stawia sugestię wg
-  pojemności limitów (`suggest_allocations`/`STRATEGY_SUGGEST`, planner.py) i pokazuje
-  TYLKO sekcję „Podział" w **read-only** (statyczne wiersze `.wz-alloc-readonly`,
-  bez suwaków, pigułek i „wpłat z pensji"; przycisk `aria-pressed`). „Podziel ręcznie"
-  = tryb **manual**: pełny interaktywny układ (suwaki/pola, wiersz Gotówki, pigułki
-  „Dodaj instrument", „Wpłaty z pensji") z zachowanymi wagami sugestii do dostrojenia.
-  Układ wiersza podziału: **desktop = etykieta | suwak | % | zł** (% i zł wyrównane do
-  prawego brzegu — suwak `flex: 1 1 auto` wypełnia środek); **≤560px (container) =
-  etykieta | % | zł w jednej linii przy prawym brzegu, suwak pełnej szerokości pod
-  spodem** (`order: 5`); w trybie auto statyczne „%"/„zł" też do prawego brzegu
-  (`.wz-alloc-static`/`.wz-alloc-money { margin-left: auto }`).
-  Wybór trybu jest **wymagany**: bez niego „Wylicz plan" jest wyłączony
-  (`wzNextBtn.disabled`, `.btn:disabled`), a wyjaśnienie jest tylko tooltipem
-  (natywny `title` na wrapperze `.wz-next-tip` — na disabled buttonie title się
-  nie pokazuje) oraz **dymkiem po kliknięciu** (`.wz-next-pop`, `role=status`,
-  klika się wrapper, bo `#wzNextBtn:disabled { pointer-events: none }`; tekst
-  współdzielony przez stałą `ALLOC_GATE_MSG`, auto-ukrycie ~4 s) — refresh
-  bramki w `updateFooterNav`/`setAllocMode`/`runSuggestAllocation.finally`,
-  a `validateStep(5)` to siatka bezpieczeństwa (`allocReady()` =
-  `wzAllocMode != null`). Na **≤640px selektor Strategii zmienia się w pionową
-  radio-listę** (pełnowymiarowe wiersze z `border`, kontener bez obramowania;
-  na >640px zostaje segment).
-  Usuwanie instrumentu („Usuń"/pastylka) czyści też wagę
-  (`deactivateAllocAccount`/`togglePill` — `delete wzWeights[acc]`), a
-  `collectAllocations` pomija wagi nieaktywnych kont
+- Krok 5 „Strategia i założenia" ma 5 paneli: „Założenia rynkowe (koniunktura)",
+  „Strategia podziału oszczędności", „Podział", „Dodaj instrument", „Wpłaty z pensji".
+  **Założenia i strategia to dwa niezależne wybory.** Założenia (3 pigułki:
+  🌧️ Konserwatywne / 🌤️ Realne / ☀️ Optymistyczne) sterują ROI, inflacją i waloryzacją
+  ZUS w backendzie (`planner.py`); strategia (4 pigułki: 🛡️ Konserwatywna,
+  ⚖️ Zrównoważona, 🚀 Agresywna, 🎛️ Manualna) tylko rozdziela oszczędności między konta.
+- Pigułki paneli bez pary „opcja|wartość" rozciągają się na CAŁĄ szerokość panelu
+  (`.gender-options`, komórka = panel) — nie stosuje się do nich slotu `300px 1fr`.
+  Na **≤640px selektor strategii zmienia się w pionową radio-listę** (pełnowymiarowe
+  wiersze z `border`, kontener bez obramowania; na >640px zostaje segment).
+- Wybór strategii jest **wymagany**; na starcie kroku 5 żaden tryb nie jest aktywny.
+  Automatyczne strategie ustawiają `wzAllocMode = "auto"`: wołają `/api/wizard/suggest`
+  (w ścieżce 2 z celem wypłaty z kroku 4 i szacowaną pulą `pool_monthly`) i pokazują
+  TYLKO sekcję „Podział" w **read-only** (statyczne wiersze `.wz-alloc-readonly`, bez
+  suwaków, pigułek i „wpłat z pensji"). „Manualna" ustawia `"manual"`: pełny
+  interaktywny układ (suwaki/pola, wiersz Gotówki, pigułki „Dodaj instrument",
+  „Wpłaty z pensji") z zachowanymi wagami sugestii do dostrojenia.
+  Podtytuł/pula (`#wzAllocHeader`) i nota Gotówka (`#wzAllocCashNote`) są renderowane
+  przy KAŻDYM wejściu na krok 5 (`setStep` → `buildAllocationStep`) i przy zmianie
+  trybu. **Wiersz podziału jest kwotowy (rocznie), a nie procentowy:** etykieta |
+  pogrubione pole `zł/rok` | suwak roczny | wyszarzone `≈zł/mies.` | najmniejsze
+  pochodne `≈%`. Procenty są wyłącznie prezentacyjne (zaokrąglone do pełnych liczb,
+  `<1%` dla niezerowych ułamków) — backend nadal dostaje `WizardAnswers.allocations`
+  jako udziały procentowe. Konta z limitem pokazują spokojną notę `limit roczny:
+  X zł` / `limit roczny osiągnięty`, a suwak i pole mają maksimum
+  `min(pozostała pula, limit roczny)` — ręcznie nie da się przekroczyć limitu.
+  Układ: **szeroka karta = jedna linia + nota limitu pod spodem**; **≤820px
+  (container)** etykieta, kwota, `≈zł/mies.` i `≈%` zawijają się w naturalny
+  sposób, a suwak zajmuje pełną szerokość (`order: 5`), nota limitu idzie pod
+  nim (`order: 6`). Próg jest większy niż mobile, bo przy ok. 560–800px pełny
+  wiersz nie mieści już prawej pary `≈zł/mies.` + `≈%` i procent spadałby
+  samotnie do nowej linii.
+  **Ścieżki 1/3:** kanoniczne są kwoty roczne (`wzAmounts`); wzrost puli zostawia
+  kwoty, a różnica trafia do Gotówki; spadek puli proporcjonalnie przycina kwoty
+  (`wzReconcileAmounts`). **Ścieżka 2:** kanoniczne są wagi procentowe
+  (`wzWeights`); kwoty są pochodne i przeliczają się po zmianie/solved puli
+  (`wzSyncAmountsFromWeights`), z notą „Podział proporcjonalny…”. Ręczna edycja
+  kwoty w ścieżce 2 ustawia wagę `kwota / pula × 100`. Noty o nadwyżce ponad limit
+  pokazują się tylko, gdy po zaokrągleniu do pełnych złotych nadwyżka miesięczna
+  wynosi ≥ 1 zł (mikronadwyżki z zaokrągleń są ukryte).
+- Bez wybranej strategii „Wylicz plan" jest wyłączony (`wzNextBtn.disabled`,
+  `.btn:disabled`), a wyjaśnienie jest tylko tooltipem (natywny `title` na wrapperze
+  `.wz-next-tip` — na disabled buttonie title się nie pokazuje) oraz **dymkiem po
+  kliknięciu** (`.wz-next-pop`, `role=status`, klika się wrapper, bo
+  `#wzNextBtn:disabled { pointer-events: none }`; tekst współdzielony przez stałą
+  `ALLOC_GATE_MSG`, auto-ukrycie ~4 s) — refresh bramki w
+  `updateFooterNav`/`setAllocMode`/`runSuggestAllocation.finally`, a `validateStep(5)`
+  to siatka bezpieczeństwa (`allocReady()` = `wzAllocMode != null`).
+- Usuwanie instrumentu („Usuń"/pastylka) czyści też kwotę i wagę
+  (`deactivateAllocAccount`/`togglePill` — `delete wzWeights[acc]` i
+  `delete wzAmounts[acc]`), a `collectAllocations` pomija wagi nieaktywnych kont
   (`isCapActive(acc) && wzWeights[acc] > 0`) — martwe udziały nigdy nie wracają
   do sumy (inaczej sugerowanie/plan potrafiły błędnie przekroczyć 100%).
-- Krok 6 „Wynik i podsumowanie": łączy wynik solvera (`#wzResult`), oś czasu
-  (`#wzTimeline`) i podgląd etapów (`#wzStagePreview`); przejście z kroku 5 od razu
-  uruchamia `runPlan()`.
+- Krok 6 „Twój plan FIRE": loader `#wzPlanLoader` (3 etapy) na czas `runPlan()`,
+  potem Hero Answer (`#wzHeroAnswer`, odpowiedź zależna od ścieżki), 3 karty
+  scenariuszy (`#wzScenariosBox`), metryki (`#wzMetrics`), solved (`#wzSolved`),
+  ostrzeżenia (`#wzWarnings`), oś czasu (`#wzTimeline`), podsumowanie etapów
+  (`#wzStageSummaryList`) i notatka o wypłatach netto. **Nie ma `#wzStagePreview`.**
+  Klik karty ustawia `wzSelectedScenario` i przerenderowuje CAŁY wynik z
+  `scenario_projections`/`scenario_solved`/`scenario_inputs` przez
+  `renderScenarioResult()` (hero, metryki, solved, ostrzeżenia, oś czasu, etapy).
+  Lista etapów pokazuje przybliżone kwoty miesięczne z
+  `PlanProjection.stage_metrics` (akumulacja = średnie wpłaty do portfela bez
+  ZUS; realizacja = średnia wypłata netto). W nakładających się etapach
+  „Dopłata do emerytury” i „Emerytura ZUS” wiersze pokazują składniki
+  (portfel / ZUS), które się sumują — pod listą jest przypis.
+  Wybór scenariusza jest zapisywany w `localStorage` i odtwarzany przez
+  `/wizard?restore=1`. Wejście z kroku 5 od razu uruchamia `runPlan()`.
 
 ### Założenia projektowe układu wierszowego (dlaczego tak — stosuj przy innych widokach)
 
@@ -162,7 +212,7 @@ bez TypeScript), SQLite, pytest. Odpowiadaj i pisz UI po polsku.
   mobile liczba jest nad suwakiem i kciuk jej nie zasłania; na desktopie z tej samej
   zasady liczba po lewej, suwak po prawej.
 - **Inputy kwot `11ch` (+`min-width: 11ch`)** — największa kwota w widoku to pensja
-  50 000 zł (7 cyfr); 11ch mieści ją z zapasem, bez rośnięcia pola przy wpisie.
+  100 000 zł (7 cyfr); 11ch mieści ją z zapasem, bez rośnięcia pola przy wpisie.
 - **Separator między polami tylko w układzie pionowym (<821px)** — w 2-kolumnowym
   siatka wystarczająco oddziela; bez separatora w pionowym wiersze się zlewają.
 - **Ostrzeżenia na pełną szerokość** — nie łamią siatki 2-kolumnowej i mają miejsce

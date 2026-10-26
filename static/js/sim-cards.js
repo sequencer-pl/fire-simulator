@@ -34,20 +34,38 @@ function limitButtonsHtml(accountKey, fieldKey) {
 }
 
 const FIELD_DEFAULTS = {
-    zus: { waloryzacja_skladek: () => CONFIG?.zus?.waloryzacja_skladek ?? 0, waloryzacja_swiadczenia: () => CONFIG?.zus?.waloryzacja_swiadczenia ?? 0 },
-    ppk: { employee_pct: () => CONFIG?.ppk?.employee_pct ?? 0, employer_pct: () => CONFIG?.ppk?.employer_pct ?? 0 },
-    ppe: { employer_pct: 0.035 },
-    lokata: { lokata_term_months: 12 },
+    zus: {
+        waloryzacja_skladek: () => CONFIG?.zus?.waloryzacja_skladek ?? 0,
+        waloryzacja_swiadczenia: () => CONFIG?.zus?.waloryzacja_swiadczenia ?? 0,
+        roi: () => CONFIG?.accounts?.zus?.default_roi ?? 0.04,
+    },
+    ppk: {
+        employee_pct: () => CONFIG?.ppk?.employee_pct ?? 0,
+        employer_pct: () => CONFIG?.ppk?.employer_pct ?? 0,
+        roi: () => CONFIG?.accounts?.ppk?.default_roi ?? 0.04,
+    },
+    ppe: {
+        employer_pct: 0.035,
+        roi: () => CONFIG?.accounts?.ppe?.default_roi ?? 0.04,
+    },
+    lokata: {
+        lokata_term_months: 12,
+        roi: () => CONFIG?.accounts?.lokata?.default_roi ?? 0.01,
+    },
 };
 
 let _genderCardSeq = 0;
 
 function fieldDefault(accountKey, key) {
     const table = FIELD_DEFAULTS[accountKey];
-    if (!table) return 0;
-    const val = table[key];
-    if (val === undefined) return 0;
-    return typeof val === "function" ? val() : val;
+    if (table && table[key] !== undefined) {
+        const val = table[key];
+        return typeof val === "function" ? val() : val;
+    }
+    if (key === "roi") {
+        return CONFIG?.accounts?.[accountKey]?.default_roi ?? 0.04;
+    }
+    return 0;
 }
 
 function applyZusWaloryzacjaDefaults() {

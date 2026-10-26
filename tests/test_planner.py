@@ -21,7 +21,6 @@ BASE = dict(
     gross_monthly=8000,
     capital={"broker": 100_000},
     use_ppk=True,
-    savings_mode="amount",
     savings=1000,
     strategy="zbilansowana",
     retire_early_age=55,
@@ -55,12 +54,17 @@ def test_all_paths_return_valid_input(path):
 def test_path1_has_bridge_when_re_below_retirement():
     r = plan(1, answers(retire_early_age=55))
     types = [s.stage_type for s in r.input.stages]
-    assert types == ["akumulacja", "realizacja", "realizacja"]
+    assert types == ["akumulacja", "realizacja", "realizacja", "realizacja"]
     bridge = r.input.stages[1]
+    supplement = r.input.stages[2]
+    assert bridge.start_age == 55
+    assert bridge.end_age == 65
     assert "zus" not in bridge.accounts
     assert "ppk" in bridge.accounts
     assert "broker" in bridge.accounts
-    zus_stage = r.input.stages[2]
+    assert supplement.start_age == 65
+    assert "zus" not in supplement.accounts
+    zus_stage = r.input.stages[3]
     assert set(zus_stage.accounts) == {"zus"}
     assert zus_stage.start_age == 65
 
@@ -121,8 +125,8 @@ def test_realization_mirrors_accumulation():
     r = plan(1, answers())
     acc = set(r.input.stages[0].accounts)
     bridge = set(r.input.stages[1].accounts)
-    zus_stage = set(r.input.stages[2].accounts)
-    # The whole non-ZUS portfolio is realized from the FIRE age; ZUS stays in
+    zus_stage = set(r.input.stages[-1].accounts)
+    # The non-ZUS portfolio is realized from the FIRE age; ZUS stays in
     # its own realization stage — together they mirror the accumulation set.
     assert set(zus_stage) == {"zus"}
     assert bridge | zus_stage == acc
@@ -137,7 +141,6 @@ def test_capital_seeded_even_without_stage_a():
         capital={"broker": 400_000},
         plan_end_age=90,
         savings=0,
-        savings_mode="amount",
     )
     r = plan(1, a)
     assert r.projection.min_monthly > 0
@@ -188,8 +191,10 @@ def test_path1_replay_keeps_guarantee():
 def test_realization_overlap_zus_starts_at_pension_age():
     r = plan(1, answers())
     types = [s.stage_type for s in r.input.stages]
-    assert types.count("realizacja") == 2
-    bridge, zus = r.input.stages[1], r.input.stages[2]
+    assert types.count("realizacja") == 3
+    bridge, supplement, zus = r.input.stages[1], r.input.stages[2], r.input.stages[3]
+    assert bridge.end_age == 65
+    assert supplement.start_age == 65
     assert zus.start_age == 65
     assert bridge.start_age < zus.start_age
 
@@ -214,7 +219,6 @@ def test_exhaust_reported_when_plan_runs_out():
         capital={"broker": 10_000},
         plan_end_age=101,
         savings=0,
-        savings_mode="amount",
     )
     r = plan(1, a)
     # tiny capital over 30 years cannot keep a meaningful annuity to the end
@@ -231,6 +235,47 @@ def test_path2_solves_required_savings():
     assert r.solved.savings_monthly > 0
     assert r.projection.met
     assert r.projection.min_monthly >= target - 1
+
+
+def test_path2_oki_asset_tax_does_not_break_solver():
+    # OKI's 0.85% asset tax grows with the balance: at very high savings the
+    # net payout can drop below the target, so the "provably sufficient" upper
+    # bound is unreachable. The solver must still find the feasible low range.
+    a = WizardAnswers(
+        gender="m",
+        age_now=40,
+        employment="etat",
+        gross_monthly=12_000,
+        plan_end_age=77,
+        savings=1000,
+        retire_early_age=55,
+        retirement_age=65,
+        assumptions="realne",
+        strategy="zbilansowana",
+        allocations={"ike": 45.23, "ikze": 18.09, "oki_inw": 36.68},
+    )
+    r = plan(2, a, 4000)
+    assert r.solved.feasible
+    assert r.solved.savings_monthly < 5000
+    assert r.projection.met
+    assert r.projection.min_monthly >= 4000 - 1
+
+
+def test_path2_pool_estimate_survives_oki_asset_tax():
+    a = WizardAnswers(
+        gender="m",
+        age_now=40,
+        employment="etat",
+        gross_monthly=12_000,
+        plan_end_age=77,
+        savings=1000,
+        retire_early_age=55,
+        retirement_age=65,
+        assumptions="realne",
+        strategy="zbilansowana",
+    )
+    estimate = P.estimate_pool_monthly(a, 2, 4000)
+    assert 0 < estimate < 5000
 
 
 def test_path2_zero_savings_when_already_met():
@@ -250,8 +295,9 @@ def test_path2_zero_savings_when_already_met():
 
 
 def test_path2_pct_conversion():
-    r = plan(2, answers(savings_mode="pct", savings=10), 15_000)
+    r = plan(2, answers(), 15_000)
     assert r.solved.savings_pct is not None
+    assert r.net_monthly is not None
 
 
 def test_path2_returns_amount_even_when_exceeds_income():
@@ -274,7 +320,6 @@ def test_path2_no_income_solves_amount():
         capital={"gotowka": 30_000},
         plan_end_age=90,
         savings=0,
-        savings_mode="amount",
         allocations={"broker": 100},
         use_broker=True,
     )
@@ -292,7 +337,6 @@ def test_unemployed_savings_create_accumulation_stage():
         employment="niepracujacy",
         gross_monthly=0,
         savings=2000,
-        savings_mode="amount",
         plan_end_age=90,
         allocations={"broker": 100},
         use_broker=True,
@@ -340,12 +384,94 @@ def test_path3_no_income_uses_capital():
         gross_monthly=0,
         capital={"broker": 1_000_000},
         savings=0,
-        savings_mode="amount",
     )
     r = plan(3, a, 4000)
     assert r.solved.feasible
     assert r.solved.retire_early_age is not None
     assert r.projection.met
+
+
+# --- Stage metrics ----------------------------------------------------------
+
+
+def test_stage_metrics_cover_all_stages_and_split_zus():
+    r = plan(2, answers(use_zus=True, capital={"broker": 100_000}), 5000)
+    metrics = r.projection.stage_metrics
+    assert [m.name for m in metrics] == [s.name for s in r.input.stages]
+
+    accum, bridge, supplement, zus = metrics
+    assert accum.stage_type == "akumulacja"
+    assert accum.monthly > 0
+    assert bridge.stage_type == "realizacja"
+    assert bridge.monthly > 0
+    assert supplement.start_age == zus.start_age == 65
+    assert supplement.monthly > 0
+    assert zus.monthly > 0
+    # The overlapping rows are components of the same payout, not two totals.
+    assert supplement.monthly + zus.monthly > zus.monthly
+
+
+def test_scenario_stage_metrics_follow_market_assumptions():
+    r = plan(1, answers(capital={"broker": 200_000}))
+    real = r.scenario_projections["realne"].stage_metrics
+    cautious = r.scenario_projections["konserwatywne"].stage_metrics
+    assert real and cautious
+    assert [m.monthly for m in real] != [m.monthly for m in cautious]
+
+
+# --- Market scenarios -------------------------------------------------------
+
+
+def test_scenarios_cover_all_three_and_are_internally_consistent():
+    r = plan(1, answers(capital={"broker": 100_000}), None)
+    keys = ["konserwatywne", "realne", "optymistyczne"]
+    assert list(r.scenarios) == keys
+    assert list(r.scenario_projections) == keys
+    assert list(r.scenario_solved) == keys
+    assert list(r.scenario_inputs) == keys
+    for key in keys:
+        summary = r.scenarios[key]
+        proj = r.scenario_projections[key]
+        solved = r.scenario_solved[key]
+        assert summary.assumptions == key
+        assert summary.feasible == (solved.feasible and proj.met)
+        assert summary.payout_monthly == pytest.approx(round(proj.min_monthly))
+        assert summary.final_wealth == pytest.approx(proj.final_wealth)
+        assert summary.peak_wealth == pytest.approx(proj.peak_wealth)
+
+
+def test_scenarios_payout_ordering_path1():
+    r = plan(1, answers(capital={"broker": 200_000}), None)
+    payouts = [r.scenarios[k].payout_monthly for k in ("konserwatywne", "realne", "optymistyczne")]
+    assert payouts[0] < payouts[1] < payouts[2]
+
+
+def test_scenarios_savings_ordering_path2():
+    r = plan(2, answers(), 6000)
+    savings = [r.scenarios[k].savings_monthly for k in ("konserwatywne", "realne", "optymistyczne")]
+    assert savings[0] > savings[1] > savings[2]
+    assert r.scenario_solved["realne"].savings_monthly == pytest.approx(
+        r.solved.savings_monthly
+    )
+
+
+def test_scenarios_fire_age_ordering_path3():
+    a = answers(
+        savings=1500,
+        allocations={"broker": 100},
+        capital={"broker": 1_000_000},
+    )
+    r = plan(3, a, 6000)
+    ages = [r.scenarios[k].retire_early_age for k in ("konserwatywne", "realne", "optymistyczne")]
+    assert all(age is not None for age in ages)
+    assert ages[0] > ages[1] > ages[2]
+
+
+def test_scenario_selected_in_answers_reuses_main_result():
+    a = answers(assumptions="konserwatywne", capital={"broker": 100_000})
+    r = plan(1, a, None)
+    assert r.scenario_projections["konserwatywne"] == r.projection
+    assert r.scenario_solved["konserwatywne"] == r.solved
 
 
 # --- Input/solver hygiene ---------------------------------------------------
@@ -381,6 +507,18 @@ def test_api_path1(client):
     body = resp.json()
     assert body["projection"]["min_monthly"] > 0
     assert body["input"]["stages"]
+    assert body["projection"]["stage_metrics"]
+    assert list(body["scenarios"]) == ["konserwatywne", "realne", "optymistyczne"]
+    assert list(body["scenario_projections"]) == ["konserwatywne", "realne", "optymistyczne"]
+    assert list(body["scenario_solved"]) == ["konserwatywne", "realne", "optymistyczne"]
+    assert (
+        body["scenario_projections"]["realne"]["min_monthly"]
+        == body["projection"]["min_monthly"]
+    )
+    assert (
+        body["scenario_projections"]["realne"]["stage_metrics"]
+        == body["projection"]["stage_metrics"]
+    )
 
 
 def test_api_path2(client):
@@ -442,7 +580,6 @@ def test_allocation_ikze_cap_clamp():
         allocations={"ikze": 100},
         use_ikze=True,
         savings=1000,
-        savings_mode="amount",
     )
     alloc = _resolve_allocation(a, default_config(), 12_000)
     limits = default_config().limits
@@ -453,7 +590,7 @@ def test_allocation_ikze_cap_clamp():
 def test_allocation_ikze_b2b_cap_clamp():
     limits = default_config().limits
     etat = _resolve_allocation(
-        answers(allocations={"ikze": 100}, use_ikze=True, savings=2000, savings_mode="amount"),
+        answers(allocations={"ikze": 100}, use_ikze=True, savings=2000),
         default_config(),
         24_000,
     )
@@ -463,7 +600,6 @@ def test_allocation_ikze_b2b_cap_clamp():
             use_ikze=True,
             employment="b2b",
             savings=2000,
-            savings_mode="amount",
         ),
         default_config(),
         24_000,
@@ -625,7 +761,7 @@ def test_suggest_ikze_b2b_higher_capacity():
 
 
 def test_gotowka_accums_when_all_cash():
-    a = answers(allocations={}, savings=1000, savings_mode="amount")
+    a = answers(allocations={}, savings=1000)
     r = plan(1, a)
     acc = r.input.stages[0].accounts
     assert "gotowka" in acc
@@ -640,7 +776,7 @@ def test_gotowka_absent_when_fully_allocated():
 
 
 def test_gotowka_warning_present():
-    a = answers(allocations={}, savings=1000, savings_mode="amount")
+    a = answers(allocations={}, savings=1000)
     r = plan(1, a)
     assert any("gotówce" in w for w in r.projection.warnings)
 
@@ -684,6 +820,33 @@ def test_suggest_endpoint_path2_returns_estimated_pool(client):
     body = resp.json()
     assert body["pool_monthly"] > 0
     assert sum(body["allocations"].values()) <= 100 + 1e-6
+
+
+def test_suggest_endpoint_path2_oki_flow_is_feasible(client):
+    payload = {
+        "gender": "m",
+        "age_now": 40,
+        "employment": "etat",
+        "gross_monthly": 12_000,
+        "savings": 1000,
+        "retire_early_age": 55,
+        "retirement_age": 65,
+        "plan_end_age": 77,
+        "strategy": "zbilansowana",
+        "assumptions": "realne",
+        "allocations": {},
+    }
+    resp = client.post(
+        "/api/wizard/suggest",
+        json={"path": 2, "target_monthly": 4000, "answers": payload},
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["pool_monthly"] < 5000
+    a = WizardAnswers(**{**payload, "allocations": body["allocations"]})
+    r = plan(2, a, 4000)
+    assert r.solved.feasible
+    assert r.projection.met
 
 
 def test_b2b_zus_uses_flat_base():

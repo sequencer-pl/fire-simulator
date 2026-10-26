@@ -191,6 +191,9 @@ function createStageBlock(defaults) {
     block.className = "stage-block " + stageKindClass(stageType);
     block.dataset.index = idx;
     block.dataset.stageType = stageType;
+    if (defaults?.withdrawal_target_monthly > 0) {
+        block.dataset.withdrawalTargetMonthly = String(defaults.withdrawal_target_monthly);
+    }
 
     block.innerHTML = `
         <div class="stage-handle">

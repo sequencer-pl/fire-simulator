@@ -129,6 +129,7 @@ def test_zus_conversion_sanity_500k_at_65():
     y = result.years[0]
     assert y.monthly_withdrawal == pytest.approx(500000 / sdtz_months(65), abs=0.005)
     assert y.monthly_withdrawal == pytest.approx(2245.17, abs=0.01)
+    assert y.zus_monthly == pytest.approx(y.monthly_withdrawal, abs=0.01)
     assert y.stage_name == "ZUS"
 
 

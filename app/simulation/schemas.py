@@ -65,6 +65,7 @@ class YearResult(BaseModel):
     total_wealth: float = 0.0
     annual_withdrawal: float = 0.0
     monthly_withdrawal: float = 0.0
+    zus_monthly: float = 0.0
     tax_paid: float = 0.0
 
 

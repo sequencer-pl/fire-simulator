@@ -50,6 +50,7 @@ function gatherFormData() {
             start_age: parseInt(block.querySelector(".start-age").value) || 0,
             end_age: parseInt(block.querySelector(".end-age").value) || 0,
             accounts: accounts,
+            withdrawal_target_monthly: parseFloat(block.dataset.withdrawalTargetMonthly) || 0,
         });
     });
 
@@ -663,6 +664,7 @@ function renderAccountRulesCard(key, rules) {
         event.stopPropagation();
     });
 
+    card.appendChild(configPercentField("accounts." + key + ".default_roi", "Domyślne ROI (realne)", rules.default_roi ?? 0.04, "Domyślna realna stopa zwrotu (ponad inflacją) dla tego konta w Asystencie i przy dodawaniu nowego kafelka."));
     card.appendChild(configSelect("accounts." + key + ".tax_model", "Model podatkowy", rules.tax_model, TAX_MODEL_LABELS, "Sposób opodatkowania wypłat z konta."));
     card.appendChild(configPercentField("accounts." + key + ".tax_rate", "Stawka ryczałtowa", rules.tax_rate, "Stawka podatku od zysku/całości po osiągnięciu docelowego wieku."));
     card.appendChild(configSelect("accounts." + key + ".tax_basis", "Podstawa", rules.tax_basis, TAX_BASIS_LABELS, "Podstawa opodatkowania ryczałtem: zysk albo cała wypłata."));
@@ -910,14 +912,56 @@ const BUILTIN_PRESETS_CLIENT = {
     "Konserwatywne": {
         inflation: 0.035,
         zus: { waloryzacja_skladek: 0.01, waloryzacja_swiadczenia: 0.01 },
+        accounts: {
+            broker: { default_roi: 0.035 },
+            ike: { default_roi: 0.035 },
+            ikze: { default_roi: 0.035 },
+            oipe: { default_roi: 0.035 },
+            ppk: { default_roi: 0.03 },
+            ppe: { default_roi: 0.03 },
+            oki_inw: { default_roi: 0.03 },
+            oki_osk: { default_roi: 0.01 },
+            obligacje: { default_roi: 0.015 },
+            lokata: { default_roi: 0.005 },
+            krypto: { default_roi: 0.03 },
+            zus: { default_roi: 0.03 },
+        },
     },
     "Realne": {
         inflation: 0.025,
         zus: { waloryzacja_skladek: 0.02, waloryzacja_swiadczenia: 0.02 },
+        accounts: {
+            broker: { default_roi: 0.05 },
+            ike: { default_roi: 0.05 },
+            ikze: { default_roi: 0.05 },
+            oipe: { default_roi: 0.05 },
+            ppk: { default_roi: 0.04 },
+            ppe: { default_roi: 0.04 },
+            oki_inw: { default_roi: 0.045 },
+            oki_osk: { default_roi: 0.02 },
+            obligacje: { default_roi: 0.02 },
+            lokata: { default_roi: 0.01 },
+            krypto: { default_roi: 0.06 },
+            zus: { default_roi: 0.04 },
+        },
     },
     "Optymistyczne": {
         inflation: 0.015,
         zus: { waloryzacja_skladek: 0.025, waloryzacja_swiadczenia: 0.025 },
+        accounts: {
+            broker: { default_roi: 0.065 },
+            ike: { default_roi: 0.065 },
+            ikze: { default_roi: 0.065 },
+            oipe: { default_roi: 0.065 },
+            ppk: { default_roi: 0.055 },
+            ppe: { default_roi: 0.055 },
+            oki_inw: { default_roi: 0.06 },
+            oki_osk: { default_roi: 0.025 },
+            obligacje: { default_roi: 0.025 },
+            lokata: { default_roi: 0.015 },
+            krypto: { default_roi: 0.08 },
+            zus: { default_roi: 0.05 },
+        },
     },
 };
 

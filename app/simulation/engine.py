@@ -754,6 +754,10 @@ def _assemble_years(
         stage_withdrawal_net = max(0.0, stage_withdrawal - annual_net_deduction)
         total_withdrawn_net += stage_withdrawal_net
         total_tax += stage_tax
+        zus_monthly = max(
+            0.0,
+            c["withdrawal"].get("zus", 0.0) - c["tax"].get("zus", 0.0),
+        ) / MONTHS_PER_YEAR
 
         years.append(
             YearResult(
@@ -763,6 +767,7 @@ def _assemble_years(
                 total_wealth=round(sum(sb.values()), 2),
                 annual_withdrawal=round(stage_withdrawal_net, 2),
                 monthly_withdrawal=round(stage_withdrawal_net / MONTHS_PER_YEAR, 2),
+                zus_monthly=round(zus_monthly, 2),
                 tax_paid=round(stage_tax, 2),
             )
         )
