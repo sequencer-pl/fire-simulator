@@ -419,6 +419,100 @@ def test_scenario_stage_metrics_follow_market_assumptions():
     assert [m.monthly for m in real] != [m.monthly for m in cautious]
 
 
+# --- Timeline phase metrics -------------------------------------------------
+
+
+def test_phase_metrics_split_retirement_and_zus_beyond_horizon():
+    r = plan(
+        1,
+        answers(
+            retire_early_age=55,
+            plan_end_age=77,
+            capital={"broker": 200_000},
+        ),
+    )
+    phases = r.projection.phase_metrics
+    assert [p.key for p in phases] == [
+        "accumulation",
+        "bridge",
+        "retirement_topup",
+        "zus_only",
+    ]
+
+    accumulation, bridge, retirement, zus = phases
+    assert accumulation.cashflow == "contribution"
+    assert (accumulation.start_age, accumulation.end_age) == (30, 55)
+    assert accumulation.monthly > 0
+    assert (bridge.start_age, bridge.end_age) == (55, 65)
+    assert bridge.monthly > 0
+    assert (retirement.start_age, retirement.end_age) == (65, 77)
+    assert retirement.name == "Emerytura + dopłata"
+    assert retirement.portfolio_monthly > 0
+    assert retirement.zus_monthly > 0
+    assert retirement.monthly == pytest.approx(
+        retirement.portfolio_monthly + retirement.zus_monthly, abs=0.05
+    )
+    assert (zus.start_age, zus.end_age) == (77, 100)
+    assert zus.name == "Sama emerytura ZUS"
+    assert zus.portfolio_monthly == 0
+    assert zus.monthly == pytest.approx(zus.zus_monthly)
+    assert zus.monthly > 0
+
+
+def test_phase_metrics_skip_bridge_when_re_equals_retirement():
+    r = plan(1, answers(retire_early_age=65, plan_end_age=77))
+    assert [p.key for p in r.projection.phase_metrics] == [
+        "accumulation",
+        "retirement_topup",
+        "zus_only",
+    ]
+
+
+def test_phase_metrics_without_zus_end_at_plan_horizon():
+    r = plan(1, answers(use_zus=False, plan_end_age=77))
+    phases = r.projection.phase_metrics
+    assert [p.key for p in phases] == [
+        "accumulation",
+        "bridge",
+        "retirement_topup",
+    ]
+    assert phases[-1].name == "Emerytura z portfela"
+    assert phases[-1].end_age == 77
+    assert phases[-1].zus_monthly == 0
+
+
+def test_phase_metrics_no_zus_only_when_horizon_reaches_pension_end():
+    r = plan(1, answers(plan_end_age=100))
+    keys = [p.key for p in r.projection.phase_metrics]
+    assert "zus_only" not in keys
+    assert keys[-1] == "retirement_topup"
+    assert r.projection.phase_metrics[-1].end_age == 100
+
+
+def test_phase_metrics_merge_empty_portfolio_retirement_into_zus():
+    r = plan(
+        1,
+        answers(
+            capital={},
+            use_ppk=False,
+            use_ike=True,
+            use_ikze=True,
+            use_krypto=True,
+            use_lokata=True,
+            use_oipe=True,
+            savings=3000,
+            retire_early_age=50,
+            plan_end_age=77,
+        ),
+    )
+    phases = r.projection.phase_metrics
+    assert [p.key for p in phases] == ["accumulation", "bridge", "zus_only"]
+    assert phases[-1].name == "Emerytura ZUS"
+    assert (phases[-1].start_age, phases[-1].end_age) == (65, 100)
+    assert phases[-1].portfolio_monthly == 0
+    assert phases[-1].monthly == pytest.approx(phases[-1].zus_monthly)
+
+
 # --- Market scenarios -------------------------------------------------------
 
 
@@ -508,6 +602,7 @@ def test_api_path1(client):
     assert body["projection"]["min_monthly"] > 0
     assert body["input"]["stages"]
     assert body["projection"]["stage_metrics"]
+    assert body["projection"]["phase_metrics"]
     assert list(body["scenarios"]) == ["konserwatywne", "realne", "optymistyczne"]
     assert list(body["scenario_projections"]) == ["konserwatywne", "realne", "optymistyczne"]
     assert list(body["scenario_solved"]) == ["konserwatywne", "realne", "optymistyczne"]
@@ -518,6 +613,10 @@ def test_api_path1(client):
     assert (
         body["scenario_projections"]["realne"]["stage_metrics"]
         == body["projection"]["stage_metrics"]
+    )
+    assert (
+        body["scenario_projections"]["realne"]["phase_metrics"]
+        == body["projection"]["phase_metrics"]
     )
 
 

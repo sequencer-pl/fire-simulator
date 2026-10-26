@@ -677,6 +677,32 @@ const harness = `
             && norm(document.getElementById("wzTimeline")).includes("Realizacja optymistyczna")
             && digits(norm(document.getElementById("wzStageSummaryList"))).includes("5600");
     });
+    const phaseProjection = {
+        phase_metrics: [
+            { key: "accumulation", name: "Akumulacja do emerytury", cashflow: "contribution", start_age: 40, end_age: 50, monthly: 1200, portfolio_monthly: 0, zus_monthly: 0 },
+            { key: "bridge", name: "Brydż do emerytury", cashflow: "payout", start_age: 50, end_age: 65, monthly: 3000, portfolio_monthly: 3000, zus_monthly: 0 },
+            { key: "retirement_topup", name: "Emerytura + dopłata", cashflow: "payout", start_age: 65, end_age: 77, monthly: 5000, portfolio_monthly: 2000, zus_monthly: 3000 },
+            { key: "zus_only", name: "Sama emerytura ZUS", cashflow: "payout", start_age: 77, end_age: 100, monthly: 3500, portfolio_monthly: 0, zus_monthly: 3500 },
+        ],
+    };
+    renderTimeline({ stages: [] }, phaseProjection);
+    renderPhaseTable(phaseProjection);
+    check("krok 6: faza emerytury dzieli się na dopłatę i samą emeryturę ZUS", () => {
+        const segments = [...document.querySelectorAll("#wzTimeline .wz-timeline-segment")];
+        const timeline = norm(document.getElementById("wzTimeline"));
+        const table = norm(document.getElementById("wzPhaseTable"));
+        const rows = document.querySelectorAll("#wzPhaseTable tbody tr");
+        const flat = (text) => String(text).replace(/\\s/g, "");
+        return segments.length === 4
+            && timeline.includes("Emerytura + dopłata")
+            && timeline.includes("Sama emerytura ZUS")
+            && flat(timeline).includes("5000zł/mies.")
+            && flat(timeline).includes("portfel2000+ZUS3000")
+            && rows.length === 4
+            && table.includes("Składniki")
+            && flat(table).includes("portfel2000+ZUS3000")
+            && table.includes("szacunek z coroczną waloryzacją");
+    });
     wzPlan = null;
     wzSelectedScenario = "realne";
 

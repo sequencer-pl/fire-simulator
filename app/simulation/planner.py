@@ -194,6 +194,25 @@ class StageMetric(BaseModel):
     monthly: float = 0.0
 
 
+class PhaseMetric(BaseModel):
+    """Non-overlapping display phase for the wizard timeline.
+
+    ``monthly`` is an average contribution during accumulation and an average
+    net payout during realization. ``portfolio_monthly`` and ``zus_monthly``
+    split the payout into its two sources so the retirement phase can show a
+    combined total while the stage metrics still expose the overlapping stages.
+    """
+
+    key: Literal["accumulation", "bridge", "retirement_topup", "zus_only"]
+    name: str
+    cashflow: Literal["contribution", "payout"]
+    start_age: int
+    end_age: int
+    monthly: float = 0.0
+    portfolio_monthly: float = 0.0
+    zus_monthly: float = 0.0
+
+
 class PlanProjection(BaseModel):
     met: bool = False
     target_monthly: float | None = None
@@ -204,6 +223,7 @@ class PlanProjection(BaseModel):
     exhaust_age: int | None = None
     warnings: list[str] = Field(default_factory=list)
     stage_metrics: list[StageMetric] = Field(default_factory=list)
+    phase_metrics: list[PhaseMetric] = Field(default_factory=list)
 
 
 class PlanSolved(BaseModel):
@@ -686,6 +706,224 @@ def _stage_metrics(
     return metrics
 
 
+def _average(values: list[float]) -> float:
+    return sum(values) / len(values) if values else 0.0
+
+
+def _payout_averages(
+    result: SimulationResult, start_age: int, end_age: int
+) -> tuple[float, float, float]:
+    """Average monthly total, portfolio and ZUS payout in an age window."""
+    years = [year for year in result.years if start_age <= year.age < end_age]
+    if not years:
+        return 0.0, 0.0, 0.0
+    monthly = _average([year.monthly_withdrawal for year in years])
+    zus = _average([year.zus_monthly for year in years])
+    portfolio = _average(
+        [max(0.0, year.monthly_withdrawal - year.zus_monthly) for year in years]
+    )
+    return monthly, portfolio, zus
+
+
+def _zus_indexation(data: SimulationInput, zus_stage: StageInput | None) -> float:
+    if zus_stage is not None:
+        override = zus_stage.accounts["zus"].waloryzacja_swiadczenia
+        if override is not None:
+            return override
+    return data.config.zus.waloryzacja_swiadczenia
+
+
+def _projected_zus_values(
+    result: SimulationResult, start_age: int, end_age: int, rate: float
+) -> list[float]:
+    """ZUS payouts in a window, extending beyond the simulated plan horizon.
+
+    The engine stops at ``plan_end - 1``; the lifetime ZUS benefit continues
+    afterwards. Use the last known benefit and index it with the same annual
+    rate as the engine so the "Sama emerytura ZUS" phase has a real estimate.
+    """
+    if start_age >= end_age:
+        return []
+    actual = [
+        year.zus_monthly
+        for year in result.years
+        if start_age <= year.age < end_age and year.zus_monthly > 0
+    ]
+    last = max(
+        (year for year in result.years if year.zus_monthly > 0),
+        key=lambda year: year.age,
+        default=None,
+    )
+    if last is None:
+        return actual
+    value = last.zus_monthly
+    projected: list[float] = []
+    for age in range(last.age + 1, end_age):
+        value *= 1.0 + rate
+        if age >= start_age:
+            projected.append(value)
+    return actual + projected
+
+
+def _phase_metrics(
+    data: SimulationInput, result: SimulationResult
+) -> list[PhaseMetric]:
+    """Build non-overlapping display phases for the wizard timeline."""
+    if not data.stages:
+        return []
+
+    accumulation = next(
+        (stage for stage in data.stages if stage.stage_type == "akumulacja"),
+        None,
+    )
+    realizations = [
+        stage for stage in data.stages if stage.stage_type == "realizacja"
+    ]
+    zus_stage = next(
+        (stage for stage in realizations if set(stage.accounts) == {"zus"}),
+        None,
+    )
+    portfolio_stages = [
+        stage for stage in realizations if "zus" not in stage.accounts
+    ]
+    plan_end = data.max_age + 1
+    phases: list[PhaseMetric] = []
+
+    if accumulation is not None:
+        contribution = sum(
+            _monthly_contribution(name, cfg, data.monthly_gross, data.config)
+            for name, cfg in accumulation.accounts.items()
+        )
+        phases.append(
+            PhaseMetric(
+                key="accumulation",
+                name="Akumulacja do emerytury",
+                cashflow="contribution",
+                start_age=accumulation.start_age,
+                end_age=accumulation.end_age,
+                monthly=round(contribution, 2),
+            )
+        )
+        re = accumulation.end_age
+    else:
+        re = min(stage.start_age for stage in data.stages)
+
+    if zus_stage is not None:
+        retirement = zus_stage.start_age
+    elif len(portfolio_stages) >= 2:
+        retirement = portfolio_stages[-1].start_age
+    elif portfolio_stages:
+        retirement = portfolio_stages[0].start_age
+    else:
+        retirement = re
+    retirement = max(re, retirement)
+
+    if re < retirement:
+        monthly, portfolio, zus = _payout_averages(result, re, retirement)
+        phases.append(
+            PhaseMetric(
+                key="bridge",
+                name="Brydż do emerytury",
+                cashflow="payout",
+                start_age=re,
+                end_age=retirement,
+                monthly=round(monthly, 2),
+                portfolio_monthly=round(portfolio, 2),
+                zus_monthly=round(zus, 2),
+            )
+        )
+
+    has_portfolio_retirement = any(
+        stage.start_age < plan_end and stage.end_age > retirement
+        for stage in portfolio_stages
+    )
+    if retirement < plan_end and has_portfolio_retirement:
+        monthly, portfolio, zus = _payout_averages(result, retirement, plan_end)
+        if portfolio <= 0 and zus_stage is not None:
+            values = _projected_zus_values(
+                result,
+                retirement,
+                zus_stage.end_age,
+                _zus_indexation(data, zus_stage),
+            )
+            zus_monthly = _average(values)
+            phases.append(
+                PhaseMetric(
+                    key="zus_only",
+                    name="Emerytura ZUS",
+                    cashflow="payout",
+                    start_age=retirement,
+                    end_age=zus_stage.end_age,
+                    monthly=round(zus_monthly, 2),
+                    zus_monthly=round(zus_monthly, 2),
+                )
+            )
+            return phases
+        phases.append(
+            PhaseMetric(
+                key="retirement_topup",
+                name=(
+                    "Emerytura + dopłata"
+                    if zus > 0 and portfolio > 0
+                    else "Emerytura z portfela"
+                ),
+                cashflow="payout",
+                start_age=retirement,
+                end_age=plan_end,
+                monthly=round(monthly, 2),
+                portfolio_monthly=round(portfolio, 2),
+                zus_monthly=round(zus, 2),
+            )
+        )
+    elif retirement < plan_end and zus_stage is not None:
+        zus_end = zus_stage.end_age
+        values = _projected_zus_values(
+            result,
+            retirement,
+            zus_end,
+            _zus_indexation(data, zus_stage),
+        )
+        monthly = _average(values)
+        phases.append(
+            PhaseMetric(
+                key="zus_only",
+                name="Emerytura ZUS",
+                cashflow="payout",
+                start_age=retirement,
+                end_age=zus_end,
+                monthly=round(monthly, 2),
+                zus_monthly=round(monthly, 2),
+            )
+        )
+        return phases
+
+    if (
+        zus_stage is not None
+        and has_portfolio_retirement
+        and plan_end < zus_stage.end_age
+    ):
+        values = _projected_zus_values(
+            result,
+            plan_end,
+            zus_stage.end_age,
+            _zus_indexation(data, zus_stage),
+        )
+        monthly = _average(values)
+        phases.append(
+            PhaseMetric(
+                key="zus_only",
+                name="Sama emerytura ZUS",
+                cashflow="payout",
+                start_age=plan_end,
+                end_age=zus_stage.end_age,
+                monthly=round(monthly, 2),
+                zus_monthly=round(monthly, 2),
+            )
+        )
+
+    return phases
+
+
 def _project(
     data: SimulationInput, result: SimulationResult, target: float | None
 ) -> PlanProjection:
@@ -715,6 +953,7 @@ def _project(
         exhaust_age=exhaust,
         warnings=result.warnings,
         stage_metrics=_stage_metrics(data, result),
+        phase_metrics=_phase_metrics(data, result),
     )
 
 

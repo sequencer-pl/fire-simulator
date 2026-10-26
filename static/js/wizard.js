@@ -483,7 +483,8 @@ function renderScenarioResult(data) {
     renderMetrics(active.projection);
     renderSolved(active.solved);
     renderWarnings(active.projection.warnings || []);
-    renderTimeline(active.input);
+    renderTimeline(active.input, active.projection);
+    renderPhaseTable(active.projection);
     renderStageSummaryList(active.input, active.projection);
 }
 
@@ -738,10 +739,66 @@ async function runPlan() {
     }
 }
 
-function renderTimeline(input) {
+function fmtShortAmount(value) {
+    return Math.round(value).toLocaleString("pl-PL");
+}
+
+function phaseComponents(phase) {
+    if (!phase || phase.cashflow === "contribution") return "";
+    const parts = [];
+    if (phase.portfolio_monthly > 0) {
+        parts.push(`portfel ${fmtShortAmount(phase.portfolio_monthly)}`);
+    }
+    if (phase.zus_monthly > 0) {
+        parts.push(`ZUS ${fmtShortAmount(phase.zus_monthly)}`);
+    }
+    return parts.join(" + ");
+}
+
+function renderTimeline(input, projection) {
     const box = document.getElementById("wzTimeline");
     if (!box) return;
     box.innerHTML = "";
+    const phases = projection?.phase_metrics || [];
+    if (phases.length) {
+        renderPhaseTimeline(box, phases);
+        return;
+    }
+    renderLegacyTimeline(input, box);
+}
+
+function renderPhaseTimeline(box, phases) {
+    const ordered = [...phases].sort((a, b) => a.start_age - b.start_age);
+    const min = Math.min(...ordered.map((p) => p.start_age));
+    const max = Math.max(...ordered.map((p) => p.end_age));
+    const width = max - min || 1;
+    ordered.forEach((phase) => {
+        const leftPct = ((phase.start_age - min) / width) * 100;
+        const spanPct = Math.max(2, ((phase.end_age - phase.start_age) / width) * 100);
+        const isAccum = phase.cashflow === "contribution";
+        const seg = document.createElement("div");
+        seg.className = "wz-timeline-segment " + (isAccum ? "wz-tl-acc" : "wz-tl-real");
+        seg.style.left = leftPct + "%";
+        seg.style.width = spanPct + "%";
+        seg.dataset.phaseKey = phase.key || "";
+        const split = phaseComponents(phase);
+        seg.title = [
+            phase.name,
+            `${phase.start_age} → ${phase.end_age} r.ż.`,
+            isAccum ? `wpłaty ~${fmtMoney(phase.monthly)}/mies.` : `wypłata netto ~${fmtMoney(phase.monthly)}/mies.`,
+            split,
+        ].filter(Boolean).join(" · ");
+        seg.innerHTML = `
+            <span class="wz-tl-name">${escapeHtml(phase.name)}</span>
+            <span class="wz-tl-age">${phase.start_age}→${phase.end_age} r.ż.</span>
+            <span class="wz-tl-amount">${phase.monthly > 0 ? `~${fmtMoney(phase.monthly)}/mies.` : "—"}</span>
+            <span class="wz-tl-kind">${isAccum ? "wpłaty" : "wypłata netto"}</span>
+            ${split ? `<span class="wz-tl-split">${split}</span>` : ""}`;
+        box.appendChild(seg);
+    });
+}
+
+function renderLegacyTimeline(input, box) {
     const stages = input?.stages || [];
     if (!stages.length) return;
     const raw = stages.map((s) => ({
@@ -775,6 +832,58 @@ function renderTimeline(input) {
         seg.innerHTML = `<span class="wz-tl-label">${escapeHtml(s.label)} ${s.start}→${s.end}</span>`;
         box.appendChild(seg);
     });
+}
+
+function renderPhaseTable(projection) {
+    const box = document.getElementById("wzPhaseTable");
+    if (!box) return;
+    const phases = projection?.phase_metrics || [];
+    if (!phases.length) {
+        box.innerHTML = "";
+        return;
+    }
+    const rows = [...phases]
+        .sort((a, b) => a.start_age - b.start_age)
+        .map((phase) => {
+            const isAccum = phase.cashflow === "contribution";
+            const amount = phase.monthly > 0 ? `~${fmtMoney(phase.monthly)}/mies.` : "—";
+            const kind = isAccum ? "wpłaty" : "wypłata netto";
+            const components = isAccum ? "wpłaty do portfela" : (phaseComponents(phase) || "—");
+            return `
+                <tr>
+                    <td data-label="Etap"><span class="wz-phase-name">${escapeHtml(phase.name)}</span></td>
+                    <td data-label="Wiek">${phase.start_age}→${phase.end_age} r.ż.</td>
+                    <td data-label="Miesięcznie"><strong>${amount}</strong><span class="wz-phase-kind">${kind}</span></td>
+                    <td data-label="Składniki"><span class="wz-phase-components">${components}</span></td>
+                </tr>`;
+        })
+        .join("");
+    const hasTopup = phases.some(
+        (phase) => phase.key === "retirement_topup" && phase.zus_monthly > 0
+    );
+    const hasZusOnly = phases.some((phase) => phase.key === "zus_only");
+    let note = "";
+    if (hasTopup) {
+        note = "W etapie „Emerytura + dopłata” kwoty portfela i ZUS sumują się do łącznej wypłaty netto.";
+    }
+    if (hasZusOnly) {
+        note += `${note ? " " : ""}Sama emerytura ZUS po horyzoncie to szacunek z coroczną waloryzacją.`;
+    }
+    box.innerHTML = `
+        <div class="wz-phase-table-wrap">
+            <table class="wz-phase-table" aria-label="Szczegóły etapów planu">
+                <thead>
+                    <tr>
+                        <th scope="col">Etap</th>
+                        <th scope="col">Wiek</th>
+                        <th scope="col">Miesięcznie</th>
+                        <th scope="col">Składniki</th>
+                    </tr>
+                </thead>
+                <tbody>${rows}</tbody>
+            </table>
+        </div>
+        ${note ? `<p class="wz-phase-note">${note}</p>` : ""}`;
 }
 
 function updateFooterNav(n) {
