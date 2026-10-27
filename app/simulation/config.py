@@ -296,6 +296,7 @@ BUILTIN_PRESETS: dict[str, dict] = {
     },
     "Realne": {
         "inflation": 0.025,
+        "prog_indexation": 0.015,
         "zus": {"waloryzacja_skladek": 0.02, "waloryzacja_swiadczenia": 0.02},
         "accounts": {
             "broker": {"default_roi": 0.05},

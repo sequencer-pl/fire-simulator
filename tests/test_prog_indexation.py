@@ -92,7 +92,11 @@ def test_conservative_preset_indexes_thresholds_below_inflation():
     assert preset is not None
     assert preset["prog_indexation"] == 0.01
     assert preset["inflation"] == 0.035
-    for name in ("Domyślne 2026", "2027 (projekt UD458)", "Realne", "Optymistyczne"):
+    realne = get_builtin_preset("Realne")
+    assert realne is not None
+    assert realne["prog_indexation"] == 0.015
+    assert realne["inflation"] == 0.025
+    for name in ("Domyślne 2026", "2027 (projekt UD458)", "Optymistyczne"):
         p = get_builtin_preset(name)
         assert p is not None and p["prog_indexation"] is None
 
