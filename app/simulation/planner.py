@@ -30,7 +30,7 @@ TAX_SHELTER_ACCOUNTS = ("ike", "ikze", "oipe")
 STRATEGY_ROI: dict[str, dict[str, float]] = {
     "konserwatywna": {
         "broker": 0.035,
-        "lokata": 0.005,
+        "lokata": 0.014,
         "obligacje": 0.015,
         "krypto": 0.03,
         "ike": 0.035,
@@ -43,7 +43,7 @@ STRATEGY_ROI: dict[str, dict[str, float]] = {
     },
     "zbilansowana": {
         "broker": 0.05,
-        "lokata": 0.01,
+        "lokata": 0.018,
         "obligacje": 0.02,
         "krypto": 0.06,
         "ike": 0.05,
@@ -56,7 +56,7 @@ STRATEGY_ROI: dict[str, dict[str, float]] = {
     },
     "agresywna": {
         "broker": 0.065,
-        "lokata": 0.015,
+        "lokata": 0.022,
         "obligacje": 0.025,
         "krypto": 0.08,
         "ike": 0.065,
@@ -1144,7 +1144,7 @@ def _bake_realization_targets(data: SimulationInput, target_net: float | None) -
     gross_target, _ = _net_to_gross(data, target_net)
     for si in data.stages:
         if si.stage_type == "realizacja" and "zus" not in si.accounts:
-            si.withdrawal_target_monthly = round(float(gross_target), 2)
+            si.withdrawal_target_gross_monthly = round(float(gross_target), 2)
 
     state = _init_state(data)
     min_age = min((si.start_age for si in data.stages), default=0)

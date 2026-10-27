@@ -5,14 +5,15 @@ bez TypeScript), SQLite, pytest. Odpowiadaj i pisz UI po polsku.
 
 ## Pewniki modelu FIRE (aktualne, nie do zmiany bez uzgodnienia)
 
-- **ROI realne (ponad inflacją) wszędzie.** Wszystkie konta rosną według ROI *po* podatkach; podatek od zysków naliczany jest od wypłat (`_apply_tax`, engine.py). Wyjątek: lokata
-  (`tax_periodic`) — podatek Belka pobierany w trakcie akumulacji, wzrost już netto
-  (użycia `_periodic_net_roi`, engine.py; definicja `periodic_net_roi`, core/roi.py).
+- **ROI realne (ponad inflacją), brutto — przed podatkiem — wszędzie.** Silnik nalicza
+  podatek według zasad konta: od wypłat (`_apply_tax`), periodycznie na lokacie
+  (`tax_periodic`) albo rocznie od aktywów OKI. `ROI` ma jedną definicję na wszystkich
+  kontach; lokata nie jest wyjątkiem.
 - **Inflacja świadomie pomijana** w większości wyliczeń — wartości realne traktujemy
-  jak nominalne. Inflacja występuje TYLKO w: kontu `gotowka` (ROI = -inflacja,
-  engine.py), waloryzacji świadczenia ZUS i indeksacji kapitału
-  (`_accumulate_zus`/`_convert_zus`, app/simulation/zus.py) oraz helperach
-  Fisher/deflate (core/inflation.py). Nie dodawać inflacji do wzrostu kont ani do
+  jak nominalne. Inflacja występuje w: koncie `gotowka` (ROI = -inflacja, engine.py),
+  waloryzacji świadczenia ZUS i indeksacji kapitału (`_accumulate_zus`/`_convert_zus`,
+  app/simulation/zus.py), helperach Fisher/deflate (core/inflation.py), nominalnej
+  Belce od zysku oraz mechanice lokaty. Nie dodawać inflacji do wzrostu kont ani do
   PMT bez zgody.
 - **Dwa tryby realizacji** (app/stages/realizacja.py):
   - PMT (annuitizacja do zera) — edytor `/sim` bez targetu i legacy;
@@ -37,10 +38,18 @@ bez TypeScript), SQLite, pytest. Odpowiadaj i pisz UI po polsku.
 - `app/simulation/engine.py` — silnik + schematy; `app/simulation/zus.py` — klaster
   ZUS (waloryzacja, konwersja kapitału na rentę, wiek emerytalny);
   `app/simulation/constants.py` — stałe liczbowe (DEFAULT_ROI, MONTHS_PER_YEAR,
-  PPE_ZUS_FRACTION); `app/simulation/planner.py` — wizard (plan, build_stages,
+  PPE_ZUS_FRACTION, ENGINE_VERSION); `app/simulation/planner.py` — wizard (plan, build_stages,
   solvery); `app/stages/*.py` — implementacje etapów; `app/web/` — FastAPI
-  (routes.py, auth.py, simulations.py); `app/core/` — helpery (tax, pmt, roi,
+  (routes.py, auth.py, simulations.py, limits.py); `app/core/` — helpery (tax, pmt, roi,
   inflation); `static/js/` + `static/css/` + `app/templates/` — front (system wizualny: `DESIGN.md`).
+- **Walidacja wejścia**: `app/simulation/schemas.py` ma twarde granice (wiek etapów
+  0–120, `end_age > start_age`, max 20 etapów, limity kwot/ROI). Symulacja kończy się
+  na ostatnim etapie (`end_age - 1`); `max_age` jest tylko pomocniczym horyzontem.
+- **Limity API**: ciężkie endpointy (`/api/simulate`, `/api/wizard/*`, rejestracja)
+  przechodzą przez `app/web/limits.py` (sliding window per IP). Nie dodawaj nowego
+  kosztownego endpointu bez `check_limit`.
+- **Baza**: migracje przez `PRAGMA user_version` w `app/storage/db.py`; zapis symulacji
+  zawiera `model_version` (`ENGINE_VERSION`).
 - Python: pełne adnotacje typów, pydantic BaseModel dla DTO, bez zbędnych komentarzy.
 - JS: bez frameworków, funkcje nazwane, współdzielone helpery przez `window.*`
   (helpers.js: `$`, `show`, `escapeHtml`, `fmtMoney`, `fmtDateTime`, `api`; icons.js: `iconSvg`; controls.js:

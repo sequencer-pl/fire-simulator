@@ -1,6 +1,4 @@
 import sqlite3
-import time
-from collections import defaultdict
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
@@ -8,41 +6,10 @@ from pydantic import BaseModel
 from app.core.security import hash_password, is_valid_password, verify_password
 from app.storage import db
 
+from .limits import check_limit
 from .routes import _current_user_id, _now
 
 router = APIRouter()
-
-_login_attempts: dict[str, list[float]] = defaultdict(list)
-_RATE_LIMIT = 10
-_RATE_WINDOW = 60.0
-
-
-def _client_ip(request: Request) -> str:
-    forwarded = request.headers.get("x-forwarded-for")
-    if forwarded:
-        first = forwarded.split(",")[0].strip()
-        if first:
-            return first
-    return request.client.host if request.client else "unknown"
-
-
-def _check_rate_limit(request: Request) -> None:
-    ip = _client_ip(request)
-    now = time.monotonic()
-    # Prune expired keys periodically to avoid unbounded memory growth
-    if len(_login_attempts) > 256:
-        stale = [
-            k
-            for k, v in _login_attempts.items()
-            if not v or now - v[-1] >= _RATE_WINDOW
-        ]
-        for k in stale:
-            _login_attempts.pop(k, None)
-    attempts = _login_attempts[ip]
-    attempts[:] = [t for t in attempts if now - t < _RATE_WINDOW]
-    if len(attempts) >= _RATE_LIMIT:
-        raise HTTPException(status_code=429, detail="Za dużo prób logowania. Spróbuj za chwilę.")
-    attempts.append(now)
 
 
 class AuthPayload(BaseModel):
@@ -52,6 +19,7 @@ class AuthPayload(BaseModel):
 
 @router.post("/api/register")
 async def api_register(payload: AuthPayload, request: Request):
+    check_limit("register", request)
     email = payload.email.strip().lower()
     if not email or "@" not in email:
         raise HTTPException(status_code=400, detail="Podaj poprawny adres e-mail.")
@@ -67,7 +35,7 @@ async def api_register(payload: AuthPayload, request: Request):
 
 @router.post("/api/login")
 async def api_login(payload: AuthPayload, request: Request):
-    _check_rate_limit(request)
+    check_limit("login", request)
     email = payload.email.strip().lower()
     user = db.get_user_by_email(email)
     if not user or not verify_password(payload.password, user["password_hash"]):

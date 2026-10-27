@@ -333,3 +333,26 @@ def test_ikze_saving_reinvested_into_broker():
         )
     )
     assert r_ikze.years[1].balances["broker"] > r_solo.years[1].balances["broker"]
+
+
+def test_ikze_saving_does_not_create_phantom_withdrawal():
+    # Ulga z wpłaty na IKZE obniża podatek, ale nie jest wypłatą z portfela.
+    for accounts in (
+        {"ikze": acc(annual_contribution=11_304, roi=0.0)},
+        {
+            "broker": acc(starting_balance=10_000, roi=0.0),
+            "ikze": acc(annual_contribution=11_304, roi=0.0),
+        },
+    ):
+        result = simulate(
+            SimulationInput(
+                stages=[accumulation_stage(accounts, start=40, end=42)],
+                max_age=41,
+                monthly_gross=10_000,
+                config=CFG_NOINFL,
+            )
+        )
+        assert all(y.annual_withdrawal == 0 for y in result.years)
+        assert result.total_withdrawn == 0
+        assert result.total_tax == pytest.approx(-2_712.96)
+        assert result.years[0].tax_paid == pytest.approx(-1_356.48)

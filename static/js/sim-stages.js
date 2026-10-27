@@ -196,8 +196,8 @@ function createStageBlock(defaults) {
     block.className = "stage-block " + stageKindClass(stageType);
     block.dataset.index = idx;
     block.dataset.stageType = stageType;
-    if (defaults?.withdrawal_target_monthly > 0) {
-        block.dataset.withdrawalTargetMonthly = String(defaults.withdrawal_target_monthly);
+    if (defaults?.withdrawal_target_gross_monthly > 0) {
+        block.dataset.withdrawalTargetGrossMonthly = String(defaults.withdrawal_target_gross_monthly);
     }
 
     const kindChip = stageKindClass(stageType) === "stage-realizacja" ? "chip-real" : "chip-accum";
@@ -214,7 +214,7 @@ function createStageBlock(defaults) {
         <div class="stage-header">
             <div class="field stage-name-field">
                 <label>Nazwa</label>
-                <input type="text" class="input stage-name" value="${defaults?.name || cfg.label || ""}" />
+                <input type="text" class="input stage-name" value="${escapeHtml(defaults?.name || cfg.label || "")}" />
             </div>
             <div class="field">
                 <label>Wiek start</label>
@@ -342,6 +342,14 @@ function updateStageHints(container) {
                 const rules = CONFIG.accounts[acc];
                 if (!rules || !rules.min_withdrawal_age) return;
                 const label = ACCOUNT_LABELS[acc] || acc;
+                if (acc === "ppk" && startAge < rules.min_withdrawal_age) {
+                    hints.push({
+                        level: "warning",
+                        text:
+                            `PPK wypłacane od ${startAge} r.ż. — przed ${rules.min_withdrawal_age} r.ż. ` +
+                            `środki pracodawcy i dopłaty państwa przepadają; podatek Belka 19% od zysku pracownika.`
+                    });
+                }
                 if (startAge < rules.min_withdrawal_age) {
                     if (rules.early_tax_model === "scale") {
                         const lower = Math.round(CONFIG.rate_lower * 100);
@@ -535,7 +543,31 @@ function updateStageHints(container) {
     if (typeof _positionAllTips === "function") _positionAllTips();
 }
 
-// Miękka blokada: etap realizacji nie może zaczynać się przed końcem akumulacji.
+// Miękka blokada: wiek końca musi być większy niż start, a realizacja nie może
+// zaczynać się przed końcem akumulacji.
+function appendStageError(block, msg) {
+    const hint = block.querySelector(".stage-hint");
+    if (!hint) return;
+    let list = hint.querySelector(".stage-hint-list");
+    if (!list) {
+        hint.innerHTML = "";
+        hint.insertAdjacentHTML("afterbegin", iconSvg("danger"));
+        const body = document.createElement("div");
+        body.className = "banner-body";
+        list = document.createElement("ul");
+        list.className = "stage-hint-list banner-list";
+        body.appendChild(list);
+        hint.appendChild(body);
+    }
+    const li = document.createElement("li");
+    li.className = "hint-error";
+    li.textContent = msg;
+    list.appendChild(li);
+    hint.classList.remove("banner-info", "banner-warn");
+    hint.classList.add("banner-danger");
+    hint.classList.remove("hidden");
+}
+
 function validateStageOrder(container) {
     let valid = true;
     const blocks = getStageBlocks(container);
@@ -543,43 +575,36 @@ function validateStageOrder(container) {
 
     blocks.forEach((block) => {
         const startInput = block.querySelector(".start-age");
+        const endInput = block.querySelector(".end-age");
         const startControl = startInput ? startInput.closest(".num-control") : null;
-        const hint = block.querySelector(".stage-hint");
-        if (startInput) startInput.classList.remove("input-error");
-        if (startControl) startControl.classList.remove("input-error");
-        if (hint) hint.classList.remove("error");
+        const endControl = endInput ? endInput.closest(".num-control") : null;
+
+        [startInput, endInput].forEach((input) => input?.classList.remove("input-error"));
+        [startControl, endControl].forEach((control) => control?.classList.remove("input-error"));
+
+        const startAge = parseInt(startInput?.value, 10) || 0;
+        const endAge = parseInt(endInput?.value, 10) || 0;
+        if (endAge <= startAge) {
+            valid = false;
+            startInput?.classList.add("input-error");
+            endInput?.classList.add("input-error");
+            startControl?.classList.add("input-error");
+            endControl?.classList.add("input-error");
+            appendStageError(block, "Wiek końca musi być większy niż wiek start.");
+            return;
+        }
 
         if (stageTypeOf(block) !== "realizacja") return;
-        const startAge = parseInt(startInput.value, 10) || 0;
         const bad = lastEnd !== null && startAge < lastEnd;
         if (!bad) return;
 
         valid = false;
         if (startInput) startInput.classList.add("input-error");
         if (startControl) startControl.classList.add("input-error");
-        if (hint) {
-            const msg = `Etap realizacji musi zaczynać się ≥ ${lastEnd} r.ż. (koniec akumulacji).`;
-            const existing = hint.querySelector(".stage-hint-list");
-            const li = document.createElement("li");
-            li.className = "hint-error";
-            li.textContent = msg;
-            if (existing) {
-                existing.appendChild(li);
-            } else {
-                hint.innerHTML = "";
-                hint.insertAdjacentHTML("afterbegin", iconSvg("danger"));
-                const body = document.createElement("div");
-                body.className = "banner-body";
-                const list = document.createElement("ul");
-                list.className = "stage-hint-list banner-list";
-                list.appendChild(li);
-                body.appendChild(list);
-                hint.appendChild(body);
-            }
-            hint.classList.remove("banner-info", "banner-warn");
-            hint.classList.add("banner-danger");
-            hint.classList.remove("hidden");
-        }
+        appendStageError(
+            block,
+            `Etap realizacji musi zaczynać się ≥ ${lastEnd} r.ż. (koniec akumulacji).`,
+        );
     });
 
     if (!orderIsValid(blocks)) valid = false;

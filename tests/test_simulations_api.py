@@ -48,6 +48,7 @@ def test_save_and_list(client):
     register_and_login(client)
     sim = save(client)
     assert sim["id"]
+    assert sim["model_version"] == "2026.1"
     assert sim["summary"]["start_age"] == 40
     assert sim["summary"]["end_age"] == 49
     assert sim["summary"]["years"] == 10

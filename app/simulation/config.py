@@ -66,7 +66,7 @@ def default_account_rules() -> dict[str, AccountRules]:
         "broker": AccountRules(tax_model="flat", tax_rate=0.19, default_roi=0.05),
         "krypto": AccountRules(tax_model="flat", tax_rate=0.19, default_roi=0.06),
         "lokata": AccountRules(
-            tax_model="flat", tax_rate=0.19, tax_periodic=True, default_roi=0.01
+            tax_model="flat", tax_rate=0.19, tax_periodic=True, default_roi=0.018
         ),
         "obligacje": AccountRules(tax_model="flat", tax_rate=0.19, default_roi=0.02),
         "gotowka": AccountRules(tax_model="none", default_roi=0.0),
@@ -260,7 +260,7 @@ BUILTIN_PRESETS: dict[str, dict] = {
             "oki_inw": {"default_roi": 0.03},
             "oki_osk": {"default_roi": 0.01},
             "obligacje": {"default_roi": 0.015},
-            "lokata": {"default_roi": 0.005},
+            "lokata": {"default_roi": 0.014},
             "krypto": {"default_roi": 0.03},
             "zus": {"default_roi": 0.03},
         },
@@ -278,7 +278,7 @@ BUILTIN_PRESETS: dict[str, dict] = {
             "oki_inw": {"default_roi": 0.045},
             "oki_osk": {"default_roi": 0.02},
             "obligacje": {"default_roi": 0.02},
-            "lokata": {"default_roi": 0.01},
+            "lokata": {"default_roi": 0.018},
             "krypto": {"default_roi": 0.06},
             "zus": {"default_roi": 0.04},
         },
@@ -296,7 +296,7 @@ BUILTIN_PRESETS: dict[str, dict] = {
             "oki_inw": {"default_roi": 0.06},
             "oki_osk": {"default_roi": 0.025},
             "obligacje": {"default_roi": 0.025},
-            "lokata": {"default_roi": 0.015},
+            "lokata": {"default_roi": 0.022},
             "krypto": {"default_roi": 0.08},
             "zus": {"default_roi": 0.05},
         },

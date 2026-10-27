@@ -2,7 +2,7 @@ import os
 import secrets
 from pathlib import Path
 
-_DEFAULT_SECRET_FILE = os.path.join(os.path.dirname(__file__), "..", "..", ".secret_key")
+_DEFAULT_SECRET_FILE = str(Path(__file__).resolve().parents[2] / ".secret_key")
 
 
 def get_secret_key(require_env: bool = False) -> str:

@@ -27,6 +27,16 @@ def test_stage_order_irrelevant_for_sequential():
 # --- Akumulacja ---
 
 
+def test_passive_growth_uses_last_started_stage_roi():
+    stages = [
+        accumulation_stage({"broker": acc(starting_balance=1000, roi=0.02)}, start=40, end=50),
+        accumulation_stage({"broker": acc(roi=0.10)}, start=60, end=70),
+    ]
+    result = simulate(SimulationInput(stages=stages, max_age=60, config=CFG_NOINFL))
+    year_60 = next(y for y in result.years if y.age == 60)
+    assert year_60.balances["broker"] == pytest.approx(1000 * 1.02**20, abs=0.01)
+
+
 def test_accumulation_growth_only():
     stages = [
         accumulation_stage(
@@ -210,9 +220,9 @@ def test_withdrawal_target_field_accepted():
         stage_type="realizacja",
         start_age=55,
         end_age=95,
-        withdrawal_target_monthly=1500,
+        withdrawal_target_gross_monthly=1500,
     )
-    assert s.withdrawal_target_monthly == 1500
+    assert s.withdrawal_target_gross_monthly == 1500
 
 
 def test_no_target_keeps_pmt_annuitization():
@@ -241,7 +251,7 @@ def test_constant_target_pays_flat_instead_of_declining():
         55,
         95,
     )
-    stage.withdrawal_target_monthly = 2000
+    stage.withdrawal_target_gross_monthly = 2000
     nets = [
         y.monthly_withdrawal
         for y in simulate(SimulationInput(stages=[stage], max_age=94, config=CFG_NOINFL)).years
@@ -258,7 +268,7 @@ def test_constant_target_zus_offset_keeps_total_stable():
         55,
         95,
     )
-    bridge.withdrawal_target_monthly = 5000
+    bridge.withdrawal_target_gross_monthly = 5000
     zus = realization_stage(
         "Emerytura", {"zus": acc(monthly_pension=2000)}, 65, 95
     )

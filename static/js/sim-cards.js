@@ -50,7 +50,7 @@ const FIELD_DEFAULTS = {
     },
     lokata: {
         lokata_term_months: 12,
-        roi: () => CONFIG?.accounts?.lokata?.default_roi ?? 0.01,
+        roi: () => CONFIG?.accounts?.lokata?.default_roi ?? 0.018,
     },
 };
 

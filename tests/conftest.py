@@ -49,6 +49,9 @@ def client(tmp_path):
     from fastapi.testclient import TestClient
 
     from app.main import app
+    from app.web.limits import reset_rate_limits
 
+    reset_rate_limits()
     with TestClient(app) as c:
         yield c
+    reset_rate_limits()

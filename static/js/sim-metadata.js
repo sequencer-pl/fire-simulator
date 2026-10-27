@@ -1,5 +1,17 @@
 // sim-metadata.js — Account and stage registry data
 
+const _stageTypesData = document.getElementById("stageTypesData");
+function _readStageTypes() {
+    if (!_stageTypesData) return {};
+    try {
+        return JSON.parse(_stageTypesData.dataset.stageTypes || "{}");
+    } catch (err) {
+        console.error("Nie udało się odczytać STAGE_TYPES:", err);
+        return {};
+    }
+}
+const STAGE_TYPES = _readStageTypes();
+
 // Ikony kont: liniowe SVG z icons.js (jeden język ikon w całej aplikacji).
 const ACCOUNT_ICON_NAMES = [
     "broker", "lokata", "obligacje", "gotowka", "ike", "ikze", "oipe",

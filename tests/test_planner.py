@@ -171,7 +171,7 @@ def test_path1_replay_keeps_guarantee():
     data: SimulationInput = r.input
     W = r.projection.target_monthly
     assert any(
-        s.withdrawal_target_monthly > 0
+        s.withdrawal_target_gross_monthly > 0
         for s in data.stages
         if s.stage_type == "realizacja"
     )

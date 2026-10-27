@@ -107,10 +107,6 @@ ACCOUNT_INFO = {
 FIELD_HINTS = {
     "starting_balance": "Saldo zgromadzone na starcie etapu (przenoszone między etapami).",
     "annual_contribution": "Dopłata wnoszona co roku (równymi ratami przez cały etap).",
-    "roi": (
-        "Roczna stopa zwrotu realna (ponad inflacją), po opłatach i podatkach "
-        "od zysków (kapitalizacja raz w roku)."
-    ),
     "buffer": "Kwota, która zostaje na koncie po etapie (nie jest wypłacana).",
     "monthly_base": (
         "Miesięczne wynagrodzenie brutto — podstawa wymiaru składek "
@@ -139,6 +135,54 @@ FIELD_HINTS = {
     "cost_basis": ("Łączny koszt zakupu (wpłacony kapitał) — podatek zapłacisz tylko od różnicy."),
 }
 
+ROI_HINTS = {
+    "broker": (
+        "Roczna stopa zwrotu realna (ponad inflacją), brutto — przed Belką. "
+        "Podatek 19% od zysku silnik nalicza przy wypłacie."
+    ),
+    "krypto": (
+        "Roczna stopa zwrotu realna (ponad inflacją), brutto — przed Belką. "
+        "Podatek 19% od zysku silnik nalicza przy wypłacie."
+    ),
+    "obligacje": (
+        "Roczna stopa zwrotu realna (ponad inflacją), brutto — przed Belką. "
+        "Podatek 19% od zysku silnik nalicza przy wypłacie."
+    ),
+    "lokata": (
+        "Roczna stopa zwrotu realna (ponad inflacją), brutto — przed Belką. "
+        "Belka 19% rozliczana co okres; silnik przelicza nominalnie i urealnia."
+    ),
+    "ike": (
+        "Roczna stopa zwrotu realna (ponad inflacją), brutto — przed podatkiem "
+        "od wypłaty. Po 60. r.ż. zwykle 0%."
+    ),
+    "ikze": (
+        "Roczna stopa zwrotu realna (ponad inflacją), brutto — przed ryczałtem "
+        "10% (po 65. r.ż.) lub skalą PIT (przed 65.)."
+    ),
+    "ppk": (
+        "Roczna stopa zwrotu realna (ponad inflacją), brutto — przed podatkiem "
+        "od wypłaty. Po 60. r.ż. zwykle 0%."
+    ),
+    "ppe": (
+        "Roczna stopa zwrotu realna (ponad inflacją), brutto — przed podatkiem "
+        "od wypłaty. Po 60. r.ż. zwykle 0%."
+    ),
+    "oipe": (
+        "Roczna stopa zwrotu realna (ponad inflacją), brutto — przed podatkiem "
+        "od wypłaty. Po 60. r.ż. zwykle 0%."
+    ),
+    "oki_inw": (
+        "Roczna stopa zwrotu realna (ponad inflacją), brutto — przed rocznym "
+        "podatkiem od aktywów (0,85%)."
+    ),
+    "oki_osk": (
+        "Roczna stopa zwrotu realna (ponad inflacją), brutto — przed rocznym "
+        "podatkiem od aktywów (0,85%)."
+    ),
+    "zus": "ROI części kapitału w OFE; reszta kapitału ZUS rośnie przez waloryzację.",
+}
+
 STAGE_META: dict[str, dict[str, Any]] = {
     "akumulacja": {
         "label": "Akumulacja",
@@ -165,7 +209,7 @@ STAGE_META: dict[str, dict[str, Any]] = {
                         "type": "number",
                         "step": 1,
                         "percent": True,
-                        "hint": FIELD_HINTS["roi"],
+                        "hint": ROI_HINTS["broker"],
                     },
                     "cost_basis_enabled": {
                         "label": "Koszty zakupu",
@@ -204,7 +248,7 @@ STAGE_META: dict[str, dict[str, Any]] = {
                         "type": "number",
                         "step": 1,
                         "percent": True,
-                        "hint": FIELD_HINTS["roi"],
+                        "hint": ROI_HINTS["ike"],
                     },
                 },
             },
@@ -237,7 +281,7 @@ STAGE_META: dict[str, dict[str, Any]] = {
                         "type": "number",
                         "step": 1,
                         "percent": True,
-                        "hint": FIELD_HINTS["roi"],
+                        "hint": ROI_HINTS["ikze"],
                     },
                 },
             },
@@ -264,7 +308,7 @@ STAGE_META: dict[str, dict[str, Any]] = {
                         "type": "number",
                         "step": 1,
                         "percent": True,
-                        "hint": FIELD_HINTS["roi"],
+                        "hint": ROI_HINTS["oipe"],
                     },
                 },
             },
@@ -291,7 +335,7 @@ STAGE_META: dict[str, dict[str, Any]] = {
                         "type": "number",
                         "step": 1,
                         "percent": True,
-                        "hint": FIELD_HINTS["roi"],
+                        "hint": ROI_HINTS["oki_inw"],
                     },
                 },
             },
@@ -318,7 +362,7 @@ STAGE_META: dict[str, dict[str, Any]] = {
                         "type": "number",
                         "step": 1,
                         "percent": True,
-                        "hint": FIELD_HINTS["roi"],
+                        "hint": ROI_HINTS["oki_osk"],
                     },
                 },
             },
@@ -342,7 +386,7 @@ STAGE_META: dict[str, dict[str, Any]] = {
                         "type": "number",
                         "step": 1,
                         "percent": True,
-                        "hint": FIELD_HINTS["roi"],
+                        "hint": ROI_HINTS["krypto"],
                     },
                     "cost_basis_enabled": {
                         "label": "Koszty zakupu",
@@ -397,7 +441,7 @@ STAGE_META: dict[str, dict[str, Any]] = {
                         "type": "number",
                         "step": 1,
                         "percent": True,
-                        "hint": FIELD_HINTS["roi"],
+                        "hint": ROI_HINTS["ppk"],
                     },
                 },
             },
@@ -439,7 +483,7 @@ STAGE_META: dict[str, dict[str, Any]] = {
                         "type": "number",
                         "step": 1,
                         "percent": True,
-                        "hint": FIELD_HINTS["roi"],
+                        "hint": ROI_HINTS["ppe"],
                     },
                 },
             },
@@ -474,11 +518,7 @@ STAGE_META: dict[str, dict[str, Any]] = {
                         "type": "number",
                         "step": 1,
                         "percent": True,
-                        "hint": (
-                            "Roczne oprocentowanie realne (ponad inflacją), po Belce i po inflacji "
-                            "w dzisiejszych zł; Belka liczona na nominalnym odpowiedniku "
-                            "z inflacji globalnej."
-                        ),
+                        "hint": ROI_HINTS["lokata"],
                     },
                     "lokata_term_months": {
                         "label": "Czas lokaty",
@@ -574,7 +614,7 @@ STAGE_META: dict[str, dict[str, Any]] = {
                         "step": 1,
                         "percent": True,
                         "visible_when": "ofe_member",
-                        "hint": "Stopa zwrotu części kapitału zgromadzonej w OFE.",
+                        "hint": ROI_HINTS["zus"],
                     },
                     "waloryzacja_skladek": {
                         "label": "Waloryzacja",
@@ -600,7 +640,7 @@ STAGE_META: dict[str, dict[str, Any]] = {
                         "type": "number",
                         "step": 1,
                         "percent": True,
-                        "hint": FIELD_HINTS["roi"],
+                        "hint": ROI_HINTS["broker"],
                     },
                     "buffer": {
                         "label": "Bufor",
@@ -618,7 +658,7 @@ STAGE_META: dict[str, dict[str, Any]] = {
                         "type": "number",
                         "step": 1,
                         "percent": True,
-                        "hint": FIELD_HINTS["roi"],
+                        "hint": ROI_HINTS["ike"],
                     },
                     "buffer": {
                         "label": "Bufor",
@@ -636,7 +676,7 @@ STAGE_META: dict[str, dict[str, Any]] = {
                         "type": "number",
                         "step": 1,
                         "percent": True,
-                        "hint": FIELD_HINTS["roi"],
+                        "hint": ROI_HINTS["ikze"],
                     },
                     "buffer": {
                         "label": "Bufor",
@@ -654,7 +694,7 @@ STAGE_META: dict[str, dict[str, Any]] = {
                         "type": "number",
                         "step": 1,
                         "percent": True,
-                        "hint": FIELD_HINTS["roi"],
+                        "hint": ROI_HINTS["oipe"],
                     },
                     "buffer": {
                         "label": "Bufor",
@@ -672,7 +712,7 @@ STAGE_META: dict[str, dict[str, Any]] = {
                         "type": "number",
                         "step": 1,
                         "percent": True,
-                        "hint": FIELD_HINTS["roi"],
+                        "hint": ROI_HINTS["oki_inw"],
                     },
                     "buffer": {
                         "label": "Bufor",
@@ -690,7 +730,7 @@ STAGE_META: dict[str, dict[str, Any]] = {
                         "type": "number",
                         "step": 1,
                         "percent": True,
-                        "hint": FIELD_HINTS["roi"],
+                        "hint": ROI_HINTS["oki_osk"],
                     },
                     "buffer": {
                         "label": "Bufor",
@@ -708,7 +748,7 @@ STAGE_META: dict[str, dict[str, Any]] = {
                         "type": "number",
                         "step": 1,
                         "percent": True,
-                        "hint": FIELD_HINTS["roi"],
+                        "hint": ROI_HINTS["krypto"],
                     },
                     "buffer": {
                         "label": "Bufor",
@@ -726,7 +766,7 @@ STAGE_META: dict[str, dict[str, Any]] = {
                         "type": "number",
                         "step": 1,
                         "percent": True,
-                        "hint": FIELD_HINTS["roi"],
+                        "hint": ROI_HINTS["ppk"],
                     },
                     "buffer": {
                         "label": "Bufor",
@@ -744,7 +784,7 @@ STAGE_META: dict[str, dict[str, Any]] = {
                         "type": "number",
                         "step": 1,
                         "percent": True,
-                        "hint": FIELD_HINTS["roi"],
+                        "hint": ROI_HINTS["ppe"],
                     },
                     "buffer": {
                         "label": "Bufor",
@@ -773,11 +813,7 @@ STAGE_META: dict[str, dict[str, Any]] = {
                         "type": "number",
                         "step": 1,
                         "percent": True,
-                        "hint": (
-                            "Roczne oprocentowanie realne (ponad inflacją), po Belce i po inflacji "
-                            "w dzisiejszych zł; Belka liczona na nominalnym odpowiedniku "
-                            "z inflacji globalnej."
-                        ),
+                        "hint": ROI_HINTS["lokata"],
                     },
                     "lokata_term_months": {
                         "label": "Czas lokaty",

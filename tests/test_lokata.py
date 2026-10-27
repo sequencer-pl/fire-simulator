@@ -15,10 +15,10 @@ BAL = 100_000
 
 
 def net_balance_after(intervals_in_year, years):
-    """Compound balance after full years with periodic Belka — ROI is REAL netto."""
-    rate = ROI / intervals_in_year
-    mult = (1 + rate) ** intervals_in_year
-    return BAL * mult**years
+    """Compound balance after full years — ROI is REAL brutto, Belka co okres."""
+    gross = (1 + ROI) ** (1 / intervals_in_year) - 1
+    net = gross * (1 - TAX)
+    return BAL * ((1 + net) ** intervals_in_year) ** years
 
 
 def test_lokata_annual_term_no_contribution():
@@ -33,7 +33,7 @@ def test_lokata_annual_term_two_years():
     assert result.years[2].balances["lokata"] == pytest.approx(net_balance_after(1, 2))
 
 
-def test_lokata_quarterly_term_compounds_more():
+def test_lokata_quarterly_term_balance():
     stages = [
         accumulation_stage(
             {
@@ -49,7 +49,7 @@ def test_lokata_quarterly_term_compounds_more():
     assert result.years[1].balances["lokata"] == pytest.approx(net_balance_after(4, 1))
 
 
-def test_lokata_monthly_term_compounds_more():
+def test_lokata_monthly_term_balance():
     stages = [
         accumulation_stage(
             {
@@ -65,7 +65,7 @@ def test_lokata_monthly_term_compounds_more():
     assert result.years[1].balances["lokata"] == pytest.approx(net_balance_after(12, 1))
 
 
-def test_lokata_shorter_term_greater_balance():
+def test_lokata_annual_term_beats_quarterly_after_tax():
     annual = simulate(
         SimulationInput(
             stages=[accumulation_stage({"lokata": acc(starting_balance=BAL, roi=ROI)})],
@@ -88,14 +88,15 @@ def test_lokata_shorter_term_greater_balance():
             max_age=41,
         )
     )
-    assert quarterly.years[1].balances["lokata"] > annual.years[1].balances["lokata"]
+    # Przy brutto ROI częstsza Belka obniża kapitalizację: roczna lokata
+    # wygrywa z kwartalną, bo podatek płacony jest rzadziej.
+    assert annual.years[1].balances["lokata"] > quarterly.years[1].balances["lokata"]
 
 
 def test_lokata_tax_paid_equals_interest_tax():
     stages = [accumulation_stage({"lokata": acc(starting_balance=BAL, roi=ROI)})]
     result = simulate(SimulationInput(stages=stages, max_age=41, config=CFG_NOINFL))
-    brutto = ROI / (1 - TAX)
-    interest_nom = BAL * brutto
+    interest_nom = BAL * ROI
     assert result.years[0].tax_paid == pytest.approx(interest_nom * TAX)
 
 
@@ -143,13 +144,35 @@ def test_lokata_accumulation_tax_recorded_across_years():
     stages = [accumulation_stage({"lokata": acc(starting_balance=BAL, roi=ROI)})]
     result = simulate(SimulationInput(stages=stages, max_age=43, config=CFG_NOINFL))
     assert result.total_tax > 0
-    brutto = ROI / (1 - TAX)
-    assert result.years[0].tax_paid == pytest.approx(BAL * brutto * TAX)
+    assert result.years[0].tax_paid == pytest.approx(BAL * ROI * TAX)
+
+
+def test_lokata_gross_roi_with_inflation():
+    from app.core.inflation import fisher_nominal, fisher_real
+
+    inflation = 0.025
+    cfg = TaxConfig(inflation=inflation)
+    stages = [accumulation_stage({"lokata": acc(starting_balance=BAL, roi=ROI)}, start=40, end=42)]
+    result = simulate(SimulationInput(stages=stages, max_age=41, config=cfg))
+    gross_nominal = fisher_nominal(ROI, inflation)
+    expected_net_real = fisher_real(gross_nominal * (1 - TAX), inflation)
+    assert result.years[1].balances["lokata"] == pytest.approx(BAL * (1 + expected_net_real))
+
+
+def test_lokata_gap_uses_net_periodic_growth():
+    stages = [
+        accumulation_stage({"lokata": acc(starting_balance=BAL, roi=ROI)}, start=40, end=50),
+        accumulation_stage({"broker": acc(starting_balance=1000, roi=0.0)}, start=60, end=70),
+    ]
+    result = simulate(SimulationInput(stages=stages, max_age=69, config=CFG_NOINFL))
+    year_60 = next(y for y in result.years if y.age == 60)
+    expected = BAL * (1 + ROI * (1 - TAX)) ** 20
+    assert year_60.balances["lokata"] == pytest.approx(expected)
 
 
 # --- Lokata wieloletnia (>12 mies.): Belka tylko na koniec okresu ---
 
-BRUTTO_ANNUAL = ROI / (1 - TAX)  # 0.05 / 0.81
+BRUTTO_ANNUAL = ROI  # ROI jest teraz realnym brutto
 
 
 def mult_year_balance(term_months, years, config=CFG_NOINFL):

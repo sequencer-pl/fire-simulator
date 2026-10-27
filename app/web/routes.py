@@ -3,10 +3,12 @@ import os
 import sqlite3
 from datetime import UTC, datetime
 from functools import lru_cache
+from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
+from pydantic import ValidationError
 
 from app.core.base import resolve_base
 from app.simulation.config import (
@@ -29,17 +31,19 @@ from app.simulation.schemas import SimulationInput, SimulationResult
 from app.stages.metadata import STAGE_META
 from app.stages.registry import get_all_stage_types
 from app.storage import db
+from app.web.limits import check_limit
 
 router = APIRouter()
-templates = Jinja2Templates(directory="app/templates")
+BASE_DIR = Path(__file__).resolve().parents[2]
+templates = Jinja2Templates(directory=str(BASE_DIR / "app" / "templates"))
 
-STATIC_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "static")
+STATIC_DIR = BASE_DIR / "static"
 
 
 def _asset_version_uncached() -> str:
     """Static asset version based on mtime — forces cache refresh after file changes."""
     mtimes = [
-        os.path.getmtime(os.path.join(STATIC_DIR, rel))
+        os.path.getmtime(STATIC_DIR / rel)
         for rel in (
             "css/style.css",
             "js/sim-utils.js",
@@ -55,7 +59,7 @@ def _asset_version_uncached() -> str:
             "js/landing.js",
             "js/compare.js",
         )
-        if os.path.exists(os.path.join(STATIC_DIR, rel))
+        if (STATIC_DIR / rel).exists()
     ]
     return str(int(max(mtimes))) if mtimes else "0"
 
@@ -182,6 +186,7 @@ def _simulation_response(row: sqlite3.Row) -> dict:
         "name": row["name"],
         "created_at": row["created_at"],
         "updated_at": row["updated_at"],
+        "model_version": row["model_version"],
         "summary": json.loads(row["summary_json"]),
     }
 
@@ -261,15 +266,17 @@ async def wizard(request: Request):
 
 
 @router.post("/api/wizard/plan")
-def api_wizard_plan(body: WizardPlanRequest):
+def api_wizard_plan(body: WizardPlanRequest, request: Request):
+    check_limit("wizard_plan", request)
     try:
         return plan(body.path, body.answers, body.target_monthly)
-    except Exception as e:
+    except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @router.post("/api/wizard/suggest")
-def api_wizard_suggest(body: WizardSuggestRequest):
+def api_wizard_suggest(body: WizardSuggestRequest, request: Request):
+    check_limit("wizard_suggest", request)
     try:
         pool_monthly = estimate_pool_monthly(
             body.answers, body.path, body.target_monthly
@@ -279,12 +286,13 @@ def api_wizard_suggest(body: WizardSuggestRequest):
             "allocations": suggest_allocations(body.answers, default_config(), pool),
             "pool_monthly": round(pool_monthly, 2),
         }
-    except Exception as e:
+    except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @router.post("/api/wizard/salary")
-def api_wizard_salary(body: SalaryPreviewRequest):
+def api_wizard_salary(body: SalaryPreviewRequest, request: Request):
+    check_limit("wizard_salary", request)
     ppk_pct = body.ppk_employee_pct if body.use_ppk else 0.0
     gross, net = salary_preview(
         body.amount,
@@ -300,10 +308,11 @@ def api_wizard_salary(body: SalaryPreviewRequest):
 
 
 @router.post("/api/simulate")
-def api_simulate(input_data: SimulationInput):
+def api_simulate(input_data: SimulationInput, request: Request):
+    check_limit("simulate", request)
     try:
         result = simulate(input_data)
-    except Exception as e:
+    except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
     return result
 
@@ -346,8 +355,8 @@ async def api_user_config(request: Request):
 def _validate_tax_config(body: dict) -> TaxConfig:
     try:
         cfg = TaxConfig.model_validate(body)
-    except Exception as e:
-        raise HTTPException(status_code=422, detail=f"Invalid config: {e}") from e
+    except ValidationError:
+        raise HTTPException(status_code=422, detail="Nieprawidłowa konfiguracja.") from None
     if cfg.prog2 is not None:
         if cfg.rate_middle is None:
             raise HTTPException(

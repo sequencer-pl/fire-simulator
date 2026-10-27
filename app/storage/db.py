@@ -1,14 +1,18 @@
 import os
 import sqlite3
+from pathlib import Path
+
+from app.simulation.constants import ENGINE_VERSION
 
 DEFAULT_DB_PATH = os.environ.get(
     "FIRE_DB",
-    os.path.join(os.path.dirname(__file__), "..", "..", "fire.db"),
+    str(Path(__file__).resolve().parents[2] / "fire.db"),
 )
 
 _db_path = DEFAULT_DB_PATH
+_SCHEMA_VERSION = 2
 
-_SCHEMA = """
+_SCHEMA = f"""
 CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     email TEXT NOT NULL UNIQUE,
@@ -24,7 +28,8 @@ CREATE TABLE IF NOT EXISTS simulations (
     updated_at TEXT NOT NULL,
     input_json TEXT NOT NULL,
     result_json TEXT NOT NULL,
-    summary_json TEXT NOT NULL
+    summary_json TEXT NOT NULL,
+    model_version TEXT NOT NULL DEFAULT '{ENGINE_VERSION}'
 );
 
 CREATE INDEX IF NOT EXISTS idx_simulations_user ON simulations(user_id);
@@ -71,7 +76,17 @@ def connect() -> sqlite3.Connection:
 def init_db() -> None:
     with connect() as conn:
         conn.executescript(_SCHEMA)
-        conn.execute("PRAGMA user_version = 1")
+        columns = {
+            row["name"] for row in conn.execute("PRAGMA table_info(simulations)").fetchall()
+        }
+        if "model_version" not in columns:
+            conn.execute(
+                "ALTER TABLE simulations ADD COLUMN model_version TEXT NOT NULL "
+                f"DEFAULT '{ENGINE_VERSION}'"
+            )
+        version = conn.execute("PRAGMA user_version").fetchone()[0]
+        if version < _SCHEMA_VERSION:
+            conn.execute(f"PRAGMA user_version = {_SCHEMA_VERSION}")
 
 
 def create_user(email: str, password_hash: str, created_at: str) -> int:
@@ -108,15 +123,26 @@ def insert_simulation(
     input_json: str,
     result_json: str,
     summary_json: str,
+    model_version: str = ENGINE_VERSION,
 ) -> int:
     with connect() as conn:
         cur = conn.execute(
             """
             INSERT INTO simulations
-                (user_id, name, created_at, updated_at, input_json, result_json, summary_json)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+                (user_id, name, created_at, updated_at, input_json, result_json,
+                 summary_json, model_version)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
-            (user_id, name, created_at, created_at, input_json, result_json, summary_json),
+            (
+                user_id,
+                name,
+                created_at,
+                created_at,
+                input_json,
+                result_json,
+                summary_json,
+                model_version,
+            ),
         )
         rowid = cur.lastrowid
         assert rowid is not None
@@ -149,7 +175,7 @@ def list_simulations(user_id: int) -> list[sqlite3.Row]:
     with connect() as conn:
         return conn.execute(
             """
-            SELECT id, name, created_at, updated_at, summary_json
+            SELECT id, name, created_at, updated_at, summary_json, model_version
             FROM simulations
             WHERE user_id = ?
             ORDER BY updated_at DESC
@@ -175,7 +201,7 @@ def duplicate_simulation(
 ) -> int | None:
     with connect() as conn:
         row = conn.execute(
-            "SELECT input_json, result_json, summary_json "
+            "SELECT input_json, result_json, summary_json, model_version "
             "FROM simulations WHERE id = ? AND user_id = ?",
             (sim_id, user_id),
         ).fetchone()
@@ -184,8 +210,9 @@ def duplicate_simulation(
         cur = conn.execute(
             """
             INSERT INTO simulations
-                (user_id, name, created_at, updated_at, input_json, result_json, summary_json)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+                (user_id, name, created_at, updated_at, input_json, result_json,
+                 summary_json, model_version)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 user_id,
@@ -195,6 +222,7 @@ def duplicate_simulation(
                 row["input_json"],
                 row["result_json"],
                 row["summary_json"],
+                row["model_version"],
             ),
         )
         return cur.lastrowid

@@ -15,7 +15,10 @@ const startTag = "{% block content %}";
 const endTag = "{% endblock %}";
 const bodyStart = tpl.indexOf(startTag) + startTag.length;
 const bodyEnd = tpl.indexOf(endTag, bodyStart);
-const content = tpl.slice(bodyStart, bodyEnd).replace(/\{\{ version \}\}/g, "0");
+const content = tpl
+    .slice(bodyStart, bodyEnd)
+    .replace(/\{\{ version \}\}/g, "0")
+    .replace(/\{\{ stage_types \| tojson \}\}/g, "{}");
 
 const html = `<!DOCTYPE html><html><body>${content}</body></html>`;
 const dom = new JSDOM(html, { runScripts: "dangerously", url: "http://localhost/wizard" });

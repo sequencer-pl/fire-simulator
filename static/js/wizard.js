@@ -1,5 +1,7 @@
 // wizard.js — Asystent FIRE: 3 ścieżki planowania oparte o backend planner.py
 
+let CONFIG = null;
+
 const WZ_TOTAL_STEPS = 6;
 const WIZARD_STATE_KEY = "fire.wizardState";
 

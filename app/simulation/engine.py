@@ -2,7 +2,7 @@ from dataclasses import dataclass, field
 
 from app.core.base import resolve_base
 from app.core.inflation import cumulative_factor, deflate, fisher_nominal
-from app.core.roi import effective_roi
+from app.core.roi import effective_roi, periodic_net_roi
 from app.core.tax import danina_solidarnosciowa, scale_tax
 from app.simulation.config import ACCOUNT_LABELS, AccountRules, TaxConfig
 from app.simulation.constants import DEFAULT_ROI, MONTHS_PER_YEAR, PPE_ZUS_FRACTION
@@ -211,7 +211,7 @@ def _process_ikze_returns(
     for si in active_stages:
         if si.stage_type != "realizacja":
             continue
-        stage_target = target if target is not None else si.withdrawal_target_monthly
+        stage_target = target if target is not None else si.withdrawal_target_gross_monthly
         is_const_target = (
             "zus" not in si.accounts and stage_target is not None and stage_target > 0
         )
@@ -307,7 +307,7 @@ def _process_ppk_forfeits(
     for si in active_stages:
         if si.stage_type != "realizacja":
             continue
-        stage_target = target if target is not None else si.withdrawal_target_monthly
+        stage_target = target if target is not None else si.withdrawal_target_gross_monthly
         is_const_target = (
             "zus" not in si.accounts and stage_target is not None and stage_target > 0
         )
@@ -415,7 +415,7 @@ def _process_stages(
         # Constant-target withdrawal for non-ZUS realization stages (wizard FIRE
         # model): the portfolio pays out a fixed monthly amount, reduced by the
         # ZUS pension once it kicks in, instead of annuitizing to zero via PMT.
-        stage_target = target if target is not None else stage_input.withdrawal_target_monthly
+        stage_target = target if target is not None else stage_input.withdrawal_target_gross_monthly
         desired_withdrawal: float | None = None
         if (
             stage_input.stage_type == "realizacja"
@@ -494,7 +494,9 @@ def _process_stages(
                 processed_accounts.add(name)
                 accounts_config.pop(name)
             else:
-                accounts_config[name]["roi"] = _periodic_net_roi(name, rules, accounts_config[name])
+                accounts_config[name]["roi"] = _periodic_net_roi(
+                    name, rules, accounts_config[name], config.inflation
+                )
 
         accounts_to_process = {
             name: cfg for name, cfg in accounts_config.items() if name not in processed_accounts
@@ -547,16 +549,14 @@ def _accumulate_periodic(
 ) -> float:
     """Accumulate an account whose gains are taxed every term (lokata).
 
-    ROI is REAL netto (po Belce i po inflacji) w dzisiejszych zł.
-    Podatek Belki liczony jest na nominalnym oprocentowaniu brutto
-    wyprowadzonym z realnego ROI + inflacji, co pozwala pokazać
-    periodyczny drag lokaty vs IKE. Zwraca podatek w wartościach REALNYCH.
+    ROI is REAL brutto (przed Belką) w dzisiejszych zł. Silnik przelicza je
+    Fisherem na nominalne brutto, pobiera Belkę co okres i wraca do realnych
+    złotych. Dzięki temu ROI znaczy to samo co na pozostałych kontach.
 
-    Dla terminy dłuższych niż 12 mies. model jest inny (zgodnie z decyzją):
-    lokata wieloletnia, odsetki kapitalizowane co roku na brutto, a Belka
-    pobierana dopiero na koniec okresu (co term_months mies.). Odroczenie
-    Belki daje realną przewagę (efekt kapitalizacji na brutto), dlatego
-    dłuższe lokaty dają wyższy saldo przy tym samym realnym ROI.
+    Dla terminów dłuższych niż 12 mies. odsetki kapitalizują się rocznie na
+    brutto, a Belka pobierana jest dopiero na koniec okresu (co term_months
+    mies.). Odroczenie Belki daje realną przewagę (efekt kapitalizacji na
+    brutto), dlatego dłuższe lokaty dają wyższy saldo przy tym samym ROI.
     """
     rules = config.accounts.get(name)
     tax_rate = rules.tax_rate if rules else 0.0
@@ -576,37 +576,15 @@ def _accumulate_periodic(
         )
 
     intervals = MONTHS_PER_YEAR / term_months
-    tax_paid = 0.0
-
-    if inflation == 0:
-        nominal_net = roi_real
-        brutto = nominal_net / (1 - tax_rate) if 0 < tax_rate < 1 else nominal_net
-        if brutto / intervals > 1:
-            balances[name] = balance * (1 + roi_real) + contribution
-            return 0.0
-        for _ in range(int(intervals)):
-            gross = balance * (1 + brutto / intervals)
-            interest = gross - balance
-            tax_paid += interest * tax_rate
-            balance = gross - interest * tax_rate
-        balances[name] = balance + contribution
-        return tax_paid
-
-    # per-interval real -> nominal
-    inflation_per_interval = (1 + inflation) ** (1 / intervals) - 1 if intervals else inflation
-    real_per_interval = roi_real / intervals
-    nominal_net_per_interval = fisher_nominal(real_per_interval, inflation_per_interval)
-    if 0 < tax_rate < 1:
-        brutto_per_interval = (
-            nominal_net_per_interval / (1 - tax_rate)
-            if nominal_net_per_interval > -1
-            else nominal_net_per_interval
-        )
-    else:
-        brutto_per_interval = nominal_net_per_interval
-    if brutto_per_interval > 1:
+    nominal_gross_annual = fisher_nominal(roi_real, inflation)
+    if nominal_gross_annual <= -1:
         balances[name] = balance * (1 + roi_real) + contribution
         return 0.0
+    gross_per_interval = (1 + nominal_gross_annual) ** (1 / intervals) - 1
+    if gross_per_interval > 1:
+        balances[name] = balance * (1 + roi_real) + contribution
+        return 0.0
+
     if age is not None and start_age is not None:
         factor_start = cumulative_factor(inflation, age - start_age)
         factor_end = cumulative_factor(inflation, age - start_age + 1)
@@ -616,18 +594,27 @@ def _accumulate_periodic(
     b_nom = balance * factor_start
     tax_nom = 0.0
     for _ in range(int(intervals)):
-        interest_nom = b_nom * brutto_per_interval
-        tax_nom += interest_nom * tax_rate
-        b_nom = b_nom + interest_nom * (1 - tax_rate)
-    contrib_nom = contribution * factor_end
-    b_nom = b_nom + contrib_nom
+        interest_nom = b_nom * gross_per_interval
+        if interest_nom > 0:
+            tax_nom += interest_nom * tax_rate
+            b_nom += interest_nom * (1 - tax_rate)
+        else:
+            b_nom += interest_nom
+    b_nom += contribution * factor_end
     balances[name] = b_nom / factor_end
-    tax_paid = tax_nom / factor_end if factor_end else tax_nom
-    return tax_paid
+    return tax_nom / factor_end if factor_end else tax_nom
 
 
-def _periodic_net_roi(name: str, rules: AccountRules, cfg: dict) -> float:
-    return effective_roi(name, cfg.get("roi", DEFAULT_ROI))
+def _periodic_net_roi(
+    name: str, rules: AccountRules, cfg: dict, inflation: float = 0.0
+) -> float:
+    return periodic_net_roi(
+        name,
+        rules.tax_rate,
+        cfg.get("roi", DEFAULT_ROI),
+        cfg.get("lokata_term_months", 12),
+        inflation,
+    )
 
 
 def _accumulate_periodic_multi_year(
@@ -650,22 +637,15 @@ def _accumulate_periodic_multi_year(
     dłuższy termin = rzadsza Belka = realnie wyższe saldo przy tym samym
     realnym ROI (efekt odroczenia podatku / kapitalizacji na brutto).
 
-    ROI jest realny netto; Belka liczona jest na nominalnym oprocentowaniu
-    brutto wyprowadzonym z realnego ROI + inflacji.
+    ROI jest realny brutto (przed Belką); silnik przelicza go Fisherem na
+    nominalne brutto, kapitalizuje odsetki i pobiera Belkę na koniec okresu.
     """
     term_years = max(2, term_months // 12)
     contribution = cfg.get("annual_contribution", 0.0)
     inflation = getattr(config, "inflation", 0.0) or 0.0
 
-    nominal_net_annual = fisher_nominal(roi_real, inflation)
-    if 0 < tax_rate < 1:
-        gross_annual = (
-            nominal_net_annual / (1 - tax_rate) if nominal_net_annual > -1 else nominal_net_annual
-        )
-    else:
-        gross_annual = nominal_net_annual
-
-    if gross_annual > 1:
+    gross_annual = fisher_nominal(roi_real, inflation)
+    if gross_annual <= -1 or gross_annual > 1:
         balances[name] = balances.get(name, 0.0) * (1 + roi_real) + contribution
         return 0.0
 
@@ -686,7 +666,7 @@ def _accumulate_periodic_multi_year(
     b_nom = b_nom * (1 + gross_annual)
 
     tax_nom = 0.0
-    if is_maturity:
+    if is_maturity and interest_nom > 0:
         tax_nom = interest_nom * tax_rate
         b_nom -= tax_nom
         interest_nom = 0.0
@@ -700,6 +680,29 @@ def _accumulate_periodic_multi_year(
     return tax_nom / factor_end if factor_end else tax_nom
 
 
+def _account_rois_for_age(
+    all_stages: list[StageInput], age: int, config: TaxConfig
+) -> dict[str, float]:
+    """ROI per account using the latest stage that has already started.
+
+    Accounts with no started stage fall back to the first future stage, so a
+    starting balance is not grown with a default when the user explicitly
+    declared the account later. Future ROI never overrides an earlier one.
+    """
+    rois: dict[str, float] = {}
+    future: dict[str, float] = {}
+    for si in sorted(all_stages, key=lambda s: s.start_age):
+        for name, cfg in si.accounts.items():
+            roi = -config.inflation if name == "gotowka" else cfg.roi
+            if si.start_age <= age:
+                rois[name] = roi
+            else:
+                future.setdefault(name, roi)
+    for name, roi in future.items():
+        rois.setdefault(name, roi)
+    return rois
+
+
 def _passive_growth(
     balances: dict[str, float] | None = None,
     processed_accounts: set[str] | None = None,
@@ -709,7 +712,8 @@ def _passive_growth(
 ) -> None:
     if state is not None:
         balances = state.balances
-        account_rois = state.account_rois
+        if account_rois is None:
+            account_rois = state.account_rois
         config = state.config
     assert (
         balances is not None
@@ -728,7 +732,7 @@ def _passive_growth(
             rules = config.accounts.get(acc_name)
             if rules and rules.tax_periodic:
                 roi = account_rois.get(acc_name, DEFAULT_ROI)
-                net = _periodic_net_roi(acc_name, rules, {"roi": roi})
+                net = _periodic_net_roi(acc_name, rules, {"roi": roi}, config.inflation)
                 balances[acc_name] = balances[acc_name] * (1 + net)
             else:
                 roi = account_rois.get(acc_name, DEFAULT_ROI)
@@ -750,7 +754,9 @@ def _assemble_years(
         stage_tax = sum(c["tax"].values())
         # IKZE early return tax is already deducted from capital
         # ("payout + deposit" model) — it doesn't further reduce the annual withdrawal.
-        annual_net_deduction = stage_tax - c.get("early_return_tax", 0.0)
+        # A negative tax (IKZE contribution relief) must not inflate the withdrawal:
+        # it is a tax saving, not money paid out.
+        annual_net_deduction = max(0.0, stage_tax - c.get("early_return_tax", 0.0))
         stage_withdrawal_net = max(0.0, stage_withdrawal - annual_net_deduction)
         total_withdrawn_net += stage_withdrawal_net
         total_tax += stage_tax
@@ -834,10 +840,32 @@ def _run_year(
     target: float | None = None,
 ) -> None:
     active_stages = [si for si in all_stages if si.start_age <= age < si.end_age]
+    year_start_balances = dict(state.balances)
     if not active_stages:
+        # A gap between stages is still a real year: balances keep growing
+        # passively (and OKI asset tax still applies), even though no stage
+        # is active.
+        merged_tax: dict[str, float] = {}
+        _passive_growth(
+            state=state,
+            processed_accounts=set(),
+            account_rois=_account_rois_for_age(all_stages, age, state.config),
+        )
+        _apply_asset_tax(
+            state=state,
+            year_start_balances=year_start_balances,
+            merged_tax=merged_tax,
+        )
+        state.computed[age] = {
+            "starting_balances": year_start_balances,
+            "ending_balances": dict(state.balances),
+            "withdrawal": {},
+            "tax": merged_tax,
+            "early_return_tax": 0.0,
+            "stage_name": "Bez etapu",
+        }
         return
 
-    year_start_balances = dict(state.balances)
     processed_accounts: set[str] = set()
 
     zus_pension = _estimate_zus_pension(state=state, active_stages=active_stages, age=age)
@@ -883,7 +911,11 @@ def _run_year(
 
     _apply_ikze_savings(state, active_stages, monthly_gross, merged_tax, age)
 
-    _passive_growth(state=state, processed_accounts=processed_accounts)
+    _passive_growth(
+        state=state,
+        processed_accounts=processed_accounts,
+        account_rois=_account_rois_for_age(all_stages, age, state.config),
+    )
 
     _apply_asset_tax(state=state, year_start_balances=year_start_balances, merged_tax=merged_tax)
 
@@ -951,7 +983,7 @@ def simulate(data: SimulationInput, target: float | None = None) -> SimulationRe
 
     ``target`` is an optional override of the constant monthly withdrawal
     target for realization stages without a ZUS account (wizard solver).
-    When None the stage-level ``withdrawal_target_monthly`` is used.
+    When None the stage-level ``withdrawal_target_gross_monthly`` is used.
     """
     if not data.stages:
         return SimulationResult(
@@ -969,7 +1001,9 @@ def simulate(data: SimulationInput, target: float | None = None) -> SimulationRe
     state = _init_state(data)
 
     min_age = min(si.start_age for si in data.stages)
-    max_age = data.max_age
+    # Horyzont wynika z ostatniego etapu — data.max_age nie może po cichu
+    # uciąć planu ani dopisać lat po zakończeniu wszystkich etapów.
+    max_age = max(si.end_age - 1 for si in data.stages)
 
     for age in range(min_age, max_age + 1):
         _run_year(state, age, data.monthly_gross, data.stages, target)
@@ -1302,7 +1336,7 @@ def _collect_warnings(
 
     for si in data.stages:
         if si.stage_type == "realizacja":
-            stage_target = target if target is not None else si.withdrawal_target_monthly
+            stage_target = target if target is not None else si.withdrawal_target_gross_monthly
             is_const_target = (
                 "zus" not in si.accounts
                 and stage_target is not None
@@ -1332,6 +1366,12 @@ def _collect_warnings(
                     if not tapped_early and name not in state.early_returned:
                         continue
                 label = ACCOUNT_LABELS.get(name, name)
+                if name == "ppk" and si.start_age < rules.min_withdrawal_age:
+                    warnings.append(
+                        f"PPK wypłacane od {si.start_age} r.ż. (przed "
+                        f"{rules.min_withdrawal_age} r.ż.) — środki pracodawcy i dopłaty "
+                        f"państwa przepadają; podatek Belka 19% od zysku pracownika."
+                    )
                 early = rules.early_tax_model
                 if early == "scale":
                     lower = int(config.rate_lower * 100)

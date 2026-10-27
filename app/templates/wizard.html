@@ -5,6 +5,7 @@
 {% block body_class %}has-action-bar{% endblock %}
 {% block head_extra %}<link rel="stylesheet" href="/static/css/wizard.css?v={{ version }}">{% endblock %}
 {% block content %}
+<div id="stageTypesData" class="hidden" data-stage-types='{{ stage_types | tojson }}'></div>
 <div class="wizard">
     <div class="wizard-progress" id="wizardProgress">
         <div class="progress wizard-progress-track" id="wizardProgressTrack">
@@ -294,10 +295,6 @@
 </div>
 {% endblock %}
 {% block scripts %}
-    <script>
-    const STAGE_TYPES = {{ stage_types | tojson }};
-    let CONFIG = null;
-    </script>
     <script src="/static/js/session.js?v={{ version }}"></script>
     <script src="/static/js/sim-utils.js?v={{ version }}"></script>
     <script src="/static/js/controls.js?v={{ version }}"></script>

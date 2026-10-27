@@ -6,7 +6,9 @@ function $(id) {
 }
 
 function show(id, on) {
-    $(id).classList.toggle("hidden", !on);
+    const el = $(id);
+    if (!el) return;
+    el.classList.toggle("hidden", !on);
 }
 
 function escapeHtml(str) {

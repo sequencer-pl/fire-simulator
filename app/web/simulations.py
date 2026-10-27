@@ -3,9 +3,11 @@ import json
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
+from app.simulation.constants import ENGINE_VERSION
 from app.simulation.engine import simulate
 from app.simulation.schemas import SimulationInput
 from app.storage import db
+from app.web.limits import check_limit
 
 from .routes import (
     _initial_capital,
@@ -36,9 +38,10 @@ class DeleteBulkPayload(BaseModel):
 @router.post("/api/simulations")
 async def api_save_simulation(payload: SaveSimulationPayload, request: Request):
     user_id = _require_user(request)
+    check_limit("save", request)
     try:
         result = simulate(payload.input)
-    except Exception as e:
+    except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
     now = _now()
     summary = _summary_from_result(result)
@@ -52,6 +55,7 @@ async def api_save_simulation(payload: SaveSimulationPayload, request: Request):
         input_json=json.dumps(payload.input.model_dump(mode="json")),
         result_json=json.dumps(result.model_dump(mode="json")),
         summary_json=json.dumps(summary),
+        model_version=ENGINE_VERSION,
     )
     row = db.get_simulation(sim_id, user_id)
     assert row is not None
@@ -76,6 +80,7 @@ async def api_get_simulation(sim_id: int, request: Request):
         "name": row["name"],
         "created_at": row["created_at"],
         "updated_at": row["updated_at"],
+        "model_version": row["model_version"],
         "input": json.loads(row["input_json"]),
         "result": json.loads(row["result_json"]),
         "summary": json.loads(row["summary_json"]),

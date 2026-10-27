@@ -50,13 +50,13 @@ function gatherFormData() {
             start_age: parseInt(block.querySelector(".start-age").value) || 0,
             end_age: parseInt(block.querySelector(".end-age").value) || 0,
             accounts: accounts,
-            withdrawal_target_monthly: parseFloat(block.dataset.withdrawalTargetMonthly) || 0,
+            withdrawal_target_gross_monthly: parseFloat(block.dataset.withdrawalTargetGrossMonthly) || 0,
         });
     });
 
     return {
         stages: stages,
-        max_age: 100,
+        max_age: Math.min(120, Math.max(100, Math.max(...stages.map((s) => s.end_age), 0) - 1)),
         gender: currentGender(),
         monthly_gross: 0,
         inflation: null,
@@ -170,7 +170,7 @@ function renderResults(data) {
         const isLast = i === total - 1;
         tr.innerHTML = `
             <td class="col-age">${y.age}${isLast && hasPension ? '<span class="plus-suffix">+</span>' : ''}</td>
-            <td class="col-stage">${y.stage_name}</td>
+            <td class="col-stage">${escapeHtml(y.stage_name || "")}</td>
             ${balanceCells}
             <td class="amount" data-col="wealth"><strong>${formatMoney(y.total_wealth)}</strong></td>
             <td class="amount" data-col="annual">${formatMoney(y.annual_withdrawal)}</td>
@@ -906,7 +906,7 @@ const BUILTIN_PRESETS_CLIENT = {
             oki_inw: { default_roi: 0.03 },
             oki_osk: { default_roi: 0.01 },
             obligacje: { default_roi: 0.015 },
-            lokata: { default_roi: 0.005 },
+            lokata: { default_roi: 0.014 },
             krypto: { default_roi: 0.03 },
             zus: { default_roi: 0.03 },
         },
@@ -924,7 +924,7 @@ const BUILTIN_PRESETS_CLIENT = {
             oki_inw: { default_roi: 0.045 },
             oki_osk: { default_roi: 0.02 },
             obligacje: { default_roi: 0.02 },
-            lokata: { default_roi: 0.01 },
+            lokata: { default_roi: 0.018 },
             krypto: { default_roi: 0.06 },
             zus: { default_roi: 0.04 },
         },
@@ -942,7 +942,7 @@ const BUILTIN_PRESETS_CLIENT = {
             oki_inw: { default_roi: 0.06 },
             oki_osk: { default_roi: 0.025 },
             obligacje: { default_roi: 0.025 },
-            lokata: { default_roi: 0.015 },
+            lokata: { default_roi: 0.022 },
             krypto: { default_roi: 0.08 },
             zus: { default_roi: 0.05 },
         },

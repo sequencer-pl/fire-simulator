@@ -102,6 +102,6 @@ def test_gotowka_roi_at_minus_100_raises():
 
 
 def test_any_account_roi_below_minus_100_raises():
-    stages = [accumulation_stage({"broker": acc(starting_balance=10000, roi=-1.5)})]
     with pytest.raises(ValueError):
+        stages = [accumulation_stage({"broker": acc(starting_balance=10000, roi=-1.5)})]
         simulate(SimulationInput(stages=stages, max_age=40, config=CFG_NOINFL))

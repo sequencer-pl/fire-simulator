@@ -2,22 +2,22 @@
 
 Symulator niezależności finansowej (*Financial Independence, Retire Early*) dla polskiego systemu podatkowego i emerytalnego.
 
-> **Nie obiecujemy, że będziesz bogaty.** Nie znamy Twojej przyszłości, nie przewidzimy rynku i nie zastąpimy doradcy. Ten projekt ma jedno zadanie: pokazać, co wynika z Twoich liczb — po polsku, po podatkach i bez ściemy. Jeśli po jednej symulacji spojrzysz na oszczędzanie trochę poważniej, uznamy to za sukces.
+**Nie obiecujemy, że będziesz bogaty.** Nie znamy Twojej przyszłości, nie przewidzimy rynku i nie zastąpimy doradcy. Ten projekt ma jedno zadanie: pokazać, co wynika z Twoich liczb — po polsku, po podatkach i bez ściemy. Jeśli po jednej symulacji spojrzysz na oszczędzanie trochę poważniej, uznamy to za sukces.
 
-FIRE Simulator odpowiada na pytanie, które zadaje sobie każdy, kto planuje wcześniejszą emeryturę: **ile dziś oszczędzać, w co i jak długo, żeby w wieku X móc przestać pracować i mieć środki do końca życia** — z uwzględnieniem podatków, limitów i reguł wiekowych, które naprawdę obowiązują w Polsce.
+FIRE Simulator odpowiada na pytanie, które zadaje sobie każdy, kto planuje wcześniejszą emeryturę: **ile dziś oszczędzać, w co, i jak długo inwestować, żeby w wieku X móc przestać pracować i mieć środki do końca życia** — z uwzględnieniem podatków, limitów i reguł wiekowych, które naprawdę obowiązują w Polsce.
 
 Zamiast jednej magicznej liczby ("potrzebujesz 2 mln zł") pokazuje **rozpisane po latach** źródła finansowania: co wypłacasz z rachunku maklerskiego i IKZE, co z IKE i PPK, a co realnie otrzymasz z ZUS — oraz ile z tego oddasz fiskusowi.
 
 ## Czym to jest — i czym nie jest
 
-**Jest** modelem, nie wróżbą. Bierze Twoje zarobki, oszczędności, wiek i założenia, a potem pokazuje rok po roku, co z nich wynika. Ma pomóc zrozumieć mechanikę: podatki, limity, kolejność wypłat, ZUS. I ma inspirować — bo czasem jedna policzona liczba robi więcej niż dziesięć artykułów o „wolności finansowej”.
+**Jest** modelem, nie wróżbą. Bierze Twoje zarobki, oszczędności, wiek i założenia, a potem pokazuje rok po roku, co z nich wynika. Ma pomóc zrozumieć mechanikę: podatki, limity, kolejność wypłat, ZUS. I ma inspirować — bo czasem jedna dobrze zaprezentowana symulacja robi więcej niż dziesięć artykułów o „wolności finansowej”.
 
 **Nie jest** poradą inwestycyjną, prognozą rynku ani gwarancją. Nie wie, jaka będzie inflacja, stopy procentowe i prawo za 20 lat. Nie uwzględnia Twojej psychiki, nieprzewidzianych wydatków ani tego, że życie lubi pisać własne scenariusze. Jeśli szukasz odpowiedzi „czy warto”, to nie tutaj — tutaj znajdziesz „co się stanie, jeśli”.
 
 ## Dla kogo
 
 - **Dla Ciebie, jeśli** chcesz zrozumieć, co robią z Twoimi pieniędzmi podatki, limity i kolejność wypłat.
-- **Dla Ciebie, jeśli** lubisz scenariusze „co jeśli” bardziej niż jedną magiczną liczbę.
+- **Dla Ciebie, jeśli** lubisz scenariusze „co by było, gdyby” bardziej niż jedną magiczną liczbę.
 - **Nie dla Ciebie, jeśli** szukasz rekomendacji „kup X, sprzedaj Y, będziesz wolny w 2035”.
 
 ## Od czego zacząć
@@ -50,9 +50,20 @@ Symulator celowo jest **prostym modelem deterministycznym**, a nie symulacją Mo
 
 > **W skrócie:** liczby są realne i netto, ROI jest stałe, ZUS uproszczony, a rynek, inflacja i prawo siedzą poza modelem. To wystarczy, żeby planować, ale nie wystarczy, żeby traktować wynik jak proroctwo.
 
-1. **Wszystko w dzisiejszych złotych.** Silnik przechowuje i pokazuje wyniki w sile nabywczej (realnie). `ROI` wpisujesz **realne (ponad inflacją)** (po Belce i po inflacji), a globalna `inflacja` (`Konfiguracja → Skala podatkowa`, domyślnie 2,5% w presetach) wchodzi tylko w trzy miejsca: nominalny podatek Belki/OKI i PIT z realnych kwot, erozję gotówki (`-2,5%/rok`) oraz waloryzację ZUS (punkt 8).
+1. **Wszystko w dzisiejszych złotych.** Silnik przechowuje i pokazuje wyniki w sile nabywczej (realnie). `ROI` wpisujesz **realne (ponad inflacją), brutto — przed podatkiem**. Inflacja nie jest doliczana do wzrostu kont; wchodzi tylko w:
+   - nominalną Belkę od zysku (broker, IKE/PPK/PPE przed progami) i mechanikę lokaty,
+   - erozję gotówki (`-2,5%/rok`),
+   - waloryzację ZUS (punkt 8).
 
-2. **ROI to realna stopa zwrotu (ponad inflacją) i jest stała w każdym roku.** Roczny, płaski zwrot *po opłatach i po Belce/OKI oraz po inflacji* (realny), ale **przed** podatkiem odroczonym od wypłat — ten rozlicza silnik na nominalnym odpowiedniku. Np. lokata 2% realnie + inflacja 2,5% → brutto nominalne ≈5,5% → Belka 19% liczona co okres (3m/12m) i urealniona. Nie ma zmienności rynku: 6% średnio nie znaczy 6% co roku.
+   Ryczałt IKZE i skala PIT liczą się od realnych kwot. Podatek od aktywów OKI jest w modelu liczony od realnego salda (uproszczenie).
+
+2. **ROI to realna stopa zwrotu (ponad inflacją), brutto, i jest stała w każdym roku.** Dla brokera, krypto, obligacji, IKE, IKZE, PPK, PPE i OIPE to zwrot **przed** podatkiem od wypłat; silnik nalicza go według zasad konta (Belka, ryczałt, skala PIT). Wyjątki:
+   - **lokata** — Belka 19% pobierana co okres; silnik przelicza ROI na nominalne brutto i urealnia,
+   - **OKI** — ROI przed rocznym podatkiem od aktywów (0,85%),
+   - **gotówka** — ROI = `-inflacja`,
+   - **ZUS** — waloryzacja, nie ROI.
+
+   Przykład: lokata 5% realnie brutto, inflacja 0% → po Belce 19% zostaje 4,05% realnie. Przy inflacji 2,5% nominalne brutto ≈7,63%, po Belce ≈6,18% nominalnie, czyli ≈3,59% realnie. Nie ma zmienności rynku: 6% średnio nie znaczy 6% co roku.
 
 3. **Emerytura ZUS = kapitał ÷ ŚDTŻ(GUS).** Dla danego wieku emeryturę liczy się jako zgromadzony kapitał podzielony przez tablicę średniego dalszego trwania życia. Tablica jest **wspólna dla obu płci** (GUS publikuje jedną; zróżnicowanie usunął wyrok TK K 1/13) — płeć zmienia jedynie **wiek emerytalny: kobiety 60, mężczyźni 65**. Silnik nie sprawdza warunków stażowych ani nie wyrównuje do emerytury minimalnej — o tym tylko ostrzega.
 
@@ -80,8 +91,9 @@ Wszystkie kwoty w wynikach są **netto (po podatku)**. "Majątek" to suma sald n
 
 | Konto | Reżim podatkowy | Dostępność | Uwagi |
 |-------|-----------------|------------|-------|
-| Broker / krypto / lokata | Belka 19% od zysku | dowolna | podstawowe konta inwestycyjne |
-| Obligacje | Belka 19% od zysku | dowolna | realna marża ponad inflację |
+| Broker / krypto | Belka 19% od zysku przy wypłacie | dowolna | ROI brutto |
+| Lokata | Belka 19% co okres | dowolna | ROI brutto; podatek rozliczany w trakcie |
+| Obligacje | Belka 19% od zysku | dowolna | ROI brutto, realna marża ponad inflację |
 | Gotówka | brak | dowolna | domyślnie −2,5%/rok (inflacja) |
 | IKE | 0% po 60. r.ż. | od 60 | przed 60: Belka 19% od zysku |
 | IKZE | ryczałt 10% po 65. | od 65 | przed 65: skala PIT od całości zwrotu |
