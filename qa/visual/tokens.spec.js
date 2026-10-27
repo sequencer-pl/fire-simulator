@@ -1,11 +1,12 @@
 import { test, expect } from "@playwright/test";
 
-// Jedno źródło prawdy dla tokenów tła (decyzja: karty = --card-bg, insety/kontrole = --bg-elevated).
-const CARD_BG = "rgb(30, 33, 48)"; // #1e2130
-const ELEVATED = "rgb(34, 37, 58)"; // #22253a
+// Jedno źródło prawdy dla tokenów tła (DESIGN.md §1.3): strona = --bg,
+// karta = --surface, wkład na karcie / kontrolka = --surface-2.
+const SURFACE = "rgb(23, 26, 36)"; // #171a24
+const SURFACE_2 = "rgb(31, 35, 49)"; // #1f2331
 
 // Niektóre selektory renderują się dopiero ze stanem symulacji — czytamy computed
-// style z probe-elementu zastrzykniętego do DOM (stylomania dotyczy klasy globalnej).
+// style z probe-elementu zastrzykniętego do DOM (styl dotyczy klasy globalnej).
 const probe = (page, selector) =>
     page.evaluate((sel) => {
         const el = document.createElement("div");
@@ -16,32 +17,39 @@ const probe = (page, selector) =>
         return bg;
     }, selector);
 
-test("karty = --card-bg", async ({ page }) => {
-    await page.goto("/wizard", { waitUntil: "networkidle" });
-    for (const sel of [".stage-block", ".sim-card", ".config-section", ".summary-card", ".auth-panel", ".landing-card", ".recent-item", ".cmp-card"]) {
-        await expect.poll(() => probe(page, sel), { message: sel }).toBe(CARD_BG);
+test("karty = --surface", async ({ page }) => {
+    await page.goto("/sim", { waitUntil: "networkidle" });
+    for (const sel of [".card", ".stage-block", ".config-section", ".toolbar", ".action-bar"]) {
+        await expect.poll(() => probe(page, sel), { message: sel }).toBe(SURFACE);
     }
 });
 
-test("insety i kontrole = --bg-elevated", async ({ page }) => {
-    await page.goto("/wizard", { waitUntil: "networkidle" });
-    for (const sel of [".btn-secondary", ".account-toggle", ".col-toggle", ".stage-line", ".icon-btn", ".chart-detail"]) {
-        await expect.poll(() => probe(page, sel), { message: sel }).toBe(ELEVATED);
+test("wkłady i kontrolki = --surface-2", async ({ page }) => {
+    await page.goto("/sim", { waitUntil: "networkidle" });
+    for (const sel of [".card-inset", ".account-card", ".metric", ".btn-secondary", ".pill-toggle", ".chip", ".num-control", ".segmented", ".stage-line", ".banner"]) {
+        await expect.poll(() => probe(page, sel), { message: sel }).toBe(SURFACE_2);
     }
 });
 
-test("konfiguracja z treścią /sim", async ({ page }) => {
-    await page.goto("/sim?view=config", { waitUntil: "networkidle" });
-    await expect.poll(() => probe(page, ".config-section")).toBe(CARD_BG);
-    const selectBg = await page.evaluate(() => {
-        const wrap = document.createElement("div");
-        wrap.className = "config-section";
-        const sel = document.createElement("select");
-        wrap.appendChild(sel);
-        document.body.appendChild(wrap);
-        const bg = getComputedStyle(sel).backgroundColor;
-        wrap.remove();
-        return bg;
-    });
-    expect(selectBg).toBe(ELEVATED);
+test("brak kolorów poza tokens.css i brak emoji w JS", async ({ request }) => {
+    const files = ["base.css", "components.css", "landing.css", "library.css", "sim.css", "wizard.css"];
+    for (const f of files) {
+        const css = await (await request.get(`/static/css/${f}`)).text();
+        const stripped = css.replace(/url\("data:[^"]*"\)/g, "");
+        expect(stripped, `${f}: kolor hex poza tokens.css`).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
+        expect(stripped, `${f}: rgba() poza tokens.css`).not.toMatch(/rgba?\(/);
+    }
+    for (const f of ["sim-metadata.js", "sim-stages.js", "sim-cards.js", "wizard.js", "simulator.js", "simulations.js", "compare.js"]) {
+        const js = await (await request.get(`/static/js/${f}`)).text();
+        expect(js, `${f}: emoji w kodzie UI`).not.toMatch(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u);
+    }
+});
+
+test("rozmiary fontu tylko z tokenów (min 12 px)", async ({ request }) => {
+    const files = ["base.css", "components.css", "landing.css", "library.css", "sim.css", "wizard.css"];
+    for (const f of files) {
+        const css = await (await request.get(`/static/css/${f}`)).text();
+        const sizes = [...css.matchAll(/font-size:\s*([0-9.]+)(rem|px)/g)].map((m) => (m[2] === "px" ? Number(m[1]) : Number(m[1]) * 16));
+        for (const px of sizes) expect(px, `${f}: font-size ${px}px poniżej 12 px`).toBeGreaterThanOrEqual(11);
+    }
 });

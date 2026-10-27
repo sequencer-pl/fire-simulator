@@ -1,54 +1,60 @@
 {% extends "base.html" %}
 {% block title %}FIRE Simulator — Porównanie{% endblock %}
-{% block subtitle %}Porównywarka niezależności finansowej{% endblock %}
+{% block subtitle %}Porównanie scenariuszy{% endblock %}
 {% block section %}symulacje{% endblock %}
-{% block head_extra %}<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>{% endblock %}
+{% block head_extra %}<link rel="stylesheet" href="/static/css/library.css?v={{ version }}"><script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>{% endblock %}
 {% block content %}
-        <p style="margin-bottom:1rem;"><a href="/moje-symulacje" style="color:var(--accent);text-decoration:none;">← Moje symulacje</a></p>
-        <div id="errorMsg" class="warning-item hidden"></div>
+        <div class="page-head cmp-head">
+            <div>
+                <a href="/moje-symulacje" class="btn btn-ghost btn-sm cmp-back"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M11 18l-6-6 6-6"/></svg>Moje symulacje</a>
+                <h2 class="page-title">Porównanie</h2>
+                <p class="page-lead">Najlepsza wartość w każdym wierszu jest podświetlona. Kolory serii są takie same na wykresach, osi etapów i w tabelach.</p>
+            </div>
+        </div>
+        <div id="errorMsg" class="banner banner-danger hidden"></div>
 
-        <div id="cardsSection" class="hidden"></div>
+        <section id="cardsSection" class="cmp-cards hidden" aria-label="Porównywane symulacje"></section>
 
-        <div id="metricsSection" class="hidden">
-            <h2>Porównanie kluczowych wskaźników</h2>
+        <section id="metricsSection" class="cmp-section hidden">
+            <h3 class="section-title">Kluczowe wskaźniki</h3>
             <div class="table-wrap">
                 <table id="metricsTable">
                     <thead><tr></tr></thead>
                     <tbody></tbody>
                 </table>
             </div>
-        </div>
+        </section>
 
-        <div id="chartSection" class="hidden">
-            <h2>Majątek w czasie</h2>
-            <div class="chart-container">
-                <canvas id="wealthChart"></canvas>
+        <section id="chartSection" class="cmp-section hidden">
+            <h3 class="section-title">Majątek w czasie</h3>
+            <div class="card chart-card">
+                <div class="chart-container"><canvas id="wealthChart"></canvas></div>
             </div>
-        </div>
+        </section>
 
-        <div id="withdrawalSection" class="hidden">
-            <h2>Miesięczne wypłaty w czasie</h2>
-            <p class="subtitle">Wypłaty netto (po podatku) na miesiąc.</p>
-            <div class="chart-container">
-                <canvas id="withdrawalChart"></canvas>
+        <section id="withdrawalSection" class="cmp-section hidden">
+            <h3 class="section-title">Miesięczne wypłaty netto</h3>
+            <div class="card chart-card">
+                <div class="chart-container"><canvas id="withdrawalChart"></canvas></div>
             </div>
-        </div>
+        </section>
 
-        <div id="stagesSection" class="hidden">
-            <h2>Struktura etapów</h2>
-            <p class="subtitle">Porównanie faz akumulacji i realizacji w czasie.</p>
-            <div id="ganttContainer" class="cmp-gantt"></div>
-        </div>
+        <section id="stagesSection" class="cmp-section hidden">
+            <h3 class="section-title">Struktura etapów</h3>
+            <div class="card">
+                <div id="ganttContainer" class="cmp-gantt"></div>
+            </div>
+        </section>
 
-        <div id="milestonesSection" class="hidden">
-            <h2>Kamienie milowe</h2>
+        <section id="milestonesSection" class="cmp-section hidden">
+            <h3 class="section-title">Kamienie milowe</h3>
             <div class="table-wrap">
                 <table id="milestonesTable">
                     <thead><tr></tr></thead>
                     <tbody></tbody>
                 </table>
             </div>
-        </div>
+        </section>
 {% endblock %}
 {% block scripts %}
     <script src="/static/js/session.js?v={{ version }}"></script>

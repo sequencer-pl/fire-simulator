@@ -1,0 +1,314 @@
+/* library.css — Moje symulacje i Porównanie. Układ stron; klocki z components.css. */
+
+/* --- Nagłówek listy --- */
+
+.sims-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--sp-4);
+    flex-wrap: wrap;
+}
+
+.select-all {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-2);
+    font-size: var(--fs-sm);
+    color: var(--text-2);
+    cursor: pointer;
+}
+
+/* --- Karta symulacji --- */
+
+.sims-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-4);
+}
+
+.sims-list .card + .card { margin-top: 0; }
+
+.sim-card {
+    transition: border-color var(--t-fast), background var(--t-fast);
+    cursor: pointer;
+}
+
+.sim-card:hover { border-color: var(--border-strong); }
+
+.sim-card.is-selected {
+    border-color: var(--primary);
+    box-shadow: inset 0 0 0 1px var(--primary);
+}
+
+.sim-card-head {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+    margin-bottom: var(--sp-4);
+}
+
+.sim-card-check {
+    display: inline-flex;
+    flex-shrink: 0;
+}
+
+.sim-card-title {
+    flex: 1;
+    min-width: 0;
+}
+
+.sim-card-title h3 {
+    font-size: var(--fs-lg);
+    font-weight: 650;
+    line-height: 1.3;
+    overflow-wrap: anywhere;
+}
+
+.sim-card-date {
+    display: block;
+    color: var(--text-3);
+    font-size: var(--fs-sm);
+    margin-top: 2px;
+}
+
+.sim-card-actions {
+    flex-shrink: 0;
+    flex-wrap: nowrap;
+}
+
+.sim-card-info { margin-top: var(--sp-3); }
+
+.sim-timeline { margin-top: var(--sp-3); }
+
+/* --- Porównanie --- */
+
+.cmp-head .page-title { margin-top: var(--sp-2); }
+
+.cmp-back { margin-left: calc(-1 * var(--sp-3)); }
+
+.cmp-section { margin-top: var(--sp-8); }
+
+.cmp-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: var(--sp-4);
+}
+
+.cmp-cards .card + .card { margin-top: 0; }
+
+.cmp-card {
+    --series: var(--primary);
+    display: block;
+    color: inherit;
+    text-decoration: none;
+    border-top: 3px solid var(--series);
+    transition: border-color var(--t-fast), background var(--t-fast);
+}
+
+.cmp-card:hover {
+    text-decoration: none;
+    background: var(--surface-2);
+}
+
+.cmp-card-head {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    margin-bottom: var(--sp-3);
+}
+
+.cmp-swatch {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--series, var(--primary));
+    flex-shrink: 0;
+}
+
+.cmp-swatch-sm { width: 9px; height: 9px; }
+
+.cmp-th {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-2);
+    justify-content: flex-end;
+    max-width: 22ch;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.cmp-card-name {
+    flex: 1;
+    min-width: 0;
+    font-size: var(--fs-md);
+    font-weight: 650;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.cmp-card-metrics {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--sp-3);
+    margin-bottom: var(--sp-3);
+}
+
+.cmp-card-metrics dt {
+    font-size: var(--fs-xs);
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--text-3);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.cmp-card-metrics dd {
+    margin: 2px 0 0;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.chart-card { padding: var(--sp-4) var(--sp-5); }
+
+.chart-container {
+    position: relative;
+    width: 100%;
+    height: 340px;
+}
+
+td.col-name,
+th.col-name {
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    min-width: 170px;
+    max-width: 260px;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+}
+
+th.col-name { z-index: 3; background: var(--surface-2); }
+
+.table-group td.col-name { background: var(--surface-2); }
+
+tbody tr:hover td.col-name { background: var(--surface-hover); }
+
+.cmp-group-th { text-align: center; border-left: 1px solid var(--border); }
+
+.cmp-col-sub {
+    font-weight: 500;
+    letter-spacing: 0.03em;
+}
+
+/* --- Gantt --- */
+
+.cmp-gantt { overflow-x: auto; }
+
+.cmp-gantt-inner { min-width: 480px; }
+
+.cmp-gantt-row {
+    display: grid;
+    grid-template-columns: 180px 1fr;
+    gap: var(--sp-3);
+    align-items: center;
+    padding: var(--sp-2) 0;
+}
+
+.cmp-gantt-row + .cmp-gantt-row { border-top: 1px solid var(--border); }
+
+.cmp-gantt-axis-row { border-top: 0 !important; padding-top: 0; }
+
+.cmp-gantt-label {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    min-width: 0;
+    font-size: var(--fs-sm);
+    font-weight: 650;
+}
+
+.cmp-gantt-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.cmp-gantt-track {
+    position: relative;
+    height: 40px;
+    background: var(--surface-2);
+    border-radius: var(--r-sm);
+    overflow: hidden;
+}
+
+.cmp-gantt-segment {
+    position: absolute;
+    top: 4px;
+    bottom: 4px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 0 var(--sp-2);
+    border-radius: var(--r-sm);
+    font-size: var(--fs-xs);
+    line-height: 1.2;
+    overflow: hidden;
+    white-space: nowrap;
+    min-width: 3px;
+}
+
+.cmp-gantt-segment.accum {
+    background: var(--stage-accum-soft);
+    border: 1px solid color-mix(in srgb, var(--stage-accum) 50%, transparent);
+    color: var(--stage-accum);
+}
+
+.cmp-gantt-segment.real {
+    background: var(--stage-real-soft);
+    border: 1px solid color-mix(in srgb, var(--stage-real) 50%, transparent);
+    color: var(--stage-real);
+}
+
+.cmp-gantt-seg-label { font-weight: 650; }
+.cmp-gantt-seg-age { color: var(--text-2); font-variant-numeric: tabular-nums; }
+
+.cmp-gantt-age-axis {
+    position: relative;
+    height: 18px;
+    border-top: 1px solid var(--border);
+}
+
+.cmp-gantt-age-label {
+    position: absolute;
+    top: 3px;
+    transform: translateX(-50%);
+    font-size: var(--fs-xs);
+    color: var(--text-3);
+    font-variant-numeric: tabular-nums;
+}
+
+.cmp-gantt-age-label.is-last { transform: translateX(-100%); }
+
+.cmp-gantt-legend { margin-top: var(--sp-3); }
+
+@media (max-width: 900px) {
+    .cmp-gantt-row { grid-template-columns: 130px 1fr; }
+}
+
+@media (max-width: 640px) {
+    .sims-head .btn-row { width: 100%; }
+    .sims-head .btn-row .btn { flex: 1; }
+    .sim-card-head { flex-wrap: wrap; }
+    .sim-card-title { flex-basis: calc(100% - 40px); }
+    .sim-card-actions { width: 100%; justify-content: flex-end; }
+    .cmp-card-metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--sp-2); }
+    .chart-container { height: 260px; }
+    .cmp-gantt-row { grid-template-columns: 100px 1fr; }
+    td.col-name, th.col-name { min-width: 130px; }
+}

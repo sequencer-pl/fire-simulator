@@ -44,6 +44,7 @@ window.fetch = (url) => {
 
 const scripts = [
     "static/js/helpers.js",
+    "static/js/icons.js",
     "static/js/sim-metadata.js",
     "static/js/sim-utils.js",
     "static/js/controls.js",
@@ -242,8 +243,8 @@ const harness = `
         const assumpBox = document.querySelector(".wz-assumptions-options");
         return !!stratBox
             && !!assumpBox
-            && stratBox.querySelectorAll(".gender-option").length === 4
-            && assumpBox.querySelectorAll(".gender-option").length === 3;
+            && stratBox.querySelectorAll(".seg-option").length === 4
+            && assumpBox.querySelectorAll(".seg-option").length === 3;
     });
 
     // ---- Gotówka jako bufor: pełna pula roczna/miesięczna na starcie ----
@@ -456,13 +457,14 @@ const harness = `
             && note && note.hidden === false
             && panel && panel.classList.contains("hidden");
     });
-    check("strategie: 4 opcje z emoji (🛡️, ⚖️, 🚀, 🎛️)", () => {
-        const labelsOnes = document.querySelectorAll('.wz-alloc-strategy-options .gender-option');
+    check("strategie: 4 opcje segmented z ikonami SVG (bez emoji)", () => {
+        const labelsOnes = document.querySelectorAll('.wz-alloc-strategy-options .seg-option');
+        const texts = [...labelsOnes].map((l) => l.textContent.trim());
         return labelsOnes.length === 4
-            && [...labelsOnes].some((l) => l.textContent.includes("🛡️"))
-            && [...labelsOnes].some((l) => l.textContent.includes("⚖️") && l.textContent.includes("Zrównoważona"))
-            && [...labelsOnes].some((l) => l.textContent.includes("🚀"))
-            && [...labelsOnes].some((l) => l.textContent.includes("🎛️") && l.textContent.includes("Manualna"));
+            && [...labelsOnes].every((l) => l.querySelector("svg.icon"))
+            && !/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u.test(texts.join(""))
+            && texts.includes("Zrównoważona")
+            && texts.includes("Manualna");
     });
 
     // ---- Pkt 6: krok 4 (Cel i horyzont) ----
@@ -646,7 +648,7 @@ const harness = `
             && hero.includes("konserwatywnym")
             && digits(metrics).includes("4800")
             && digits(metrics).includes("4000")
-            && metrics.includes("✖ nieosiągnięty")
+            && metrics.includes("nieosiągnięty")
             && digits(solved).includes("15744")
             && solved.includes("nieosiągalny")
             && !warn.classList.contains("hidden")

@@ -230,3 +230,5 @@ fire.db-shm
 .secret_key
 # Kopie zapasowe bazy
 backups/
+qa/jsdom/node_modules
+qa/visual/node_modules

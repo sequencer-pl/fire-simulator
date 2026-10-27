@@ -1,20 +1,11 @@
 // sim-metadata.js — Account and stage registry data
 
-const ACCOUNT_ICONS = {
-    broker: "📈",
-    lokata: "🏦",
-    obligacje: "📜",
-    gotowka: "💵",
-    ike: "🐷",
-    ikze: "🧾",
-    oipe: "🎯",
-    ppk: "🏢",
-    ppe: "💼",
-    oki_inw: "📊",
-    oki_osk: "💰",
-    krypto: "₿",
-    zus: "🏛️",
-};
+// Ikony kont: liniowe SVG z icons.js (jeden język ikon w całej aplikacji).
+const ACCOUNT_ICON_NAMES = [
+    "broker", "lokata", "obligacje", "gotowka", "ike", "ikze", "oipe",
+    "ppk", "ppe", "oki_inw", "oki_osk", "krypto", "zus",
+];
+const ACCOUNT_ICONS = Object.fromEntries(ACCOUNT_ICON_NAMES.map((k) => [k, iconSvg(k)]));
 
 const ACCOUNT_LABELS = {
     broker: "Broker",

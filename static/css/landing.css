@@ -1,0 +1,165 @@
+/* landing.css — strona startowa i logowanie. Tylko układ; kolory i klocki z components.css. */
+
+.hero {
+    max-width: 720px;
+    padding: var(--sp-6) 0 var(--sp-4);
+}
+
+.hero h2 {
+    font-size: clamp(1.6rem, 3.4vw, 2.4rem);
+    margin: var(--sp-2) 0 var(--sp-3);
+    letter-spacing: -0.02em;
+}
+
+.hero-lead {
+    color: var(--text-2);
+    font-size: var(--fs-lg);
+    line-height: 1.5;
+    margin-bottom: var(--sp-5);
+}
+
+.landing-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--sp-4);
+    margin: var(--sp-6) 0 var(--sp-10);
+}
+
+.landing-grid .card + .card { margin-top: 0; }
+
+.landing-card {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--sp-4);
+}
+
+.landing-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border-radius: var(--r-md);
+    background: var(--primary-soft);
+    color: var(--primary);
+    flex-shrink: 0;
+}
+
+.landing-icon .icon { width: 22px; height: 22px; }
+
+.landing-card-text {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-1);
+    min-width: 0;
+}
+
+.landing-card-title {
+    font-size: var(--fs-lg);
+    font-weight: 650;
+}
+
+.landing-card-desc {
+    color: var(--text-2);
+    font-size: var(--fs-sm);
+    line-height: 1.5;
+}
+
+/* --- Ostatnie symulacje --- */
+
+.recent { margin-bottom: var(--sp-10); }
+
+.recent-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--sp-4);
+    margin-bottom: var(--sp-4);
+}
+
+.recent-head .section-title { margin-bottom: 0; }
+
+.recent-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-3);
+}
+
+.recent-list .card + .card { margin-top: 0; }
+
+.recent-item {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-4);
+    padding: var(--sp-4) var(--sp-5);
+}
+
+.recent-item-main {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-1);
+}
+
+.recent-item-name { font-weight: 650; }
+
+.recent-item-meta {
+    color: var(--text-3);
+    font-size: var(--fs-sm);
+}
+
+.recent-item-side {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    flex-shrink: 0;
+}
+
+.recent-item-value {
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.recent-item-arrow {
+    color: var(--text-3);
+    flex-shrink: 0;
+}
+
+/* --- Założenia --- */
+
+.principles-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--sp-4);
+}
+
+.principles-grid .card-inset + .card-inset { margin-top: 0; }
+
+.principles-grid p:last-child {
+    color: var(--text-2);
+    font-size: var(--fs-sm);
+    margin-top: var(--sp-2);
+}
+
+/* --- Logowanie --- */
+
+.login-section {
+    max-width: 420px;
+    margin: var(--sp-6) auto 0;
+}
+
+.login-head { text-align: center; }
+
+.login-head .page-lead { margin: var(--sp-2) auto 0; }
+
+@media (max-width: 900px) {
+    .principles-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 640px) {
+    .landing-grid { grid-template-columns: 1fr; }
+    .hero { padding-top: var(--sp-2); }
+    .hero-actions .btn { flex: 1 1 100%; }
+    .recent-item-side { display: none; }
+}

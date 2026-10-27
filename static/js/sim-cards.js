@@ -123,11 +123,11 @@ function createAccountCard(stageType, accountKey, accountData) {
         if (fieldDef.type === "gender") {
             const uid = "gender-" + accountKey + "-" + (++_genderCardSeq);
             fieldsHtml += `
-                <div class="field-group" ${visibleWhen}>
+                <div class="field" ${visibleWhen}>
                     <label>${fieldLabelHtml(fieldDef)}</label>
-                    <div class="gender-options">
-                        <label class="gender-option"><input type="radio" name="${uid}" value="k" /> K</label>
-                        <label class="gender-option"><input type="radio" name="${uid}" value="m" checked /> M</label>
+                    <div class="segmented gender-options">
+                        <label class="seg-option gender-option"><input type="radio" name="${uid}" value="k" /> Kobieta</label>
+                        <label class="seg-option gender-option"><input type="radio" name="${uid}" value="m" checked /> Mężczyzna</label>
                     </div>
                 </div>
             `;
@@ -136,10 +136,10 @@ function createAccountCard(stageType, accountKey, accountData) {
 
         if (fieldDef.type === "checkbox") {
             fieldsHtml += `
-                <div class="field-group field-checkbox" ${visibleWhen}>
+                <div class="field field-checkbox" ${visibleWhen}>
                     <label>${fieldLabelHtml(fieldDef)}</label>
                     <input type="checkbox"
-                           class="acc-field"
+                           class="acc-field switch"
                            data-account="${accountKey}"
                            data-key="${key}"
                            ${rawVal ? "checked" : ""} />
@@ -154,9 +154,9 @@ function createAccountCard(stageType, accountKey, accountData) {
                 .map((o) => `<option value="${o.value}" ${String(o.value) === selected ? "selected" : ""}>${o.label}</option>`)
                 .join("");
             fieldsHtml += `
-                <div class="field-group" ${visibleWhen}>
+                <div class="field" ${visibleWhen}>
                     <label>${fieldLabelHtml(fieldDef)}</label>
-                    <select class="acc-field"
+                    <select class="acc-field select"
                             data-account="${accountKey}"
                             data-key="${key}">${options}</select>
                 </div>
@@ -165,7 +165,7 @@ function createAccountCard(stageType, accountKey, accountData) {
         }
 
         fieldsHtml += `
-            <div class="field-group${isStartingBalance ? " starting-balance-field" : ""}" ${visibleWhen}>
+            <div class="field${isStartingBalance ? " starting-balance-field" : ""}" ${visibleWhen}>
                 <label>${fieldLabelHtml(fieldDef)}</label>
                 ${numControlsHtml({
                     type: fieldDef.type || "number",
@@ -184,8 +184,9 @@ function createAccountCard(stageType, accountKey, accountData) {
     const headerTip = tipLabelHtml(meta.label, meta.description, meta.url);
     card.innerHTML = `
         <div class="account-card-header">
+            <span class="account-card-icon">${ACCOUNT_ICONS[accountKey] || ""}</span>
             <h4>${headerTip}</h4>
-            <button type="button" class="remove-account-btn" title="Usuń konto" aria-label="Usuń konto ${escapeHtml(meta.label)}">&times;</button>
+            <button type="button" class="btn btn-ghost btn-icon btn-sm remove-account-btn" title="Usuń konto" aria-label="Usuń konto ${escapeHtml(meta.label)}">${iconSvg("x")}</button>
         </div>
         <div class="fields-row">${fieldsHtml}</div>
     `;
@@ -222,12 +223,16 @@ function createAccountCard(stageType, accountKey, accountData) {
         const toggle = stageBlock.querySelector(
             `.accounts-toggles .account-toggle[data-account="${accountKey}"]`
         );
-        if (toggle) toggle.classList.remove("active");
+        if (toggle) {
+            toggle.classList.remove("active");
+            toggle.setAttribute("aria-pressed", "false");
+        }
         updateStageName(stageBlock);
         const container = document.getElementById("stages-container");
         updateStageHints(container);
         if (stageTypeOf(stageBlock) === "akumulacja") refreshRealizationToggles(container);
     });
 
+    if (typeof _positionAllTips === "function") queueMicrotask(_positionAllTips);
     return card;
 }

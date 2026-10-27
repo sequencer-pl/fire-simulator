@@ -1,32 +1,56 @@
 {% extends "base.html" %}
 {% block title %}FIRE Simulator — Moje symulacje{% endblock %}
-{% block subtitle %}Biblioteka niezależności finansowej{% endblock %}
+{% block subtitle %}Biblioteka scenariuszy{% endblock %}
 {% block section %}symulacje{% endblock %}
+{% block head_extra %}<link rel="stylesheet" href="/static/css/library.css?v={{ version }}">{% endblock %}
 {% block content %}
         {% include "_auth_panel.html" %}
 
-        <!-- Lista symulacji -->
         <div id="simsPanel" class="hidden">
-            <div id="simsList" class="sims-list"></div>
-            <div id="simFooter" class="sim-footer">
-                <div class="sim-footer-left">
-                    <label class="sim-select-all-label">
-                        <input type="checkbox" id="selectAllCb" title="Zaznacz / odznacz wszystkie">
-                        <span id="compareCount" class="sim-count"></span>
-                    </label>
+            <div class="page-head sims-head">
+                <div>
+                    <h2 class="page-title">Moje symulacje</h2>
+                    <p class="page-lead" id="simsLead">Zaznacz od dwóch do czterech, aby je porównać.</p>
                 </div>
-                <div class="sim-footer-right">
-                    <button type="button" id="exportBtn" class="btn btn-secondary" disabled>Eksportuj zaznaczone</button>
-                    <button type="button" id="compareBtn" class="btn btn-secondary" disabled>Porównaj zaznaczone</button>
-                    <div class="sim-footer-divider"></div>
-                    <button type="button" id="deleteBulkBtn" class="btn btn-danger" disabled>Usuń zaznaczone</button>
+                <div class="btn-row">
+                    <a href="/wizard" class="btn btn-secondary">Asystent</a>
+                    <a href="/sim" class="btn btn-primary">Nowa symulacja</a>
                 </div>
             </div>
-            <div id="emptyState" class="empty-state empty-cta hidden">
-                <p>Nie masz jeszcze zapisanych symulacji. Stwórz pierwszą i sprawdź, jak wygląda Twoja droga do niezależności finansowej.</p>
-                <div class="empty-actions">
-                    <a href="/sim" class="btn btn-primary">Stwórz pierwszą symulację</a>
-                    <a href="/wizard" class="btn btn-gradient">Wypróbuj Asystenta</a>
+
+            <div class="toolbar sims-toolbar">
+                <div class="toolbar-left">
+                    <label class="select-all">
+                        <input type="checkbox" class="checkbox" id="selectAllCb" title="Zaznacz / odznacz wszystkie">
+                        <span>Zaznacz wszystkie</span>
+                    </label>
+                    <span id="compareCount" class="dim"></span>
+                </div>
+                <div class="toolbar-right">
+                    <span id="simsTotal" class="dim"></span>
+                </div>
+            </div>
+
+            <div id="simsList" class="sims-list"></div>
+
+            <div id="emptyState" class="empty-state hidden">
+                <h3>Nie masz jeszcze zapisanych symulacji</h3>
+                <p>Przejdź przez Asystenta albo zbuduj scenariusz w symulatorze i zapisz go tutaj.</p>
+                <div class="btn-row">
+                    <a href="/wizard" class="btn btn-primary">Wypróbuj Asystenta</a>
+                    <a href="/sim" class="btn btn-secondary">Otwórz symulator</a>
+                </div>
+            </div>
+
+            <div id="simFooter" class="action-bar hidden" role="region" aria-label="Akcje na zaznaczonych symulacjach">
+                <div class="action-bar-left">
+                    <button type="button" id="clearSelectionBtn" class="btn btn-ghost btn-sm">Odznacz</button>
+                </div>
+                <div class="action-bar-center" id="selectionLabel"></div>
+                <div class="action-bar-right">
+                    <button type="button" id="exportBtn" class="btn btn-secondary" disabled>Eksportuj</button>
+                    <button type="button" id="deleteBulkBtn" class="btn btn-danger" disabled>Usuń</button>
+                    <button type="button" id="compareBtn" class="btn btn-primary" disabled>Porównaj</button>
                 </div>
             </div>
         </div>

@@ -1,0 +1,1186 @@
+/* components.css — wspólne klocki całej aplikacji (DESIGN.md §3).
+   Strony składają z nich układ; nie definiują własnych kolorów ani rozmiarów. */
+
+/* --- Ikony --------------------------------------------------------------- */
+
+.icon {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+}
+
+.icon-sm { width: 16px; height: 16px; }
+.icon-lg { width: 26px; height: 26px; }
+
+/* --- Przyciski ----------------------------------------------------------- */
+
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--sp-2);
+    height: var(--control-h);
+    padding: 0 var(--sp-5);
+    border: 1px solid transparent;
+    border-radius: var(--r-md);
+    font-size: var(--fs-md);
+    font-weight: 600;
+    line-height: 1;
+    white-space: nowrap;
+    cursor: pointer;
+    text-decoration: none;
+    transition: background var(--t-fast), border-color var(--t-fast), color var(--t-fast);
+}
+
+.btn:hover { text-decoration: none; }
+
+.btn .icon { width: 18px; height: 18px; }
+
+.btn-primary {
+    background: var(--primary);
+    color: var(--on-primary);
+}
+
+.btn-primary:hover { background: var(--primary-hover); }
+
+.btn-secondary {
+    background: var(--surface-2);
+    border-color: var(--border);
+    color: var(--text);
+}
+
+.btn-secondary:hover {
+    background: var(--surface-hover);
+    border-color: var(--border-strong);
+}
+
+.btn-ghost {
+    background: transparent;
+    color: var(--text-2);
+}
+
+.btn-ghost:hover {
+    background: var(--surface-2);
+    color: var(--text);
+}
+
+.btn-danger {
+    background: transparent;
+    border-color: color-mix(in srgb, var(--danger) 40%, transparent);
+    color: var(--danger);
+}
+
+.btn-danger:hover {
+    background: var(--danger-soft);
+    border-color: var(--danger);
+}
+
+.btn-accum {
+    background: transparent;
+    border-color: color-mix(in srgb, var(--stage-accum) 45%, transparent);
+    color: var(--stage-accum);
+}
+
+.btn-accum:hover { background: var(--stage-accum-soft); border-color: var(--stage-accum); }
+
+.btn-real {
+    background: transparent;
+    border-color: color-mix(in srgb, var(--stage-real) 45%, transparent);
+    color: var(--stage-real);
+}
+
+.btn-real:hover { background: var(--stage-real-soft); border-color: var(--stage-real); }
+
+.btn-sm {
+    height: var(--control-h-sm);
+    padding: 0 var(--sp-3);
+    font-size: var(--fs-sm);
+}
+
+.btn-icon {
+    width: var(--control-h);
+    padding: 0;
+}
+
+.btn-icon.btn-sm { width: var(--control-h-sm); }
+
+.btn:disabled,
+.btn[aria-disabled="true"] {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.btn-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--sp-2);
+}
+
+/* --- Karty --------------------------------------------------------------- */
+
+.card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--r-lg);
+    padding: var(--sp-5);
+}
+
+.card + .card { margin-top: var(--sp-4); }
+
+.card-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--sp-3);
+    margin-bottom: var(--sp-4);
+}
+
+.card-title {
+    font-size: var(--fs-lg);
+    font-weight: 650;
+    line-height: 1.3;
+}
+
+.card-sub {
+    color: var(--text-2);
+    font-size: var(--fs-sm);
+    margin-top: 2px;
+}
+
+.card-inset {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+    padding: var(--sp-4);
+}
+
+.card-inset + .card-inset { margin-top: var(--sp-3); }
+
+.card-link {
+    display: block;
+    color: inherit;
+    text-decoration: none;
+    transition: border-color var(--t-fast), background var(--t-fast);
+}
+
+.card-link:hover {
+    text-decoration: none;
+    border-color: var(--border-strong);
+    background: var(--surface-2);
+}
+
+/* --- Toolbar (pasek nad listą / sekcją) -------------------------------------- */
+
+.toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: var(--sp-3);
+    padding: var(--sp-3) var(--sp-4);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--r-lg);
+    margin-bottom: var(--sp-4);
+}
+
+.toolbar-left,
+.toolbar-right {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--sp-2);
+    min-width: 0;
+}
+
+/* --- Metryki ---------------------------------------------------------------- */
+
+.metric-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+    overflow: hidden;
+}
+
+.metric {
+    background: var(--surface-2);
+    padding: var(--sp-3) var(--sp-4);
+    min-width: 0;
+}
+
+.metric-label {
+    display: block;
+    font-size: var(--fs-xs);
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--text-3);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.metric-value {
+    display: block;
+    margin-top: 2px;
+    font-size: var(--fs-lg);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.2;
+    white-space: nowrap;
+}
+
+.metric-note {
+    display: inline-block;
+    margin-left: var(--sp-2);
+    padding: 1px var(--sp-2);
+    border-radius: var(--r-pill);
+    background: var(--primary-soft);
+    color: var(--primary);
+    font-size: var(--fs-xs);
+    font-weight: 600;
+    vertical-align: middle;
+}
+
+.metric.is-positive .metric-value { color: var(--success); }
+.metric.is-negative .metric-value { color: var(--danger); }
+.metric.is-warning .metric-value { color: var(--warning); }
+.metric.is-muted .metric-value { color: var(--text-3); }
+
+.metric-grid.is-compact .metric { padding: var(--sp-2) var(--sp-3); }
+.metric-grid.is-compact .metric-value { font-size: var(--fs-md); }
+
+/* --- Banery --------------------------------------------------------------- */
+
+.banner {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--sp-3);
+    padding: var(--sp-3) var(--sp-4);
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+    background: var(--surface-2);
+    color: var(--text);
+    font-size: var(--fs-sm);
+    line-height: 1.5;
+}
+
+.banner + .banner { margin-top: var(--sp-2); }
+
+.banner > .icon {
+    margin-top: 1px;
+    color: var(--text-2);
+}
+
+.banner-body { min-width: 0; flex: 1; }
+
+.banner-title {
+    font-weight: 650;
+    margin-bottom: 2px;
+}
+
+.banner-list {
+    margin: 0;
+    padding-left: 1.1rem;
+}
+
+.banner-list li + li { margin-top: var(--sp-1); }
+
+.banner-info {
+    background: var(--primary-soft);
+    border-color: color-mix(in srgb, var(--primary) 35%, transparent);
+}
+
+.banner-info > .icon { color: var(--primary); }
+
+.banner-warn {
+    background: var(--warning-soft);
+    border-color: color-mix(in srgb, var(--warning) 35%, transparent);
+}
+
+.banner-warn > .icon { color: var(--warning); }
+
+.banner-danger {
+    background: var(--danger-soft);
+    border-color: color-mix(in srgb, var(--danger) 35%, transparent);
+}
+
+.banner-danger > .icon { color: var(--danger); }
+
+.banner-success {
+    background: var(--success-soft);
+    border-color: color-mix(in srgb, var(--success) 35%, transparent);
+}
+
+.banner-success > .icon { color: var(--success); }
+
+/* --- Stan pusty ------------------------------------------------------------ */
+
+.empty-state {
+    padding: var(--sp-8) var(--sp-6);
+    border: 1px dashed var(--border-strong);
+    border-radius: var(--r-lg);
+    text-align: center;
+    color: var(--text-2);
+}
+
+.empty-state .icon {
+    width: 36px;
+    height: 36px;
+    margin: 0 auto var(--sp-3);
+    color: var(--text-3);
+}
+
+.empty-state h3 {
+    color: var(--text);
+    margin-bottom: var(--sp-2);
+}
+
+.empty-state .btn-row {
+    justify-content: center;
+    margin-top: var(--sp-4);
+}
+
+/* --- Pola formularza ---------------------------------------------------------- */
+
+.field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-1);
+    min-width: 0;
+}
+
+.field-label,
+.field > label {
+    font-size: var(--fs-xs);
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--text-3);
+}
+
+.field-label-lg {
+    font-size: var(--fs-md);
+    font-weight: 600;
+    letter-spacing: 0;
+    text-transform: none;
+    color: var(--text);
+}
+
+.field-hint {
+    font-size: var(--fs-sm);
+    color: var(--text-2);
+}
+
+.field-row {
+    display: grid;
+    gap: var(--sp-4);
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.input,
+.select,
+input[type="text"].input,
+input[type="email"].input,
+input[type="password"].input {
+    height: var(--control-h);
+    width: 100%;
+    padding: 0 var(--sp-3);
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+    color: var(--text);
+    font-size: var(--fs-md);
+    transition: border-color var(--t-fast);
+}
+
+.input:focus,
+.select:focus {
+    outline: none;
+    border-color: var(--primary);
+}
+
+.select {
+    appearance: none;
+    padding-right: 2.25rem;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23a3a8bb' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+    background-repeat: no-repeat;
+    background-position: right 0.7rem center;
+    background-size: 16px;
+}
+
+.form-msg {
+    font-size: var(--fs-sm);
+    margin-top: var(--sp-1);
+}
+
+.form-msg.ok { color: var(--success); }
+.form-msg.err { color: var(--danger); }
+.form-msg.warn { color: var(--warning); }
+
+/* --- Kontrolka liczbowa (jedyna) -------------------------------------------- */
+
+.num-control {
+    display: flex;
+    align-items: stretch;
+    height: var(--control-h);
+    width: 100%;
+    max-width: 100%;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+    overflow: hidden;
+    transition: border-color var(--t-fast);
+}
+
+.num-control:focus-within { border-color: var(--primary); }
+.num-control.input-error { border-color: var(--danger); }
+
+.num-control .acc-field {
+    flex: 1;
+    min-width: 0;
+    width: 100%;
+    border: 0;
+    background: transparent;
+    color: var(--text);
+    text-align: center;
+    padding: 0 var(--sp-1);
+    font-variant-numeric: tabular-nums;
+}
+
+.num-control .acc-field:focus { outline: none; }
+
+.num-control .acc-field:disabled { color: var(--text-3); }
+
+.num-control .stepper,
+.pct-row .stepper {
+    flex-shrink: 0;
+    width: var(--control-h);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    background: transparent;
+    color: var(--text-2);
+    font-size: 1.1rem;
+    font-weight: 500;
+    line-height: 1;
+    cursor: pointer;
+    transition: background var(--t-fast), color var(--t-fast);
+}
+
+.num-control .stepper:hover,
+.pct-row .stepper:hover {
+    background: var(--primary-soft);
+    color: var(--primary);
+}
+
+.num-control .stepper:disabled {
+    opacity: 0.35;
+    cursor: default;
+}
+
+.num-control .stepper:disabled:hover {
+    background: transparent;
+    color: var(--text-2);
+}
+
+.num-control.is-compact {
+    height: var(--control-h-sm);
+}
+
+.num-control.is-compact .stepper { width: var(--control-h-sm); }
+
+.acc-field[type="number"]::-webkit-inner-spin-button,
+.acc-field[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+.acc-field[type="number"] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+}
+
+.field-unit {
+    align-self: center;
+    padding: 0 var(--sp-2);
+    color: var(--text-3);
+    font-size: var(--fs-sm);
+    white-space: nowrap;
+}
+
+/* --- Suwak ------------------------------------------------------------------- */
+
+input[type="range"].range,
+.wz-slider input[type="range"],
+.wz-alloc-range,
+.pct-slider-range {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 6px;
+    margin: 0;
+    border-radius: var(--r-pill);
+    background: var(--border);
+    outline: none;
+    cursor: pointer;
+    accent-color: var(--primary);
+}
+
+input[type="range"].range::-webkit-slider-thumb,
+.wz-slider input[type="range"]::-webkit-slider-thumb,
+.wz-alloc-range::-webkit-slider-thumb,
+.pct-slider-range::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--primary);
+    border: 2px solid var(--surface);
+    box-shadow: 0 0 0 1px var(--primary);
+    cursor: grab;
+}
+
+input[type="range"].range::-moz-range-thumb,
+.wz-slider input[type="range"]::-moz-range-thumb,
+.wz-alloc-range::-moz-range-thumb,
+.pct-slider-range::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--primary);
+    border: 2px solid var(--surface);
+    cursor: grab;
+}
+
+input[type="range"]:disabled {
+    opacity: 0.4;
+    cursor: default;
+}
+
+/* --- Przełącznik (checkbox jako switch) -------------------------------------- */
+
+.switch,
+.acc-field[type="checkbox"] {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 42px;
+    height: 24px;
+    border-radius: var(--r-pill);
+    background: var(--border-strong);
+    position: relative;
+    cursor: pointer;
+    transition: background var(--t-fast);
+    margin: 0;
+    flex-shrink: 0;
+}
+
+.switch::after,
+.acc-field[type="checkbox"]::after {
+    content: "";
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--text);
+    transition: left var(--t-fast);
+}
+
+.switch:checked,
+.acc-field[type="checkbox"]:checked { background: var(--primary); }
+
+.switch:checked::after,
+.acc-field[type="checkbox"]:checked::after {
+    left: 21px;
+    background: var(--on-primary);
+}
+
+.checkbox {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--primary);
+    cursor: pointer;
+}
+
+/* --- Segmented (jeden z kilku) -------------------------------------------------- */
+
+.segmented {
+    display: inline-flex;
+    width: 100%;
+    padding: 3px;
+    gap: 3px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+}
+
+.segmented.is-auto { width: auto; }
+
+.seg-option {
+    position: relative;
+    flex: 1 1 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--sp-2);
+    min-height: calc(var(--control-h) - 8px);
+    padding: 0 var(--sp-3);
+    border-radius: calc(var(--r-md) - 3px);
+    color: var(--text-2);
+    font-size: var(--fs-sm);
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background var(--t-fast), color var(--t-fast);
+    user-select: none;
+}
+
+.seg-option .icon { width: 16px; height: 16px; }
+
+.seg-option input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+    inset: 0;
+}
+
+.seg-option:hover { color: var(--text); }
+
+.seg-option:has(input:checked),
+.seg-option.active,
+.seg-option[aria-pressed="true"] {
+    background: var(--primary);
+    color: var(--on-primary);
+}
+
+.seg-option:has(input:focus-visible) {
+    outline: 2px solid var(--primary-ring);
+}
+
+.segmented.is-sm .seg-option {
+    min-height: calc(var(--control-h-sm) - 8px);
+    padding: 0 var(--sp-2);
+    font-size: var(--fs-xs);
+}
+
+@media (max-width: 640px) {
+    .segmented.segmented-stack {
+        flex-direction: column;
+    }
+
+    .segmented.segmented-stack .seg-option {
+        justify-content: flex-start;
+        white-space: normal;
+        padding: var(--sp-2) var(--sp-3);
+    }
+}
+
+/* --- Pigułka wyboru (konto / instrument) ----------------------------------------- */
+
+.pill-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sp-2);
+}
+
+.pill-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-2);
+    height: var(--control-h-sm);
+    padding: 0 var(--sp-3) 0 var(--sp-2);
+    border: 1px solid var(--border);
+    border-radius: var(--r-pill);
+    background: var(--surface-2);
+    color: var(--text-2);
+    font-size: var(--fs-sm);
+    font-weight: 600;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: border-color var(--t-fast), color var(--t-fast), background var(--t-fast);
+}
+
+.pill-toggle .icon { width: 16px; height: 16px; }
+
+.pill-toggle:hover {
+    color: var(--text);
+    border-color: var(--border-strong);
+}
+
+.pill-toggle.is-active,
+.pill-toggle.active,
+.pill-toggle[aria-pressed="true"] {
+    background: var(--primary-soft);
+    border-color: var(--primary);
+    color: var(--text);
+}
+
+.pill-toggle.is-active .icon,
+.pill-toggle.active .icon,
+.pill-toggle[aria-pressed="true"] .icon {
+    color: var(--primary);
+}
+
+.pill-toggle .pill-sub {
+    color: var(--text-3);
+    font-weight: 400;
+    font-size: var(--fs-xs);
+}
+
+.pill-toggle .tip { margin-left: 2px; }
+
+/* --- Chip (mała etykieta) ------------------------------------------------------- */
+
+.chip,
+.stage-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    height: 22px;
+    padding: 0 var(--sp-2);
+    border-radius: var(--r-sm);
+    border: 1px solid var(--border);
+    background: var(--surface-2);
+    color: var(--text-2);
+    font-size: var(--fs-xs);
+    font-weight: 600;
+    white-space: nowrap;
+    line-height: 1;
+}
+
+.chip .icon { width: 12px; height: 12px; }
+
+.chip-primary {
+    background: var(--primary-soft);
+    border-color: color-mix(in srgb, var(--primary) 40%, transparent);
+    color: var(--primary);
+}
+
+.chip-accum {
+    background: var(--stage-accum-soft);
+    border-color: color-mix(in srgb, var(--stage-accum) 40%, transparent);
+    color: var(--stage-accum);
+}
+
+.chip-real {
+    background: var(--stage-real-soft);
+    border-color: color-mix(in srgb, var(--stage-real) 40%, transparent);
+    color: var(--stage-real);
+}
+
+.chip-warn {
+    background: var(--warning-soft);
+    border-color: color-mix(in srgb, var(--warning) 40%, transparent);
+    color: var(--warning);
+}
+
+.chip-success {
+    background: var(--success-soft);
+    border-color: color-mix(in srgb, var(--success) 40%, transparent);
+    color: var(--success);
+}
+
+.chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sp-1) var(--sp-2);
+    align-items: center;
+}
+
+/* --- Oznaczenia etapów ----------------------------------------------------------- */
+
+.stage-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    background: var(--text-3);
+}
+
+.stage-dot.accum { background: var(--stage-accum); }
+.stage-dot.withdraw,
+.stage-dot.real { background: var(--stage-real); }
+
+.stage-label {
+    font-size: var(--fs-sm);
+    font-weight: 650;
+}
+
+.stage-label.accum { color: var(--stage-accum); }
+.stage-label.withdraw,
+.stage-label.real { color: var(--stage-real); }
+
+.stage-line {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--sp-1) var(--sp-2);
+    padding: var(--sp-2) var(--sp-3);
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+}
+
+.stage-line + .stage-line { margin-top: var(--sp-2); }
+
+.stage-age {
+    font-size: var(--fs-sm);
+    color: var(--text-3);
+    font-variant-numeric: tabular-nums;
+}
+
+.stage-finance {
+    margin-left: auto;
+    font-size: var(--fs-sm);
+    font-weight: 650;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+
+.stage-finance.accum { color: var(--stage-accum); }
+.stage-finance.withdraw,
+.stage-finance.real { color: var(--stage-real); }
+
+/* --- Pasek akcji (jeden) ---------------------------------------------------------- */
+
+.action-bar {
+    position: fixed;
+    left: 50%;
+    bottom: var(--sp-4);
+    transform: translateX(-50%);
+    z-index: 50;
+    width: min(var(--content-width), 100% - 2 * clamp(var(--sp-4), 4vw, var(--sp-8)));
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    gap: var(--sp-3);
+    min-height: var(--action-bar-h);
+    padding: var(--sp-3) var(--sp-4);
+    background: var(--surface);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--r-lg);
+    box-shadow: var(--shadow-pop);
+}
+
+.action-bar-left,
+.action-bar-center,
+.action-bar-right {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--sp-2);
+    min-width: 0;
+}
+
+.action-bar-left { justify-self: start; }
+.action-bar-center { justify-self: center; color: var(--text-2); font-size: var(--fs-sm); white-space: nowrap; }
+.action-bar-right { justify-self: end; justify-content: flex-end; }
+
+.action-bar .btn { margin: 0; }
+
+@media (max-width: 640px) {
+    .action-bar {
+        bottom: calc(var(--tabbar-h) + var(--sp-2) + env(safe-area-inset-bottom));
+        width: calc(100% - 2 * var(--sp-3));
+        grid-template-columns: auto 1fr auto;
+        padding: var(--sp-2) var(--sp-3);
+        min-height: 60px;
+    }
+
+    .action-bar .btn { height: var(--control-h-sm); padding: 0 var(--sp-3); font-size: var(--fs-sm); }
+    .action-bar .btn .btn-label-long { display: none; }
+}
+
+/* --- Tabele ------------------------------------------------------------------------ */
+
+.table-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+    background: var(--surface);
+}
+
+table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: var(--fs-sm);
+}
+
+th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    text-align: left;
+    padding: var(--sp-2) var(--sp-3);
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--border);
+    color: var(--text-3);
+    font-size: var(--fs-xs);
+    font-weight: 650;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+td {
+    padding: var(--sp-2) var(--sp-3);
+    border-bottom: 1px solid var(--border);
+    font-variant-numeric: tabular-nums;
+    vertical-align: middle;
+}
+
+tbody tr:last-child td { border-bottom: 0; }
+
+tbody tr:hover td { background: var(--surface-hover); }
+
+.amount { text-align: right; }
+
+th.amount { text-align: right; }
+
+td.best {
+    color: var(--success);
+    font-weight: 700;
+}
+
+.table-group td {
+    background: var(--surface-2);
+    color: var(--text-3);
+    font-size: var(--fs-xs);
+    font-weight: 650;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+tbody tr.table-group:hover td { background: var(--surface-2); }
+
+/* --- Dymek (tooltip) --------------------------------------------------------------- */
+
+.tip {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    border: 1px solid var(--border-strong);
+    color: var(--text-3);
+    font-size: 0.6875rem;
+    font-weight: 700;
+    line-height: 1;
+    cursor: help;
+    vertical-align: middle;
+    flex-shrink: 0;
+    outline: none;
+    transition: color var(--t-fast), border-color var(--t-fast);
+}
+
+.tip:hover,
+.tip:focus {
+    color: var(--primary);
+    border-color: var(--primary);
+}
+
+.tip .tooltip {
+    position: absolute;
+    z-index: 70;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%) translateY(4px);
+    width: max-content;
+    max-width: min(320px, calc(100vw - 2rem));
+    padding: var(--sp-2) var(--sp-3);
+    border-radius: var(--r-md);
+    background: var(--surface-hover);
+    border: 1px solid var(--border-strong);
+    color: var(--text);
+    font-size: var(--fs-sm);
+    font-weight: 400;
+    line-height: 1.45;
+    text-align: left;
+    white-space: normal;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity var(--t-fast), transform var(--t-fast);
+    pointer-events: none;
+    box-shadow: var(--shadow-pop);
+}
+
+.tip .tooltip a {
+    color: var(--primary);
+    text-decoration: underline;
+    white-space: nowrap;
+}
+
+.tip:hover .tooltip,
+.tip:focus .tooltip,
+.tip:focus-within .tooltip {
+    opacity: 1;
+    visibility: visible;
+    transform: translateX(-50%) translateY(0);
+    pointer-events: auto;
+}
+
+.tip.is-positioned .tooltip {
+    bottom: auto;
+    transform: none;
+}
+
+.tip-label-row {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    width: 100%;
+    min-width: 0;
+}
+
+.tip-label-text {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.tip-label-row > .tip {
+    flex: 0 0 auto;
+    margin-left: auto;
+}
+
+/* --- Pasek postępu ------------------------------------------------------------------- */
+
+.progress {
+    height: 6px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--r-pill);
+    overflow: hidden;
+}
+
+.progress-bar {
+    height: 100%;
+    width: 0;
+    background: var(--primary);
+    border-radius: var(--r-pill);
+    transition: width 0.35s ease;
+}
+
+/* --- Panel logowania ------------------------------------------------------------------ */
+
+.auth-panel {
+    max-width: 420px;
+    margin: 0 auto var(--sp-6);
+}
+
+.auth-tabs { margin-bottom: var(--sp-5); }
+
+.auth-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-4);
+}
+
+.auth-form .btn { margin-top: var(--sp-2); }
+
+/* --- Ładowanie --------------------------------------------------------------------------- */
+
+.spinner {
+    width: 22px;
+    height: 22px;
+    border: 3px solid var(--border);
+    border-top-color: var(--primary);
+    border-radius: 50%;
+    flex-shrink: 0;
+    animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+.loader {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+}
+
+.loader-body {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    font-size: var(--fs-sm);
+}
+
+.loader-sub { color: var(--text-2); }
+
+/* --- Przyciski limitów (MAX) ------------------------------------------------------------- */
+
+.max-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sp-1);
+}
+
+.max-btn {
+    height: 22px;
+    padding: 0 var(--sp-2);
+    border: 1px solid color-mix(in srgb, var(--primary) 40%, transparent);
+    border-radius: var(--r-pill);
+    background: var(--primary-soft);
+    color: var(--primary);
+    font-size: var(--fs-xs);
+    font-weight: 600;
+    line-height: 1;
+    cursor: pointer;
+    transition: background var(--t-fast);
+}
+
+.max-btn:hover { background: color-mix(in srgb, var(--primary) 24%, transparent); }
+
+.max-btn.active {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: var(--on-primary);
+}
+
+/* --- Wykresy SVG (wspólny motyw) ------------------------------------------------------------ */
+
+.chart-svg {
+    width: 100%;
+    height: auto;
+    max-height: 360px;
+    display: block;
+}
+
+.chart-svg .grid-lines line { stroke: var(--border); stroke-width: 1; }
+.chart-svg .axis-text { fill: var(--text-3); font-size: 12px; font-family: var(--font); }
+.chart-svg .chart-line { stroke-width: 2.5; vector-effect: non-scaling-stroke; fill: none; }
+.chart-svg .chart-area { opacity: 0.12; }
+.chart-svg .chart-dot { stroke: var(--bg); stroke-width: 1.5; cursor: pointer; transition: r var(--t-fast); }
+.chart-svg .chart-dot:hover { r: 6; }
+.chart-svg .chart-dot.active { r: 7; stroke: var(--text); stroke-width: 2; }
+
+.chart-title {
+    font-size: var(--fs-sm);
+    font-weight: 650;
+    color: var(--text-2);
+    margin-bottom: var(--sp-2);
+}
+
+@media (max-width: 640px) {
+    .metric-label { white-space: normal; }
+    .metric-value { white-space: normal; }
+}
+
+.btn .btn-label-short { display: none; }
+
+@media (max-width: 640px) {
+    .btn .btn-label-long { display: none; }
+    .btn .btn-label-short { display: inline; }
+}

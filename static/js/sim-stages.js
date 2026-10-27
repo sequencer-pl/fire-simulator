@@ -148,21 +148,26 @@ function renderAccountToggles(stageBlock) {
         if (stageType === "realizacja" && !activeAccounts.has(key) && !accumulated.has(key)) continue;
         const btn = document.createElement("button");
         btn.type = "button";
-        btn.className = "account-toggle" + (activeAccounts.has(key) ? " active" : "");
+        const isActive = activeAccounts.has(key);
+        btn.className = "pill-toggle account-toggle" + (isActive ? " active" : "");
         btn.dataset.account = key;
-        const icon = `<span class="account-icon">${ACCOUNT_ICONS[key] || "?"}</span>`;
+        btn.setAttribute("aria-pressed", String(isActive));
+        const icon = ACCOUNT_ICONS[key] || iconSvg("info");
         const tip = meta.description
             ? tipHtml(meta.description, meta.url, "?")
             : "";
         btn.innerHTML = `${icon}<span class="account-toggle-label">${meta.label}</span>${tip}`;
 
-        btn.addEventListener("click", () => {
+        btn.addEventListener("click", (e) => {
+            if (e.target.closest(".tip")) return;
             if (btn.classList.contains("active")) {
                 btn.classList.remove("active");
+                btn.setAttribute("aria-pressed", "false");
                 const existing = accountsContainer.querySelector(`[data-account="${key}"]`);
                 if (existing) accountsContainer.removeChild(existing);
             } else {
                 btn.classList.add("active");
+                btn.setAttribute("aria-pressed", "true");
                 const card = createAccountCard(stageType, key, {});
                 if (card) accountsContainer.appendChild(card);
             }
@@ -195,22 +200,23 @@ function createStageBlock(defaults) {
         block.dataset.withdrawalTargetMonthly = String(defaults.withdrawal_target_monthly);
     }
 
+    const kindChip = stageKindClass(stageType) === "stage-realizacja" ? "chip-real" : "chip-accum";
     block.innerHTML = `
         <div class="stage-handle">
-            <span class="stage-grip" title="Przeciągnij, aby zmienić kolejność">⠿</span>
-            <span class="stage-type-badge ${stageKindClass(stageType)}">${cfg.label || stageType}</span>
-            <div class="stage-handle-actions">
-                <button type="button" class="move-btn move-up" title="Przesuń w górę">&uarr;</button>
-                <button type="button" class="move-btn move-down" title="Przesuń w dół">&darr;</button>
-                <button type="button" class="remove-btn" title="Usuń etap">&times;</button>
+            <span class="stage-grip" title="Przeciągnij, aby zmienić kolejność">${iconSvg("grip")}</span>
+            <span class="chip ${kindChip} stage-type-badge ${stageKindClass(stageType)}">${cfg.label || stageType}</span>
+            <div class="stage-handle-actions btn-row">
+                <button type="button" class="btn btn-ghost btn-icon btn-sm move-btn move-up" title="Przesuń w górę" aria-label="Przesuń w górę">${iconSvg("up")}</button>
+                <button type="button" class="btn btn-ghost btn-icon btn-sm move-btn move-down" title="Przesuń w dół" aria-label="Przesuń w dół">${iconSvg("down")}</button>
+                <button type="button" class="btn btn-ghost btn-icon btn-sm remove-btn" title="Usuń etap" aria-label="Usuń etap">${iconSvg("x")}</button>
             </div>
         </div>
         <div class="stage-header">
-            <div class="field-group">
+            <div class="field stage-name-field">
                 <label>Nazwa</label>
-                <input type="text" class="stage-name" value="${defaults?.name || cfg.label || ""}" />
+                <input type="text" class="input stage-name" value="${defaults?.name || cfg.label || ""}" />
             </div>
-            <div class="field-group">
+            <div class="field">
                 <label>Wiek start</label>
                 ${numControlsHtml({
                     value: defaults?.start_age ?? 40,
@@ -220,7 +226,7 @@ function createStageBlock(defaults) {
                     aria: "wiek start",
                 })}
             </div>
-            <div class="field-group">
+            <div class="field">
                 <label>${tipLabelHtml("Wiek koniec", "Wiek końca etapu (wyłączny) — etap obejmuje lata od wieku start do wieku koniec minus 1.")}</label>
                 ${numControlsHtml({
                     value: defaults?.end_age ?? 60,
@@ -231,9 +237,12 @@ function createStageBlock(defaults) {
                 })}
             </div>
         </div>
-        <div class="accounts-toggles"></div>
+        <div class="field accounts-field">
+            <label>Konta w tym etapie</label>
+            <div class="accounts-toggles pill-grid"></div>
+        </div>
         <div class="accounts-grid"></div>
-        <div class="stage-hint hidden"></div>
+        <div class="stage-hint banner hidden"></div>
     `;
 
     const handle = block.querySelector(".stage-handle");
@@ -264,21 +273,28 @@ function createStageBlock(defaults) {
 
 function renderStageHints(hintEl, hints) {
     if (!hintEl) return;
-    hintEl.classList.remove("error");
+    hintEl.classList.remove("error", "banner-warn", "banner-danger", "banner-info");
     hintEl.innerHTML = "";
     if (!hints.length) {
         hintEl.classList.add("hidden");
         return;
     }
+    const levels = hints.map((h) => h.level || "info");
+    const top = levels.includes("error") ? "danger" : levels.includes("warning") ? "warn" : "info";
+    hintEl.classList.add("banner-" + top);
+    hintEl.insertAdjacentHTML("afterbegin", iconSvg(top === "warn" ? "warning" : top));
+    const body = document.createElement("div");
+    body.className = "banner-body";
     const list = document.createElement("ul");
-    list.className = "stage-hint-list";
+    list.className = "stage-hint-list banner-list";
     hints.forEach((h) => {
         const li = document.createElement("li");
         li.className = "hint-" + (h.level || "info");
         li.textContent = h.text;
         list.appendChild(li);
     });
-    hintEl.appendChild(list);
+    body.appendChild(list);
+    hintEl.appendChild(body);
     hintEl.classList.remove("hidden");
 }
 
@@ -514,6 +530,9 @@ function updateStageHints(container) {
     }
     const valid = validateStageOrder(container);
     updateSimulateButton(valid);
+    // Kotwiczymy dymki dopiero, gdy bloki są w dokumencie (poprawne wymiary),
+    // żeby ukryte podpowiedzi nie poszerzały strony.
+    if (typeof _positionAllTips === "function") _positionAllTips();
 }
 
 // Miękka blokada: etap realizacji nie może zaczynać się przed końcem akumulacji.
@@ -540,20 +559,25 @@ function validateStageOrder(container) {
         if (startControl) startControl.classList.add("input-error");
         if (hint) {
             const msg = `Etap realizacji musi zaczynać się ≥ ${lastEnd} r.ż. (koniec akumulacji).`;
-            if (hint.firstChild) {
-                const li = document.createElement("li");
-                li.className = "hint-error";
-                li.textContent = msg;
-                hint.firstChild.appendChild(li);
+            const existing = hint.querySelector(".stage-hint-list");
+            const li = document.createElement("li");
+            li.className = "hint-error";
+            li.textContent = msg;
+            if (existing) {
+                existing.appendChild(li);
             } else {
+                hint.innerHTML = "";
+                hint.insertAdjacentHTML("afterbegin", iconSvg("danger"));
+                const body = document.createElement("div");
+                body.className = "banner-body";
                 const list = document.createElement("ul");
-                list.className = "stage-hint-list";
-                const li = document.createElement("li");
-                li.className = "hint-error";
-                li.textContent = msg;
+                list.className = "stage-hint-list banner-list";
                 list.appendChild(li);
-                hint.appendChild(list);
+                body.appendChild(list);
+                hint.appendChild(body);
             }
+            hint.classList.remove("banner-info", "banner-warn");
+            hint.classList.add("banner-danger");
             hint.classList.remove("hidden");
         }
     });
@@ -752,6 +776,7 @@ function initDragDrop(container) {
 
 function initStageEventHandlers(container) {
     document.getElementById("addAccumulationBtn").addEventListener("click", () => addAccumulationStage(container));
+    document.getElementById("emptyAddAccumulationBtn")?.addEventListener("click", () => addAccumulationStage(container));
 
     document.getElementById("addRealizationBtn").addEventListener("click", () => {
         const blocks = getStageBlocks(container);

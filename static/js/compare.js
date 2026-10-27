@@ -1,8 +1,20 @@
-const COLORS = ["#00cec9", "#6c5ce7", "#e17055", "#00b894", "#f1c40f"];
-const GRID_COLOR = "rgba(255,255,255,0.06)";
-const TEXT_DIM = "#636e72";
+// compare.js — porównanie 2–4 zapisanych symulacji (karty legendy, tabela, wykresy, gantt, kamienie milowe).
+// $, show, escapeHtml, fmtMoney, iconSvg — wspólne helpery z base.html.
 
-// $, show, escapeHtml, fmtMoney — wspólne helpery z helpers.js (base.html).
+function cssVar(name) {
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+
+const SERIES = () => [1, 2, 3, 4, 5].map((i) => cssVar(`--series-${i}`));
+
+function seriesColor(i) {
+    const list = SERIES();
+    return list[i % list.length];
+}
+
+function withAlpha(color, alpha) {
+    return `color-mix(in srgb, ${color} ${Math.round(alpha * 100)}%, transparent)`;
+}
 
 function fmtPct(v) {
     if (v == null) return "—";
@@ -44,21 +56,28 @@ function valueAt(sim, age) {
     return best ? { age: best.age, wealth: best.total_wealth, monthly: best.monthly_withdrawal, tax: best.tax_paid } : null;
 }
 
-/* ── Chart.js defaults for dark theme ─────────────────────────── */
+/* ── Chart.js — motyw z tokenów ───────────────────────────────── */
 
 function chartDefaults() {
+    const text3 = cssVar("--text-3");
+    const border = cssVar("--border");
     return {
         responsive: true,
         maintainAspectRatio: false,
         interaction: { mode: "index", intersect: false },
         plugins: {
-            legend: { display: false },
+            legend: {
+                display: true,
+                position: "top",
+                align: "end",
+                labels: { color: cssVar("--text-2"), boxWidth: 10, boxHeight: 10, usePointStyle: true, pointStyle: "circle", font: { size: 12 } },
+            },
             tooltip: {
-                backgroundColor: "#1a1d2e",
-                borderColor: "rgba(255,255,255,0.1)",
+                backgroundColor: cssVar("--surface-hover"),
+                borderColor: cssVar("--border-strong"),
                 borderWidth: 1,
-                titleColor: "#dfe6e9",
-                bodyColor: "#b2bec3",
+                titleColor: cssVar("--text"),
+                bodyColor: cssVar("--text-2"),
                 bodySpacing: 4,
                 padding: 10,
                 cornerRadius: 8,
@@ -67,13 +86,13 @@ function chartDefaults() {
         },
         scales: {
             x: {
-                grid: { color: GRID_COLOR },
-                ticks: { color: TEXT_DIM, font: { size: 11 } },
-                title: { display: true, text: "Wiek (r.ż.)", color: TEXT_DIM, font: { size: 12 } },
+                grid: { color: border },
+                ticks: { color: text3, font: { size: 11 }, maxTicksLimit: 14 },
+                title: { display: true, text: "Wiek (r.ż.)", color: text3, font: { size: 12 } },
             },
             y: {
-                grid: { color: GRID_COLOR },
-                ticks: { color: TEXT_DIM, font: { size: 11 } },
+                grid: { color: border },
+                ticks: { color: text3, font: { size: 11 } },
             },
         },
     };
@@ -94,7 +113,7 @@ async function loadCompare() {
 
 function showError(msg) {
     const el = $("errorMsg");
-    el.textContent = "! " + msg;
+    el.innerHTML = `${iconSvg("danger")}<div class="banner-body">${escapeHtml(msg)}</div>`;
     show("errorMsg", true);
 }
 
@@ -114,104 +133,45 @@ function render(sims) {
     initTipAnchoring();
 }
 
-/* ── Section 2: Simulation cards (home-page style) ────────────── */
+/* ── Karty legendy (kompaktowe) ───────────────────────────────── */
 
 function renderCards(sims) {
     const el = $("cardsSection");
     el.innerHTML = "";
 
     sims.forEach((s, i) => {
-        const c = COLORS[i % COLORS.length];
+        const c = seriesColor(i);
         const sum = s.summary || {};
-        const stages = sum.stages || [];
         const mult = roiMultiple(s);
-
-        const card = document.createElement("div");
-        card.className = "sim-card cmp-color-card";
-        card.style.borderColor = c;
-
-        /* --- header --- */
-        let headHtml = `
-            <div class="sim-card-head">
-                <div class="cmp-color-dot" style="background:${c}"></div>
-                <div class="sim-card-title">
-                    <h3>${escapeHtml(s.name)}</h3>
-                    <span class="sim-card-date">${mult != null ? `×${mult.toFixed(1)} mnożnik` : ""}</span>
-                </div>
-            </div>`;
-
-        /* --- metrics (same 5-column grid as home page) --- */
-        let metricsHtml = `<div class="sim-card-metrics">
-            <div class="sim-metric"><span class="sim-metric-value purple">${fmtMoney(sum.initial_capital)}</span><span class="sim-metric-label">Kapitał początkowy</span></div>
-            <div class="sim-metric"><span class="sim-metric-value primary">${fmtMoney(sum.total_user_contributions)}</span><span class="sim-metric-label">Wpłaty własne</span></div>
-            <div class="sim-metric"><span class="sim-metric-value green">${fmtMoney(sum.peak_wealth)}</span><span class="sim-metric-label">Szczyt</span></div>
-            <div class="sim-metric"><span class="sim-metric-value">${fmtMoney(sum.final_wealth)}</span><span class="sim-metric-label">Na koniec</span></div>
-            <div class="sim-metric"><span class="sim-metric-value accent">${fmtMoney(sum.total_withdrawn)}</span><span class="sim-metric-label">Wypłaty netto</span></div>
-            <div class="sim-metric"><span class="sim-metric-value ${sum.total_tax < 0 ? 'green' : 'red'}">${fmtMoney(sum.total_tax)}</span><span class="sim-metric-label">Podatki</span></div>
-        </div>`;
-
-        /* --- info line --- */
-        let infoParts = [];
-        if (sum.start_age != null && sum.end_age != null)
-            infoParts.push(`${sum.start_age}→${sum.end_age} r.ż.`);
-        if (sum.years) infoParts.push(`${sum.years} lat`);
-        if (sum.accounts && sum.accounts.length)
-            infoParts.push(`${sum.accounts.length} kont`);
-        if (sum.has_pension) infoParts.push("emerytura ZUS");
+        const avg = avgMonthly(s);
+        const card = document.createElement("a");
+        card.className = "card cmp-card";
+        card.href = "/sim?id=" + s.id;
+        card.style.setProperty("--series", c);
+        const info = [];
+        if (sum.start_age != null && sum.end_age != null) info.push(`${sum.start_age}–${sum.end_age} r.ż.`);
         const effInfl = s.input?.inflation ?? s.input?.config?.inflation;
-        if (effInfl != null) {
-            const isOverride = s.input?.inflation != null;
-            infoParts.push(`inflacja ${(effInfl*100).toFixed(1)}%${isOverride ? "" : " (global)"}`);
-        }
-        const gender = s.input?.gender;
-        if (gender) infoParts.push(`płeć ${gender === "k" ? "K" : "M"}`);
-        if (s.input?.monthly_gross) infoParts.push(`${Math.round(s.input.monthly_gross).toLocaleString("pl-PL")} zł brutto`);
-        let infoHtml = "";
-        if (infoParts.length || sum.warnings) {
-            infoHtml = `<div class="sim-card-info"><span>${infoParts.join(" · ")}</span>`;
-            if (sum.warnings) infoHtml += `<span class="warn">⚠ ${sum.warnings} ostrzeż.</span>`;
-            infoHtml += `</div>`;
-        }
-
-        /* --- stages timeline (same as home page) --- */
-        let stagesHtml = "";
-        if (stages.length > 0) {
-            stagesHtml = `<div class="sim-card-stages"><div class="sim-timeline">`;
-            stages.forEach((st) => {
-                const kind = /akumulacja/i.test(st.label) ? "accum" : "withdraw";
-                const accounts = (st.accounts || [])
-                    .map(a => `<span class="sim-acc-pill">${escapeHtml(a)}</span>`)
-                    .join("");
-                let financeHtml = "";
-                if (st.monthly_contribution) {
-                    financeHtml = `<span class="sim-timeline-finance accum">~${fmtMoney(st.monthly_contribution)}/mies.</span>`;
-                } else if (st.avg_monthly_withdrawal) {
-                    financeHtml = `<span class="sim-timeline-finance withdraw">~${fmtMoney(st.avg_monthly_withdrawal)}/mies.</span>`;
-                }
-                stagesHtml += `
-                    <div class="sim-timeline-row">
-                        <div class="sim-timeline-marker">
-                            <div class="sim-timeline-dot ${kind === "withdraw" ? "realizacja" : ""}"></div>
-                            <div class="sim-timeline-line"></div>
-                        </div>
-                        <div class="sim-timeline-body">
-                            <span class="sim-timeline-label ${kind}">${escapeHtml(st.label)}</span>
-                            <span class="sim-timeline-age">${st.start_age}→${st.end_age} r.ż.</span>
-                            ${accounts}
-                            ${financeHtml}
-                        </div>
-                    </div>`;
-            });
-            stagesHtml += `</div></div>`;
-        }
-
-        card.innerHTML = headHtml + metricsHtml + infoHtml + stagesHtml;
+        if (effInfl != null) info.push(`inflacja ${(effInfl * 100).toFixed(1)}%`);
+        if (sum.has_pension) info.push("ZUS");
+        card.innerHTML = `
+            <div class="cmp-card-head">
+                <span class="cmp-swatch" aria-hidden="true"></span>
+                <h3 class="cmp-card-name">${escapeHtml(s.name)}</h3>
+                ${mult != null ? `<span class="chip chip-primary" title="Suma wypłat netto / (kapitał początkowy + wpłaty własne)">×${mult.toFixed(1)}</span>` : ""}
+            </div>
+            <dl class="cmp-card-metrics">
+                <div><dt>Wypłata mies.</dt><dd>${fmtMoney(avg)}</dd></div>
+                <div><dt>Szczyt majątku</dt><dd>${fmtMoney(sum.peak_wealth)}</dd></div>
+                <div><dt>Podatki</dt><dd>${fmtMoney(sum.total_tax)}</dd></div>
+            </dl>
+            <div class="chip-row">${info.map((t) => `<span class="chip">${escapeHtml(t)}</span>`).join("")}${sum.warnings ? `<span class="chip chip-warn">${iconSvg("warning")}${sum.warnings}</span>` : ""}</div>
+        `;
         el.appendChild(card);
     });
     show("cardsSection", true);
 }
 
-/* ── Section 3: Metrics comparison table ───────────────────────── */
+/* ── Tabela wskaźników ─────────────────────────────────────────── */
 
 const METRIC_GROUPS = [
     { label: "Majątek", metrics: [
@@ -233,13 +193,13 @@ const METRIC_GROUPS = [
           hint: "Udział wypłat netto w sumie wypłat brutto (netto + podatek). Im wyższy, tym mniej podatku." },
     ]},
     { label: "Inne", metrics: [
-        { key: "initial_capital", label: "Kapitał początkowy", money: true, better: "max",
+        { key: "initial_capital", label: "Kapitał początkowy", money: true, better: null,
           hint: "Suma sald startowych wszystkich kont (pierwsze wystąpienie chronologicznie)." },
-        { key: "total_user_contributions", label: "Wpłaty własne", money: true, better: "max",
+        { key: "total_user_contributions", label: "Wpłaty własne", money: true, better: null,
           hint: "Suma wpłat własnych (roczne + PPK pracownicze) przez cały okres symulacji." },
         { key: "roi_mult", label: "Mnożnik", mult: true, better: "max",
           hint: "Ile razy suma wypłat netto przewyższa łączne zainwestowane środki (kapitał początkowy + wpłaty własne)." },
-        { key: "years", label: "Lata symulacji", money: false, better: "max",
+        { key: "years", label: "Lata symulacji", money: false, better: null,
           hint: "Liczba lat objętych symulacją." },
         { key: "warnings", label: "Ostrzeżenia", money: false, better: "min",
           hint: "Liczba ostrzeżeń wygenerowanych podczas symulacji." },
@@ -253,10 +213,14 @@ function metricValue(s, m) {
     return s.summary[m.key];
 }
 
+function seriesHeader(s, i) {
+    return `<th class="amount"><span class="cmp-th"><span class="cmp-swatch cmp-swatch-sm" style="--series:${seriesColor(i)}"></span>${escapeHtml(s.name)}</span></th>`;
+}
+
 function renderMetricsTable(sims) {
     const thead = document.querySelector("#metricsTable thead tr");
     const tbody = document.querySelector("#metricsTable tbody");
-    thead.innerHTML = "<th class='col-name'>Wskaźnik</th>" + sims.map(s => `<th>${escapeHtml(s.name)}</th>`).join("");
+    thead.innerHTML = "<th class='col-name'>Wskaźnik</th>" + sims.map(seriesHeader).join("");
     tbody.innerHTML = "";
 
     const best = {};
@@ -269,22 +233,23 @@ function renderMetricsTable(sims) {
 
     METRIC_GROUPS.forEach(g => {
         const grpTr = document.createElement("tr");
-        grpTr.className = "cmp-metrics-group";
+        grpTr.className = "table-group";
         grpTr.innerHTML = `<td class="col-name" colspan="${sims.length + 1}">${g.label}</td>`;
         tbody.appendChild(grpTr);
 
         g.metrics.forEach(m => {
             const tr = document.createElement("tr");
             let html = `<td class="col-name">${tipLabelHtml(m.label, m.hint)}</td>`;
-            sims.forEach(s => {
-                const v = metricValue(s, m);
+            const vals = sims.map(s => metricValue(s, m));
+            const distinct = new Set(vals.filter(v => v != null)).size > 1;
+            vals.forEach(v => {
                 if (v == null) { html += `<td class="amount">—</td>`; return; }
                 let txt;
                 if (m.pct) txt = fmtPct(v);
                 else if (m.mult) txt = "×" + v.toFixed(1);
                 else if (m.money) txt = fmtMoney(v);
                 else txt = v;
-                const isBest = m.better && v === best[m.key] && sims.length > 1;
+                const isBest = m.better && distinct && v === best[m.key] && sims.length > 1;
                 html += `<td class="amount ${isBest ? "best" : ""}">${txt}</td>`;
             });
             tr.innerHTML = html;
@@ -294,45 +259,55 @@ function renderMetricsTable(sims) {
     show("metricsSection", true);
 }
 
-/* ── Section 4: Wealth chart (Chart.js) ───────────────────────── */
+/* ── Wykresy (Chart.js) ────────────────────────────────────────── */
+
+function ageLabelsFor(sims) {
+    const all = sims.map(s => s.result.years || []).flat();
+    const minAge = Math.min(...all.map(y => y.age));
+    const maxAge = Math.max(...all.map(y => y.age));
+    const labels = [];
+    for (let a = minAge; a <= maxAge; a++) labels.push(a);
+    return labels;
+}
+
+function lineDataset(s, i, data) {
+    const c = seriesColor(i);
+    return {
+        label: s.name,
+        data,
+        borderColor: c,
+        backgroundColor: withAlpha(c, 0.08),
+        fill: true,
+        tension: 0.25,
+        pointRadius: 0,
+        pointHoverRadius: 5,
+        pointHoverBackgroundColor: c,
+        borderWidth: 2.2,
+        spanGaps: false,
+    };
+}
 
 function renderWealthChart(sims) {
     const allYears = sims.map(s => s.result.years || []);
     if (!allYears.some(y => y.length)) return;
-    const all = allYears.flat();
-    const minAge = Math.min(...all.map(y => y.age));
-    const maxAge = Math.max(...all.map(y => y.age));
-
-    const ageLabels = [];
-    for (let a = minAge; a <= maxAge; a++) ageLabels.push(a);
+    const ageLabels = ageLabelsFor(sims);
 
     const datasets = sims.map((s, i) => {
-        const yrs = s.result.years || [];
         const byAge = {};
-        yrs.forEach(y => { byAge[y.age] = y.total_wealth; });
-        return {
-            label: s.name,
-            data: ageLabels.map(a => byAge[a] != null ? Math.round(byAge[a]) : null),
-            borderColor: COLORS[i % COLORS.length],
-            backgroundColor: COLORS[i % COLORS.length] + "14",
-            fill: true,
-            tension: 0.3,
-            pointRadius: 1.5,
-            pointHoverRadius: 5,
-            borderWidth: 2.5,
-            spanGaps: false,
-        };
+        (s.result.years || []).forEach(y => { byAge[y.age] = y.total_wealth; });
+        return lineDataset(s, i, ageLabels.map(a => byAge[a] != null ? Math.round(byAge[a]) : null));
     });
 
+    const base = chartDefaults();
     const cfg = {
         type: "line",
         data: { labels: ageLabels, datasets },
         options: {
-            ...chartDefaults(),
+            ...base,
             plugins: {
-                ...chartDefaults().plugins,
+                ...base.plugins,
                 tooltip: {
-                    ...chartDefaults().plugins.tooltip,
+                    ...base.plugins.tooltip,
                     callbacks: {
                         title: (items) => items[0].label + " r.ż.",
                         label: (item) => " " + item.dataset.label + ": " + fmtMoney(item.parsed.y),
@@ -340,14 +315,14 @@ function renderWealthChart(sims) {
                 },
             },
             scales: {
-                ...chartDefaults().scales,
+                ...base.scales,
                 y: {
-                    ...chartDefaults().scales.y,
+                    ...base.scales.y,
                     ticks: {
-                        ...chartDefaults().scales.y.ticks,
+                        ...base.scales.y.ticks,
                         callback: (v) => {
-                            if (v >= 1000000) return (v / 1000000).toFixed(1) + "M";
-                            if (v >= 1000) return (v / 1000).toFixed(0) + "k";
+                            if (v >= 1000000) return (v / 1000000).toFixed(1).replace(".", ",") + " mln";
+                            if (v >= 1000) return (v / 1000).toFixed(0) + " tys.";
                             return v;
                         },
                     },
@@ -361,46 +336,28 @@ function renderWealthChart(sims) {
     show("chartSection", true);
 }
 
-/* ── Section 5: Withdrawal chart (Chart.js) ───────────────────── */
-
 function renderWithdrawalChart(sims) {
     const allYears = sims.map(s => s.result.years || []);
     const hasWithdrawals = allYears.some(y => y.some(yr => yr.monthly_withdrawal > 0));
     if (!hasWithdrawals) { show("withdrawalSection", false); return; }
-    const all = allYears.flat();
-    const minAge = Math.min(...all.map(y => y.age));
-    const maxAge = Math.max(...all.map(y => y.age));
-
-    const ageLabels = [];
-    for (let a = minAge; a <= maxAge; a++) ageLabels.push(a);
+    const ageLabels = ageLabelsFor(sims);
 
     const datasets = sims.map((s, i) => {
-        const yrs = s.result.years || [];
         const byAge = {};
-        yrs.forEach(y => { byAge[y.age] = y.monthly_withdrawal; });
-        return {
-            label: s.name,
-            data: ageLabels.map(a => byAge[a] != null && byAge[a] > 0 ? Math.round(byAge[a]) : null),
-            borderColor: COLORS[i % COLORS.length],
-            backgroundColor: COLORS[i % COLORS.length] + "10",
-            fill: true,
-            tension: 0.3,
-            pointRadius: 1.5,
-            pointHoverRadius: 5,
-            borderWidth: 2.5,
-            spanGaps: false,
-        };
+        (s.result.years || []).forEach(y => { byAge[y.age] = y.monthly_withdrawal; });
+        return lineDataset(s, i, ageLabels.map(a => byAge[a] != null && byAge[a] > 0 ? Math.round(byAge[a]) : null));
     });
 
+    const base = chartDefaults();
     const cfg = {
         type: "line",
         data: { labels: ageLabels, datasets },
         options: {
-            ...chartDefaults(),
+            ...base,
             plugins: {
-                ...chartDefaults().plugins,
+                ...base.plugins,
                 tooltip: {
-                    ...chartDefaults().plugins.tooltip,
+                    ...base.plugins.tooltip,
                     callbacks: {
                         title: (items) => items[0].label + " r.ż.",
                         label: (item) => " " + item.dataset.label + ": " + fmtMoney(item.parsed.y) + "/mies.",
@@ -408,12 +365,12 @@ function renderWithdrawalChart(sims) {
                 },
             },
             scales: {
-                ...chartDefaults().scales,
+                ...base.scales,
                 y: {
-                    ...chartDefaults().scales.y,
+                    ...base.scales.y,
                     beginAtZero: true,
                     ticks: {
-                        ...chartDefaults().scales.y.ticks,
+                        ...base.scales.y.ticks,
                         callback: (v) => fmtMoney(v),
                     },
                 },
@@ -426,7 +383,7 @@ function renderWithdrawalChart(sims) {
     show("withdrawalSection", true);
 }
 
-/* ── Section 6: Stage structure Gantt chart ───────────────────── */
+/* ── Struktura etapów (gantt) ──────────────────────────────────── */
 
 function renderStageComparison(sims) {
     const container = $("ganttContainer");
@@ -434,8 +391,7 @@ function renderStageComparison(sims) {
 
     let globalMin = Infinity, globalMax = -Infinity;
     sims.forEach(s => {
-        const stages = (s.summary.stages || []);
-        stages.forEach(st => {
+        (s.summary.stages || []).forEach(st => {
             if (st.start_age < globalMin) globalMin = st.start_age;
             if (st.end_age > globalMax) globalMax = st.end_age;
         });
@@ -447,21 +403,18 @@ function renderStageComparison(sims) {
     inner.className = "cmp-gantt-inner";
 
     sims.forEach((s, i) => {
-        const c = COLORS[i % COLORS.length];
-        const stages = s.summary.stages || [];
         const row = document.createElement("div");
         row.className = "cmp-gantt-row";
 
         const label = document.createElement("div");
         label.className = "cmp-gantt-label";
-        label.style.borderColor = c;
-        label.textContent = s.name;
+        label.innerHTML = `<span class="cmp-swatch cmp-swatch-sm" style="--series:${seriesColor(i)}"></span><span class="cmp-gantt-name">${escapeHtml(s.name)}</span>`;
 
         const track = document.createElement("div");
         track.className = "cmp-gantt-track";
 
-        stages.forEach(st => {
-            const kind = /akumulacja/i.test(st.label) ? "accum" : "withdraw";
+        (s.summary.stages || []).forEach(st => {
+            const kind = /akumulacja/i.test(st.label) ? "accum" : "real";
             const left = ((st.start_age - globalMin) / range) * 100;
             const width = ((st.end_age - st.start_age) / range) * 100;
 
@@ -469,21 +422,11 @@ function renderStageComparison(sims) {
             seg.className = `cmp-gantt-segment ${kind}`;
             seg.style.left = left + "%";
             seg.style.width = Math.max(width, 0.5) + "%";
-            seg.title = `${st.label}: ${st.start_age}→${st.end_age} r.ż.`;
-            if (width > 5) seg.textContent = st.label;
+            seg.title = `${st.label}: ${st.start_age}–${st.end_age} r.ż. · ${(st.accounts || []).join(", ")}`;
+            if (width > 8) {
+                seg.innerHTML = `<span class="cmp-gantt-seg-label">${escapeHtml(st.label)}</span><span class="cmp-gantt-seg-age">${st.start_age}–${st.end_age}</span>`;
+            }
             track.appendChild(seg);
-
-            const pills = document.createElement("div");
-            pills.className = "cmp-gantt-pills";
-            pills.style.left = left + "%";
-            pills.style.width = width + "%";
-            (st.accounts || []).forEach(a => {
-                const pill = document.createElement("span");
-                pill.className = "cmp-pill";
-                pill.textContent = a;
-                pills.appendChild(pill);
-            });
-            track.appendChild(pills);
         });
 
         row.appendChild(label);
@@ -492,29 +435,32 @@ function renderStageComparison(sims) {
     });
 
     const axis = document.createElement("div");
-    axis.className = "cmp-gantt-row";
+    axis.className = "cmp-gantt-row cmp-gantt-axis-row";
     axis.innerHTML = `<div></div>`;
     const ageTrack = document.createElement("div");
     ageTrack.className = "cmp-gantt-age-axis";
     const step = range <= 20 ? 1 : range <= 40 ? 5 : 10;
-    const ticks = [];
-    for (let a = Math.ceil(globalMin / step) * step; a <= globalMax; a += step) ticks.push(a);
-    if (!ticks.includes(globalMax)) ticks.push(globalMax);
-    ageTrack.style.gridTemplateColumns = `repeat(${ticks.length}, 1fr)`;
-    ticks.forEach(a => {
+    for (let a = Math.ceil(globalMin / step) * step; a <= globalMax; a += step) {
         const lbl = document.createElement("span");
         lbl.className = "cmp-gantt-age-label";
-        lbl.textContent = a + " r.ż.";
+        lbl.style.left = ((a - globalMin) / range) * 100 + "%";
+        lbl.textContent = a;
+        if (a === globalMax || a + step > globalMax) lbl.classList.add("is-last");
         ageTrack.appendChild(lbl);
-    });
+    }
     axis.appendChild(ageTrack);
     inner.appendChild(axis);
 
+    const legend = document.createElement("div");
+    legend.className = "chip-row cmp-gantt-legend";
+    legend.innerHTML = `<span class="chip chip-accum">Akumulacja</span><span class="chip chip-real">Realizacja</span><span class="dim">Oś: wiek w latach</span>`;
+
     container.appendChild(inner);
+    container.appendChild(legend);
     show("stagesSection", true);
 }
 
-/* ── Section 7: Milestones table ──────────────────────────────── */
+/* ── Kamienie milowe ───────────────────────────────────────────── */
 
 function renderMilestones(sims) {
     const all = sims.map(s => s.result.years || []).flat();
@@ -528,13 +474,13 @@ function renderMilestones(sims) {
     const thead = document.querySelector("#milestonesTable thead");
     thead.innerHTML = "";
     const headRow1 = document.createElement("tr");
-    headRow1.innerHTML = "<th rowspan='2'>Wiek</th>" + sims.map(s => `<th colspan="3">${escapeHtml(s.name)}</th>`).join("");
+    headRow1.innerHTML = "<th rowspan='2' class='col-name'>Wiek</th>" + sims.map((s, i) => `<th colspan="3" class="cmp-group-th"><span class="cmp-th"><span class="cmp-swatch cmp-swatch-sm" style="--series:${seriesColor(i)}"></span>${escapeHtml(s.name)}</span></th>`).join("");
     thead.appendChild(headRow1);
     const headRow2 = document.createElement("tr");
     headRow2.innerHTML = sims.map(() =>
-        `<th class="cmp-col-sub">${tip("Majątek", "Łączna wartość wszystkich kont.")}</th>` +
-        `<th class="cmp-col-sub">${tip("Wypłata mies.", "Miesięczna wypłata netto (po podatku).")}</th>` +
-        `<th class="cmp-col-sub">${tip("Podatek", "Suma podatków zapłaconych w danym roku.")}</th>`
+        `<th class="amount cmp-col-sub">${tip("Majątek", "Łączna wartość wszystkich kont.")}</th>` +
+        `<th class="amount cmp-col-sub">${tip("Wypłata mies.", "Miesięczna wypłata netto (po podatku).")}</th>` +
+        `<th class="amount cmp-col-sub">${tip("Podatek", "Suma podatków zapłaconych w danym roku.")}</th>`
     ).join("");
     thead.appendChild(headRow2);
     const tbody = document.querySelector("#milestonesTable tbody");
@@ -547,7 +493,7 @@ function renderMilestones(sims) {
         const ageLabel = age === maxAge ? maxAge + " (koniec)" : age;
 
         const tr = document.createElement("tr");
-        let html = `<td><strong>${ageLabel}</strong></td>`;
+        let html = `<td class="col-name"><strong>${ageLabel}</strong></td>`;
         cells.forEach(c => {
             if (!c) { html += `<td class="amount">—</td><td class="amount">—</td><td class="amount">—</td>`; return; }
             const approx = c.age !== age ? ` <span class="dim">~${c.age}</span>` : "";

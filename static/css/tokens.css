@@ -1,0 +1,94 @@
+/* tokens.css — jedyne źródło kolorów, typografii, odstępów i promieni.
+   Reguły i znaczenie tokenów: DESIGN.md. Nie dopisuj kolorów poza tym plikiem. */
+
+:root {
+    color-scheme: dark;
+
+    /* --- Tła (trzy poziomy) --- */
+    --bg: #0f1117;
+    --surface: #171a24;
+    --surface-2: #1f2331;
+    --surface-hover: #262b3b;
+
+    /* --- Krawędzie --- */
+    --border: #2a2f40;
+    --border-strong: #3a4156;
+
+    /* --- Tekst --- */
+    --text: #e7e9f0;
+    --text-2: #a3a8bb;
+    --text-3: #737a93;
+
+    /* --- Interakcja (jeden kolor) --- */
+    --primary: #7b6cf0;
+    --primary-hover: #8b7df5;
+    --on-primary: #ffffff;
+    --primary-soft: color-mix(in srgb, var(--primary) 14%, transparent);
+    --primary-ring: color-mix(in srgb, var(--primary) 45%, transparent);
+
+    /* --- Etapy --- */
+    --stage-accum: #e8845c;
+    --stage-real: #27c4bb;
+    --stage-accum-soft: color-mix(in srgb, var(--stage-accum) 14%, transparent);
+    --stage-real-soft: color-mix(in srgb, var(--stage-real) 14%, transparent);
+
+    /* --- Stan --- */
+    --success: #3ccf91;
+    --warning: #f0b64b;
+    --danger: #f26d6d;
+    --success-soft: color-mix(in srgb, var(--success) 12%, transparent);
+    --warning-soft: color-mix(in srgb, var(--warning) 12%, transparent);
+    --danger-soft: color-mix(in srgb, var(--danger) 12%, transparent);
+
+    /* --- Marka (tylko logo) --- */
+    --brand-flame-1: #ffbe76;
+    --brand-flame-2: #e17055;
+    --brand-flame-3: #e74c3c;
+
+    /* --- Serie wykresów porównania (do 5 symulacji) --- */
+    --series-1: var(--primary);
+    --series-2: var(--stage-real);
+    --series-3: var(--stage-accum);
+    --series-4: var(--success);
+    --series-5: var(--warning);
+
+    /* --- Typografia --- */
+    --font: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+    --fs-xs: 0.75rem;
+    --fs-sm: 0.8125rem;
+    --fs-md: 0.9375rem;
+    --fs-lg: 1.125rem;
+    --fs-xl: 1.5rem;
+    --fs-2xl: 2rem;
+    --lh: 1.55;
+
+    /* --- Siatka 4 px --- */
+    --sp-1: 0.25rem;
+    --sp-2: 0.5rem;
+    --sp-3: 0.75rem;
+    --sp-4: 1rem;
+    --sp-5: 1.25rem;
+    --sp-6: 1.5rem;
+    --sp-8: 2rem;
+    --sp-10: 2.5rem;
+
+    /* --- Promienie --- */
+    --r-sm: 6px;
+    --r-md: 10px;
+    --r-lg: 14px;
+    --r-pill: 999px;
+
+    /* --- Cień: tylko elementy pływające --- */
+    --shadow-pop: 0 10px 30px rgba(0, 0, 0, 0.45);
+
+    /* --- Wymiary --- */
+    --content-width: 1200px;
+    --control-h: 42px;
+    --control-h-sm: 34px;
+    --topbar-h: 64px;
+    --action-bar-h: 72px;
+    --tabbar-h: 60px;
+
+    /* --- Ruch --- */
+    --t-fast: 120ms ease;
+}

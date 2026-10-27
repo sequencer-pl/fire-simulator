@@ -112,8 +112,9 @@ function renderResults(data) {
     warnings.innerHTML = "";
     (data.warnings || []).forEach((w) => {
         const div = document.createElement("div");
-        div.className = "warning-item";
-        div.textContent = "!" + " " + w;
+        div.className = "banner banner-warn";
+        div.innerHTML = `${iconSvg("warning")}<div class="banner-body"></div>`;
+        div.querySelector(".banner-body").textContent = w;
         warnings.appendChild(div);
     });
 
@@ -122,33 +123,35 @@ function renderResults(data) {
     const totalInvested = initCap + totalContrib;
     const multiplier = totalInvested > 0 ? (data.peak_wealth / totalInvested) : 0;
     const multiplierBadge = multiplier > 0
-        ? `<span class="summary-badge" title="Majątek szczytowy / (kapitał początkowy + wpłaty własne)">${multiplier.toFixed(1)}×</span>`
+        ? `<span class="metric-note" title="Majątek szczytowy / (kapitał początkowy + wpłaty własne)">${multiplier.toFixed(1)}×</span>`
         : "";
 
     summary.innerHTML = `
-        <div class="summary-card">
-            <div class="label">Początkowy kapitał</div>
-            <div class="value purple">${formatMoney(initCap)}</div>
-        </div>
-        <div class="summary-card">
-            <div class="label">Wpłaty własne</div>
-            <div class="value primary">${formatMoney(totalContrib)}</div>
-        </div>
-        <div class="summary-card">
-            <div class="label">Majątek szczytowy${multiplierBadge}</div>
-            <div class="value accent">${formatMoney(data.peak_wealth)}</div>
-        </div>
-        <div class="summary-card">
-            <div class="label">Majątek końcowy</div>
-            <div class="value accent">${formatMoney(data.final_wealth)}</div>
-        </div>
-        <div class="summary-card">
-            <div class="label">Suma wypłat</div>
-            <div class="value green">${formatMoney(data.total_withdrawn)}</div>
-        </div>
-        <div class="summary-card">
-            <div class="label">Suma podatków</div>
-            <div class="value ${data.total_tax < 0 ? 'green' : 'red'}">${formatMoney(data.total_tax)}</div>
+        <div class="metric-grid">
+            <div class="metric">
+                <span class="metric-label">Kapitał początkowy</span>
+                <span class="metric-value">${fmtMoney(initCap)}</span>
+            </div>
+            <div class="metric">
+                <span class="metric-label">Wpłaty własne</span>
+                <span class="metric-value">${fmtMoney(totalContrib)}</span>
+            </div>
+            <div class="metric">
+                <span class="metric-label">Szczyt majątku</span>
+                <span class="metric-value">${fmtMoney(data.peak_wealth)}${multiplierBadge}</span>
+            </div>
+            <div class="metric${data.final_wealth <= 0 ? " is-muted" : ""}">
+                <span class="metric-label">Majątek na koniec</span>
+                <span class="metric-value">${fmtMoney(data.final_wealth)}</span>
+            </div>
+            <div class="metric">
+                <span class="metric-label">Suma wypłat netto</span>
+                <span class="metric-value">${fmtMoney(data.total_withdrawn)}</span>
+            </div>
+            <div class="metric${data.total_tax < 0 ? " is-positive" : ""}">
+                <span class="metric-label">Suma podatków</span>
+                <span class="metric-value">${fmtMoney(data.total_tax)}</span>
+            </div>
         </div>
     `;
 
@@ -172,7 +175,7 @@ function renderResults(data) {
             <td class="amount" data-col="wealth"><strong>${formatMoney(y.total_wealth)}</strong></td>
             <td class="amount" data-col="annual">${formatMoney(y.annual_withdrawal)}</td>
             <td class="amount" data-col="monthly">${formatMoney(y.monthly_withdrawal)}</td>
-            <td class="amount ${y.tax_paid < 0 ? 'green' : ''}" data-col="tax">${formatMoney(y.tax_paid)}</td>
+            <td class="amount ${y.tax_paid < 0 ? 'text-success' : ''}" data-col="tax">${formatMoney(y.tax_paid)}</td>
         `;
         tbody.appendChild(tr);
     });
@@ -218,13 +221,13 @@ function renderStageSummary(data) {
         return;
     }
 
-    let html = '<h3 class="section-heading">Podsumowanie etapów</h3><div class="stage-summary">';
+    let html = '<h3 class="section-title">Etapy</h3><div class="stage-summary">';
     for (const st of stages) {
         const isAccum = st.type === "akumulacja";
         const kind = isAccum ? "accum" : "withdraw";
 
         const accounts = st.accounts
-            .map((a) => `<span class="stage-pill">${escapeHtml(ACCOUNT_LABELS[a.key] || a.key)}</span>`)
+            .map((a) => `<span class="chip">${escapeHtml(ACCOUNT_LABELS[a.key] || a.key)}</span>`)
             .join("");
 
         let finance = "";
@@ -440,7 +443,7 @@ function renderConfigView() {
         const p1 = USER_CONFIG.prog;
         const p2 = USER_CONFIG.prog2;
         const rm = USER_CONFIG.rate_middle;
-        if (p1 === 130000 && p2 === 150000 && rm === 0.24) return "Skala podatkowa — 2027 (projekt UD458 ⚠️)";
+        if (p1 === 130000 && p2 === 150000 && rm === 0.24) return "Skala podatkowa — 2027 (projekt UD458)";
         if (p1 === 120000 && p2 == null && rm == null) return "Skala podatkowa — 2026 (obowiązuje)";
         return "Skala podatkowa — custom";
     })();
@@ -527,31 +530,23 @@ function formatConfigValue(value, percent = false) {
     return percent ? `${formatted}%` : formatted;
 }
 
+// Pole konfiguracji: edycja w miejscu (bez trybu podglądu). Kropka przy etykiecie
+// i aktywny przycisk „przywróć” sygnalizują wartość inną niż w presecie.
 function configFieldShell(path, label, hint, editorMarkup, displayValue, inputValue = (current) => current) {
     const wrap = document.createElement("div");
-    wrap.className = "field-group config-field";
+    wrap.className = "field config-field";
     wrap.innerHTML = `
         <div class="config-field-heading">
             <label class="config-field-label">${tipLabelHtml(label, hint)}</label>
             <span class="config-override-indicator" role="img" hidden></span>
         </div>
-        <div class="config-readonly-row">
-            <output class="config-readonly-value"></output>
-            <button type="button" class="btn btn-secondary config-edit-btn">Zmień</button>
-            <div class="config-inline-editor" hidden>${editorMarkup}</div>
-            <div class="config-edit-actions" hidden>
-                <button type="button" class="btn btn-primary config-confirm-btn">OK</button>
-                <button type="button" class="btn btn-secondary config-restore-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7v6h6"/><path d="M5.1 13a8 8 0 1 0 2.3-5.7L3 10"/></svg></button>
-            </div>
+        <div class="config-field-control">
+            <div class="config-inline-editor">${editorMarkup}</div>
+            <button type="button" class="btn btn-ghost btn-icon config-restore-btn">${iconSvg("restore")}</button>
         </div>
     `;
 
     const input = wrap.querySelector(".acc-field, select");
-    const valueEl = wrap.querySelector(".config-readonly-value");
-    const editor = wrap.querySelector(".config-inline-editor");
-    const editBtn = wrap.querySelector(".config-edit-btn");
-    const editActions = wrap.querySelector(".config-edit-actions");
-    const confirmBtn = wrap.querySelector(".config-confirm-btn");
     const indicator = wrap.querySelector(".config-override-indicator");
     const restoreBtn = wrap.querySelector(".config-restore-btn");
     const restoreLabel = CONFIG_BASELINE_NAME === "Własna konfiguracja"
@@ -575,23 +570,9 @@ function configFieldShell(path, label, hint, editorMarkup, displayValue, inputVa
         indicator.setAttribute("aria-label", indicator.title);
         wrap.classList.toggle("has-override", isChanged);
         restoreBtn.disabled = !isChanged;
-        valueEl.textContent = displayValue(configPathValue(USER_CONFIG, path));
+        wrap.title = displayValue(configPathValue(USER_CONFIG, path));
     }
 
-    editBtn.addEventListener("click", () => {
-        valueEl.hidden = true;
-        editor.hidden = false;
-        editBtn.hidden = true;
-        editActions.hidden = false;
-        input.focus();
-    });
-    confirmBtn.addEventListener("click", () => {
-        valueEl.hidden = false;
-        editor.hidden = true;
-        editBtn.hidden = false;
-        editActions.hidden = true;
-        editBtn.focus();
-    });
     restoreBtn.addEventListener("click", () => {
         const baselineValue = configPathValue(CONFIG_BASELINE || DEFAULT_CONFIG, path);
         const restoredValue = inputValue(baselineValue);
@@ -614,7 +595,7 @@ function configField(path, label, value, percent, hint, ticks, nullable = false)
                 <button type="button" class="stepper stepper-down" tabindex="-1" aria-label="Zmniejsz ${escapeHtml(label)}">&minus;</button>
                 <input type="number" class="acc-field" min="${inputMin}" step="any" value="${displayVal}" ${nullable ? `placeholder="—" data-empty="${emptyDefault}"` : ""} />
                 <button type="button" class="stepper stepper-up" tabindex="-1" aria-label="Zwiększ ${escapeHtml(label)}">+</button>
-            </div>`;
+            </div>${percent ? '<span class="field-unit">%</span>' : ""}`;
     const wrap = configFieldShell(
         path,
         label,
@@ -658,27 +639,28 @@ function renderAccountRulesCard(key, rules) {
     const card = document.createElement("details");
     card.className = "account-rules-card";
     card.open = !window.matchMedia("(max-width: 768px)").matches;
-    card.innerHTML = `<summary class="account-rules-summary">${tipLabelHtml(ACCOUNT_LABELS[key] || key, info)}<span class="account-rules-chevron" aria-hidden="true">⌄</span></summary>`;
+    card.innerHTML = `<summary class="account-rules-summary"><span class="account-rules-icon">${ACCOUNT_ICONS[key] || ""}</span>${tipLabelHtml(ACCOUNT_LABELS[key] || key, info)}<span class="account-rules-chevron" aria-hidden="true">${iconSvg("chevron")}</span></summary><div class="account-rules-body"></div>`;
     card.querySelector(".account-rules-summary .tip")?.addEventListener("click", (event) => {
         event.preventDefault();
         event.stopPropagation();
     });
 
-    card.appendChild(configPercentField("accounts." + key + ".default_roi", "Domyślne ROI (realne)", rules.default_roi ?? 0.04, "Domyślna realna stopa zwrotu (ponad inflacją) dla tego konta w Asystencie i przy dodawaniu nowego kafelka."));
-    card.appendChild(configSelect("accounts." + key + ".tax_model", "Model podatkowy", rules.tax_model, TAX_MODEL_LABELS, "Sposób opodatkowania wypłat z konta."));
-    card.appendChild(configPercentField("accounts." + key + ".tax_rate", "Stawka ryczałtowa", rules.tax_rate, "Stawka podatku od zysku/całości po osiągnięciu docelowego wieku."));
-    card.appendChild(configSelect("accounts." + key + ".tax_basis", "Podstawa", rules.tax_basis, TAX_BASIS_LABELS, "Podstawa opodatkowania ryczałtem: zysk albo cała wypłata."));
-    card.appendChild(configNumberField("accounts." + key + ".min_withdrawal_age", "Wiek zmiany reżimu", rules.min_withdrawal_age, "Wiek, od którego wypłaty nie są już objęte reżimem „przed wiekiem” (np. 60 dla IKE, 65 dla IKZE)."));
-    card.appendChild(configSelect("accounts." + key + ".early_tax_model", "Model przed wiekiem", rules.early_tax_model, TAX_MODEL_LABELS, "Opodatkowanie wypłat przed osiągnięciem docelowego wieku (np. skala PIT dla IKZE)."));
-    card.appendChild(configPercentField("accounts." + key + ".early_tax_rate", "Stawka przed wiekiem", rules.early_tax_rate, "Stawka podatku obowiązująca przed osiągnięciem docelowego wieku."));
-    card.appendChild(configPercentField("accounts." + key + ".asset_tax_rate", "Podatek od wartości aktywów", rules.asset_tax_rate, "Roczny podatek od wartości aktywów ponad próg zwolnienia (OKI: 0,85%)."));
-    card.appendChild(configNumberField("accounts." + key + ".asset_exemption", "Próg zwolnienia aktywów", rules.asset_exemption, "Kwota, poniżej której aktywa nie podlegają corocznemu podatkowi od wartości."));
+    const body = card.querySelector(".account-rules-body");
+    body.appendChild(configPercentField("accounts." + key + ".default_roi", "Domyślne ROI (realne)", rules.default_roi ?? 0.04, "Domyślna realna stopa zwrotu (ponad inflacją) dla tego konta w Asystencie i przy dodawaniu nowego kafelka."));
+    body.appendChild(configSelect("accounts." + key + ".tax_model", "Model podatkowy", rules.tax_model, TAX_MODEL_LABELS, "Sposób opodatkowania wypłat z konta."));
+    body.appendChild(configPercentField("accounts." + key + ".tax_rate", "Stawka ryczałtowa", rules.tax_rate, "Stawka podatku od zysku/całości po osiągnięciu docelowego wieku."));
+    body.appendChild(configSelect("accounts." + key + ".tax_basis", "Podstawa", rules.tax_basis, TAX_BASIS_LABELS, "Podstawa opodatkowania ryczałtem: zysk albo cała wypłata."));
+    body.appendChild(configNumberField("accounts." + key + ".min_withdrawal_age", "Wiek zmiany reżimu", rules.min_withdrawal_age, "Wiek, od którego wypłaty nie są już objęte reżimem „przed wiekiem” (np. 60 dla IKE, 65 dla IKZE)."));
+    body.appendChild(configSelect("accounts." + key + ".early_tax_model", "Model przed wiekiem", rules.early_tax_model, TAX_MODEL_LABELS, "Opodatkowanie wypłat przed osiągnięciem docelowego wieku (np. skala PIT dla IKZE)."));
+    body.appendChild(configPercentField("accounts." + key + ".early_tax_rate", "Stawka przed wiekiem", rules.early_tax_rate, "Stawka podatku obowiązująca przed osiągnięciem docelowego wieku."));
+    body.appendChild(configPercentField("accounts." + key + ".asset_tax_rate", "Podatek od wartości aktywów", rules.asset_tax_rate, "Roczny podatek od wartości aktywów ponad próg zwolnienia (OKI: 0,85%)."));
+    body.appendChild(configNumberField("accounts." + key + ".asset_exemption", "Próg zwolnienia aktywów", rules.asset_exemption, "Kwota, poniżej której aktywa nie podlegają corocznemu podatkowi od wartości."));
 
     return card;
 }
 
 function configSelect(path, label, value, options, hint) {
-    const editorMarkup = `<select class="config-select"></select>`;
+    const editorMarkup = `<select class="select config-select"></select>`;
     const wrap = configFieldShell(path, label, hint, editorMarkup, (current) => {
         const option = options[current];
         return option || current;
@@ -1153,21 +1135,22 @@ function renderColumnToggles(accounts) {
     );
 
     cols.forEach(({ col, label }) => {
-        const toggle = document.createElement("label");
-        toggle.className = "col-toggle" + (hidden.has(col) ? " off" : "");
-        const cb = document.createElement("input");
-        cb.type = "checkbox";
-        cb.checked = !hidden.has(col);
-        cb.dataset.col = col;
-        cb.addEventListener("change", () => {
-            if (cb.checked) hidden.delete(col);
-            else hidden.add(col);
+        const toggle = document.createElement("button");
+        toggle.type = "button";
+        toggle.className = "pill-toggle col-toggle" + (hidden.has(col) ? "" : " is-active");
+        toggle.setAttribute("aria-pressed", String(!hidden.has(col)));
+        toggle.dataset.col = col;
+        toggle.innerHTML = `${iconSvg(hidden.has(col) ? "plus" : "check")}<span>${escapeHtml(label)}</span>`;
+        toggle.addEventListener("click", () => {
+            const nowHidden = !hidden.has(col);
+            if (nowHidden) hidden.add(col);
+            else hidden.delete(col);
             localStorage.setItem(COLUMN_TOGGLES_KEY, JSON.stringify([...hidden]));
-            toggle.classList.toggle("off", !cb.checked);
+            toggle.classList.toggle("is-active", !nowHidden);
+            toggle.setAttribute("aria-pressed", String(!nowHidden));
+            toggle.querySelector(".icon").outerHTML = iconSvg(nowHidden ? "plus" : "check");
             applyColVisibility();
         });
-        toggle.appendChild(cb);
-        toggle.appendChild(document.createTextNode(" " + label));
         container.appendChild(toggle);
     });
 }
@@ -1241,8 +1224,10 @@ function renderWealthChart(data) {
     svg += `<text x="${W / 2}" y="${H - 4}" class="axis-text" text-anchor="middle">Wiek (r.ż.)</text>`;
     svg += "</g>";
 
-    /* line */
+    /* area + line */
     const points = years.map((yr) => `${x(yr.age).toFixed(1)},${y(yr.total_wealth).toFixed(1)}`);
+    const baseY = (H - padBottom).toFixed(1);
+    svg += `<polygon class="chart-area wealth-area" points="${x(minAge).toFixed(1)},${baseY} ${points.join(" ")} ${x(maxAge).toFixed(1)},${baseY}"/>`;
     svg += `<polyline class="chart-line wealth-line" fill="none" points="${points.join(" ")}"/>`;
 
     /* clickable dots — sample if too many years */
@@ -1294,7 +1279,8 @@ function renderWealthDetail(yr, container) {
     const balEntries = Object.entries(yr.balances || {}).filter(([, v]) => v > 0);
     const balHtml = balEntries.map(([k, v]) => {
         const match = stageAccounts.has(k);
-        return `<span class="detail-pill${match ? " " + pillClass : ""}">${escapeHtml(k.toUpperCase())}: ${fmt(v)}</span>`;
+        const chipKind = match ? (pillClass === "pill-active" ? " chip-real" : " chip-accum") : "";
+        return `<span class="chip${chipKind}">${escapeHtml(ACCOUNT_LABELS[k] || k)}: ${fmt(v)}</span>`;
     }).join("");
 
     container.innerHTML = `
@@ -1303,11 +1289,11 @@ function renderWealthDetail(yr, container) {
         </div>
         <div class="detail-grid">
             <div class="detail-item"><span class="detail-label">Majątek łącznie</span><span class="detail-value">${fmt(yr.total_wealth)}</span></div>
-            <div class="detail-item"><span class="detail-label">Wypłata mies.</span><span class="detail-value green">${fmt(yr.monthly_withdrawal)}</span></div>
-            <div class="detail-item"><span class="detail-label">Wypłata roczna</span><span class="detail-value green">${fmt(yr.annual_withdrawal)}</span></div>
-            <div class="detail-item"><span class="detail-label">Podatek</span><span class="detail-value ${yr.tax_paid < 0 ? 'green' : 'red'}">${fmt(yr.tax_paid)}</span></div>
+            <div class="detail-item"><span class="detail-label">Wypłata mies.</span><span class="detail-value">${fmt(yr.monthly_withdrawal)}</span></div>
+            <div class="detail-item"><span class="detail-label">Wypłata roczna</span><span class="detail-value">${fmt(yr.annual_withdrawal)}</span></div>
+            <div class="detail-item"><span class="detail-label">Podatek</span><span class="detail-value${yr.tax_paid < 0 ? ' text-success' : ''}">${fmt(yr.tax_paid)}</span></div>
         </div>
-        ${balHtml ? `<div class="detail-balances">${balHtml}</div>` : ""}
+        ${balHtml ? `<div class="detail-balances chip-row">${balHtml}</div>` : ""}
     `;
     container.classList.remove("hidden");
 }
@@ -1363,8 +1349,10 @@ function renderWithdrawalChart(data) {
     svg += `<text x="${W / 2}" y="${H - 4}" class="axis-text" text-anchor="middle">Wiek (r.ż.)</text>`;
     svg += "</g>";
 
-    /* line */
+    /* area + line */
     const points = withWithdrawals.map((yr) => `${x(yr.age).toFixed(1)},${y(yr.monthly_withdrawal).toFixed(1)}`);
+    const baseY = (H - padBottom).toFixed(1);
+    svg += `<polygon class="chart-area withdrawal-area" points="${x(minAge).toFixed(1)},${baseY} ${points.join(" ")} ${x(maxAge).toFixed(1)},${baseY}"/>`;
     svg += `<polyline class="chart-line withdrawal-line" fill="none" points="${points.join(" ")}"/>`;
 
     /* clickable dots */
@@ -1412,7 +1400,7 @@ function renderWithdrawalDetail(yr, container) {
     const balEntries = Object.entries(yr.balances || {}).filter(([, v]) => v > 0);
     const balHtml = balEntries.map(([k, v]) => {
         const isActive = activeAccounts.has(k);
-        return `<span class="detail-pill${isActive ? " pill-active" : ""}">${escapeHtml(k.toUpperCase())}: ${fmt(v)}</span>`;
+        return `<span class="chip${isActive ? " chip-real" : ""}">${escapeHtml(ACCOUNT_LABELS[k] || k)}: ${fmt(v)}</span>`;
     }).join("");
 
     container.innerHTML = `
@@ -1421,11 +1409,11 @@ function renderWithdrawalDetail(yr, container) {
         </div>
         <div class="detail-grid">
             <div class="detail-item"><span class="detail-label">Majątek łącznie</span><span class="detail-value">${fmt(yr.total_wealth)}</span></div>
-            <div class="detail-item"><span class="detail-label">Wypłata mies.</span><span class="detail-value green">${fmt(yr.monthly_withdrawal)}</span></div>
-            <div class="detail-item"><span class="detail-label">Wypłata roczna</span><span class="detail-value green">${fmt(yr.annual_withdrawal)}</span></div>
-            <div class="detail-item"><span class="detail-label">Podatek</span><span class="detail-value ${yr.tax_paid < 0 ? 'green' : 'red'}">${fmt(yr.tax_paid)}</span></div>
+            <div class="detail-item"><span class="detail-label">Wypłata mies.</span><span class="detail-value">${fmt(yr.monthly_withdrawal)}</span></div>
+            <div class="detail-item"><span class="detail-label">Wypłata roczna</span><span class="detail-value">${fmt(yr.annual_withdrawal)}</span></div>
+            <div class="detail-item"><span class="detail-label">Podatek</span><span class="detail-value${yr.tax_paid < 0 ? ' text-success' : ''}">${fmt(yr.tax_paid)}</span></div>
         </div>
-        ${balHtml ? `<div class="detail-balances">${balHtml}</div>` : ""}
+        ${balHtml ? `<div class="detail-balances chip-row">${balHtml}</div>` : ""}
     `;
     container.classList.remove("hidden");
 }

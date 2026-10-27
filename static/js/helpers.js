@@ -17,9 +17,18 @@ function escapeHtml(str) {
         .replace(/"/g, "&quot;");
 }
 
+// Kwota w złotych; `Math.round(v) || 0` normalizuje -0 (np. -0.3 zł) do 0.
 function fmtMoney(v) {
     if (v == null) return "—";
-    return Math.round(v).toLocaleString("pl-PL") + " zł";
+    return (Math.round(v) || 0).toLocaleString("pl-PL") + " zł";
+}
+
+// Data i godzina bez sekund (27.10.2026, 15:06).
+function fmtDateTime(iso) {
+    if (!iso) return "";
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return "";
+    return d.toLocaleString("pl-PL", { dateStyle: "medium", timeStyle: "short" });
 }
 
 async function api(path, options) {

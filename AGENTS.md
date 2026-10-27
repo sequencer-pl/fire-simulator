@@ -40,187 +40,119 @@ bez TypeScript), SQLite, pytest. Odpowiadaj i pisz UI po polsku.
   PPE_ZUS_FRACTION); `app/simulation/planner.py` — wizard (plan, build_stages,
   solvery); `app/stages/*.py` — implementacje etapów; `app/web/` — FastAPI
   (routes.py, auth.py, simulations.py); `app/core/` — helpery (tax, pmt, roi,
-  inflation); `static/js/` + `app/templates/` — front.
+  inflation); `static/js/` + `static/css/` + `app/templates/` — front (system wizualny: `DESIGN.md`).
 - Python: pełne adnotacje typów, pydantic BaseModel dla DTO, bez zbędnych komentarzy.
 - JS: bez frameworków, funkcje nazwane, współdzielone helpery przez `window.*`
-  (helpers.js: `$`, `show`, `escapeHtml`, `fmtMoney`, `api`; controls.js:
+  (helpers.js: `$`, `show`, `escapeHtml`, `fmtMoney`, `fmtDateTime`, `api`; icons.js: `iconSvg`; controls.js:
   `numControlsHtml`, `initNumControls`; session.js: `refreshSessionBar`). helpers.js
-  ładowany z base.html przed `{% block scripts %}`, controls.js — w wizard.html
+  i icons.js ładowane z base.html przed `{% block scripts %}`, controls.js — w wizard.html
   i simulator.html.
 
-## Konwencje UI — wzorcem spójności jest zakładka /sim (edytor)
+## Konwencje UI — system wizualny opisuje `DESIGN.md`
 
-- Nowy widok = kopia struktury `/sim`: `data-section` w body (base.html),
-  `.topnav a[data-nav]`, przełączanie widoków edytora przez `setNavSection`
-  (simulator.js:338), 5 pozycji nawigacji + `accountWidget`.
-- Kolory/typo wyłącznie z CSS variables `style.css`
-  (`--primary --surface --border --text --text-dim --danger --success --bg
-  --card-bg --accent --orange`). Zero hardkodu kolorów (hex/rgba) w CSS, JS i HTML.
-  Zamiast `var(--x, #yyyyyy)` używaj samej zmiennej.
-- Karty/insety: `background: var(--card-bg)` + `border: 1px solid var(--border)`,
-  radius 10–12px — nie wymyślaj nowych borderów/cieni.
-- Ostrzeżenia, overalokacje, „nadwyżka" = **`--orange`**. Błędy = `--danger`.
-- Semantyka kolorów etapów jak `/sim`: **akumulacja = `--orange`, realizacja = `--accent`**
-  (dotyczy kropek, etykiet i osi czasu — np. gradient timeline w asystencie).
-- Kontrolki standardowe: `.btn (primary/secondary/danger)`, `.field-group` +
-  label + input, `.form-msg (.ok/.err)`, `.tab-btn(.active)`, bloki etapów przez
-  `createStageBlock`/`.stage-block` (sim-stages.js).
-- **Wybór jednej z kilku opcji = radio pills `.gender-option`** (jak „Forma
-  zatrudnienia"), a nie natywny `<select>`. Wartość czytaj przez `radioChecked(name)`
-  (wizard.js). Nowe pola liczbowe przez `numControlsHtml`/`initNumControls`
-  (controls.js — jedyny punkt obsługi stepperów → `.num-control` + `.stepper`),
-  nie surowe inputy.
+- **Jedna rodzina komponentów** (`static/css/components.css`): `.card` / `.card-inset`,
+  `.metric` + `.metric-grid`, `.banner` (`-info|-warn|-danger|-success`),
+  `.segmented` + `.seg-option` (jeden z kilku; radio w środku), `.pill-toggle`
+  (ikona + etykieta, `aria-pressed`), `.chip` (`-accum|-real|-warn|-primary`),
+  `.num-control` (jedyna kontrolka liczbowa), `.action-bar`, `.toolbar`,
+  `.table-wrap` + `table`, `.tip`/`.tooltip`, `.progress`, `.btn`
+  (`-primary|-secondary|-ghost|-danger|-accum|-real`, `-sm`, `-icon`). Strona dodaje
+  tylko układ w swoim arkuszu (`landing.css`, `library.css`, `sim.css`, `wizard.css`).
+- **Warstwy CSS**: `tokens.css` (jedyne miejsce z kolorami i rozmiarami) → `base.css`
+  (reset, typografia, topbar, dolny pasek zakładek) → `components.css` → arkusz
+  strony. `qa/visual/tokens.spec.js` pilnuje: zero hex/rgba poza `tokens.css`, zero
+  emoji w JS, font-size ≥ 12 px. Przezroczystości przez `color-mix()`.
+- **Kolor znaczy jedno**: fiolet `--primary` = interakcja (akcja, zaznaczenie,
+  fokus, aktywna zakładka); `--stage-accum` (pomarańcz) = akumulacja;
+  `--stage-real` (turkus) = realizacja; `--success|--warning|--danger` = stan.
+  Liczby domyślnie neutralne; kolor tylko gdy niesie znaczenie (`.metric.is-positive`
+  dla ujemnego podatku, `td.best` w porównaniu).
+- **Trzy tła**: strona `--bg`, karta `--surface`, wkład/kontrolka `--surface-2`.
+  Cień tylko na `.action-bar` i `.tooltip`.
+- **Ikony** wyłącznie z `static/js/icons.js` (`iconSvg(name)`, liniowe SVG 24×24,
+  `currentColor`); `ACCOUNT_ICONS` w sim-metadata.js to SVG z tego zestawu.
+  Emoji nie są ikonami. icons.js ładuje base.html zaraz po helpers.js (harness
+  jsdom też go wczytuje).
+- **Pasek akcji**: każdy widok z akcjami na dole używa `.action-bar`
+  (lewo: drugorzędne, środek: status, prawo: akcja główna) i ustawia
+  `body.has-action-bar` (block `body_class` w szablonie, albo JS jak w liście
+  symulacji, gdzie pasek pojawia się dopiero po zaznaczeniu). Nigdy osobnych
+  pływających pasków per strona.
+- **Nawigacja**: topbar z czterema sekcjami + `#accountWidget`; poniżej 640 px
+  sekcje przenoszą się do `.tabbar` (base.html), w topbarze zostaje marka i konto.
+  `data-section` w body steruje stanem aktywnym; przełączanie edytor/konfiguracja
+  bez przeładowania przez `setNavSection` (simulator.js).
+- **Konfiguracja edytuje w miejscu**: `configFieldShell` renderuje kontrolkę od
+  razu (bez przycisku „Zmień”); kropka `.config-override-indicator` i aktywny
+  `.config-restore-btn` oznaczają wartość inną niż w presecie
+  (`qa/visual/config-interactions.spec.js`).
+- Nowe pola liczbowe przez `numControlsHtml`/`initNumControls` (controls.js), nie
+  surowe inputy. Pola kwotowe: `tabular-nums`, w asystencie `.wz-slider .num-control`
+  ma stałe 150 px i stoi PRZED `input[type="range"]` (na mobile liczba nad suwakiem).
+- Daty bez sekund (`fmtDateTime` w helpers.js); `fmtMoney` normalizuje `-0`.
+- Aktywa wersjonowane przez `?v={{ version }}` (`_asset_version`, routes.py) —
+  dodaj do każdego nowego pliku JS/CSS w template.
+- Po zmianie wyglądu: `make visual-baseline` (serwer na :8000), a przed oddaniem
+  `make visual` i `make harness-jsdom`.
 
-### Układ wierszowy formularza (wzór: krok 2 asystenta, wizard.css)
+### Asystent — zachowanie kroków (fakty produktowe, nie układ)
 
-- Pole w panelu = `.wz-grid`: **≥821px dwie kolumny `300px 1fr`** (lewy slot opcji
-  wyboru | prawa wartość) — sloty i kontrolki wyrównane w całym widoku; **<821px
-  jedna kolumna** ze separatorami `1px solid var(--border)` między polami
-  (`.wz-grid > * + *:not(.form-msg)`).
-- Selektory pigułkowe `.gender-options` **zawsze `width: 100%`** swojej komórki,
-  segmenty `.gender-option { flex: 1 0 auto }` + `white-space: nowrap` (proporcjonalne
-  od naturalnej szerokości, nigdy się nie ściskają → tekst zawsze w jednej linii,
-  slot min. 300px mieści najszerszą grupę); etykieta nad pigułkami (`.wz-inline-field`
-  w układzie kolumnowym). Na ≤480px bokowy padding pigułek `.8rem → .5rem` (miejsce
-  dla 3-segmentowej Formy w wąskich widokach).
-- Suwak z wartością `.wz-slider`: **`.num-control` zawsze PRZED `input[type="range"]`**
-  — na desktopie liczba po lewej, suwak po prawej (wartość nie zasłaniana);
-  **≤480px** num-control na górnej linii, range pełnej szerokości pod nim
-  (`flex: 1 1 100%`, bez `order`).
-- **Pole kwotowe (pensja, salda, cel, kwota oszczędności, limity): `width/min-width: 11ch`,
-  `flex-shrink: 0`, `font-variant-numeric: tabular-nums`** — input KWOTOWY nigdy nie
-  kompresuje się w wierszu i mieści 7-cyfrową kwotę w całości. To się powtarza —
-  nie dodawaj pola kwotowego bez tej reguły (11ch = baza; większe wartości wymagają
-  więcej).
-- Ostrzeżenia `.form-msg.warn` — pełna szerokość (`grid-column: 1 / -1`).
-- Krok 2 „Twoje dane": 3 panele w kolejności „Ty" | „Praca i dochód" |
-  „Odkładasz miesięcznie". Pensja ma segment **Brutto / Netto** (`#wzSalaryMode`)
-  **tylko dla etatu**; B2B zostaje przy brutto z tooltipem (netto zależy od formy
-  opodatkowania), a „Nie pracuję" chowa pole. Segment siedzi w `.wz-choice-row`
-  obok pastylek formy zatrudnienia (obie grupy mieszczą się w lewej kolumnie
-  300 px; na węższym ekranie Brutto/Netto zawija się pod spód). Obok labela
-  pensji `#wzSalaryHint` pokazuje kwotę odwrotną („≈ netto" / „≈ brutto")
-  z `POST /api/wizard/salary`
-  (`app/simulation/salary.py`: ZUS pracownika 13,71%, zdrowotna 9%, PIT wg skali
-  + danina; przy planie doliczana jest składka pracownika PPK, jeśli PPK jest
+- Krok 2 „Twoje dane": 3 panele `.wz-panel` w kolejności „Ty" | „Praca i dochód" |
+  „Odkładasz miesięcznie" (tytuły w `.wz-panel-title`). Pensja ma segment
+  **Brutto / Netto** (`#wzSalaryMode`) **tylko dla etatu**; B2B zostaje przy brutto
+  z podpowiedzią (netto zależy od formy opodatkowania), „Nie pracuję" chowa pole.
+  Segment siedzi w `.wz-choice-row` obok segmentu formy zatrudnienia. Obok labela
+  pensji `#wzSalaryHint` pokazuje kwotę odwrotną („≈ netto" / „≈ brutto") z
+  `POST /api/wizard/salary` (`app/simulation/salary.py`: ZUS pracownika 13,71%,
+  zdrowotna 9%, PIT wg skali + danina; z PPK doliczana składka pracownika, jeśli PPK
   włączone w kroku 3). Oszczędności są **tylko kwotowe**: `#wzSavings` domyślnie
   **1000 zł/mies.**, suwak `#wzSavingsAmtRange` 0–netto, bez trybu procentowego.
-  `#wzSavingsHint` pokazuje „`kwota` = `%` pensji netto", a `#wzSavingsWarn`
-  ostrzega tylko przy kwocie > pensja netto. `collectAnswers()` wysyła
-  `salary_mode` i `savings`; backend normalizuje netto→brutto **raz** na wejściu
-  `plan()`/`estimate_pool_monthly()`, więc solvery nie powtarzają konwersji.
-- Krok 3 „Kapitał": **wszystkie 14 kont** (w tym `zus:ofe`) jako pastylki wyboru
-  w `#wzCapitalPicker`; wybrane konto dodaje pole kwotowe do `#wzCapitalGrid`
-  (ponowne kliknięcie pastylki / „Usuń” je zabiera). Do odpowiedzi trafiają tylko
+  `#wzSavingsHint` pokazuje „`kwota` = `%` pensji netto", `#wzSavingsWarn` ostrzega
+  tylko przy kwocie > pensja netto. `collectAnswers()` wysyła `salary_mode` i
+  `savings`; backend normalizuje netto→brutto **raz** na wejściu
+  `plan()`/`estimate_pool_monthly()`.
+- Krok 3 „Kapitał": **wszystkie 14 kont** (w tym `zus:ofe`) jako `.pill-toggle.wz-pill`
+  w `#wzCapitalPicker`; wybrane konto dodaje `.wz-capital-item` do `#wzCapitalGrid`
+  (ponowne kliknięcie / `.wz-pill-remove` je zabiera). Do odpowiedzi trafiają tylko
   kwoty > 0.
-- Krok 4 („Kiedy chcesz przejść na FIRE?” / „Twój cel wypłaty i wiek FIRE” /
-  „Wymarzona wypłata i horyzont” wg ścieżki): 4 pełnowymiarowe wiersze `.wz-slider`
-  w kontenerze `.wz-rows` (pionowy stack, separatory `1px solid var(--border)`
-  między wierszami w każdej szerokości — układ zawsze pionowy; bez hint-podpowiedzi,
-  ewentualny kontekst w `title` labela). Pola są ukrywane zależnie od ścieżki:
-  cel wypłaty tylko dla 2/3, wiek FIRE tylko dla 1/2. Domyślne wartości **wg płci
-  i wieku** przeliczane automatycznie dopóki pola nie były ręcznie edytowane (flagi
-  `wzRetirementTouched`/`wzPlanEndTouched`): „Wiek emerytury ZUS" = `RETIREMENT_DEFAULT`
-  (60 k / 65 m, spójne z `config.zus.wiek_emerytalny_*`); „Horyzont czasowy wypłat" =
-  wiek + `LIFE_EXPECTANCY` (średnie dalsze trwanie życia wg płci i wieku — GUS, tablica
-  trwania życia za 2024 r., dane w wizard.js, to dane UI a nie backendu). Traktuj jak
-  krok 2: `.num-control` PRZED range, `bindSliderRange`.
-- Krok 5 „Strategia i założenia" ma 5 paneli: „Założenia rynkowe (koniunktura)",
-  „Strategia podziału oszczędności", „Podział", „Dodaj instrument", „Wpłaty z pensji".
-  **Założenia i strategia to dwa niezależne wybory.** Założenia (3 pigułki:
-  🌧️ Konserwatywne / 🌤️ Realne / ☀️ Optymistyczne) sterują ROI, inflacją i waloryzacją
-  ZUS w backendzie (`planner.py`); strategia (4 pigułki: 🛡️ Konserwatywna,
-  ⚖️ Zrównoważona, 🚀 Agresywna, 🎛️ Manualna) tylko rozdziela oszczędności między konta.
-- Pigułki paneli bez pary „opcja|wartość" rozciągają się na CAŁĄ szerokość panelu
-  (`.gender-options`, komórka = panel) — nie stosuje się do nich slotu `300px 1fr`.
-  Na **≤640px selektor strategii zmienia się w pionową radio-listę** (pełnowymiarowe
-  wiersze z `border`, kontener bez obramowania; na >640px zostaje segment).
-- Wybór strategii jest **wymagany**; na starcie kroku 5 żaden tryb nie jest aktywny.
-  Automatyczne strategie ustawiają `wzAllocMode = "auto"`: wołają `/api/wizard/suggest`
-  (w ścieżce 2 z celem wypłaty z kroku 4 i szacowaną pulą `pool_monthly`) i pokazują
-  TYLKO sekcję „Podział" w **read-only** (statyczne wiersze `.wz-alloc-readonly`, bez
-  suwaków, pigułek i „wpłat z pensji"). „Manualna" ustawia `"manual"`: pełny
-  interaktywny układ (suwaki/pola, wiersz Gotówki, pigułki „Dodaj instrument",
-  „Wpłaty z pensji") z zachowanymi wagami sugestii do dostrojenia.
-  Podtytuł/pula (`#wzAllocHeader`) i nota Gotówka (`#wzAllocCashNote`) są renderowane
-  przy KAŻDYM wejściu na krok 5 (`setStep` → `buildAllocationStep`) i przy zmianie
-  trybu. **Wiersz podziału jest kwotowy (rocznie), a nie procentowy:** etykieta |
-  pogrubione pole `zł/rok` | suwak roczny | wyszarzone `≈zł/mies.` | najmniejsze
-  pochodne `≈%`. Procenty są wyłącznie prezentacyjne (zaokrąglone do pełnych liczb,
-  `<1%` dla niezerowych ułamków) — backend nadal dostaje `WizardAnswers.allocations`
-  jako udziały procentowe. Konta z limitem pokazują spokojną notę `limit roczny:
-  X zł` / `limit roczny osiągnięty`, a suwak i pole mają maksimum
-  `min(pozostała pula, limit roczny)` — ręcznie nie da się przekroczyć limitu.
-  Układ: **szeroka karta = jedna linia + nota limitu pod spodem**; **≤820px
-  (container)** etykieta, kwota, `≈zł/mies.` i `≈%` zawijają się w naturalny
-  sposób, a suwak zajmuje pełną szerokość (`order: 5`), nota limitu idzie pod
-  nim (`order: 6`). Próg jest większy niż mobile, bo przy ok. 560–800px pełny
-  wiersz nie mieści już prawej pary `≈zł/mies.` + `≈%` i procent spadałby
-  samotnie do nowej linii.
-  **Ścieżki 1/3:** kanoniczne są kwoty roczne (`wzAmounts`); wzrost puli zostawia
-  kwoty, a różnica trafia do Gotówki; spadek puli proporcjonalnie przycina kwoty
-  (`wzReconcileAmounts`). **Ścieżka 2:** kanoniczne są wagi procentowe
-  (`wzWeights`); kwoty są pochodne i przeliczają się po zmianie/solved puli
-  (`wzSyncAmountsFromWeights`), z notą „Podział proporcjonalny…”. Ręczna edycja
-  kwoty w ścieżce 2 ustawia wagę `kwota / pula × 100`. Noty o nadwyżce ponad limit
-  pokazują się tylko, gdy po zaokrągleniu do pełnych złotych nadwyżka miesięczna
-  wynosi ≥ 1 zł (mikronadwyżki z zaokrągleń są ukryte).
-- Bez wybranej strategii „Wylicz plan" jest wyłączony (`wzNextBtn.disabled`,
-  `.btn:disabled`), a wyjaśnienie jest tylko tooltipem (natywny `title` na wrapperze
-  `.wz-next-tip` — na disabled buttonie title się nie pokazuje) oraz **dymkiem po
-  kliknięciu** (`.wz-next-pop`, `role=status`, klika się wrapper, bo
-  `#wzNextBtn:disabled { pointer-events: none }`; tekst współdzielony przez stałą
-  `ALLOC_GATE_MSG`, auto-ukrycie ~4 s) — refresh bramki w
-  `updateFooterNav`/`setAllocMode`/`runSuggestAllocation.finally`, a `validateStep(5)`
-  to siatka bezpieczeństwa (`allocReady()` = `wzAllocMode != null`).
-- Usuwanie instrumentu („Usuń"/pastylka) czyści też kwotę i wagę
-  (`deactivateAllocAccount`/`togglePill` — `delete wzWeights[acc]` i
-  `delete wzAmounts[acc]`), a `collectAllocations` pomija wagi nieaktywnych kont
-  (`isCapActive(acc) && wzWeights[acc] > 0`) — martwe udziały nigdy nie wracają
-  do sumy (inaczej sugerowanie/plan potrafiły błędnie przekroczyć 100%).
-- Krok 6 „Twój plan FIRE": loader `#wzPlanLoader` (3 etapy) na czas `runPlan()`,
-  potem Hero Answer (`#wzHeroAnswer`, odpowiedź zależna od ścieżki), 3 karty
-  scenariuszy (`#wzScenariosBox`), metryki (`#wzMetrics`), solved (`#wzSolved`),
-  ostrzeżenia (`#wzWarnings`), oś czasu (`#wzTimeline`), podsumowanie etapów
-  (`#wzStageSummaryList`) i notatka o wypłatach netto. **Nie ma `#wzStagePreview`.**
-  Klik karty ustawia `wzSelectedScenario` i przerenderowuje CAŁY wynik z
-  `scenario_projections`/`scenario_solved`/`scenario_inputs` przez
-  `renderScenarioResult()` (hero, metryki, solved, ostrzeżenia, oś czasu, etapy).
-  Lista etapów pokazuje przybliżone kwoty miesięczne z
-  `PlanProjection.stage_metrics` (akumulacja = średnie wpłaty do portfela bez
-  ZUS; realizacja = średnia wypłata netto). W nakładających się etapach
-  „Dopłata do emerytury” i „Emerytura ZUS” wiersze pokazują składniki
-  (portfel / ZUS), które się sumują — pod listą jest przypis.
-  Wybór scenariusza jest zapisywany w `localStorage` i odtwarzany przez
-  `/wizard?restore=1`. Wejście z kroku 5 od razu uruchamia `runPlan()`.
-
-### Założenia projektowe układu wierszowego (dlaczego tak — stosuj przy innych widokach)
-
-- **Slot opcji = stała szerokość**, wspólna dla wszystkich paneli widoku — wyrównuje
-  lewe brzegi wartości i prawych kontrolek. Wartość dobierana z pomiaru: suma
-  naturalnych szerokości najszerszej grupy pigułek + zapas na fonty (~8%, mierzone w
-  Chromium na systemowej czcionce; Forma naturalnie 276.5px → slot 300px).
-- **Pigułki zawsze rozciągnięte do swojej komórki** — duży, jednoznaczny cel
-  kliknięcia i spójny wygląd. Segmenty **proporcjonalne (`flex: 1 0 auto`)**, NIE
-  równe (`flex: 1 1 0%`) — równe ściskałyby najdłuższą etykietę poniżej szerokości
-  tekstu i wymuszały łamanie linii.
-- **Tekst pigułki zawsze w jednej linii** (`white-space: nowrap`) — selektor o
-  innej wysokości niż sąsiednie kontrolki wygląda jak błąd. Koszt: slot musi mieć
-  szerokość najszerszej etykiety (a na ≤480px redukujemy padding pigułek, by zmieścić
-  grupy 3-segmentowe w wąskich widokach).
-- **Wartość przed suwakiem** (`.num-control` PRZED `input[type="range"]`) — na
-  mobile liczba jest nad suwakiem i kciuk jej nie zasłania; na desktopie z tej samej
-  zasady liczba po lewej, suwak po prawej.
-- **Inputy kwot `11ch` (+`min-width: 11ch`)** — największa kwota w widoku to pensja
-  100 000 zł (7 cyfr); 11ch mieści ją z zapasem, bez rośnięcia pola przy wpisie.
-- **Separator między polami tylko w układzie pionowym (<821px)** — w 2-kolumnowym
-  siatka wystarczająco oddziela; bez separatora w pionowym wiersze się zlewają.
-- **Ostrzeżenia na pełną szerokość** — nie łamią siatki 2-kolumnowej i mają miejsce
-  na pełny komunikat.
-- Klasy wielokrotnego użytku: `.wz-grid`, `.wz-inline-field`, `.wz-field-block`,
-  `.wz-slider` (wizard.css).
-- Aktywa wersjonowane przez `?v={{ version }}` (`_asset_version`, routes.py:37) —
-  dodaj do każdego nowego pliku JS/CSS w template.
+- Krok 4 (tytuł wg ścieżki: „Kiedy chcesz przejść na FIRE?” / „Twój cel wypłaty i
+  wiek FIRE” / „Wymarzona wypłata i horyzont”): 4 wiersze `.wz-slider` w `.wz-rows`,
+  bez hint-podpowiedzi (kontekst w `title` labela). Cel wypłaty tylko dla ścieżek 2/3,
+  wiek FIRE tylko dla 1/2. Domyślne wartości **wg płci i wieku**, przeliczane dopóki
+  pola nie były edytowane (`wzRetirementTouched`/`wzPlanEndTouched`): wiek emerytury
+  ZUS = `RETIREMENT_DEFAULT` (60 k / 65 m); horyzont = wiek + `LIFE_EXPECTANCY`
+  (GUS 2024, dane UI w wizard.js).
+- Krok 5 „Strategia i założenia": 5 paneli `.wz-alloc-panel` — „Założenia rynkowe
+  (koniunktura)", „Strategia podziału oszczędności", „Podział", „Dodaj instrument",
+  „Wpłaty z pensji". **Założenia i strategia to dwa niezależne wybory** (`.segmented`
+  z 3 i 4 `.seg-option`; na ≤640 px `.segmented-stack` układa je pionowo).
+  Założenia sterują ROI, inflacją i waloryzacją ZUS (`planner.py`); strategia tylko
+  rozdziela oszczędności. Wybór strategii jest **wymagany** (na starcie żaden tryb).
+  Strategie automatyczne: `wzAllocMode = "auto"`, `/api/wizard/suggest` (w ścieżce 2
+  z celem i `pool_monthly`), sekcja „Podział" **read-only** (`.wz-alloc-readonly`).
+  „Manualna": `"manual"`, pełny układ (pola `zł/rok` + suwaki, wiersz Gotówki,
+  „Dodaj instrument", „Wpłaty z pensji"). **Wiersz podziału jest kwotowy (rocznie)**:
+  etykieta | pole `zł/rok` | suwak | `≈zł/mies.` | `≈%` (procenty tylko
+  prezentacyjne; backend dostaje `allocations` jako udziały). Konta z limitem:
+  nota `limit roczny: X zł` / `limit roczny osiągnięty`, maksimum pola i suwaka =
+  `min(pozostała pula, limit)`. Ścieżki 1/3: kanoniczne kwoty (`wzAmounts`),
+  wzrost puli → różnica do Gotówki, spadek → proporcjonalne przycięcie
+  (`wzReconcileAmounts`). Ścieżka 2: kanoniczne wagi (`wzWeights`), kwoty pochodne
+  (`wzSyncAmountsFromWeights`). Nota o nadwyżce tylko gdy ≥ 1 zł/mies.
+  Bez strategii „Wylicz plan" jest wyłączony; wyjaśnienie w `title` wrappera
+  `.wz-next-tip` i w dymku `.wz-next-pop` po kliknięciu (`ALLOC_GATE_MSG`,
+  auto-ukrycie ~4 s); `validateStep(5)` to siatka bezpieczeństwa.
+  Usunięcie instrumentu czyści kwotę i wagę (`deactivateAllocAccount`/`togglePill`),
+  `collectAllocations` pomija nieaktywne konta.
+- Krok 6 „Twój plan FIRE": loader `#wzPlanLoader`, potem `#wzHeroAnswer`,
+  3 karty `#wzScenariosBox`, metryki `#wzMetrics` (`.metric-grid`), `#wzSolved`
+  (baner info), `#wzWarnings` (baner warn z listą), oś czasu `#wzTimeline`,
+  tabela faz `#wzPhaseTable` (na mobile ukryta, bo karty osi czasu niosą te same
+  dane), `#wzStageSummaryList` w `<details>` i nota o kwotach netto. **Nie ma
+  `#wzStagePreview`.** Klik karty scenariusza ustawia `wzSelectedScenario` i
+  przerenderowuje cały wynik (`renderScenarioResult`). Wybór scenariusza zapisywany
+  w `localStorage`, odtwarzany przez `/wizard?restore=1`. Wejście z kroku 5 od razu
+  uruchamia `runPlan()`.
 
 ## Współpraca z użytkownikiem
 

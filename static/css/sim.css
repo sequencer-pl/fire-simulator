@@ -1,0 +1,430 @@
+/* sim.css — edytor /sim: etapy, konta, wyniki, konfiguracja. Układ stron; klocki z components.css. */
+
+/* --- Etap -------------------------------------------------------------------- */
+
+.stage-block {
+    position: relative;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--text-3);
+    border-radius: var(--r-lg);
+    padding: var(--sp-5);
+    margin-bottom: var(--sp-4);
+}
+
+.stage-block.stage-akumulacja { border-left-color: var(--stage-accum); }
+.stage-block.stage-realizacja { border-left-color: var(--stage-real); }
+
+.stage-block.dragging { opacity: 0.4; border-style: dashed; }
+.stage-block.drag-before { box-shadow: 0 -3px 0 0 var(--primary); }
+.stage-block.drag-after { box-shadow: 0 3px 0 0 var(--primary); }
+.stage-block.drag-invalid { border-color: var(--danger); border-style: dashed; }
+
+.stage-handle {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    margin: calc(-1 * var(--sp-5)) calc(-1 * var(--sp-5)) var(--sp-4);
+    padding: var(--sp-2) var(--sp-3) var(--sp-2) var(--sp-2);
+    border-bottom: 1px solid var(--border);
+    cursor: grab;
+    user-select: none;
+}
+
+.stage-handle:active { cursor: grabbing; }
+
+.stage-grip {
+    display: inline-flex;
+    color: var(--text-3);
+}
+
+.stage-grip .icon { width: 18px; height: 18px; }
+
+.stage-handle-actions { margin-left: auto; flex-wrap: nowrap; }
+
+.stage-header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 150px 150px;
+    gap: var(--sp-4);
+    margin-bottom: var(--sp-4);
+}
+
+.stage-header .num-control .acc-field { text-align: center; }
+
+.accounts-field { margin-bottom: var(--sp-4); }
+
+.accounts-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: var(--sp-3);
+}
+
+.account-card {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+    padding: var(--sp-4);
+}
+
+.account-card-header {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    margin-bottom: var(--sp-3);
+    padding-bottom: var(--sp-3);
+    border-bottom: 1px solid var(--border);
+}
+
+.account-card-icon {
+    display: inline-flex;
+    color: var(--primary);
+}
+
+.account-card-icon .icon { width: 18px; height: 18px; }
+
+.account-card-header h4 {
+    flex: 1;
+    min-width: 0;
+    font-size: var(--fs-md);
+    font-weight: 650;
+}
+
+.account-card .remove-account-btn { margin: calc(-1 * var(--sp-1)) calc(-1 * var(--sp-2)) calc(-1 * var(--sp-1)) 0; }
+
+.account-card .fields-row {
+    display: grid;
+    gap: var(--sp-3);
+}
+
+.account-card .field-checkbox {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sp-3);
+}
+
+.account-card .field-checkbox > label { flex: 1; }
+
+.starting-balance-field.is-balance-carried .num-control { display: none; }
+
+.starting-balance-note {
+    display: flex;
+    align-items: center;
+    min-height: var(--control-h);
+    padding: 0 var(--sp-3);
+    border: 1px dashed var(--border-strong);
+    border-radius: var(--r-md);
+    color: var(--text-3);
+    font-size: var(--fs-sm);
+}
+
+.starting-balance-note[hidden] { display: none !important; }
+
+.stage-hint { margin-top: var(--sp-4); }
+
+.stage-hint-list .hint-info { color: var(--text-2); }
+.stage-hint-list .hint-warning { color: var(--text); }
+.stage-hint-list .hint-error { color: var(--danger); }
+
+.phase-divider {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-3);
+    margin: var(--sp-6) 0;
+    color: var(--text-2);
+    font-size: var(--fs-sm);
+}
+
+.phase-divider::before,
+.phase-divider::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+}
+
+.phase-divider-label { font-weight: 600; white-space: nowrap; }
+.phase-divider-arrow { color: var(--text-3); margin: 0 var(--sp-1); }
+
+.phase-divider-age {
+    padding: 2px var(--sp-2);
+    border-radius: var(--r-pill);
+    background: var(--primary-soft);
+    color: var(--primary);
+    font-size: var(--fs-xs);
+    white-space: nowrap;
+}
+
+.sim-config-section.collapsed { display: none; }
+
+/* --- Pasek akcji: stany ------------------------------------------------------------ */
+
+#saveSimBtn[hidden],
+#exportSimBtn[hidden],
+#editConfigBtn[hidden] { display: none; }
+
+.form-actions.config-collapsed .add-stage-btns,
+.form-actions.config-collapsed #importSimBtn,
+.form-actions.config-collapsed #clearStagesBtn,
+.form-actions.config-collapsed #simulateBtn { display: none; }
+
+.form-actions.config-collapsed #exportSimBtn,
+.form-actions.config-collapsed #saveSimBtn,
+.form-actions.config-collapsed #editConfigBtn { display: inline-flex; }
+
+/* --- Wyniki ------------------------------------------------------------------------- */
+
+.results-section { margin-top: var(--sp-6); }
+
+#warnings:not(:empty) { margin-bottom: var(--sp-4); }
+
+#summary { margin-bottom: var(--sp-6); }
+
+#stageSummary { margin-bottom: var(--sp-6); }
+
+.charts-section {
+    display: grid;
+    gap: var(--sp-4);
+    margin-bottom: var(--sp-8);
+}
+
+.chart-card { padding: var(--sp-4) var(--sp-5); }
+
+.chart-wrap { position: relative; }
+.chart-wrap.hidden { display: none; }
+
+.chart-svg .wealth-line { stroke: var(--primary); }
+.chart-svg .wealth-area { fill: var(--primary); }
+.chart-svg .chart-dot-wealth { fill: var(--primary); }
+.chart-svg .withdrawal-line { stroke: var(--stage-real); }
+.chart-svg .withdrawal-area { fill: var(--stage-real); }
+.chart-svg .chart-dot-green { fill: var(--stage-real); }
+
+.chart-detail {
+    margin-top: var(--sp-3);
+    padding: var(--sp-3) var(--sp-4);
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+}
+
+.chart-detail .detail-header {
+    font-size: var(--fs-sm);
+    color: var(--text-2);
+    margin-bottom: var(--sp-2);
+}
+
+.chart-detail .detail-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: var(--sp-2) var(--sp-4);
+}
+
+.chart-detail .detail-item { display: flex; flex-direction: column; }
+
+.chart-detail .detail-label {
+    font-size: var(--fs-xs);
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--text-3);
+}
+
+.chart-detail .detail-value {
+    font-weight: 650;
+    font-variant-numeric: tabular-nums;
+}
+
+.chart-detail .detail-balances {
+    margin-top: var(--sp-3);
+    padding-top: var(--sp-3);
+    border-top: 1px solid var(--border);
+}
+
+.results-toolbar { margin-bottom: var(--sp-3); }
+
+.density-control {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+}
+
+.density-control .select { width: auto; min-width: 9rem; }
+
+#resultsTable th.col-age,
+#resultsTable td.col-age {
+    position: sticky;
+    left: 0;
+    z-index: 3;
+    min-width: 56px;
+    background: var(--surface);
+}
+
+#resultsTable th.col-stage,
+#resultsTable td.col-stage {
+    position: sticky;
+    left: 56px;
+    z-index: 3;
+    min-width: 180px;
+    max-width: 240px;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+#resultsTable th.col-age,
+#resultsTable th.col-stage { z-index: 4; background: var(--surface-2); }
+
+#resultsTable tr:hover td.col-age,
+#resultsTable tr:hover td.col-stage { background: var(--surface-hover); }
+
+#resultsTable tr.highlight td.col-stage { color: var(--stage-real); }
+#resultsTable tr.stage-accum td.col-stage { color: var(--stage-accum); }
+
+#resultsTable td.col-hidden,
+#resultsTable th.col-hidden,
+#resultsTable tr.density-hidden { display: none; }
+
+.plus-suffix { color: var(--text-3); margin-left: 2px; }
+
+/* --- Konfiguracja --------------------------------------------------------------------- */
+
+.preset-current { flex: 1 1 280px; }
+.preset-current .select { max-width: 360px; }
+
+.config-content { display: grid; gap: var(--sp-4); }
+
+.config-section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--r-lg);
+    padding: var(--sp-5);
+}
+
+.config-section h3 {
+    font-size: var(--fs-lg);
+    margin-bottom: var(--sp-4);
+}
+
+.config-fields,
+.config-accounts {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: var(--sp-4);
+}
+
+.config-field-heading {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    min-height: 18px;
+}
+
+.config-field-label { flex: 1; min-width: 0; }
+
+.config-override-indicator {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--primary);
+    flex-shrink: 0;
+}
+
+.config-override-indicator[hidden] { display: none; }
+
+.config-field-control {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-1);
+}
+
+.config-inline-editor {
+    display: flex;
+    align-items: center;
+    flex: 1;
+    min-width: 0;
+}
+
+.config-inline-editor .num-control { flex: 1; }
+.config-inline-editor .select { flex: 1; }
+
+.config-field.has-override .num-control,
+.config-field.has-override .select { border-color: var(--primary); }
+
+.config-restore-btn { flex-shrink: 0; color: var(--text-3); }
+.config-restore-btn:not(:disabled) { color: var(--primary); }
+.config-restore-btn:disabled { opacity: 0.25; }
+
+.account-rules-card {
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+    padding: 0;
+}
+
+.account-rules-summary {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+    padding: var(--sp-3) var(--sp-4);
+    font-weight: 650;
+    cursor: pointer;
+    list-style: none;
+}
+
+.account-rules-summary::-webkit-details-marker { display: none; }
+
+.account-rules-icon { display: inline-flex; color: var(--primary); }
+.account-rules-icon .icon { width: 18px; height: 18px; }
+
+.account-rules-chevron {
+    display: inline-flex;
+    color: var(--text-3);
+    transition: transform var(--t-fast);
+}
+
+.account-rules-card[open] .account-rules-chevron { transform: rotate(180deg); }
+
+.account-rules-body {
+    display: grid;
+    gap: var(--sp-3);
+    padding: 0 var(--sp-4) var(--sp-4);
+    border-top: 1px solid var(--border);
+    padding-top: var(--sp-3);
+}
+
+.account-rules-body .num-control,
+.account-rules-body .select { background: var(--surface); }
+
+/* --- Responsywność ------------------------------------------------------------------------ */
+
+@media (max-width: 900px) {
+    .stage-header { grid-template-columns: minmax(0, 1fr) 1fr 1fr; }
+}
+
+@media (max-width: 640px) {
+    .stage-block { padding: var(--sp-4); }
+    .stage-handle { margin: calc(-1 * var(--sp-4)) calc(-1 * var(--sp-4)) var(--sp-3); }
+    .stage-header { grid-template-columns: 1fr 1fr; }
+    .stage-name-field { grid-column: 1 / -1; }
+    .accounts-grid { grid-template-columns: 1fr; }
+    .config-fields, .config-accounts { grid-template-columns: 1fr; }
+    .preset-actions { width: 100%; }
+    .preset-actions .btn { flex: 1 1 auto; }
+    #resultsTable th.col-stage,
+    #resultsTable td.col-stage { left: 48px; min-width: 120px; max-width: 150px; }
+    #resultsTable th.col-age,
+    #resultsTable td.col-age { min-width: 48px; }
+    .results-toolbar .toolbar-right { width: 100%; }
+    .density-control .select { flex: 1; }
+}
+
+@media (max-width: 640px) {
+    /* Import z pliku to zadanie na większy ekran; na telefonie pasek akcji ma zostać jednowierszowy. */
+    .form-actions #importSimBtn { display: none; }
+    .form-actions .action-bar-center { display: none; }
+    .form-actions { grid-template-columns: auto 1fr; }
+    .form-actions .btn { padding: 0 var(--sp-2); }
+}

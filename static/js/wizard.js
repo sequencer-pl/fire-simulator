@@ -68,7 +68,7 @@ const LIFE_EXPECTANCY = {
 };
 
 const WZ_CAPITAL_OVERRIDES = { zus: "ZUS", "zus:ofe": "OFE" };
-const WZ_CAPITAL_ICONS = { "zus:ofe": "🏛️" };
+const WZ_CAPITAL_ICONS = { "zus:ofe": iconSvg("zus") };
 
 // State
 let wzCapitalSelected = new Set();
@@ -126,8 +126,8 @@ function buildCapitalRow(account, initialValue = "0") {
     wrap.dataset.account = account;
     wrap.innerHTML = `
         <div class="wz-capital-item-head">
-            <label class="wz-instrument-name">${icon} ${label}</label>
-            <button type="button" class="wz-pill-remove" aria-label="Usuń ${label}">Usuń</button>
+            <label class="wz-instrument-name"><span class="wz-alloc-icon">${icon}</span>${label}</label>
+            <button type="button" class="btn btn-ghost btn-icon btn-sm wz-pill-remove" aria-label="Usuń ${label}" title="Usuń">${iconSvg("x")}</button>
         </div>
         <div class="wz-instrument-fields">
             ${numControl(account, label, initialValue)}
@@ -182,9 +182,9 @@ function buildCapitalGrid() {
         WZ_CAPITAL_ROWS.forEach((account) => {
             const btn = document.createElement("button");
             btn.type = "button";
-            btn.className = "wz-pill";
+            btn.className = "pill-toggle wz-pill";
             btn.dataset.account = account;
-            btn.innerHTML = `${accountIcon(account)} ${capitalLabel(account)}`;
+            btn.innerHTML = `${accountIcon(account)}<span>${capitalLabel(account)}</span>`;
             btn.addEventListener("click", () => toggleCapitalAccount(account));
             picker.appendChild(btn);
         });
@@ -406,13 +406,21 @@ function renderWarnings(list) {
     box.classList.add("hidden");
     box.innerHTML = "";
     if (!list || !list.length) return;
+    const banner = document.createElement("div");
+    banner.className = "banner banner-warn";
+    banner.insertAdjacentHTML("afterbegin", iconSvg("warning"));
+    const body = document.createElement("div");
+    body.className = "banner-body";
     const ul = document.createElement("ul");
+    ul.className = "banner-list";
     list.forEach((w) => {
         const li = document.createElement("li");
         li.textContent = w;
         ul.appendChild(li);
     });
-    box.appendChild(ul);
+    body.appendChild(ul);
+    banner.appendChild(body);
+    box.appendChild(banner);
     box.classList.remove("hidden");
 }
 
@@ -498,10 +506,10 @@ function renderScenarios(data) {
         return;
     }
     const fmt = (v) => (v == null ? "—" : Math.round(v).toLocaleString("pl-PL"));
-    const icons = { konserwatywne: "🌧️", realne: "🌤️", optymistyczne: "☀️" };
+    const icons = { konserwatywne: iconSvg("rain"), realne: iconSvg("cloud"), optymistyczne: iconSvg("sun") };
     const path = data.path || currentPath();
 
-    let html = `<h3 class="wz-panel-title">Porównanie scenariuszy rynkowych (kliknij, aby wybrać symulację do edycji)</h3><div class="wz-scenarios-grid">`;
+    let html = `<h3 class="eyebrow wz-panel-title">Scenariusze rynkowe</h3><div class="wz-scenarios-grid">`;
     keys.forEach((key) => {
         const s = scenarios[key];
         const selected = key === wzSelectedScenario;
@@ -524,8 +532,8 @@ function renderScenarios(data) {
         html += `
             <button type="button" class="wz-scenario-card${selected ? " is-selected" : ""}" data-scenario="${key}" aria-pressed="${selected}">
                 <span class="wz-scenario-title">
-                    <span>${icons[key] || ""} ${escapeHtml(s.label)}</span>
-                    ${selected ? '<span class="wz-scenario-badge">Wybrany</span>' : ""}
+                    <span class="wz-scenario-name">${icons[key] || ""}<span>${escapeHtml(s.label)}</span></span>
+                    ${selected ? `<span class="chip chip-primary">${iconSvg("check")}Wybrany</span>` : ""}
                 </span>
                 <span class="wz-scenario-main">${mainText}</span>
                 <span class="wz-scenario-sub">${subText}</span>
@@ -547,18 +555,18 @@ function renderScenarios(data) {
 function renderMetrics(projection) {
     const box = document.getElementById("wzMetrics");
     const fmt = (v) => (v == null ? "—" : Math.round(v).toLocaleString("pl-PL"));
-    let html = `<div class="wz-metric"><span class="wz-metric-label">Średnia wypłata/mies.</span><span class="wz-metric-value">${fmt(projection.mean_monthly)} zł</span></div>`;
-    html += `<div class="wz-metric"><span class="wz-metric-label">Minimalna wypłata/mies.</span><span class="wz-metric-value">${fmt(projection.min_monthly)} zł</span></div>`;
+    let html = `<div class="metric"><span class="metric-label">Średnia wypłata/mies.</span><span class="metric-value">${fmt(projection.mean_monthly)} zł</span></div>`;
+    html += `<div class="metric"><span class="metric-label">Minimalna wypłata/mies.</span><span class="metric-value">${fmt(projection.min_monthly)} zł</span></div>`;
     if (projection.target_monthly != null) {
         const ok = projection.met;
-        html += `<div class="wz-metric ${ok ? "wz-metric-ok" : "wz-metric-warn"}"><span class="wz-metric-label">Cel ${fmt(projection.target_monthly)} zł</span><span class="wz-metric-value">${ok ? "✔ osiągnięty" : "✖ nieosiągnięty"}</span></div>`;
+        html += `<div class="metric ${ok ? "is-positive" : "is-warning"}"><span class="metric-label">Cel ${fmt(projection.target_monthly)} zł</span><span class="metric-value">${ok ? "osiągnięty" : "nieosiągnięty"}</span></div>`;
         if (!ok && projection.exhaust_age != null) {
-            html += `<div class="wz-metric wz-metric-warn"><span class="wz-metric-label">Wiek wyczerpania</span><span class="wz-metric-value">starcza do ${projection.exhaust_age} r.ż.</span></div>`;
+            html += `<div class="metric is-warning"><span class="metric-label">Wiek wyczerpania</span><span class="metric-value">${projection.exhaust_age} r.ż.</span></div>`;
         }
     }
-    html += `<div class="wz-metric"><span class="wz-metric-label">Majątek szczytowy</span><span class="wz-metric-value">${fmt(projection.peak_wealth)} zł</span></div>`;
-    html += `<div class="wz-metric"><span class="wz-metric-label">Majątek na koniec horyzontu</span><span class="wz-metric-value">${fmt(projection.final_wealth)} zł</span></div>`;
-    box.innerHTML = html;
+    html += `<div class="metric"><span class="metric-label">Majątek szczytowy</span><span class="metric-value">${fmt(projection.peak_wealth)} zł</span></div>`;
+    html += `<div class="metric${(projection.final_wealth || 0) <= 0 ? " is-muted" : ""}"><span class="metric-label">Na koniec horyzontu</span><span class="metric-value">${fmt(projection.final_wealth)} zł</span></div>`;
+    box.innerHTML = `<div class="metric-grid">${html}</div>`;
     box.classList.remove("hidden");
 }
 
@@ -576,10 +584,10 @@ function renderSolved(solved) {
         li.push(`Najwcześniejszy wiek FIRE: <strong>${solved.retire_early_age} lat</strong>.`);
     }
     if (!solved.feasible) {
-        li.push(`<span class="wz-warn-inline">${solved.note}</span>`);
+        li.push(`<span class="text-warning">${solved.note}</span>`);
     }
     if (li.length) {
-        box.innerHTML = `<p>${li.join(" ")}</p>`;
+        box.innerHTML = `<div class="banner banner-info">${iconSvg("info")}<div class="banner-body">${li.join(" ")}</div></div>`;
         box.classList.remove("hidden");
     }
 }
@@ -622,7 +630,7 @@ function renderStageSummaryList(input, projection) {
             finance = `<span class="stage-finance ${kind}" title="${title}">~${fmtMoney(amount)}/mies.</span>`;
         }
         const pills = accountKeys
-            .map((k) => `<span class="stage-pill">${escapeHtml(ACCOUNT_LABELS[k] || k)}</span>`)
+            .map((k) => `<span class="chip">${escapeHtml(ACCOUNT_LABELS[k] || k)}</span>`)
             .join("");
         const row = document.createElement("div");
         row.className = "stage-line";
@@ -730,7 +738,8 @@ async function runPlan() {
     } catch (err) {
         wzPlan = null;
         document.getElementById("wzResult").classList.remove("hidden");
-        errorBox.textContent = "Błąd: " + err.message;
+        errorBox.innerHTML = `${iconSvg("danger")}<div class="banner-body"></div>`;
+        errorBox.querySelector(".banner-body").textContent = "Błąd: " + err.message;
         errorBox.classList.remove("hidden");
     } finally {
         stopPlanLoader();
@@ -790,7 +799,7 @@ function renderPhaseTimeline(box, phases) {
         ].filter(Boolean).join(" · ");
         seg.innerHTML = `
             <span class="wz-tl-name">${escapeHtml(phase.name)}</span>
-            <span class="wz-tl-age">${phase.start_age}→${phase.end_age} r.ż.</span>
+            <span class="wz-tl-age">${phase.start_age}–${phase.end_age} r.ż.</span>
             <span class="wz-tl-amount">${phase.monthly > 0 ? `~${fmtMoney(phase.monthly)}/mies.` : "—"}</span>
             <span class="wz-tl-kind">${isAccum ? "wpłaty" : "wypłata netto"}</span>
             ${split ? `<span class="wz-tl-split">${split}</span>` : ""}`;
@@ -829,7 +838,7 @@ function renderLegacyTimeline(input, box) {
         seg.style.left = leftPct + "%";
         seg.style.width = spanPct + "%";
         seg.title = s.label + ": " + s.start + " → " + s.end + " r.ż.";
-        seg.innerHTML = `<span class="wz-tl-label">${escapeHtml(s.label)} ${s.start}→${s.end}</span>`;
+        seg.innerHTML = `<span class="wz-tl-name">${escapeHtml(s.label)}</span><span class="wz-tl-age">${s.start}–${s.end} r.ż.</span>`;
         box.appendChild(seg);
     });
 }
@@ -852,7 +861,7 @@ function renderPhaseTable(projection) {
             return `
                 <tr>
                     <td data-label="Etap"><span class="wz-phase-name">${escapeHtml(phase.name)}</span></td>
-                    <td data-label="Wiek">${phase.start_age}→${phase.end_age} r.ż.</td>
+                    <td data-label="Wiek">${phase.start_age}–${phase.end_age} r.ż.</td>
                     <td data-label="Miesięcznie"><strong>${amount}</strong><span class="wz-phase-kind">${kind}</span></td>
                     <td data-label="Składniki"><span class="wz-phase-components">${components}</span></td>
                 </tr>`;
@@ -1606,14 +1615,14 @@ function buildAllocationStep() {
         wrap.className = "wz-alloc-row" + (readonly ? " wz-alloc-readonly" : "");
         wrap.innerHTML = readonly
             ? `
-            <div class="wz-alloc-label" ${labelTip}>${icon} ${label}</div>
+            <div class="wz-alloc-label" ${labelTip}><span class="wz-alloc-icon">${icon}</span>${label}</div>
             <span class="wz-alloc-annual wz-alloc-annual-static" data-account="${acc}" aria-label="Wpłata roczna ${label}">—</span>
             <span class="wz-alloc-money" data-account="${acc}">—</span>
             <span class="wz-alloc-pct" data-account="${acc}">—</span>
             <span class="wz-alloc-cap hidden" data-account="${acc}"></span>
             <span class="wz-alloc-overflow hidden" data-account="${acc}"></span>`
             : `
-            <div class="wz-alloc-label" ${labelTip}>${icon} ${label}</div>
+            <div class="wz-alloc-label" ${labelTip}><span class="wz-alloc-icon">${icon}</span>${label}</div>
             <div class="wz-alloc-annual">
                 ${numControlsHtml({
                     value,
@@ -1634,8 +1643,9 @@ function buildAllocationStep() {
         if (!readonly && capitalSaldo(acc) <= 0) {
             const rm = document.createElement("button");
             rm.type = "button";
-            rm.className = "wz-pill-remove";
-            rm.textContent = "Usuń";
+            rm.className = "btn btn-ghost btn-icon btn-sm wz-pill-remove";
+            rm.innerHTML = iconSvg("x");
+            rm.title = "Usuń";
             rm.setAttribute("aria-label", `Usuń ${label}`);
             rm.addEventListener("click", () => {
                 deactivateAllocAccount(acc);
@@ -1672,16 +1682,17 @@ function renderPayrollActive() {
         const icon = accountIcon(acc);
         const row = document.createElement("div");
         row.className = "wz-alloc-row wz-alloc-info";
-        row.innerHTML = `<div class="wz-alloc-label">${icon} ${capitalLabel(acc)}</div>`;
+        row.innerHTML = `<div class="wz-alloc-label"><span class="wz-alloc-icon">${icon}</span>${capitalLabel(acc)}</div>`;
         const note = document.createElement("span");
         note.className = "wz-alloc-note";
-        note.textContent = "wpłaty z pensji — dodatkowe do oszczędności";
+        note.textContent = "wpłaty z pensji, dodatkowe do oszczędności";
         row.appendChild(note);
         if (capitalSaldo(acc) <= 0) {
             const rm = document.createElement("button");
             rm.type = "button";
-            rm.className = "wz-pill-remove";
-            rm.textContent = "Usuń";
+            rm.className = "btn btn-ghost btn-icon btn-sm wz-pill-remove";
+            rm.innerHTML = iconSvg("x");
+            rm.title = "Usuń";
             rm.setAttribute("aria-label", `Usuń ${capitalLabel(acc)}`);
             rm.addEventListener("click", () => {
                 deactivateAllocAccount(acc);
@@ -1706,16 +1717,16 @@ function buildAllocationPills() {
     }
     if (panel) panel.classList.remove("hidden");
     const wrap = document.createElement("div");
-    wrap.className = "wz-pills";
+    wrap.className = "pill-grid wz-pills";
     const pill = (acc) => {
         const b = document.createElement("button");
         b.type = "button";
-        b.className = "wz-pill";
+        b.className = "pill-toggle wz-pill";
         b.dataset.account = acc;
         const payrollSub = WZ_PAYROLL.has(acc)
-            ? `<span class="wz-pill-sub">wpłaty z pensji</span>`
+            ? `<span class="pill-sub">wpłaty z pensji</span>`
             : "";
-        b.innerHTML = `${accountIcon(acc)} ${capitalLabel(acc)}${payrollSub}`;
+        b.innerHTML = `${accountIcon(acc)}<span>${capitalLabel(acc)}</span>${payrollSub}`;
         b.addEventListener("click", () => {
             togglePill(acc);
             buildAllocationStep();

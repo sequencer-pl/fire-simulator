@@ -2,8 +2,13 @@
 {% block title %}FIRE Simulator — Zaloguj się{% endblock %}
 {% block subtitle %}Logowanie{% endblock %}
 {% block section %}login{% endblock %}
+{% block head_extra %}<link rel="stylesheet" href="/static/css/landing.css?v={{ version }}">{% endblock %}
 {% block content %}
         <section class="login-section" aria-label="Logowanie">
+            <div class="page-head login-head">
+                <h2 class="page-title">Zaloguj się</h2>
+                <p class="page-lead">Konto pozwala zapisywać symulacje, porównywać scenariusze i trzymać własną konfigurację podatkową.</p>
+            </div>
             {% include "_auth_panel.html" %}
         </section>
 {% endblock %}
