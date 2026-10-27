@@ -61,27 +61,37 @@ def _compute_ikze_tax_saving(
     ikze_contribution: float,
     annual_income: float,
     config: TaxConfig,
+    years: int = 0,
 ) -> float:
     """Tax saving from IKZE contribution (odliczenie od dochodu).
 
     Compares PIT on full income vs income reduced by the IKZE contribution.
+    ``years`` since simulation start shifts the PIT thresholds in real terms.
     """
     if ikze_contribution <= 0 or annual_income <= 0:
         return 0.0
-    tax_without = scale_tax(annual_income, **config.scale_kwargs())
-    tax_with = scale_tax(max(0.0, annual_income - ikze_contribution), **config.scale_kwargs())
+    kwargs = config.scale_kwargs(years)
+    tax_without = scale_tax(annual_income, **kwargs)
+    tax_with = scale_tax(max(0.0, annual_income - ikze_contribution), **kwargs)
     return max(0.0, tax_without - tax_with)
 
 
 _resolve_base = resolve_base
 
 
-def _compute_monthly_gross_dochod(monthly_gross: float, config: TaxConfig) -> float:
+def _compute_monthly_gross_dochod(monthly_gross: float, config: TaxConfig, years: int = 0) -> float:
     """Annual dochód (after ZUS contributions and KUP) from monthly gross."""
     annual = monthly_gross * MONTHS_PER_YEAR
     skladki = annual * config.zus.skladka_rate
-    kup = config.kup
+    kup = config.kup_at(years)
     return max(0.0, annual - skladki - kup)
+
+
+def _years_since_start(state: SimulationState | None, age: int | None) -> int:
+    """Years elapsed since simulation start (0 when unknown)."""
+    if state is None or age is None:
+        return 0
+    return max(0, age - state.start_age)
 
 
 def _validate_stage_order(stages: list[StageInput]) -> None:
@@ -252,10 +262,11 @@ def _process_ikze_returns(
 
     total_ikze = sum(bal for _, bal in ikze_accounts)
     combined = total_ikze + zus_pension
-    combined_tax = scale_tax(combined, **config.scale_kwargs())
+    years = _years_since_start(state, age)
+    combined_tax = scale_tax(combined, **config.scale_kwargs(years))
     combined_tax += danina_solidarnosciowa(
         combined,
-        danina_prog=config.danina_prog,
+        danina_prog=config.danina_prog_at(years),
         danina_rate=config.danina_rate,
     )
 
@@ -805,8 +816,9 @@ def _apply_ikze_savings(
             base = cfg.monthly_base if cfg.monthly_base > 0 else monthly_gross
             if base <= 0:
                 continue
-            dochód = _compute_monthly_gross_dochod(base, state.config)
-            saving = _compute_ikze_tax_saving(contribution, dochód, state.config)
+            years = _years_since_start(state, age)
+            dochód = _compute_monthly_gross_dochod(base, state.config, years)
+            saving = _compute_ikze_tax_saving(contribution, dochód, state.config, years)
             if saving > 0:
                 merged_tax[name] = merged_tax.get(name, 0.0) - saving
                 for target_acc in _IKZE_REINVEST_ORDER:
@@ -1278,10 +1290,11 @@ def _apply_tax(
                 basis[account] = max(0.0, account_basis - principal)
 
     if scale_income > 0:
-        total_scale = scale_tax(scale_income, **config.scale_kwargs())
+        years = _years_since_start(state, age)
+        total_scale = scale_tax(scale_income, **config.scale_kwargs(years))
         total_scale += danina_solidarnosciowa(
             scale_income,
-            danina_prog=config.danina_prog,
+            danina_prog=config.danina_prog_at(years),
             danina_rate=config.danina_rate,
         )
         for account, amount in scale_accounts:

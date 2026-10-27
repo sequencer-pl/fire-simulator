@@ -11,7 +11,9 @@ bez TypeScript), SQLite, pytest. Odpowiadaj i pisz UI po polsku.
 - **Inflacja świadomie pomijana** w większości wyliczeń — wartości realne traktujemy
   jak nominalne. Inflacja występuje TYLKO w: kontu `gotowka` (ROI = -inflacja,
   engine.py), waloryzacji świadczenia ZUS i indeksacji kapitału
-  (`_accumulate_zus`/`_convert_zus`, app/simulation/zus.py) oraz helperach
+  (`_accumulate_zus`/`_convert_zus`, app/simulation/zus.py), realnym przeliczeniu
+  progów PIT/KUP/daniny (`TaxConfig.threshold_factor`, config.py — tylko gdy
+  `prog_indexation` ≠ None; domyślnie progi są stałe realnie) oraz helperach
   Fisher/deflate (core/inflation.py). Nie dodawać inflacji do wzrostu kont ani do
   PMT bez zgody.
 - **Dwa tryby realizacji** (app/stages/realizacja.py):

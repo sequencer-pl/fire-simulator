@@ -455,6 +455,7 @@ function renderConfigView() {
         configNumberField("kup_50_limit", "Limit 50% KUP", USER_CONFIG.kup_50_limit, "Limit przychodów dla 50% kosztów autorskich (projekt 2027: powiązany z progiem 130k)."),
         configPercentField("danina_rate", "Danina solidarnościowa", USER_CONFIG.danina_rate, "Stawka daniny od nadwyżki ponad 1 mln zł (2026: 4%; projekt 2027: 5%)."),
         configPercentField("inflation", "Inflacja roczna", USER_CONFIG.inflation, "Roczna inflacja — jedyne źródło dla całej symulacji. Używana do wyliczenia nominalnego podatku Belki/OKI z realnego ROI oraz realnej erozji gotówki (wyniki zawsze w dzisiejszych zł)."),
+        configNullablePercentField("prog_indexation", "Indeksacja progów PIT", USER_CONFIG.prog_indexation, "Roczna nominalna waloryzacja kwoty wolnej, progów, KUP i progu daniny. Puste = równa inflacji (progi stałe realnie, jak dotąd). 0% = progi zamrożone nominalnie, czyli realnie maleją co roku o inflację; wartość pośrednia = ustawodawca podnosi progi rzadziej niż inflacja.", { zeroIsNull: false }),
     ]));
 
     root.appendChild(configSection("Limity rocznych wpłat", [
@@ -604,7 +605,7 @@ function configFieldShell(path, label, hint, editorMarkup, displayValue, inputVa
     return wrap;
 }
 
-function configField(path, label, value, percent, hint, ticks, nullable = false) {
+function configField(path, label, value, percent, hint, ticks, nullable = false, zeroIsNull = true) {
     const raw = value == null ? null : percent ? value * 100 : value;
     const displayVal = raw == null ? "" : Math.round(raw * 1e4) / 1e4;
     const inputMin = ticks && ticks.length ? Math.min(...ticks) : 0;
@@ -629,7 +630,7 @@ function configField(path, label, value, percent, hint, ticks, nullable = false)
 
     input.addEventListener("input", () => {
         const parsed = input.value === "" ? (nullable ? null : 0) : (parseFloat(input.value) || 0);
-        const normalized = nullable && parsed === 0 ? null : parsed;
+        const normalized = nullable && zeroIsNull && parsed === 0 ? null : parsed;
         setConfigPath(path, normalized == null ? null : percent ? normalized / 100 : normalized);
         wrap._updateConfigState();
         updateStageHints(document.getElementById("stages-container"));
@@ -649,8 +650,8 @@ function configNullableNumberField(path, label, value, hint) {
     return configField(path, label, value, false, hint, null, true);
 }
 
-function configNullablePercentField(path, label, value, hint) {
-    return configField(path, label, value, true, hint, null, true);
+function configNullablePercentField(path, label, value, hint, options = {}) {
+    return configField(path, label, value, true, hint, null, true, options.zeroIsNull !== false);
 }
 
 function renderAccountRulesCard(key, rules) {
@@ -911,6 +912,7 @@ const BUILTIN_PRESETS_CLIENT = {
     },
     "Konserwatywne": {
         inflation: 0.035,
+        prog_indexation: 0.01,
         zus: { waloryzacja_skladek: 0.01, waloryzacja_swiadczenia: 0.01 },
         accounts: {
             broker: { default_roi: 0.035 },

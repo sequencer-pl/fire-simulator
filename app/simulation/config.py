@@ -196,22 +196,50 @@ class TaxConfig(BaseModel):
     kup_50_limit: float = 120_000
     kup: float = 3600.0
     inflation: float = 0.025
+    # Nominalna indeksacja progów PIT (kwota wolna, progi, KUP, próg daniny).
+    # None = indeksacja równa inflacji (progi stałe realnie); 0.0 = progi
+    # zamrożone nominalnie, więc realnie maleją co roku o inflację.
+    prog_indexation: float | None = None
     limits: Limits = Field(default_factory=Limits)
     accounts: dict[str, AccountRules] = Field(default_factory=default_account_rules)
     zus: ZusConfig = Field(default_factory=ZusConfig)
     ppk: PpkConfig = Field(default_factory=PpkConfig)
     ppe: PpeConfig = Field(default_factory=PpeConfig)
 
-    def scale_kwargs(self) -> dict:
-        """Parametry skali PIT do przekazania wprost do scale_tax()."""
+    def threshold_factor(self, years: int = 0) -> float:
+        """Realny mnożnik progów nominalnych po ``years`` latach od startu.
+
+        Progi indeksowane stopą ``prog_indexation`` w świecie o inflacji
+        ``inflation`` zmieniają się realnie o ((1+idx)/(1+infl))^lata.
+        None = indeksacja równa inflacji, czyli progi stałe realnie (mnożnik 1).
+        """
+        if self.prog_indexation is None or years <= 0:
+            return 1.0
+        return ((1 + self.prog_indexation) / (1 + self.inflation)) ** years
+
+    def scale_kwargs(self, years: int = 0) -> dict:
+        """Parametry skali PIT do przekazania wprost do scale_tax().
+
+        ``years`` — lata od startu symulacji; progi i kwota wolna są
+        przeliczane na wartości realne przez ``threshold_factor``.
+        """
+        f = self.threshold_factor(years)
         return {
-            "kwota_wolna": self.kwota_wolna,
-            "prog": self.prog,
+            "kwota_wolna": self.kwota_wolna * f,
+            "prog": self.prog * f,
             "rate_lower": self.rate_lower,
             "rate_upper": self.rate_upper,
-            "prog2": self.prog2,
+            "prog2": None if self.prog2 is None else self.prog2 * f,
             "rate_middle": self.rate_middle,
         }
+
+    def danina_prog_at(self, years: int = 0) -> float:
+        """Realny próg daniny solidarnościowej po ``years`` latach."""
+        return self.danina_prog * self.threshold_factor(years)
+
+    def kup_at(self, years: int = 0) -> float:
+        """Realne roczne koszty uzyskania przychodu po ``years`` latach."""
+        return self.kup * self.threshold_factor(years)
 
 
 def default_config(year: int = 2026) -> TaxConfig:
@@ -249,6 +277,7 @@ BUILTIN_PRESETS: dict[str, dict] = {
     },
     "Konserwatywne": {
         "inflation": 0.035,
+        "prog_indexation": 0.01,
         "zus": {"waloryzacja_skladek": 0.01, "waloryzacja_swiadczenia": 0.01},
         "accounts": {
             "broker": {"default_roi": 0.035},
