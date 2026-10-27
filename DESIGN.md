@@ -102,3 +102,5 @@ Konfiguracja) i konto po prawej. Aktywna sekcja: tekst `--text`, tło
 `--primary` 12 %. Między 641 a 1024 px sekcje pokazują tylko ikony (pełna
 nazwa w `title` i `aria-label`). Poniżej 640 px cztery sekcje przenoszą się do
 dolnego paska zakładek (ikona + etykieta), w topbarze zostaje marka i konto.
+Między 360 a 640 px marka zachowuje podtytuł w jednej linii (z elipsis); poniżej
+360 px podtytuł znika. Do 480 px przycisk logowania zostaje samą ikoną.

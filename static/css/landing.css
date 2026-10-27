@@ -9,6 +9,7 @@
     font-size: clamp(1.6rem, 3.4vw, 2.4rem);
     margin: var(--sp-2) 0 var(--sp-3);
     letter-spacing: -0.02em;
+    text-wrap: balance;
 }
 
 .hero-lead {
@@ -16,6 +17,8 @@
     font-size: var(--fs-lg);
     line-height: 1.5;
     margin-bottom: var(--sp-5);
+    max-width: 64ch;
+    text-wrap: pretty;
 }
 
 .landing-grid {
@@ -126,12 +129,32 @@
     flex-shrink: 0;
 }
 
-/* --- Założenia --- */
+/* --- Czym to jest / czym nie jest --- */
+
+.landing-about { margin-bottom: var(--sp-10); }
+
+.about-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--sp-4);
+}
+
+.about-grid .card-inset + .card-inset { margin-top: 0; }
+
+.about-card .eyebrow { margin-bottom: var(--sp-1); }
+
+.about-lead {
+    color: var(--text-2);
+    font-size: var(--fs-sm);
+    line-height: 1.6;
+    margin: 0;
+}
 
 .principles-grid {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: var(--sp-4);
+    margin-top: var(--sp-4);
 }
 
 .principles-grid .card-inset + .card-inset { margin-top: 0; }
@@ -154,6 +177,7 @@
 .login-head .page-lead { margin: var(--sp-2) auto 0; }
 
 @media (max-width: 900px) {
+    .about-grid { grid-template-columns: 1fr; }
     .principles-grid { grid-template-columns: 1fr; }
 }
 

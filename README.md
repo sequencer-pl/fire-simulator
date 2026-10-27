@@ -2,9 +2,29 @@
 
 Symulator niezależności finansowej (*Financial Independence, Retire Early*) dla polskiego systemu podatkowego i emerytalnego.
 
+> **Nie obiecujemy, że będziesz bogaty.** Nie znamy Twojej przyszłości, nie przewidzimy rynku i nie zastąpimy doradcy. Ten projekt ma jedno zadanie: pokazać, co wynika z Twoich liczb — po polsku, po podatkach i bez ściemy. Jeśli po jednej symulacji spojrzysz na oszczędzanie trochę poważniej, uznamy to za sukces.
+
 FIRE Simulator odpowiada na pytanie, które zadaje sobie każdy, kto planuje wcześniejszą emeryturę: **ile dziś oszczędzać, w co i jak długo, żeby w wieku X móc przestać pracować i mieć środki do końca życia** — z uwzględnieniem podatków, limitów i reguł wiekowych, które naprawdę obowiązują w Polsce.
 
 Zamiast jednej magicznej liczby ("potrzebujesz 2 mln zł") pokazuje **rozpisane po latach** źródła finansowania: co wypłacasz z rachunku maklerskiego i IKZE, co z IKE i PPK, a co realnie otrzymasz z ZUS — oraz ile z tego oddasz fiskusowi.
+
+## Czym to jest — i czym nie jest
+
+**Jest** modelem, nie wróżbą. Bierze Twoje zarobki, oszczędności, wiek i założenia, a potem pokazuje rok po roku, co z nich wynika. Ma pomóc zrozumieć mechanikę: podatki, limity, kolejność wypłat, ZUS. I ma inspirować — bo czasem jedna policzona liczba robi więcej niż dziesięć artykułów o „wolności finansowej”.
+
+**Nie jest** poradą inwestycyjną, prognozą rynku ani gwarancją. Nie wie, jaka będzie inflacja, stopy procentowe i prawo za 20 lat. Nie uwzględnia Twojej psychiki, nieprzewidzianych wydatków ani tego, że życie lubi pisać własne scenariusze. Jeśli szukasz odpowiedzi „czy warto”, to nie tutaj — tutaj znajdziesz „co się stanie, jeśli”.
+
+## Dla kogo
+
+- **Dla Ciebie, jeśli** chcesz zrozumieć, co robią z Twoimi pieniędzmi podatki, limity i kolejność wypłat.
+- **Dla Ciebie, jeśli** lubisz scenariusze „co jeśli” bardziej niż jedną magiczną liczbę.
+- **Nie dla Ciebie, jeśli** szukasz rekomendacji „kup X, sprzedaj Y, będziesz wolny w 2035”.
+
+## Od czego zacząć
+
+- **Asystent** — sześć pytań i gotowy plan w trzech scenariuszach rynkowych. Najlepszy pierwszy krok.
+- **Symulator** — pełna kontrola: etapy, konta, wpłaty, wypłaty i tabela rok po roku.
+- **Moje symulacje** — zapisane scenariusze i porównanie do czterech naraz.
 
 ## Dlaczego powstał
 
@@ -24,11 +44,13 @@ Symulację układasz z **etapów** (akumulacja i realizacja), a każdy etap to z
 
 Etapy mogą się nakładać (np. IKE + ZUS jednocześnie), a jedno konto może występować w wielu etapach z różnymi regułami. Wynik to tabela i wykres majątku w każdym roku życia.
 
-## Kluczowe założenia — przeczytaj, zanim zaczniesz się martwić wynikami
+## Zanim uwierzysz wynikom
 
 Symulator celowo jest **prostym modelem deterministycznym**, a nie symulacją Monte Carlo. To, czego nie modeluje, jest równie ważne jak to, co modeluje:
 
-1. **Wszystko w dzisiejszych złotych, inflacja tylko do podatków.** Silnik przechowuje i pokazuje wyniki w sile nabywczej (realnie). `ROI` wpisujesz **realne (ponad inflacją)** (po Belce i po inflacji), a globalna `inflacja` (`Konfiguracja → Skala podatkowa`, domyślnie 2,5% w presetach) służy tylko do wyliczenia nominalnego podatku Belki/OKI i PIT z realnych kwot. Gotówka domyślnie `-2,5%/rok` (erozja = inflacja).
+> **W skrócie:** liczby są realne i netto, ROI jest stałe, ZUS uproszczony, a rynek, inflacja i prawo siedzą poza modelem. To wystarczy, żeby planować, ale nie wystarczy, żeby traktować wynik jak proroctwo.
+
+1. **Wszystko w dzisiejszych złotych.** Silnik przechowuje i pokazuje wyniki w sile nabywczej (realnie). `ROI` wpisujesz **realne (ponad inflacją)** (po Belce i po inflacji), a globalna `inflacja` (`Konfiguracja → Skala podatkowa`, domyślnie 2,5% w presetach) wchodzi tylko w trzy miejsca: nominalny podatek Belki/OKI i PIT z realnych kwot, erozję gotówki (`-2,5%/rok`) oraz waloryzację ZUS (punkt 8).
 
 2. **ROI to realna stopa zwrotu (ponad inflacją) i jest stała w każdym roku.** Roczny, płaski zwrot *po opłatach i po Belce/OKI oraz po inflacji* (realny), ale **przed** podatkiem odroczonym od wypłat — ten rozlicza silnik na nominalnym odpowiedniku. Np. lokata 2% realnie + inflacja 2,5% → brutto nominalne ≈5,5% → Belka 19% liczona co okres (3m/12m) i urealniona. Nie ma zmienności rynku: 6% średnio nie znaczy 6% co roku.
 
@@ -88,6 +110,7 @@ Typowy cykl: edytujesz kod → serwer sam się przeładuje → odświeżasz stro
 |-----|------|
 | `make setup` | Instaluje zależności (`uv sync`) |
 | `make dev` | Serwer deweloperski z auto-reload |
+| `make dev-port` | Serwer dev z auto-reload na `0.0.0.0`, port z env `PORT` (domyślnie 8000) |
 | `make prod` | Serwer na `0.0.0.0:8000` (gunicorn + uvicorn worker) |
 | `make prod-port` | Jak `prod`, ale port z env `PORT` (np. Render) |
 | `make test` | Testy jednostkowe (pytest) |
@@ -114,7 +137,7 @@ Dwa sposoby startu:
 
 Endpoint `GET /healthz` zwraca status + dostępność bazy (probe dla hostingu). Backup bazy — `scripts/backup_db.sh` (online backup `sqlite3 .backup`, zachowuje `BACKUP_KEEP` ostatnich snapshotów).
 
-**Deploy na Render** — repo zawiera `render.yaml` (Blueprint: web service + env, build przez `pip install -r requirements.txt`, start przez gunicorn, `/healthz`). CI/CD leci z GitHub Actions (`.github/workflows/ci.yml` + `deploy.yml` na tag `v*`).
+**Deploy na Render** — repo zawiera `render.yaml` (Blueprint: web service + env, build przez `pip install -r requirements.txt`, start przez gunicorn, `/healthz`). CI/CD leci z GitHub Actions: `ci.yml` przy pushu/PR, a `deploy.yml` po każdym pushu do `main` (Render buduje linkowany branch).
 
 > **Uwaga o free tier Render.** Free web service NIE wspiera persistent disk — filesystem jest ephemeryczny, więc lokalne dane (konta, symulacje) giną przy każdym *spin-down* (po ~15 min bezczynności) i przy każdym redeployu. To celowy wybór na **wstępne "demo"** — nie trzymamy tu trwałych kont. Plan na trwałość (w kolejnych krokach): baza zewnętrzna (np. Render Postgres / Turso libSQL) wraz z **export/import symulacji do JSON**.
 
@@ -135,7 +158,7 @@ tests/             # testy pytest (silnik, podatki, ZUS, OKI, ...)
 
 ## Zastrzeżenie
 
-To narzędzie do planowania i nauki, **nie porada inwestycyjna ani gwarancja**. Wyniki zależą od założeń, które musisz samodzielnie zweryfikować, a model celowo pomija inflację, zmienność rynku i część realnych zasad ZUS. Decyzje finansowe podejmuj po konsultacji z doradcą.
+To narzędzie do myślenia, nie do wróżenia. **Nie jest poradą inwestycyjną ani gwarancją.** Wyniki zależą od założeń, które musisz samodzielnie zweryfikować. Model celowo upraszcza rzeczywistość: zakłada stałe ROI, uproszczony ZUS i pomija zmienność rynku oraz część realnych zasad. Decyzje finansowe podejmuj z głową — najlepiej z doradcą, który zna Twoją sytuację.
 
 ## Autorstwo
 

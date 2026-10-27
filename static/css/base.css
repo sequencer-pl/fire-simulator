@@ -172,6 +172,8 @@ h4 { font-size: var(--fs-md); }
 
 .brand:hover { text-decoration: none; }
 
+.brand > div { min-width: 0; }
+
 .brand-mark {
     width: 38px;
     height: 38px;
@@ -326,7 +328,11 @@ body[data-section="konfiguracja"] .nav-item[data-nav="konfiguracja"] {
         margin-bottom: var(--sp-4);
     }
 
-    .brand .subtitle { display: none; }
+    .brand .subtitle {
+        display: block;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
     .brand-mark { width: 32px; height: 32px; }
     .brand h1 { font-size: 1.05rem; }
 
@@ -368,4 +374,13 @@ body[data-section="konfiguracja"] .nav-item[data-nav="konfiguracja"] {
     body[data-section="konfiguracja"] .tabbar a[data-nav="konfiguracja"] {
         color: var(--primary);
     }
+}
+
+@media (max-width: 480px) {
+    .account-widget .btn > span { display: none; }
+    .account-widget .btn { width: var(--control-h-sm); padding: 0; }
+}
+
+@media (max-width: 359px) {
+    .brand .subtitle { display: none; }
 }

@@ -3,7 +3,7 @@ APP := app.main:app
 QA := qa/visual
 QA_JS := qa/jsdom
 
-.PHONY: setup dev prod prod-port test lint typecheck format shots visual-baseline visual harness-jsdom clean
+.PHONY: setup dev dev-port prod prod-port test lint typecheck format shots visual-baseline visual harness-jsdom clean
 
 ## Instaluje zależności (tworzy .venv)
 setup:
@@ -12,6 +12,10 @@ setup:
 ## Uruchamia serwer deweloperski (auto-reload)
 dev:
 	$(PYTHON) uvicorn $(APP) --reload
+
+## Uruchamia serwer deweloperski na 0.0.0.0, port z env PORT (domyślnie 8000)
+dev-port:
+	$(PYTHON) uvicorn $(APP) --reload --host 0.0.0.0 --port $${PORT:-8000}
 
 ## Uruchamia serwer produkcyjny (gunicorn + 1 worker uvicorn; SQLite jest single-writer)
 prod:
