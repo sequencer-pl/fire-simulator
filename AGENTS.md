@@ -78,10 +78,11 @@ bez TypeScript), SQLite, pytest. Odpowiadaj i pisz UI po polsku.
   `body.has-action-bar` (block `body_class` w szablonie, albo JS jak w liście
   symulacji, gdzie pasek pojawia się dopiero po zaznaczeniu). Nigdy osobnych
   pływających pasków per strona.
-- **Nawigacja**: topbar z czterema sekcjami + `#accountWidget`; poniżej 640 px
-  sekcje przenoszą się do `.tabbar` (base.html), w topbarze zostaje marka i konto.
-  `data-section` w body steruje stanem aktywnym; przełączanie edytor/konfiguracja
-  bez przeładowania przez `setNavSection` (simulator.js).
+- **Nawigacja**: topbar z czterema sekcjami + `#accountWidget`; między 641 a
+  1024 px sekcje pokazują same ikony (pełna nazwa w `title` i `aria-label`);
+  poniżej 640 px przenoszą się do `.tabbar` (base.html), w topbarze zostaje
+  marka i konto. `data-section` w body steruje stanem aktywnym; przełączanie
+  edytor/konfiguracja bez przeładowania przez `setNavSection` (simulator.js).
 - **Konfiguracja edytuje w miejscu**: `configFieldShell` renderuje kontrolkę od
   razu (bez przycisku „Zmień”); kropka `.config-override-indicator` i aktywny
   `.config-restore-btn` oznaczają wartość inną niż w presecie

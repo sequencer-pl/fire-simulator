@@ -254,6 +254,19 @@ body[data-section="konfiguracja"] .nav-item[data-nav="konfiguracja"] {
     margin: 0 var(--sp-2);
 }
 
+/* Średnie ekrany: etykiety znikają, zostają ikony z podpowiedzią w title/aria-label. */
+@media (max-width: 1024px) and (min-width: 641px) {
+    .nav-item {
+        width: 38px;
+        padding: 0;
+        justify-content: center;
+    }
+
+    .nav-item span { display: none; }
+
+    .account-email { display: none; }
+}
+
 /* --- Widget konta ------------------------------------------------------- */
 
 .account-widget {

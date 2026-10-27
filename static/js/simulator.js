@@ -294,6 +294,7 @@ function updateEmptyState() {
     const container = document.getElementById("stages-container");
     const hasStages = container && container.querySelector(".stage-block");
     el.classList.toggle("hidden", hasStages);
+    document.getElementById("stagesHead")?.classList.toggle("hidden", !hasStages);
 }
 
 const WIZARD_DRAFT_KEY = "fire.wizardDraft";
@@ -682,6 +683,7 @@ function configSelect(path, label, value, options, hint) {
 }
 
 async function resetConfig() {
+    if (!confirm("Przywrócić domyślne wartości konfiguracji? Bieżące zmiany zostaną utracone.")) return;
     USER_CONFIG = structuredClone(DEFAULT_CONFIG);
     CONFIG_BASELINE = structuredClone(DEFAULT_CONFIG);
     CONFIG_BASELINE_NAME = "Domyślne 2026";

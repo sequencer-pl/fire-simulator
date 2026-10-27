@@ -43,8 +43,8 @@ nie dopisuje własnych kolorów, rozmiarów ani promieni.
    banerów albo jeden baner z listą, nigdy luźne akapity w kolorze.
 10. **Mobile to ten sam produkt.** Poniżej 640 px nawigacja staje się dolnym
     paskiem zakładek z etykietami, siatki schodzą do jednej kolumny, tabele
-    danych zamieniają się w karty wierszy. Trzy punkty łamania: 640, 900,
-    1200.
+    danych zamieniają się w karty wierszy. Między 641 a 1024 px nawigacja
+    pokazuje same ikony. Punkty łamania: 640, 900, 1024 (nawigacja), 1200.
 
 ## 2. Tokeny
 
@@ -67,7 +67,7 @@ nie dopisuje własnych kolorów, rozmiarów ani promieni.
 | Stan | `--success` | `#3ccf91` | |
 | | `--warning` | `#f0b64b` | |
 | | `--danger` | `#f26d6d` | |
-| Marka | `--brand-flame-*` | gradient płomienia | tylko logo |
+| Marka | `--brand-flame-*`, `--brand-tile-*` | gradient płomienia i ramki | tylko logo |
 
 Przezroczyste warianty robimy przez `color-mix(in srgb, var(--x) 12%,
 transparent)`; nie wpisujemy `rgba()` z liczbami.
@@ -99,5 +99,6 @@ transparent)`; nie wpisujemy `rgba()` z liczbami.
 
 Topbar: marka po lewej, cztery sekcje (Moje symulacje, Asystent, Symulator,
 Konfiguracja) i konto po prawej. Aktywna sekcja: tekst `--text`, tło
-`--primary` 12 %. Poniżej 640 px cztery sekcje przenoszą się do dolnego paska
-zakładek (ikona + etykieta), w topbarze zostaje marka i konto.
+`--primary` 12 %. Między 641 a 1024 px sekcje pokazują tylko ikony (pełna
+nazwa w `title` i `aria-label`). Poniżej 640 px cztery sekcje przenoszą się do
+dolnego paska zakładek (ikona + etykieta), w topbarze zostaje marka i konto.

@@ -34,6 +34,8 @@
 
 .btn:hover { text-decoration: none; }
 
+.btn[hidden] { display: none; }
+
 .btn .icon { width: 18px; height: 18px; }
 
 .btn-primary {
@@ -1180,7 +1182,7 @@ tbody tr.table-group:hover td { background: var(--surface-2); }
 
 .btn .btn-label-short { display: none; }
 
-@media (max-width: 640px) {
+@media (max-width: 800px) {
     .btn .btn-label-long { display: none; }
     .btn .btn-label-short { display: inline; }
 }

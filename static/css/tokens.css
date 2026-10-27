@@ -44,6 +44,8 @@
     --brand-flame-1: #ffbe76;
     --brand-flame-2: #e17055;
     --brand-flame-3: #e74c3c;
+    --brand-tile-1: #6c5ce7;
+    --brand-tile-2: #00cec9;
 
     /* --- Serie wykresów porównania (do 5 symulacji) --- */
     --series-1: var(--primary);

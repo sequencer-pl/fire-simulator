@@ -157,15 +157,20 @@
 
 .sim-config-section.collapsed { display: none; }
 
-/* --- Pasek akcji: stany ------------------------------------------------------------ */
+.stages-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sp-3);
+    margin-bottom: var(--sp-3);
+}
 
-#saveSimBtn[hidden],
-#exportSimBtn[hidden],
-#editConfigBtn[hidden] { display: none; }
+.stages-head .section-title { margin: 0; }
+
+/* --- Pasek akcji: stany ------------------------------------------------------------ */
 
 .form-actions.config-collapsed .add-stage-btns,
 .form-actions.config-collapsed #importSimBtn,
-.form-actions.config-collapsed #clearStagesBtn,
 .form-actions.config-collapsed #simulateBtn { display: none; }
 
 .form-actions.config-collapsed #exportSimBtn,
@@ -411,8 +416,9 @@
     .stage-name-field { grid-column: 1 / -1; }
     .accounts-grid { grid-template-columns: 1fr; }
     .config-fields, .config-accounts { grid-template-columns: 1fr; }
-    .preset-actions { width: 100%; }
-    .preset-actions .btn { flex: 1 1 auto; }
+    .preset-actions { width: 100%; gap: var(--sp-1); }
+    .preset-actions .btn { flex: 0 1 auto; }
+    .preset-actions .btn-icon { margin-left: auto; }
     #resultsTable th.col-stage,
     #resultsTable td.col-stage { left: 48px; min-width: 120px; max-width: 150px; }
     #resultsTable th.col-age,
@@ -427,4 +433,11 @@
     .form-actions .action-bar-center { display: none; }
     .form-actions { grid-template-columns: auto 1fr; }
     .form-actions .btn { padding: 0 var(--sp-2); }
+    .form-actions .action-bar-left,
+    .form-actions .action-bar-right { flex-wrap: nowrap; }
+}
+
+@media (max-width: 480px) {
+    /* Bez plusów przyciski etapów mieszczą się obok „Symuluj” nawet na 320 px. */
+    .add-stage-btns .btn .icon { display: none; }
 }

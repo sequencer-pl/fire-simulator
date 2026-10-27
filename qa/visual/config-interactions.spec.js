@@ -50,3 +50,23 @@ test("select konfiguracji jest natywnym <select> z klasą .select", async ({ pag
     await select.selectOption("none");
     await expect(f).toHaveClass(/has-override/);
 });
+
+test("„Usuń preset” jest ukryty dla wbudowanego presetu", async ({ page }) => {
+    await page.goto("/sim?view=config", { waitUntil: "networkidle" });
+    await expect(page.locator("#presetDeleteBtn")).toBeHidden();
+});
+
+test("„Przywróć domyślne” wymaga potwierdzenia", async ({ page }) => {
+    await page.goto("/sim?view=config", { waitUntil: "networkidle" });
+    const f = field(page, "Inflacja roczna");
+    const input = f.locator(".config-inline-editor input");
+    await input.fill("3.5");
+
+    page.once("dialog", (dialog) => dialog.dismiss());
+    await page.locator("#configResetBtn").click();
+    await expect(input).toHaveValue("3.5");
+
+    page.once("dialog", (dialog) => dialog.accept());
+    await page.locator("#configResetBtn").click();
+    await expect(input).toHaveValue("2.5");
+});
