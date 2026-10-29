@@ -26,6 +26,8 @@ const { window, document } = dom;
 
 window.scrollTo = () => {};
 window.alert = () => {};
+window.__salaryMode = "ok";
+window.__salaryCalls = 0;
 window.fetch = (url) => {
     if (String(url).includes("/api/config")) {
         return Promise.resolve({ ok: true, json: () => Promise.resolve({ limits: {} }) });
@@ -37,8 +39,19 @@ window.fetch = (url) => {
         });
     }
     if (String(url).includes("/api/wizard/salary")) {
+        window.__salaryCalls += 1;
+        if (window.__salaryMode === "429") {
+            return Promise.resolve({
+                ok: false,
+                status: 429,
+                headers: { get: (name) => (name === "Retry-After" ? "1" : null) },
+                json: () => Promise.resolve({ detail: "Za dużo żądań. Spróbuj za chwilę." }),
+            });
+        }
         return Promise.resolve({
             ok: true,
+            status: 200,
+            headers: { get: () => null },
             json: () => Promise.resolve({ gross_monthly: 8000, net_monthly: 5789.53 }),
         });
     }
@@ -178,6 +191,45 @@ const harness = `
             && grossLabel === "Pensja brutto (mies.)"
             && netLabel === "Pensja netto (mies.)"
             && hiddenB2b;
+    });
+    check("krok 2: pensja miesięcznie/rocznie przelicza wartość", () => {
+        const input = document.getElementById("wzGross");
+        const range = document.getElementById("wzGrossRange");
+        const label = document.getElementById("wzGrossLabel");
+        const month = document.querySelector('input[name="wzSalaryPeriod"][value="month"]');
+        const year = document.querySelector('input[name="wzSalaryPeriod"][value="year"]');
+        if (!input || !range || !month || !year) return false;
+        const grossMode = document.querySelector('input[name="wzSalaryMode"][value="gross"]');
+        if (grossMode) grossMode.checked = true;
+        month.checked = true;
+        month.dispatchEvent(new Event("change"));
+        input.value = "10000";
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+        const monthly = collectAnswers().gross_monthly;
+        year.checked = true;
+        year.dispatchEvent(new Event("change"));
+        const annualValue = input.value;
+        const annualMax = range.max;
+        const annualLabel = label.textContent;
+        const annualMonthly = collectAnswers().gross_monthly;
+        const yearHint = document.getElementById("wzSalaryPeriodHint");
+        const yearHintVisible = yearHint && !yearHint.hidden;
+        saveWizardState();
+        const saved = JSON.parse(localStorage.getItem(WIZARD_STATE_KEY) || "{}");
+        month.checked = true;
+        month.dispatchEvent(new Event("change"));
+        const back = input.value;
+        const monthHintHidden = !yearHint || yearHint.hidden;
+        return monthly === 10000
+            && annualValue === "120000"
+            && annualMax === "1200000"
+            && annualLabel.includes("rocznie")
+            && annualMonthly === 10000
+            && yearHintVisible
+            && monthHintHidden
+            && saved.salaryPeriod === "year"
+            && saved.answers.gross_monthly === 10000
+            && back === "10000";
     });
     check("krok 2: warning gdy kwota > pensja netto, hint % netto", () => {
         const input = document.getElementById("wzSavings");
@@ -753,6 +805,71 @@ const harness = `
             && Math.round(wzWeights["lokata"]) === 25
             && document.getElementById("wzAllocCashAnnual").textContent === zl(12000) + " zł/rok";
     });
+
+    check("restore: tryb roczny odtwarza kwotę i etykietę", () => {
+        localStorage.setItem("fire.wizardState", JSON.stringify({
+            step: 2,
+            path: 1,
+            answers: {
+                gender: "m",
+                age_now: 40,
+                employment: "etat",
+                gross_monthly: 10000,
+                salary_mode: "gross",
+                savings: 1000,
+                capital: {},
+            },
+            salaryPeriod: "year",
+        }));
+        window.history.replaceState({}, "", "/wizard?restore=1");
+        const ok = restoreWizardStateIfRequested();
+        const input = document.getElementById("wzGross");
+        return ok
+            && document.querySelector('input[name="wzSalaryPeriod"]:checked').value === "year"
+            && input.value === "120000"
+            && document.getElementById("wzGrossLabel").textContent.includes("rocznie")
+            && !document.getElementById("wzSalaryPeriodHint").hidden
+            && collectAnswers().gross_monthly === 10000;
+    });
+
+    // ---- Podgląd netto: limit zapytań nie może udawać błędu obliczeń ----
+    const salaryHint = document.getElementById("wzSalaryHint");
+    const salaryInput = document.getElementById("wzGross");
+    const etatRadio = document.querySelector('input[name="wzEmployment"][value="etat"]');
+    etatRadio.checked = true;
+    etatRadio.dispatchEvent(new Event("change"));
+    const monthRadio = document.querySelector('input[name="wzSalaryPeriod"][value="month"]');
+    monthRadio.checked = true;
+    monthRadio.dispatchEvent(new Event("change"));
+    salaryInput.value = "8000";
+    window.__salaryMode = "ok";
+    await updateSalaryHint();
+    const goodHint = salaryHint.textContent;
+    const goodNet = wzNetMonthly;
+
+    window.__salaryMode = "429";
+    salaryInput.value = "9000";
+    await updateSalaryHint();
+    const after429 = salaryHint.textContent;
+    const netAfter429 = wzNetMonthly;
+
+    window.__salaryMode = "ok";
+    await updateSalaryHint();
+    const recoveredHint = salaryHint.textContent;
+    window.__salaryCalls = 0;
+    await updateSalaryHint();
+    const cachedCalls = window.__salaryCalls;
+
+    check("podgląd netto: 429 nie pokazuje błędu i nie czyści kwoty", () =>
+        goodHint.includes("netto")
+        && !after429.includes("Nie udało się")
+        && after429 === goodHint
+        && netAfter429 === goodNet
+        && netAfter429 > 0
+    );
+    check("podgląd netto: cache nie powtarza zapytania dla tej samej kwoty", () =>
+        recoveredHint.includes("netto") && cachedCalls === 0
+    );
 
     const failed = results.filter((r) => !r.ok);
     const NL = String.fromCharCode(10);

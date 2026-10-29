@@ -22,7 +22,7 @@ Zamiast jednej magicznej liczby ("potrzebujesz 2 mln zł") pokazuje **rozpisane 
 
 ## Od czego zacząć
 
-- **Asystent** — sześć pytań i gotowy plan w trzech scenariuszach rynkowych. Najlepszy pierwszy krok.
+- **Asystent** — sześć pytań i gotowy plan w trzech scenariuszach rynkowych. Pensję możesz podać miesięcznie albo rocznie. Najlepszy pierwszy krok.
 - **Symulator** — pełna kontrola: etapy, konta, wpłaty, wypłaty i tabela rok po roku.
 - **Moje symulacje** — zapisane scenariusze i porównanie do czterech naraz.
 

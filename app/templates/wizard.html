@@ -88,7 +88,13 @@
                 </div>
                 <div class="field wz-field-block" id="wzGrossGroup">
                     <div class="wz-field-head">
-                        <label class="field-label-lg" id="wzGrossLabel" for="wzGross">Pensja brutto (mies.)</label>
+                        <div class="wz-salary-title">
+                            <label class="field-label-lg" id="wzGrossLabel" for="wzGross">Pensja brutto (mies.)</label>
+                            <div class="segmented is-auto gender-options wz-salary-period" id="wzSalaryPeriod" role="group" aria-label="Okres wynagrodzenia">
+                                <label class="seg-option gender-option" title="Podaj kwotę miesięczną"><input type="radio" name="wzSalaryPeriod" value="month" checked /> Miesięcznie</label>
+                                <label class="seg-option gender-option" title="Podaj sumę roczną — pensja, premie i nadgodziny. Silnik użyje 1/12 jako podstawy miesięcznej."><input type="radio" name="wzSalaryPeriod" value="year" /> Rocznie</label>
+                            </div>
+                        </div>
                         <p class="field-hint wz-hint" id="wzSalaryHint" aria-live="polite">≈ 5 790 zł/mies. netto</p>
                     </div>
                     <div class="wz-slider">
@@ -99,6 +105,7 @@
                         </div>
                         <input type="range" id="wzGrossRange" min="0" max="100000" step="250" value="8000" aria-label="Pensja brutto (mies.)">
                     </div>
+                    <p class="field-hint wz-hint" id="wzSalaryPeriodHint" hidden>Rocznie = pensja + premie + nadgodziny. Silnik użyje 1/12 jako podstawy miesięcznej.</p>
                 </div>
             </div>
         </div>

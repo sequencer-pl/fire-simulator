@@ -90,9 +90,18 @@ let wzEstimatedPoolMonthly = null;
 let wzPoolEstimatePending = false;
 let wzNetMonthly = null;
 let wzSalaryPreviewSeq = 0;
+// Ostatni udany podgląd netto/brutto — cache po (kwota mies., tryb, zatrudnienie,
+// PPK), żeby przełączenie okresu nie wysyłało zapytania o tę samą kwotę.
+let wzSalaryPreview = null;
+let wzSalaryHintTimer = null;
+let wzSalaryHintRetryTimer = null;
+let wzSalaryHintRetries = 0;
+const WZ_SALARY_HINT_DEBOUNCE_MS = 350;
+const WZ_SALARY_HINT_RETRY_MAX = 2;
 let wzRetirementTouched = false;
 let wzPlanEndTouched = false;
 let wzLoaderTimer = null;
+let wzInitialized = false;
 
 function capitalLabel(account) {
     return WZ_CAPITAL_OVERRIDES[account] || ACCOUNT_LABELS[account] || account;
@@ -239,7 +248,7 @@ function collectAnswers() {
         gender: radioChecked("wzGender") || "m",
         age_now: parseInt(document.getElementById("wzAge").value, 10) || 0,
         employment: radioChecked("wzEmployment") || "etat",
-        gross_monthly: parseFloat(document.getElementById("wzGross").value) || 0,
+        gross_monthly: salaryMonthlyValue(),
         salary_mode: (radioChecked("wzEmployment") || "etat") === "etat"
             ? (radioChecked("wzSalaryMode") || "gross")
             : "gross",
@@ -935,6 +944,7 @@ function saveWizardState() {
             selectedScenario: wzSelectedScenario,
             retirementTouched: wzRetirementTouched,
             planEndTouched: wzPlanEndTouched,
+            salaryPeriod: currentSalaryPeriod(),
         };
         localStorage.setItem(WIZARD_STATE_KEY, JSON.stringify(state));
     } catch {
@@ -966,7 +976,16 @@ function restoreWizardStateIfRequested() {
             empRadio.dispatchEvent(new Event("change"));
         }
 
-        if (a.gross_monthly != null) applyStep5Value(document.getElementById("wzGross"), a.gross_monthly);
+        const salaryPeriod = st.salaryPeriod === "year" ? "year" : "month";
+        const periodRadio = document.querySelector(`input[name="wzSalaryPeriod"][value="${salaryPeriod}"]`);
+        if (periodRadio) periodRadio.checked = true;
+        applySalaryPeriodAttributes();
+
+        if (a.gross_monthly != null) {
+            const grossInput = document.getElementById("wzGross");
+            if (grossInput) grossInput.dataset.lastMonthly = String(a.gross_monthly);
+            applyStep5Value(grossInput, Math.round(a.gross_monthly * salaryPeriodFactor()));
+        }
 
         const salModeRadio = document.querySelector(`input[name="wzSalaryMode"][value="${a.salary_mode || "gross"}"]`);
         if (salModeRadio) {
@@ -1061,6 +1080,42 @@ function currentSalaryMode() {
     return radioChecked("wzSalaryMode") || "gross";
 }
 
+function currentSalaryPeriod() {
+    return radioChecked("wzSalaryPeriod") || "month";
+}
+
+function salaryPeriodFactor(period = currentSalaryPeriod()) {
+    return period === "year" ? 12 : 1;
+}
+
+function salaryMonthlyValue() {
+    const input = document.getElementById("wzGross");
+    const raw = (parseFloat(input?.value) || 0) / salaryPeriodFactor();
+    return Math.max(0, Math.round(raw * 100) / 100);
+}
+
+function applySalaryPeriodAttributes() {
+    const input = document.getElementById("wzGross");
+    const range = document.getElementById("wzGrossRange");
+    if (!input) return;
+    const annual = currentSalaryPeriod() === "year";
+    const max = annual ? 1200000 : 100000;
+    const step = annual ? 1000 : 100;
+    const rangeStep = annual ? 1000 : 250;
+    input.max = String(max);
+    input.step = String(step);
+    if (range) {
+        range.max = String(max);
+        range.step = String(rangeStep);
+    }
+    const periodHint = document.getElementById("wzSalaryPeriodHint");
+    if (periodHint) {
+        const employed = (radioChecked("wzEmployment") || "etat") !== "niepracujacy";
+        periodHint.hidden = !annual || !employed;
+    }
+    input.dataset.salaryPeriod = currentSalaryPeriod();
+}
+
 function initSavingsMode() {
     const input = document.getElementById("wzSavings");
     const amtRange = document.getElementById("wzSavingsAmtRange");
@@ -1129,7 +1184,7 @@ function updateSavingsWarn() {
         parseFloat(document.getElementById("wzSavings")?.value) || 0
     );
     const employment = radioChecked("wzEmployment") || "etat";
-    const gross = parseFloat(document.getElementById("wzGross")?.value) || 0;
+    const gross = salaryMonthlyValue();
     let msg = "";
     if (employment === "niepracujacy" && amount > 0) {
         msg = "Nie pracujesz — upewnij się, że masz inne źródło finansowania tych wpłat.";
@@ -1142,7 +1197,64 @@ function updateSavingsWarn() {
     warn.hidden = !msg;
 }
 
+function salaryPreviewKey(amount, mode, employment) {
+    return [employment, mode, amount, isCapActive("ppk") ? "ppk" : "noppk"].join("|");
+}
+
+// Wpisywanie, steppery i suwak strzelają `input` bardzo często — bez debounce'u
+// łatwo przekroczyć limit 60 zapytań/min na /api/wizard/salary.
+function scheduleSalaryHint(delay = WZ_SALARY_HINT_DEBOUNCE_MS) {
+    clearTimeout(wzSalaryHintTimer);
+    wzSalaryHintTimer = setTimeout(() => {
+        wzSalaryHintTimer = null;
+        updateSalaryHint();
+    }, delay);
+}
+
+function renderSalaryHint(preview, mode, annual) {
+    const hint = document.getElementById("wzSalaryHint");
+    if (!hint || !preview) return;
+    const factor = annual ? 12 : 1;
+    const unit = annual ? "rok" : "mies.";
+    if (mode === "net") {
+        hint.textContent = `≈ ${fmtZloty(preview.gross_monthly * factor)} zł/${unit} brutto`;
+    } else {
+        hint.textContent = `≈ ${fmtZloty(preview.net_monthly * factor)} zł/${unit} netto`;
+    }
+    hint.hidden = false;
+}
+
+function applySalaryPreview(preview, mode, annual) {
+    wzSalaryPreview = preview;
+    wzNetMonthly = preview.net_monthly;
+    renderSalaryHint(preview, mode, annual);
+    updateSavingsAmtMax();
+}
+
+function scheduleSalaryHintRetry(res) {
+    let seconds = 2;
+    try {
+        const header = res.headers && typeof res.headers.get === "function"
+            ? res.headers.get("Retry-After")
+            : null;
+        const parsed = parseInt(header, 10);
+        if (Number.isFinite(parsed) && parsed > 0) seconds = Math.min(10, parsed);
+    } catch {
+        // brak nagłówków — użyj domyślnego opóźnienia
+    }
+    clearTimeout(wzSalaryHintRetryTimer);
+    wzSalaryHintRetryTimer = setTimeout(() => {
+        wzSalaryHintRetryTimer = null;
+        updateSalaryHint();
+    }, seconds * 1000);
+}
+
 async function updateSalaryHint() {
+    clearTimeout(wzSalaryHintTimer);
+    wzSalaryHintTimer = null;
+    clearTimeout(wzSalaryHintRetryTimer);
+    wzSalaryHintRetryTimer = null;
+
     const hint = document.getElementById("wzSalaryHint");
     const label = document.getElementById("wzGrossLabel");
     const modeGroup = document.getElementById("wzSalaryMode");
@@ -1150,10 +1262,15 @@ async function updateSalaryHint() {
     if (!hint || !grossInput) return;
     const employment = radioChecked("wzEmployment") || "etat";
     const mode = currentSalaryMode();
+    const period = currentSalaryPeriod();
+    const annual = period === "year";
+    const suffix = annual ? "rocznie" : "mies.";
     const etat = employment === "etat";
 
     if (modeGroup) modeGroup.classList.toggle("hidden", !etat);
-    const labelText = etat && mode === "net" ? "Pensja netto (mies.)" : "Pensja brutto (mies.)";
+    const labelText = etat && mode === "net"
+        ? `Pensja netto (${suffix})`
+        : `Pensja brutto (${suffix})`;
     if (label) label.textContent = labelText;
     const range = document.getElementById("wzGrossRange");
     if (range) range.setAttribute("aria-label", labelText);
@@ -1173,12 +1290,18 @@ async function updateSalaryHint() {
         return;
     }
 
-    const amount = Math.max(0, parseFloat(grossInput.value) || 0);
+    const amount = salaryMonthlyValue();
     if (amount <= 0) {
         wzNetMonthly = 0;
         hint.textContent = "Podaj pensję, aby zobaczyć kwotę netto.";
         hint.hidden = false;
         updateSavingsAmtMax();
+        return;
+    }
+
+    const key = salaryPreviewKey(amount, mode, employment);
+    if (wzSalaryPreview && wzSalaryPreview.key === key) {
+        applySalaryPreview(wzSalaryPreview, mode, annual);
         return;
     }
 
@@ -1198,21 +1321,36 @@ async function updateSalaryHint() {
             }),
         });
         if (seq !== wzSalaryPreviewSeq) return;
+        if (res.status === 429) {
+            // Limit zapytań to nie błąd obliczeń — zostaw ostatnią dobrą kwotę
+            // i ponów po Retry-After, zamiast straszyć użytkownika.
+            wzSalaryHintRetries += 1;
+            if (wzSalaryPreview) {
+                applySalaryPreview(wzSalaryPreview, mode, annual);
+            } else if (wzSalaryHintRetries > WZ_SALARY_HINT_RETRY_MAX) {
+                hint.textContent = "Nie udało się obliczyć kwoty netto. Spróbuj ponownie.";
+            }
+            if (wzSalaryHintRetries <= WZ_SALARY_HINT_RETRY_MAX) {
+                scheduleSalaryHintRetry(res);
+            }
+            return;
+        }
         if (!res.ok) throw new Error("salary preview failed");
         const data = await res.json();
         if (seq !== wzSalaryPreviewSeq) return;
-        wzNetMonthly = data.net_monthly;
-        if (mode === "net") {
-            hint.textContent = `≈ ${fmtZloty(data.gross_monthly)} zł/mies. brutto`;
-        } else {
-            hint.textContent = `≈ ${fmtZloty(data.net_monthly)} zł/mies. netto`;
-        }
+        wzSalaryHintRetries = 0;
+        applySalaryPreview(
+            { key, gross_monthly: data.gross_monthly, net_monthly: data.net_monthly },
+            mode,
+            annual
+        );
     } catch {
         if (seq !== wzSalaryPreviewSeq) return;
+        wzSalaryPreview = null;
         wzNetMonthly = null;
         hint.textContent = "Nie udało się obliczyć kwoty netto.";
+        updateSavingsAmtMax();
     }
-    updateSavingsAmtMax();
 }
 
 function initEmploymentToggle() {
@@ -1220,15 +1358,19 @@ function initEmploymentToggle() {
     const gross = document.getElementById("wzGross");
     const range = document.getElementById("wzGrossRange");
     if (!group || !gross) return;
-    let lastGross = parseFloat(gross.value) || 8000;
+    gross.dataset.lastMonthly = String(salaryMonthlyValue() || 8000);
+    gross.dataset.salaryPeriod = currentSalaryPeriod();
+
     const sync = () => {
         const employment = radioChecked("wzEmployment") || "etat";
         const disabled = employment === "niepracujacy";
+        applySalaryPeriodAttributes();
         if (disabled) {
-            lastGross = parseFloat(gross.value) || lastGross;
+            gross.dataset.lastMonthly = String(salaryMonthlyValue() || gross.dataset.lastMonthly);
             gross.value = "0";
         } else if (gross.value === "0" || gross.value === "") {
-            gross.value = String(lastGross || 8000);
+            const monthly = parseFloat(gross.dataset.lastMonthly) || 8000;
+            gross.value = String(Math.round(monthly * salaryPeriodFactor()));
         }
         gross.disabled = disabled;
         group.classList.toggle("is-disabled", disabled);
@@ -1239,7 +1381,9 @@ function initEmploymentToggle() {
         }
         if (range) {
             range.disabled = disabled;
-            range.value = String(Math.min(100000, Math.max(0, parseFloat(gross.value) || 0)));
+            range.value = String(
+                Math.min(parseFloat(range.max) || 100000, Math.max(0, parseFloat(gross.value) || 0))
+            );
         }
         updateSalaryHint();
     };
@@ -1249,12 +1393,31 @@ function initEmploymentToggle() {
     document.querySelectorAll('input[name="wzSalaryMode"]').forEach((r) => {
         r.addEventListener("change", () => updateSalaryHint());
     });
+    document.querySelectorAll('input[name="wzSalaryPeriod"]').forEach((r) => {
+        r.addEventListener("change", () => {
+            const oldPeriod = gross.dataset.salaryPeriod || "month";
+            const next = currentSalaryPeriod();
+            if (next === oldPeriod) return;
+            const monthly = (parseFloat(gross.value) || 0) / salaryPeriodFactor(oldPeriod);
+            gross.dataset.lastMonthly = String(monthly);
+            applySalaryPeriodAttributes();
+            const display = Math.round(monthly * salaryPeriodFactor(next));
+            gross.value = String(display);
+            if (range) {
+                range.value = String(Math.min(parseFloat(range.max) || display, display));
+            }
+            updateSalaryHint();
+        });
+    });
     sync();
 }
 
 function bindSliderRange(range, input, min, max, onChange) {
     if (!range || !input) return;
-    const clamp = (v) => Math.min(max, Math.max(min, v));
+    const clamp = (v) => {
+        const hi = parseFloat(range.max);
+        return Math.min(Number.isFinite(hi) ? hi : max, Math.max(min, v));
+    };
     const after = () => {
         if (typeof onChange === "function") onChange();
     };
@@ -1912,11 +2075,13 @@ function initNav() {
 }
 
 function initWizard() {
+    if (wzInitialized) return;
+    wzInitialized = true;
     buildCapitalGrid();
     initSteppers();
     initSavingsMode();
     initEmploymentToggle();
-    bindSliderRange(document.getElementById("wzGrossRange"), document.getElementById("wzGross"), 0, 100000, updateSalaryHint);
+    bindSliderRange(document.getElementById("wzGrossRange"), document.getElementById("wzGross"), 0, 100000, () => scheduleSalaryHint());
     bindSliderRange(document.getElementById("wzAgeRange"), document.getElementById("wzAge"), 16, 90);
     initGoalHorizon();
     initStrategyAndAssumptions();

@@ -115,11 +115,20 @@ bez TypeScript), SQLite, pytest. Odpowiadaj i pisz UI po polsku.
   pensji `#wzSalaryHint` pokazuje kwotę odwrotną („≈ netto" / „≈ brutto") z
   `POST /api/wizard/salary` (`app/simulation/salary.py`: ZUS pracownika 13,71%,
   zdrowotna 9%, PIT wg skali + danina; z PPK doliczana składka pracownika, jeśli PPK
-  włączone w kroku 3). Oszczędności są **tylko kwotowe**: `#wzSavings` domyślnie
-  **1000 zł/mies.**, suwak `#wzSavingsAmtRange` 0–netto, bez trybu procentowego.
-  `#wzSavingsHint` pokazuje „`kwota` = `%` pensji netto", `#wzSavingsWarn` ostrzega
-  tylko przy kwocie > pensja netto. `collectAnswers()` wysyła `salary_mode` i
-  `savings`; backend normalizuje netto→brutto **raz** na wejściu
+  włączone w kroku 3). Pensję można podać **miesięcznie lub rocznie**
+  (`#wzSalaryPeriod`); tryb roczny jest tylko prezentacją — `collectAnswers()` dzieli
+  kwotę przez 12 i backend zawsze dostaje `gross_monthly`, a label/suwak zmieniają
+  zakres (100 000 zł/mies. lub 1 200 000 zł/rok). W trybie rocznym pod polem widać
+  `#wzSalaryPeriodHint` („Rocznie = pensja + premie + nadgodziny…”). Podgląd netto
+  jest debounce'owany (350 ms) i cache'owany po kwocie/trybie/PPK, żeby suwak nie
+  dobijał limitu 60 zapytań/min; przy 429 zostaje ostatnia dobra kwota i jedno
+  ponowienie po `Retry-After`, bez komunikatu o błędzie. `salaryPeriod`
+  jest zapisywany w stanie kreatora i odtwarzany przez `restore`. Oszczędności są **tylko kwotowe**:
+  `#wzSavings` domyślnie **1000 zł/mies.**, suwak `#wzSavingsAmtRange` 0–netto, bez
+  trybu procentowego. `#wzSavingsHint` pokazuje „`kwota` = `%` pensji netto",
+  `#wzSavingsWarn` ostrzega tylko przy kwocie > pensja netto (w trybie rocznym
+  porównanie używa miesięcznego odpowiednika). `collectAnswers()` wysyła
+  `salary_mode` i `savings`; backend normalizuje netto→brutto **raz** na wejściu
   `plan()`/`estimate_pool_monthly()`.
 - Krok 3 „Kapitał": **wszystkie 14 kont** (w tym `zus:ofe`) jako `.pill-toggle.wz-pill`
   w `#wzCapitalPicker`; wybrane konto dodaje `.wz-capital-item` do `#wzCapitalGrid`

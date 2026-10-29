@@ -147,7 +147,24 @@
     gap: var(--sp-1) var(--sp-3);
 }
 
+.wz-salary-title {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--sp-2) var(--sp-3);
+}
+
+.wz-grid .wz-salary-period {
+    width: auto;
+}
+
+.wz-salary-period .seg-option {
+    padding: 0 var(--sp-3);
+}
+
 .wz-hint { margin: 0; }
+
+.wz-field-block > .wz-hint { margin-top: var(--sp-2); }
 
 @media (min-width: 900px) {
     .wz-grid { grid-template-columns: 280px 1fr; }
@@ -625,6 +642,9 @@
 
 @media (max-width: 640px) {
     .wz-step { padding: var(--sp-4); }
+
+    .wz-salary-title { width: 100%; justify-content: space-between; }
+    .wz-grid .wz-salary-period { width: 100%; }
 
     .wz-slider { flex-wrap: wrap; }
     .wz-slider .num-control { width: 100%; }
