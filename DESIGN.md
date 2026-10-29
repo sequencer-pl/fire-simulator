@@ -58,9 +58,10 @@ nie dopisuje własnych kolorów, rozmiarów ani promieni.
 | | `--border-strong` | `#3a4156` | hover, fokus bez koloru |
 | Tekst | `--text` | `#e7e9f0` | treść |
 | | `--text-2` | `#a3a8bb` | tekst pomocniczy |
-| | `--text-3` | `#737a93` | etykiety, podpisy, ikony nieaktywne |
+| | `--text-3` | `#8b93ab` | etykiety, podpisy, ikony nieaktywne |
 | Interakcja | `--primary` | `#7b6cf0` | przycisk główny, zaznaczenie, fokus |
 | | `--primary-hover` | `#8b7df5` | |
+| | `--primary-text` | `#9a8cf7` | tekst i linki w kolorze marki (≥ 4,5:1 na `--surface-2`) |
 | | `--on-primary` | `#ffffff` | |
 | Etapy | `--stage-accum` | `#e8845c` | akumulacja |
 | | `--stage-real` | `#27c4bb` | realizacja |
@@ -71,6 +72,10 @@ nie dopisuje własnych kolorów, rozmiarów ani promieni.
 
 Przezroczyste warianty robimy przez `color-mix(in srgb, var(--x) 12%,
 transparent)`; nie wpisujemy `rgba()` z liczbami.
+
+Kontrast: `--text`, `--text-2`, `--text-3` i `--primary-text` muszą mieć
+co najmniej 4,5:1 na `--surface-2` (najciemniejsze tło tekstu). `--primary`
+służy do wypełnień, obramowań i fokusu — jako kolor tekstu jest za ciemny.
 
 ## 3. Komponenty
 

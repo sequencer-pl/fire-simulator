@@ -150,7 +150,7 @@
     padding: 2px var(--sp-2);
     border-radius: var(--r-pill);
     background: var(--primary-soft);
-    color: var(--primary);
+    color: var(--primary-text);
     font-size: var(--fs-xs);
     white-space: nowrap;
 }
@@ -359,7 +359,7 @@
 .config-field.has-override .select { border-color: var(--primary); }
 
 .config-restore-btn { flex-shrink: 0; color: var(--text-3); }
-.config-restore-btn:not(:disabled) { color: var(--primary); }
+.config-restore-btn:not(:disabled) { color: var(--primary-text); }
 .config-restore-btn:disabled { opacity: 0.25; }
 
 .account-rules-card {
@@ -428,8 +428,10 @@
 }
 
 @media (max-width: 640px) {
-    /* Import z pliku to zadanie na większy ekran; na telefonie pasek akcji ma zostać jednowierszowy. */
-    .form-actions #importSimBtn { display: none; }
+    /* Import z pliku zostaje, ale jako ikona — pasek akcji ma być jednowierszowy.
+       Etykieta jest w `aria-label`/`title`, więc czytniki i long-press jej nie gubią. */
+    .form-actions #importSimBtn { width: var(--control-h-sm); padding: 0; }
+    .form-actions #importSimBtn .import-label { display: none; }
     .form-actions .action-bar-center { display: none; }
     .form-actions { grid-template-columns: auto 1fr; }
     .form-actions .btn { padding: 0 var(--sp-2); }
@@ -440,4 +442,13 @@
 @media (max-width: 480px) {
     /* Bez plusów przyciski etapów mieszczą się obok „Symuluj” nawet na 320 px. */
     .add-stage-btns .btn .icon { display: none; }
+}
+
+@media (max-width: 359px) {
+    /* 320 px: cztery przyciski w jednym rzędzie mieszczą się tylko po skróceniu
+       odstępów i paddingu (inaczej tekst „Realizacja” wchodzi pod ikonę importu). */
+    .form-actions { gap: var(--sp-1); }
+    .form-actions .action-bar-left,
+    .form-actions .action-bar-right { gap: var(--sp-1); }
+    .form-actions .btn { padding: 0 var(--sp-1); }
 }

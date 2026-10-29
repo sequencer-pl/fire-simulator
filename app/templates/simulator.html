@@ -87,7 +87,10 @@
                 </div>
                 <div class="action-bar-center" id="formActionsStatus"></div>
                 <div class="action-bar-right form-actions-right">
-                    <label for="importSimInput" id="importSimBtn" class="btn btn-ghost btn-sm" title="Wczytaj symulację z pliku JSON">Importuj</label>
+                    <label for="importSimInput" id="importSimBtn" class="btn btn-ghost btn-sm" title="Wczytaj symulację z pliku JSON" aria-label="Importuj symulację z pliku JSON">
+                        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3M7 8l5-5 5 5M4 21h16"/></svg>
+                        <span class="import-label">Importuj</span>
+                    </label>
                     <input type="file" id="importSimInput" accept=".json" hidden />
                     <button type="button" id="exportSimBtn" class="btn btn-secondary" hidden>Eksportuj JSON</button>
                     <button type="button" id="saveSimBtn" class="btn btn-secondary" hidden>Zapisz</button>

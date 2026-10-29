@@ -48,7 +48,7 @@ button {
 }
 
 a {
-    color: var(--primary);
+    color: var(--primary-text);
     text-decoration: none;
 }
 
@@ -203,7 +203,8 @@ h4 { font-size: var(--fs-md); }
 
 .brand .subtitle {
     font-size: var(--fs-xs);
-    color: var(--text-3);
+    color: var(--text-2);
+    font-weight: 500;
     margin: 0;
     white-space: nowrap;
 }
@@ -372,7 +373,7 @@ body[data-section="konfiguracja"] .nav-item[data-nav="konfiguracja"] {
     body[data-section="edytor"] .tabbar a[data-nav="edytor"],
     body[data-section="asystent"] .tabbar a[data-nav="asystent"],
     body[data-section="konfiguracja"] .tabbar a[data-nav="konfiguracja"] {
-        color: var(--primary);
+        color: var(--primary-text);
     }
 }
 

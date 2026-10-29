@@ -70,7 +70,8 @@ bez TypeScript), SQLite, pytest. Odpowiadaj i pisz UI po polsku.
 - **Warstwy CSS**: `tokens.css` (jedyne miejsce z kolorami i rozmiarami) → `base.css`
   (reset, typografia, topbar, dolny pasek zakładek) → `components.css` → arkusz
   strony. `qa/visual/tokens.spec.js` pilnuje: zero hex/rgba poza `tokens.css`, zero
-  emoji w JS, font-size ≥ 12 px. Przezroczystości przez `color-mix()`.
+  emoji w JS, font-size ≥ 12 px, kontrast tekstu ≥ 4,5:1 na `--surface-2`.
+  Przezroczystości przez `color-mix()`.
 - **Kolor znaczy jedno**: fiolet `--primary` = interakcja (akcja, zaznaczenie,
   fokus, aktywna zakładka); `--stage-accum` (pomarańcz) = akumulacja;
   `--stage-real` (turkus) = realizacja; `--success|--warning|--danger` = stan.

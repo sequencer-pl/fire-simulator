@@ -242,7 +242,7 @@
     padding: 1px var(--sp-2);
     border-radius: var(--r-pill);
     background: var(--primary-soft);
-    color: var(--primary);
+    color: var(--primary-text);
     font-size: var(--fs-xs);
     font-weight: 600;
     vertical-align: middle;
@@ -763,7 +763,7 @@ input[type="range"]:disabled {
 .chip-primary {
     background: var(--primary-soft);
     border-color: color-mix(in srgb, var(--primary) 40%, transparent);
-    color: var(--primary);
+    color: var(--primary-text);
 }
 
 .chip-accum {
@@ -988,7 +988,7 @@ tbody tr.table-group:hover td { background: var(--surface-2); }
 
 .tip:hover,
 .tip:focus {
-    color: var(--primary);
+    color: var(--primary-text);
     border-color: var(--primary);
 }
 
@@ -1018,7 +1018,7 @@ tbody tr.table-group:hover td { background: var(--surface-2); }
 }
 
 .tip .tooltip a {
-    color: var(--primary);
+    color: var(--primary-text);
     text-decoration: underline;
     white-space: nowrap;
 }
@@ -1135,7 +1135,7 @@ tbody tr.table-group:hover td { background: var(--surface-2); }
     border: 1px solid color-mix(in srgb, var(--primary) 40%, transparent);
     border-radius: var(--r-pill);
     background: var(--primary-soft);
-    color: var(--primary);
+    color: var(--primary-text);
     font-size: var(--fs-xs);
     font-weight: 600;
     line-height: 1;

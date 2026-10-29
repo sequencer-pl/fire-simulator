@@ -17,11 +17,14 @@
     /* --- Tekst --- */
     --text: #e7e9f0;
     --text-2: #a3a8bb;
-    --text-3: #737a93;
+    --text-3: #8b93ab;
 
     /* --- Interakcja (jeden kolor) --- */
     --primary: #7b6cf0;
     --primary-hover: #8b7df5;
+    /* Tekst w kolorze marki na ciemnym tle (linki, aktywna zakładka, chipy).
+       --primary jest za ciemny jako tekst na --surface-2 (3,31–3,91:1). */
+    --primary-text: #9a8cf7;
     --on-primary: #ffffff;
     --primary-soft: color-mix(in srgb, var(--primary) 14%, transparent);
     --primary-ring: color-mix(in srgb, var(--primary) 45%, transparent);
