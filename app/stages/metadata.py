@@ -276,6 +276,27 @@ STAGE_META: dict[str, dict[str, Any]] = {
                         "step": 100,
                         "hint": FIELD_HINTS["monthly_base"],
                     },
+                    "ikze_refund_target": {
+                        "label": "Zwrot podatku",
+                        "type": "select",
+                        "options": [
+                            {"value": "", "label": "— wybierz konto —"},
+                            {"value": "broker", "label": "Broker"},
+                            {"value": "lokata", "label": "Lokata"},
+                            {"value": "obligacje", "label": "Obligacje"},
+                            {"value": "oki_inw", "label": "OKI (instrumenty)"},
+                            {"value": "oki_osk", "label": "OKI (oszczędności)"},
+                            {"value": "krypto", "label": "Krypto"},
+                            {"value": "gotowka", "label": "Gotówka"},
+                            {"value": "none", "label": "Nie reinwestuj"},
+                        ],
+                        "hint": (
+                            "Wybierz konto, na które ma trafiać zwrot z ulgi IKZE. "
+                            "Konto zostanie automatycznie dodane do etapu, a część "
+                            "jego wpływów będzie pochodziła z tego zwrotu. "
+                            "„Nie reinwestuj” oznacza, że ulga tylko obniża podatek."
+                        ),
+                    },
                     "roi": {
                         "label": "ROI",
                         "type": "number",

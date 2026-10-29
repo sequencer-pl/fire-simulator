@@ -88,6 +88,9 @@ def _summary_from_result(result: SimulationResult) -> dict:
     years = result.years
     return {
         "final_wealth": result.final_wealth,
+        "final_wealth_net": result.final_wealth_net,
+        "exit_tax": result.exit_tax,
+        "total_tax_refund": result.total_tax_refund,
         "peak_wealth": result.peak_wealth,
         "total_withdrawn": result.total_withdrawn,
         "total_tax": result.total_tax,

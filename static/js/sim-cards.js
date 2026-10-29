@@ -52,6 +52,9 @@ const FIELD_DEFAULTS = {
         lokata_term_months: 12,
         roi: () => CONFIG?.accounts?.lokata?.default_roi ?? 0.018,
     },
+    ikze: {
+        ikze_refund_target: "",
+    },
 };
 
 let _genderCardSeq = 0;
@@ -219,6 +222,7 @@ function createAccountCard(stageType, accountKey, accountData) {
     card.querySelector(".remove-account-btn").addEventListener("click", () => {
         const stageBlock = card.closest(".stage-block");
         const accountKey = card.dataset.account;
+        clearIkzeTargetIfRemoved(stageBlock, accountKey);
         card.closest(".accounts-grid").removeChild(card);
         const toggle = stageBlock.querySelector(
             `.accounts-toggles .account-toggle[data-account="${accountKey}"]`
@@ -228,10 +232,20 @@ function createAccountCard(stageType, accountKey, accountData) {
             toggle.setAttribute("aria-pressed", "false");
         }
         updateStageName(stageBlock);
+        syncIkzeRefundTargets(stageBlock);
         const container = document.getElementById("stages-container");
         updateStageHints(container);
         if (stageTypeOf(stageBlock) === "akumulacja") refreshRealizationToggles(container);
     });
+
+    const refundSelect = card.querySelector('[data-key="ikze_refund_target"]');
+    if (refundSelect) {
+        refundSelect.addEventListener("change", () => {
+            const stageBlock = card.closest(".stage-block");
+            syncIkzeRefundTargets(stageBlock);
+            updateStageHints(document.getElementById("stages-container"));
+        });
+    }
 
     if (typeof _positionAllTips === "function") queueMicrotask(_positionAllTips);
     return card;

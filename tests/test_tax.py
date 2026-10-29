@@ -356,3 +356,179 @@ def test_ikze_saving_does_not_create_phantom_withdrawal():
         assert result.total_withdrawn == 0
         assert result.total_tax == pytest.approx(-2_712.96)
         assert result.years[0].tax_paid == pytest.approx(-1_356.48)
+
+
+# --- IKZE: wybór celu reinwestycji zwrotu i majątek netto -------------------
+
+
+def ikze_growth(accounts, gross=25_000, start=40, end=65):
+    return simulate(
+        SimulationInput(
+            stages=[accumulation_stage(accounts, start=start, end=end)],
+            monthly_gross=gross,
+            config=CFG_NOINFL,
+        )
+    )
+
+
+def test_ikze_refund_goes_to_selected_target_not_auto_broker():
+    accounts = {
+        "ikze": acc(
+            annual_contribution=11_304, roi=0.05, ikze_refund_target="lokata"
+        ),
+        "broker": acc(roi=0.05),
+        "lokata": acc(roi=0.05),
+    }
+    result = ikze_growth(accounts)
+    last = result.years[-1].balances
+    assert last["lokata"] > 0
+    assert last["broker"] == 0
+    assert result.total_tax_refund == pytest.approx(90_432, rel=1e-3)
+
+
+def test_ikze_refund_auto_prefers_broker():
+    accounts = {
+        "ikze": acc(annual_contribution=11_304, roi=0.05),
+        "broker": acc(roi=0.05),
+        "lokata": acc(roi=0.05),
+    }
+    result = ikze_growth(accounts)
+    last = result.years[-1].balances
+    assert last["broker"] > 0
+    assert last["lokata"] == 0
+
+
+def test_ikze_refund_target_none_only_lowers_tax():
+    solo = ikze_growth({"ikze": acc(annual_contribution=11_304, roi=0.05)})
+    none = ikze_growth(
+        {
+            "ikze": acc(
+                annual_contribution=11_304, roi=0.05, ikze_refund_target="none"
+            ),
+            "broker": acc(roi=0.05),
+        }
+    )
+    assert none.final_wealth == pytest.approx(solo.final_wealth)
+    assert none.total_tax_refund == pytest.approx(solo.total_tax_refund)
+    assert none.years[-1].balances["broker"] == 0
+
+
+def test_ikze_refund_without_target_warns():
+    result = ikze_growth({"ikze": acc(annual_contribution=11_304, roi=0.05)})
+    assert any("zwrot podatku nie jest reinwestowany" in w for w in result.warnings)
+
+
+def test_ikze_refund_missing_explicit_target_does_not_reinvest():
+    result = ikze_growth(
+        {
+            "ikze": acc(
+                annual_contribution=11_304, roi=0.05, ikze_refund_target="krypto"
+            ),
+            "broker": acc(roi=0.05),
+        }
+    )
+    assert result.years[-1].balances["broker"] == 0
+    assert result.total_tax_refund > 0
+
+
+def test_ikze_refund_empty_target_does_not_reinvest():
+    result = ikze_growth(
+        {
+            "ikze": acc(
+                annual_contribution=11_304, roi=0.05, ikze_refund_target=""
+            ),
+            "broker": acc(roi=0.05),
+        }
+    )
+    assert result.years[-1].balances["broker"] == 0
+    assert result.total_tax_refund > 0
+
+
+def test_peak_wealth_includes_final_year():
+    result = ikze_growth(
+        {"broker": acc(annual_contribution=20_000, roi=0.05)}, end=43
+    )
+    assert result.peak_wealth >= result.final_wealth
+    assert result.peak_wealth == pytest.approx(result.final_wealth)
+
+
+def test_exit_tax_ikze_flat_10_after_65():
+    result = simulate(
+        SimulationInput(
+            stages=[
+                accumulation_stage(
+                    {"ikze": acc(starting_balance=500_000, roi=0.0)}, start=40, end=65
+                )
+            ],
+            config=CFG_NOINFL,
+        )
+    )
+    assert result.final_wealth == pytest.approx(500_000)
+    assert result.exit_tax == pytest.approx(50_000)
+    assert result.final_wealth_net == pytest.approx(450_000)
+
+
+def test_exit_tax_ikze_scale_before_65():
+    result = simulate(
+        SimulationInput(
+            stages=[
+                accumulation_stage(
+                    {"ikze": acc(starting_balance=500_000, roi=0.0)}, start=40, end=60
+                )
+            ],
+            config=CFG_NOINFL,
+        )
+    )
+    assert result.final_wealth == pytest.approx(500_000)
+    assert result.exit_tax == pytest.approx(scale_tax(500_000))
+    assert result.final_wealth_net == pytest.approx(500_000 - scale_tax(500_000))
+
+
+def test_exit_tax_ike_after_60_is_zero():
+    result = simulate(
+        SimulationInput(
+            stages=[
+                accumulation_stage(
+                    {"ike": acc(starting_balance=500_000, roi=0.0)}, start=40, end=60
+                )
+            ],
+            config=CFG_NOINFL,
+        )
+    )
+    assert result.exit_tax == 0
+    assert result.final_wealth_net == pytest.approx(500_000)
+
+
+def test_exit_tax_broker_taxes_only_gains():
+    result = simulate(
+        SimulationInput(
+            stages=[
+                accumulation_stage(
+                    {
+                        "broker": acc(
+                            starting_balance=500_000,
+                            cost_basis_enabled=True,
+                            cost_basis=300_000,
+                            roi=0.0,
+                        )
+                    },
+                    start=40,
+                    end=65,
+                )
+            ],
+            config=CFG_NOINFL,
+        )
+    )
+    assert result.exit_tax == pytest.approx(38_000)
+    assert result.final_wealth_net == pytest.approx(462_000)
+
+
+def test_total_tax_refund_is_positive_and_matches_tax_relief():
+    result = ikze_growth(
+        {
+            "ikze": acc(annual_contribution=11_304, roi=0.05),
+            "broker": acc(roi=0.05),
+        }
+    )
+    assert result.total_tax_refund > 0
+    assert result.total_tax_refund == pytest.approx(90_432, rel=1e-3)

@@ -576,8 +576,13 @@ function renderMetrics(projection) {
         }
     }
     html += `<div class="metric"><span class="metric-label">Majątek szczytowy</span><span class="metric-value">${fmt(projection.peak_wealth)} zł</span></div>`;
-    html += `<div class="metric${(projection.final_wealth || 0) <= 0 ? " is-muted" : ""}"><span class="metric-label">Na koniec horyzontu</span><span class="metric-value">${fmt(projection.final_wealth)} zł</span></div>`;
-    box.innerHTML = `<div class="metric-grid">${html}</div>`;
+    html += `<div class="metric${(projection.final_wealth || 0) <= 0 ? " is-muted" : ""}"><span class="metric-label">Na koniec brutto</span><span class="metric-value">${fmt(projection.final_wealth)} zł</span></div>`;
+    html += `<div class="metric${(projection.final_wealth_net || 0) <= 0 ? " is-muted" : ""}" title="Po podatku od likwidacji kont na koniec horyzontu"><span class="metric-label">Na koniec netto</span><span class="metric-value">${fmt(projection.final_wealth_net ?? projection.final_wealth)} zł</span></div>`;
+    const refundAccount = projection.ikze_refund_account;
+    const refundNote = refundAccount
+        ? `<p class="field-hint wz-refund-note">Zwrot IKZE reinwestowany w: <strong>${escapeHtml(ACCOUNT_LABELS[refundAccount] || refundAccount)}</strong>.</p>`
+        : "";
+    box.innerHTML = `<div class="metric-grid is-wide">${html}</div>${refundNote}`;
     box.classList.remove("hidden");
 }
 

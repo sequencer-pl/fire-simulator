@@ -21,6 +21,16 @@ bez TypeScript), SQLite, pytest. Odpowiadaj i pisz UI po polsku.
     rozdzielana proporcjonalnie do sald; niewypłacone rośnie `(1+roi)`.
 - **„Brydż do emerytury" = etap `realizacja`** (nie akumulacja) od wieku FIRE do końca
   planu; „Realizacja (emerytura)" = osobny etap `realizacja` zawierający tylko `zus`.
+- **IKZE**: ulga liczona od dochodu obniża podatek w roku wpłaty. Zwrot trafia
+  na konto wybrane w `ikze_refund_target` (w edytorze wybór jest **obowiązkowy**:
+  konto albo `none`; wybrane konto jest automatycznie dodawane do etapu z notą
+  o wpłatach ze zwrotu). `auto` = broker → OKI → obligacje → lokata → krypto →
+  gotówka, używane przez Asystenta i stare zapisy. Zwrot jest dopisywany
+  **na koniec roku** (po wzroście), bo realnie przychodzi po PIT. Brak celu
+  w `auto` = ostrzeżenie w wyniku. `SimulationResult` niesie `total_tax_refund`,
+  `exit_tax` i `final_wealth_net` (podatek wyjścia: IKZE 10% od całości po 65 r.ż.
+  lub skala przed, IKE 0%, broker 19% od zysku) — dzięki temu IKE i IKZE nie
+  wyglądają identycznie przy tej samej stopie zwrotu.
 - **ZUS obsługuje engine**, nie etap (waloryzacja zamiast ROI, konwersja kapitału na
   rentę zamiast PMT; renta waloryzowana corocznie). Nie powielać `zus` w wielu etapach
   (`_process_stages`, engine.py — guard `zus_handled`).

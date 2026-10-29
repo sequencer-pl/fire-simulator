@@ -29,7 +29,8 @@ function gatherFormData() {
             if (input.type === "checkbox") {
                 val = input.checked;
             } else if (input.tagName === "SELECT") {
-                val = parseFloat(input.value) || 0;
+                const parsed = parseFloat(input.value);
+                val = Number.isNaN(parsed) ? input.value : parsed;
             } else {
                 val = parseFloat(input.value) || 0;
                 if (input.dataset.percent) val /= 100;
@@ -127,7 +128,7 @@ function renderResults(data) {
         : "";
 
     summary.innerHTML = `
-        <div class="metric-grid">
+        <div class="metric-grid is-wide">
             <div class="metric">
                 <span class="metric-label">Kapitał początkowy</span>
                 <span class="metric-value">${fmtMoney(initCap)}</span>
@@ -144,6 +145,11 @@ function renderResults(data) {
                 <span class="metric-label">Majątek na koniec</span>
                 <span class="metric-value">${fmtMoney(data.final_wealth)}</span>
             </div>
+            <div class="metric"
+                 title="Majątek po zapłaceniu podatku od likwidacji wszystkich kont na koniec planu (IKZE 10% po 65 r.ż. lub skala przed, broker 19% od zysku).">
+                <span class="metric-label">Po podatkach</span>
+                <span class="metric-value">${fmtMoney(data.final_wealth_net ?? data.final_wealth)}</span>
+            </div>
             <div class="metric">
                 <span class="metric-label">Suma wypłat netto</span>
                 <span class="metric-value">${fmtMoney(data.total_withdrawn)}</span>
@@ -152,6 +158,11 @@ function renderResults(data) {
                 <span class="metric-label">Suma podatków</span>
                 <span class="metric-value">${fmtMoney(data.total_tax)}</span>
             </div>
+            ${(data.total_tax_refund ?? 0) > 0 ? `
+            <div class="metric is-positive" title="Suma ulg IKZE odliczonych od dochodu w całym okresie.">
+                <span class="metric-label">Zwrot IKZE</span>
+                <span class="metric-value">${fmtMoney(data.total_tax_refund)}</span>
+            </div>` : ""}
         </div>
     `;
 
@@ -1196,8 +1207,13 @@ function renderWealthChart(data) {
     const innerH = H - padY - padBottom;
 
     const minAge = years[0].age;
-    const maxAge = years[years.length - 1].age;
-    const rawMax = Math.max(...years.map((y) => y.total_wealth));
+    // Ostatni punkt roku to saldo na jego początku — dokładamy punkt „koniec
+    // planu” (wiek + 1), żeby linia dochodziła do final_wealth.
+    const lastYear = years[years.length - 1];
+    const endAge = lastYear.age + 1;
+    const endWealth = data.final_wealth ?? lastYear.total_wealth;
+    const maxAge = endAge;
+    const rawMax = Math.max(endWealth, ...years.map((y) => y.total_wealth));
     const maxWealth = rawMax > 0 ? rawMax * 1.1 : 1;
     const x = (age) => padX + ((age - minAge) / Math.max(1, maxAge - minAge)) * innerW;
     const y = (val) => H - padBottom - (val / Math.max(1, maxWealth)) * innerH;
@@ -1227,7 +1243,9 @@ function renderWealthChart(data) {
     svg += "</g>";
 
     /* area + line */
-    const points = years.map((yr) => `${x(yr.age).toFixed(1)},${y(yr.total_wealth).toFixed(1)}`);
+    const points = years
+        .map((yr) => `${x(yr.age).toFixed(1)},${y(yr.total_wealth).toFixed(1)}`)
+        .concat(`${x(endAge).toFixed(1)},${y(endWealth).toFixed(1)}`);
     const baseY = (H - padBottom).toFixed(1);
     svg += `<polygon class="chart-area wealth-area" points="${x(minAge).toFixed(1)},${baseY} ${points.join(" ")} ${x(maxAge).toFixed(1)},${baseY}"/>`;
     svg += `<polyline class="chart-line wealth-line" fill="none" points="${points.join(" ")}"/>`;

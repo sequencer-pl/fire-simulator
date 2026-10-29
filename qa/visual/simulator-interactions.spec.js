@@ -54,6 +54,41 @@ test("import symulacji jest widoczny i nie rozpycha paska akcji", async ({ page 
     expect(narrow.overlap).toBe(false);
 });
 
+test("IKZE: cel zwrotu jest wymagany, auto-dodaje konto i blokuje symulację", async ({ page }) => {
+    await page.goto("/sim", { waitUntil: "networkidle" });
+    await page.locator("#emptyAddAccumulationBtn").click();
+    await page.locator('.account-toggle[data-account="ikze"]').first().click();
+
+    const ikzeCard = page.locator('.account-card[data-account="ikze"]');
+    const select = ikzeCard.locator('[data-key="ikze_refund_target"]');
+    await expect(select).toHaveValue("");
+
+    // Dopłata > 0 bez wybranego celu blokuje „Symuluj”.
+    await ikzeCard.locator('[data-key="annual_contribution"]').fill("11304");
+    await expect(page.locator("#simulateBtn")).toBeDisabled();
+
+    await select.selectOption("lokata");
+    const lokataCard = page.locator('.account-card[data-account="lokata"]');
+    await expect(lokataCard).toBeVisible();
+    await expect(lokataCard).toContainText("pochodzi ze zwrotu ulgi IKZE");
+    await expect(page.locator("#simulateBtn")).toBeEnabled();
+
+    let payload = await page.evaluate(() => gatherFormData());
+    expect(payload.stages[0].accounts.ikze.ikze_refund_target).toBe("lokata");
+    expect(payload.stages[0].accounts.lokata).toBeDefined();
+
+    // Usunięcie konta-celu czyści wybór i znowu blokuje symulację.
+    await lokataCard.locator(".remove-account-btn").click();
+    await expect(select).toHaveValue("");
+    await expect(page.locator("#simulateBtn")).toBeDisabled();
+    await expect(page.locator(".refund-source-note")).toHaveCount(0);
+
+    await select.selectOption("none");
+    await expect(page.locator("#simulateBtn")).toBeEnabled();
+    payload = await page.evaluate(() => gatherFormData());
+    expect(payload.stages[0].accounts.ikze.ikze_refund_target).toBe("none");
+});
+
 test("nazwa etapu z importu jest escapowana", async ({ page }) => {
     await page.goto("/sim", { waitUntil: "networkidle" });
     const evil = '"><img src=x onerror=alert(1)>';

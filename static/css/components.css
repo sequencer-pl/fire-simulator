@@ -256,6 +256,25 @@
 .metric-grid.is-compact .metric { padding: var(--sp-2) var(--sp-3); }
 .metric-grid.is-compact .metric-value { font-size: var(--fs-md); }
 
+/* Wyniki symulacji: szersze kafle, etykiety mogą się zawijać. Flex zamiast
+   grid, żeby ostatni rząd rozciągał się na całą szerokość (bez pustych pól). */
+.metric-grid.is-wide {
+    display: flex;
+    flex-wrap: wrap;
+}
+.metric-grid.is-wide .metric {
+    flex: 1 1 210px;
+}
+.metric-grid.is-wide .metric-label {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+}
+
+@media (max-width: 640px) {
+    .metric-grid.is-wide .metric { flex-basis: 150px; }
+}
+
 /* --- Banery --------------------------------------------------------------- */
 
 .banner {

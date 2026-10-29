@@ -177,8 +177,10 @@ const METRIC_GROUPS = [
     { label: "Majątek", metrics: [
         { key: "peak_wealth", label: "Szczytowy", money: true, better: "max",
           hint: "Najwyższy łączny stan kont w trakcie symulacji." },
-        { key: "final_wealth", label: "Końcowy", money: true, better: "max",
-          hint: "Majątek na koniec symulacji (po wszystkich wypłatach i podatkach)." },
+        { key: "final_wealth", label: "Końcowy brutto", money: true, better: "max",
+          hint: "Majątek na koniec symulacji przed podatkiem od likwidacji kont." },
+        { key: "final_wealth_net", label: "Końcowy netto", money: true, better: "max",
+          hint: "Majątek po podatku wyjścia: IKZE 10% po 65 r.ż. (skala przed), IKE 0%, broker 19% od zysku." },
     ]},
     { label: "Wypłaty", metrics: [
         { key: "total_withdrawn", label: "Suma netto", money: true, better: "max",
@@ -188,7 +190,9 @@ const METRIC_GROUPS = [
     ]},
     { label: "Podatki", metrics: [
         { key: "total_tax", label: "Suma podatków", money: true, better: "min",
-          hint: "Łączna kwota podatków. Ujemna wartość oznacza oszczędności z odliczenia IKZE od dochodu." },
+          hint: "Łączna kwota podatków (po odliczeniu ulg IKZE). Ujemna wartość oznacza, że ulgi przewyższyły podatki." },
+        { key: "total_tax_refund", label: "Zwrot IKZE", money: true, better: "max",
+          hint: "Suma ulg IKZE odliczonych od dochodu w całym okresie." },
         { key: "tax_eff", label: "Efektywność", pct: true, better: "max",
           hint: "Udział wypłat netto w sumie wypłat brutto (netto + podatek). Im wyższy, tym mniej podatku." },
     ]},
@@ -210,6 +214,7 @@ function metricValue(s, m) {
     if (m.key === "avg_monthly") return avgMonthly(s);
     if (m.key === "tax_eff") return taxEfficiency(s);
     if (m.key === "roi_mult") return roiMultiple(s);
+    if (m.key === "final_wealth_net" && s.summary?.final_wealth_net == null) return s.summary?.final_wealth;
     return s.summary[m.key];
 }
 

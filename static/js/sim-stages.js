@@ -161,6 +161,7 @@ function renderAccountToggles(stageBlock) {
         btn.addEventListener("click", (e) => {
             if (e.target.closest(".tip")) return;
             if (btn.classList.contains("active")) {
+                clearIkzeTargetIfRemoved(stageBlock, key);
                 btn.classList.remove("active");
                 btn.setAttribute("aria-pressed", "false");
                 const existing = accountsContainer.querySelector(`[data-account="${key}"]`);
@@ -172,6 +173,7 @@ function renderAccountToggles(stageBlock) {
                 if (card) accountsContainer.appendChild(card);
             }
             updateStageName(stageBlock);
+            syncIkzeRefundTargets(stageBlock);
             const container = document.getElementById("stages-container");
             updateStageHints(container);
             if (stageType === "akumulacja") refreshRealizationToggles(container);
@@ -265,8 +267,50 @@ function createStageBlock(defaults) {
     }
 
     renderAccountToggles(block);
+    syncIkzeRefundTargets(block);
 
     return block;
+}
+
+// --- IKZE: konto docelowe zwrotu podatku ------------------------------------
+
+let _syncingIkzeRefund = false;
+
+function ikzeRefundSelect(stageBlock) {
+    return stageBlock?.querySelector(
+        '.account-card[data-account="ikze"] [data-key="ikze_refund_target"]'
+    );
+}
+
+function clearIkzeTargetIfRemoved(stageBlock, accountKey) {
+    const select = ikzeRefundSelect(stageBlock);
+    if (select && select.value === accountKey) select.value = "";
+}
+
+// Uzgadnia stan etapu z wyborem w selectcie: docelowe konto musi być aktywne,
+// a w jego karcie pojawia się nota o wpłatach ze zwrotu IKZE.
+function syncIkzeRefundTargets(stageBlock) {
+    if (!stageBlock || _syncingIkzeRefund) return;
+    _syncingIkzeRefund = true;
+    try {
+        stageBlock.querySelectorAll(".refund-source-note").forEach((n) => n.remove());
+        const select = ikzeRefundSelect(stageBlock);
+        const target = select ? select.value : "";
+        if (!target || target === "none" || target === "auto") return;
+
+        const toggle = stageBlock.querySelector(`.account-toggle[data-account="${target}"]`);
+        if (toggle && !toggle.classList.contains("active")) toggle.click();
+
+        const card = stageBlock.querySelector(`.account-card[data-account="${target}"]`);
+        const header = card?.querySelector(".account-card-header");
+        if (!header) return;
+        const note = document.createElement("p");
+        note.className = "field-hint refund-source-note";
+        note.textContent = "Część wpływów na to konto pochodzi ze zwrotu ulgi IKZE.";
+        header.insertAdjacentElement("afterend", note);
+    } finally {
+        _syncingIkzeRefund = false;
+    }
 }
 
 // --- Subtelne ostrzeżenia o konfiguracji etapu ---
@@ -531,6 +575,20 @@ function updateStageHints(container) {
                         `Dopłaty na ${label} (${contrib.toLocaleString("pl-PL")} zł/rok) przekraczają roczny limit ${limit.toLocaleString("pl-PL")} zł.`
                 });
             });
+
+            const ikzeCard = block.querySelector('.account-card[data-account="ikze"]');
+            if (ikzeCard) {
+                const ikzeContrib =
+                    parseFloat(ikzeCard.querySelector('[data-key="annual_contribution"]')?.value) || 0;
+                const refundSelect = ikzeCard.querySelector('[data-key="ikze_refund_target"]');
+                if (ikzeContrib > 0 && refundSelect && !refundSelect.value) {
+                    hints.push({
+                        level: "warning",
+                        text:
+                            "Wybierz konto, na które ma trafiać zwrot IKZE (albo „Nie reinwestuj”)."
+                    });
+                }
+            }
         }
 
         renderStageHints(hint, hints);
@@ -608,6 +666,17 @@ function validateStageOrder(container) {
     });
 
     if (!orderIsValid(blocks)) valid = false;
+
+    const ikzeTargetsMissing = blocks.some((block) => {
+        const card = block.querySelector('.account-card[data-account="ikze"]');
+        if (!card) return false;
+        const contrib =
+            parseFloat(card.querySelector('[data-key="annual_contribution"]')?.value) || 0;
+        const select = card.querySelector('[data-key="ikze_refund_target"]');
+        return contrib > 0 && select && !select.value;
+    });
+    if (ikzeTargetsMissing) valid = false;
+
     return valid;
 }
 
@@ -867,7 +936,7 @@ function initStageEventHandlers(container) {
     simForm.addEventListener("submit", async (e) => {
         e.preventDefault();
         if (!validateStageOrder(container)) {
-            alert("Etap realizacji nie może zaczynać się przed końcem etapu akumulacji.");
+            alert("Uzupełnij brakujące ustawienia etapów (wiek, kolejność lub cel zwrotu IKZE).");
             return;
         }
         const data = gatherFormData();

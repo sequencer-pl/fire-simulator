@@ -15,6 +15,13 @@ class AccountConfig(BaseModel):
     buffer: float = Field(default=0.0, ge=0.0, le=1e12)
     monthly_pension: float = Field(default=0.0, ge=0.0, le=1e7)
     ikze_limit: str = "etat"
+    # Gdzie trafia zwrot podatku z ulgi IKZE: "auto" (pierwsze dostępne konto
+    # w etapie wg kolejności broker → OKI → obligacje → lokata → krypto →
+    # gotówka), "none" (tylko obniża podatek) albo konkretne konto w etapie.
+    ikze_refund_target: Literal[
+        "", "auto", "none", "broker", "lokata", "obligacje",
+        "oki_inw", "oki_osk", "krypto", "gotowka",
+    ] = "auto"
     base_override_enabled: bool = False
     monthly_base: float = Field(default=0.0, ge=0.0, le=1e9)
     ofe_member: bool = False
@@ -91,5 +98,11 @@ class SimulationResult(BaseModel):
     peak_wealth: float
     total_withdrawn: float
     total_tax: float
+    # Podatek, który zostałby zapłacony przy likwidacji wszystkich sald na
+    # koniec planu (IKZE 10% po 65 r.ż., skala przed; IKE 0%; broker 19% od zysku).
+    exit_tax: float = 0.0
+    final_wealth_net: float = 0.0
+    # Suma ulg IKZE (dodatnia), żeby nie mylić jej z ujemnym „total_tax".
+    total_tax_refund: float = 0.0
     has_pension: bool = False
     warnings: list[str] = Field(default_factory=list)

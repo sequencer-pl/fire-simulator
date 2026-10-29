@@ -21,7 +21,8 @@ function simMetricsHtml(sum) {
         <div class="metric"><span class="metric-label">Kapitał początkowy</span><span class="metric-value">${fmtMoney(sum.initial_capital)}</span></div>
         <div class="metric"><span class="metric-label">Wpłaty własne</span><span class="metric-value">${fmtMoney(sum.total_user_contributions)}</span></div>
         <div class="metric"><span class="metric-label">Szczyt majątku</span><span class="metric-value">${fmtMoney(sum.peak_wealth)}</span></div>
-        <div class="metric"><span class="metric-label">Na koniec</span><span class="metric-value">${fmtMoney(sum.final_wealth)}</span></div>
+        <div class="metric"><span class="metric-label">Na koniec brutto</span><span class="metric-value">${fmtMoney(sum.final_wealth)}</span></div>
+        <div class="metric"><span class="metric-label">Na koniec netto</span><span class="metric-value">${fmtMoney(sum.final_wealth_net ?? sum.final_wealth)}</span></div>
         <div class="metric"><span class="metric-label">Wypłaty netto</span><span class="metric-value">${fmtMoney(sum.total_withdrawn)}</span></div>
         <div class="metric${taxClass}"><span class="metric-label">Podatki</span><span class="metric-value">${fmtMoney(sum.total_tax)}</span></div>
     </div>`;

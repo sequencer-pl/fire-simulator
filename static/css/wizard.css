@@ -164,6 +164,8 @@
 
 .wz-hint { margin: 0; }
 
+.wz-refund-note { margin-top: var(--sp-2); }
+
 .wz-field-block > .wz-hint { margin-top: var(--sp-2); }
 
 @media (min-width: 900px) {

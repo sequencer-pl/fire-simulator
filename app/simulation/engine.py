@@ -1,3 +1,4 @@
+from copy import deepcopy
 from dataclasses import dataclass, field
 
 from app.core.base import resolve_base
@@ -38,6 +39,8 @@ class SimulationState:
     start_age: int = 0
     basis_vintages: dict[str, list[tuple[int, float]]] = field(default_factory=dict)
     lokata_interest_nom: dict[str, float] = field(default_factory=dict)
+    ikze_refund_total: float = 0.0
+    ikze_refund_unallocated: float = 0.0
 
     def __iter__(self):
         yield self.config
@@ -813,23 +816,35 @@ def _apply_ikze_savings(
                 continue
             dochód = _compute_monthly_gross_dochod(base, state.config)
             saving = _compute_ikze_tax_saving(contribution, dochód, state.config)
-            if saving > 0:
-                merged_tax[name] = merged_tax.get(name, 0.0) - saving
-                for target_acc in _IKZE_REINVEST_ORDER:
-                    if target_acc in si.accounts:
-                        state.balances[target_acc] = (
-                            state.balances.get(target_acc, 0.0) + saving
-                        )
-                        rules = state.config.accounts.get(target_acc)
-                        if target_acc != "gotowka" and not (rules and rules.tax_periodic):
-                            state.basis[target_acc] = (
-                                state.basis.get(target_acc, 0.0) + saving
-                            )
-                            v_age = age if age is not None else state.start_age
-                            state.basis_vintages.setdefault(target_acc, []).append(
-                                (v_age, saving)
-                            )
-                        break
+            if saving <= 0:
+                continue
+            merged_tax[name] = merged_tax.get(name, 0.0) - saving
+            state.ikze_refund_total += saving
+
+            target = _ikze_refund_target(cfg, si)
+            if target is None:
+                # "none" — ulga tylko obniża podatek, bez reinwestycji.
+                if cfg.ikze_refund_target != "none":
+                    state.ikze_refund_unallocated += saving
+                continue
+            state.balances[target] = state.balances.get(target, 0.0) + saving
+            rules = state.config.accounts.get(target)
+            if target != "gotowka" and not (rules and rules.tax_periodic):
+                state.basis[target] = state.basis.get(target, 0.0) + saving
+                v_age = age if age is not None else state.start_age
+                state.basis_vintages.setdefault(target, []).append((v_age, saving))
+
+
+def _ikze_refund_target(cfg, si: StageInput) -> str | None:
+    """Konto, na które trafia zwrot ulgi IKZE (None = nie reinwestuj)."""
+    setting = cfg.ikze_refund_target
+    if setting in ("", "none"):
+        return None
+    if setting == "auto":
+        return next((acc for acc in _IKZE_REINVEST_ORDER if acc in si.accounts), None)
+    if setting in si.accounts:
+        return setting
+    return None  # wybrane konto nie występuje w tym etapie — ostrzeżenie w wyniku
 
 
 def _run_year(
@@ -909,13 +924,16 @@ def _run_year(
     for acc, t in early_return_tax.items():
         merged_tax[acc] = merged_tax.get(acc, 0.0) + t
 
-    _apply_ikze_savings(state, active_stages, monthly_gross, merged_tax, age)
-
     _passive_growth(
         state=state,
         processed_accounts=processed_accounts,
         account_rois=_account_rois_for_age(all_stages, age, state.config),
     )
+
+    # Zwrot ulgi IKZE trafia na wybrane konto po zakończeniu roku — w
+    # rzeczywistości przychodzi po rozliczeniu PIT, więc nie pracuje przez
+    # cały rok wpłaty.
+    _apply_ikze_savings(state, active_stages, monthly_gross, merged_tax, age)
 
     _apply_asset_tax(state=state, year_start_balances=year_start_balances, merged_tax=merged_tax)
 
@@ -929,13 +947,51 @@ def _run_year(
     }
 
 
+def _exit_tax(state: SimulationState, age: int) -> float:
+    """Podatek od likwidacji wszystkich sald na koniec planu.
+
+    Liczony na kopii stanu tym samym `_apply_tax`, więc respektuje reżim konta
+    na danym wieku: IKZE po 65 r.ż. = 10% od całości, przed 65 r.ż. = skala PIT,
+    IKE po 60 r.ż. = 0%, broker = 19% od zysku (z basis i wintage'ami inflacji).
+    """
+    if not state.balances:
+        return 0.0
+    snapshot = deepcopy(state)
+    withdrawals = {
+        acc: bal for acc, bal in snapshot.balances.items() if bal > 0
+    }
+    if not withdrawals:
+        return 0.0
+    tax = _apply_tax(
+        state=snapshot,
+        withdrawals=withdrawals,
+        year_start_balances=dict(snapshot.balances),
+        age=age,
+    )
+    return sum(tax.values())
+
+
 def _finalize_result(
     data: SimulationInput, state: SimulationState, target: float | None = None
 ) -> SimulationResult:
     years, total_withdrawn_net, total_tax = _assemble_years(state.computed)
     sorted_ages = sorted(state.computed.keys())
     final_balances = state.computed[sorted_ages[-1]]["ending_balances"] if sorted_ages else {}
-    peak_wealth = max((y.total_wealth for y in years), default=0.0)
+    final_wealth = round(sum(final_balances.values()), 2)
+    # Salda z ostatniego roku są dostępne na początku kolejnego roku (wiek + 1),
+    # więc podatek wyjścia liczymy już wg reżimu właściwego dla tego wieku.
+    exit_age = sorted_ages[-1] + 1 if sorted_ages else 0
+    exit_tax = round(_exit_tax(state, exit_age), 2) if sorted_ages else 0.0
+    # Szczyt to maksimum z sald na początku i na końcu każdego roku — inaczej
+    # ostatni rok (wpłaty + wzrost) wypadał z pomiaru i „szczyt” bywał niższy
+    # od „majątku na koniec”.
+    peak_wealth = max(
+        max((y.total_wealth for y in years), default=0.0),
+        max(
+            (sum(c["ending_balances"].values()) for c in state.computed.values()),
+            default=0.0,
+        ),
+    )
     display_accounts = sorted(a for a in state.all_accounts if a != "zus")
     has_pension = any("zus" in si.accounts for si in data.stages)
     warnings = _collect_warnings(data, state, target)
@@ -958,10 +1014,13 @@ def _finalize_result(
     return SimulationResult(
         years=years,
         accounts=display_accounts,
-        final_wealth=round(sum(final_balances.values()), 2),
+        final_wealth=final_wealth,
         peak_wealth=round(peak_wealth, 2),
         total_withdrawn=round(total_withdrawn_net, 2),
         total_tax=round(total_tax, 2),
+        exit_tax=exit_tax,
+        final_wealth_net=round(final_wealth - exit_tax, 2),
+        total_tax_refund=round(state.ikze_refund_total, 2),
         has_pension=has_pension,
         warnings=warnings,
     )
@@ -1424,6 +1483,16 @@ def _collect_warnings(
                         f"Dopłaty na {label} ({contribution:,.0f} zł/rok) przekraczają "
                         f"roczny limit wpłat ({limit:,.0f} zł)."
                     )
+
+                if name == "ikze" and contribution > 0:
+                    refund_target = cfg.ikze_refund_target
+                    if refund_target == "auto" and not any(
+                        acc in si.accounts for acc in _IKZE_REINVEST_ORDER
+                    ):
+                        warnings.append(
+                            "IKZE: zwrot podatku nie jest reinwestowany — w etapie nie ma "
+                            "konta docelowego (broker, OKI, obligacje, lokata, krypto, gotówka)."
+                        )
 
                 if name == "ppk":
                     total_pct = cfg.employee_pct + cfg.employer_pct

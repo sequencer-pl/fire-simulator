@@ -85,7 +85,12 @@ Symulator celowo jest **prostym modelem deterministycznym**, a nie symulacją Mo
 
 10. **Nakładające się etapy** — dla danego konta wygrywa pierwszy z nich; konta nieobsługiwane w danym roku rosną pasywnie z ostatnim znanym ROI (domyślnie 2%).
 
-Wszystkie kwoty w wynikach są **netto (po podatku)**. "Majątek" to suma sald na początek roku.
+Wszystkie **wypłaty** w wynikach są netto (po podatku). Majątek pokazujemy
+**brutto** oraz **netto po podatku wyjścia** (gdyby zlikwidować konta na koniec
+planu: IKZE 10% po 65 r.ż. lub skala przed, IKE 0%, broker 19% od zysku).
+Ulga IKZE obniża podatek w roku wpłaty; zwrot można reinwestować na wybranym
+koncie (w edytorze wybór jest obowiązkowy; Asystent robi to automatycznie:
+broker → OKI → obligacje → lokata → krypto → gotówka) albo zostawić jako samą ulgę.
 
 ## Obsługiwane konta
 

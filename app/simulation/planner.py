@@ -219,6 +219,8 @@ class PlanProjection(BaseModel):
     min_monthly: float = 0.0
     mean_monthly: float = 0.0
     final_wealth: float = 0.0
+    final_wealth_net: float = 0.0
+    ikze_refund_account: str | None = None
     peak_wealth: float = 0.0
     exhaust_age: int | None = None
     warnings: list[str] = Field(default_factory=list)
@@ -243,6 +245,7 @@ class ScenarioSummary(BaseModel):
     savings_pct: float | None = None
     retire_early_age: int | None = None
     final_wealth: float = 0.0
+    final_wealth_net: float = 0.0
     peak_wealth: float = 0.0
 
 
@@ -924,6 +927,33 @@ def _phase_metrics(
     return phases
 
 
+IKZE_REFUND_ORDER = (
+    "broker",
+    "oki_inw",
+    "obligacje",
+    "lokata",
+    "oki_osk",
+    "krypto",
+    "gotowka",
+)
+
+
+def _ikze_refund_account(data: SimulationInput) -> str | None:
+    for si in data.stages:
+        if si.stage_type != "akumulacja":
+            continue
+        cfg = si.accounts.get("ikze")
+        if not cfg or cfg.annual_contribution <= 0:
+            continue
+        setting = cfg.ikze_refund_target
+        if setting in ("", "none"):
+            return None
+        if setting == "auto":
+            return next((acc for acc in IKZE_REFUND_ORDER if acc in si.accounts), None)
+        return setting if setting in si.accounts else None
+    return None
+
+
 def _project(
     data: SimulationInput, result: SimulationResult, target: float | None
 ) -> PlanProjection:
@@ -949,6 +979,8 @@ def _project(
         min_monthly=round(min_m, 2),
         mean_monthly=round(mean_m, 2),
         final_wealth=round(result.final_wealth, 2),
+        final_wealth_net=round(result.final_wealth_net, 2),
+        ikze_refund_account=_ikze_refund_account(data),
         peak_wealth=round(result.peak_wealth, 2),
         exhaust_age=exhaust,
         warnings=result.warnings,
@@ -1274,6 +1306,7 @@ def plan(path: int, a: WizardAnswers, target: float | None = None) -> WizardPlan
             savings_pct=s_solved.savings_pct,
             retire_early_age=s_solved.retire_early_age,
             final_wealth=s_proj.final_wealth,
+            final_wealth_net=s_proj.final_wealth_net,
             peak_wealth=s_proj.peak_wealth,
         )
 
