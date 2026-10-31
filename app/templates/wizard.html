@@ -136,11 +136,13 @@
     <section class="card wz-step hidden" data-step="3">
         <h2>Zgromadzony kapitał</h2>
         <p class="subtitle">Zaznacz produkty i konta, na których masz już odłożone środki, i wpisz ich obecne saldo. Jeśli zaczynasz od zera, przejdź od razu dalej.</p>
+        <h3 class="eyebrow wz-panel-title">Twoje konta</h3>
+        <div class="wz-capital-grid" id="wzCapitalGrid"></div>
+        <p class="field-hint wz-capital-empty" id="wzCapitalEmpty">Nie masz jeszcze dodanych kont — wybierz je poniżej.</p>
         <div class="card-inset wz-panel">
-            <h3 class="eyebrow wz-panel-title">Posiadane konta i produkty</h3>
+            <h3 class="eyebrow wz-panel-title">Dodaj kolejne konto</h3>
             <div class="pill-grid wz-pills" id="wzCapitalPicker"></div>
         </div>
-        <div class="wz-capital-grid" id="wzCapitalGrid"></div>
     </section>
 
     <!-- KROK 4: CEL I HORYZONT -->
@@ -217,9 +219,9 @@
         <div class="card-inset wz-alloc-panel">
             <h3 class="eyebrow wz-panel-title">Strategia podziału oszczędności</h3>
             <div class="segmented segmented-stack gender-options wz-alloc-strategy-options" id="wzStrategyGroup">
-                <label class="seg-option gender-option" title="Automatyczny podział: priorytet dla obligacji oraz kont emerytalnych IKE/IKZE"><input type="radio" name="wzStrategy" value="konserwatywna" /><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 4 6v6c0 5 3.4 8.4 8 9 4.6-.6 8-4 8-9V6z"/></svg> Konserwatywna</label>
-                <label class="seg-option gender-option" title="Automatyczny podział: IKE i IKZE do limitów, nadwyżka w OKI, obligacje i rachunek maklerski"><input type="radio" name="wzStrategy" value="zbilansowana" /><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v18M4 21h16M6 7l-3 7a3 3 0 0 0 6 0zM18 7l-3 7a3 3 0 0 0 6 0zM5 7h14"/></svg> Zrównoważona</label>
-                <label class="seg-option gender-option" title="Automatyczny podział: pełne wykorzystanie tarcz emerytalnych (IKE/IKZE/OIPE) + akcje i krypto"><input type="radio" name="wzStrategy" value="agresywna" /><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 15c-1.5 1.5-2 5-2 5s3.5-.5 5-2M14 4c3 .5 5.5 3 6 6-2 3-5 6-9 8l-5-5c2-4 5-7 8-9z"/><circle cx="14.5" cy="9.5" r="1.5"/></svg> Agresywna</label>
+                <label class="seg-option gender-option" title="Automatyczny podział: obligacje, lokata i OKI oszczędnościowe oraz ulgi IKZE/IKE"><input type="radio" name="wzStrategy" value="konserwatywna" /><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 4 6v6c0 5 3.4 8.4 8 9 4.6-.6 8-4 8-9V6z"/></svg> Konserwatywna</label>
+                <label class="seg-option gender-option" title="Automatyczny podział: IKZE i IKE do limitów, nadwyżka w brokera, obligacje, OKI, lokatę i krypto"><input type="radio" name="wzStrategy" value="zbilansowana" /><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v18M4 21h16M6 7l-3 7a3 3 0 0 0 6 0zM18 7l-3 7a3 3 0 0 0 6 0zM5 7h14"/></svg> Zrównoważona</label>
+                <label class="seg-option gender-option" title="Automatyczny podział: IKZE/IKE/OIPE do limitów, nadwyżka w brokera, OKI, krypto, obligacje i lokatę"><input type="radio" name="wzStrategy" value="agresywna" /><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 15c-1.5 1.5-2 5-2 5s3.5-.5 5-2M14 4c3 .5 5.5 3 6 6-2 3-5 6-9 8l-5-5c2-4 5-7 8-9z"/><circle cx="14.5" cy="9.5" r="1.5"/></svg> Agresywna</label>
                 <label class="seg-option gender-option" title="Samodzielnie ustaw roczne kwoty wpłat na każde konto"><input type="radio" name="wzStrategy" value="manualna" /><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg> Manualna</label>
             </div>
         </div>
@@ -242,6 +244,7 @@
                 <span class="wz-alloc-pct" id="wzAllocCashPct">—</span>
             </div>
             <div id="wzAllocGrid" class="wz-alloc-grid"></div>
+            <p class="field-hint wz-alloc-refund-note" id="wzAllocRefundNote" hidden></p>
             <div id="wzAllocCash" class="wz-alloc-cash"></div>
         </div>
 

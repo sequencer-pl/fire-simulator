@@ -42,3 +42,18 @@ function initNumControls(scope, stepFn) {
         fn(input, btn.classList.contains("stepper-up") ? 1 : -1);
     });
 }
+
+// Kliknięcie w pole liczbowe/tekstowe zaznacza całą wartość — wpisywanie
+// nadpisuje, zamiast dopisywać się do domyślnego „0” (Asystent i edytor).
+document.addEventListener(
+    "focusin",
+    (e) => {
+        const input = e.target;
+        if (!input || !input.matches || !input.matches('input[type="number"], input[type="text"]')) return;
+        if (typeof input.select !== "function") return;
+        setTimeout(() => {
+            if (document.activeElement === input) input.select();
+        }, 0);
+    },
+    true
+);

@@ -2,9 +2,15 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
 
+from app.core.tax import scale_tax
 from app.simulation.config import TaxConfig, default_config, get_builtin_preset
 from app.simulation.constants import MONTHS_PER_YEAR, PPE_ZUS_FRACTION
-from app.simulation.engine import _init_state, _run_year, simulate
+from app.simulation.engine import (
+    _compute_monthly_gross_dochod,
+    _init_state,
+    _run_year,
+    simulate,
+)
 from app.simulation.salary import gross_from_net, net_from_gross
 from app.simulation.schemas import (
     AccountConfig,
@@ -20,9 +26,34 @@ SAVINGS_ACCOUNTS = ("broker", "lokata", "obligacje", "krypto")
 # order and only opens the next one when the previous hits its annual limit.
 STRATEGY_SUGGEST: dict[str, tuple[str, ...]] = {
     "konserwatywna": ("obligacje", "ikze", "ike", "oki_osk", "oki_inw"),
-    "zbilansowana": ("ike", "ikze", "oki_inw", "obligacje", "broker"),
-    "agresywna": ("ike", "ikze", "oipe", "broker", "krypto"),
+    "zbilansowana": ("ikze", "ike", "oki_inw", "obligacje", "broker"),
+    "agresywna": ("ikze", "ike", "oipe", "broker", "krypto"),
 }
+
+# Miks nadwyżki PO wypełnieniu ulg (procenty nadwyżki, nie całej puli).
+STRATEGY_MIX: dict[str, dict[str, float]] = {
+    "konserwatywna": {"obligacje": 50, "lokata": 30, "oki_osk": 20},
+    "zbilansowana": {
+        "broker": 45,
+        "obligacje": 25,
+        "oki_inw": 15,
+        "lokata": 10,
+        "krypto": 5,
+    },
+    "agresywna": {
+        "broker": 50,
+        "oki_inw": 15,
+        "krypto": 15,
+        "obligacje": 10,
+        "lokata": 10,
+    },
+}
+
+# Poniżej tej nadwyżki nie dzielimy na kilka kont — szkoda mnogości wpłat.
+MIX_MIN_ANNUAL = 20_000.0
+# Próg opłacalności IKZE vs IKE przy reinwestycji zwrotu w IKE/OIPE (10%
+# ryczałtu + ok. 0,5 p.p. opóźnienia zwrotu).
+IKZE_BREAKEVEN_RATE = 0.105
 
 # Accounts with statutory annual contribution caps (limits in config.limits).
 TAX_SHELTER_ACCOUNTS = ("ike", "ikze", "oipe")
@@ -221,6 +252,8 @@ class PlanProjection(BaseModel):
     final_wealth: float = 0.0
     final_wealth_net: float = 0.0
     ikze_refund_account: str | None = None
+    ikze_refund_total: float = 0.0
+    ikze_refund_allocations: dict[str, float] = Field(default_factory=dict)
     peak_wealth: float = 0.0
     exhaust_age: int | None = None
     warnings: list[str] = Field(default_factory=list)
@@ -362,14 +395,42 @@ def _resolve_allocation(a: WizardAnswers, config, annual_pool: float) -> dict[st
     return alloc
 
 
-def _suggest_order(a: WizardAnswers, active: set[str]) -> list[str]:
+def _ikze_deduction_rate(a: WizardAnswers, config: TaxConfig) -> float:
+    """Średnia ulga PIT od wpłaty IKZE (0–1) — do progu IKZE vs IKE."""
+    gross = max(0.0, a.gross_monthly)
+    if gross <= 0:
+        return 0.0
+    income = _compute_monthly_gross_dochod(gross, config)
+    limit = (
+        config.limits.ikze_annual_self_employed
+        if a.employment == "b2b"
+        else config.limits.ikze_annual
+    )
+    if income <= 0 or limit <= 0:
+        return 0.0
+    before = scale_tax(income, **config.scale_kwargs())
+    after = scale_tax(max(0.0, income - limit), **config.scale_kwargs())
+    return max(0.0, before - after) / limit
+
+
+def _prefer_ikze(a: WizardAnswers, config: TaxConfig) -> bool:
+    """IKZE przed IKE, gdy ulga bije 10% ryczałtu (z reinwestycją w IKE/OIPE)."""
+    return _ikze_deduction_rate(a, config) > IKZE_BREAKEVEN_RATE
+
+
+def _suggest_order(
+    a: WizardAnswers, active: set[str], config: TaxConfig
+) -> list[str]:
     """Priority order for absorbing the annual pool: first the tax-sheltered
     accounts the user already holds (in the strategy preference order, then any
     remaining shelters), then curated "magic" accounts the user lacks, and only
     then the user's other active accounts. The pool walks this order up to the
     accounts' annual caps, so few accounts are opened when the pool is small."""
     strat_key = "zbilansowana" if a.strategy == "manualna" else a.strategy
-    pref = STRATEGY_SUGGEST[strat_key]
+    pref = list(STRATEGY_SUGGEST[strat_key])
+    if not _prefer_ikze(a, config) and "ike" in pref and "ikze" in pref:
+        pref.remove("ike")
+        pref.insert(pref.index("ikze"), "ike")
     preferred = [n for n in pref if n in TAX_SHELTER_ACCOUNTS and n in active]
     preferred += [n for n in TAX_SHELTER_ACCOUNTS if n in active and n not in preferred]
     curated = [n for n in pref if n not in active]
@@ -378,30 +439,44 @@ def _suggest_order(a: WizardAnswers, active: set[str]) -> list[str]:
 
 
 def suggest_allocations(a: WizardAnswers, config, annual_pool: float) -> dict[str, float]:
-    """Auto % split by annual capacity: accounts absorb the pool in priority
-    order, each up to its annual contribution limit (unlimited accounts take the
-    remainder). Opening the next account only happens when the previous one is
-    full, so a small pool lands in a single account. Shares == pool absorption,
-    hence 100% in total with no fall-through to "gotowka"."""
+    """Auto % split: najpierw ulgi (IKZE/IKE/OIPE) do limitów, potem miks
+    nadwyżki wg strategii (broker/obligacje/OKI/lokata/krypto). Mała nadwyżka
+    (< MIX_MIN_ANNUAL) trafia do pierwszego konta miksu, żeby nie mnożyć wpłat."""
     if annual_pool <= 0:
         return {}
+    a = _normalize_salary(a)
+    strat_key = "zbilansowana" if a.strategy == "manualna" else a.strategy
     # Active = participation flag OR existing capital — an account the user
     # already holds money in is a valid target for future savings even without
     # an explicit "use_*" checkbox (wizard auto-checks on any non-zero balance).
     active = {n for n in ALLOCATABLE_ACCOUNTS if _account_present(a, n, {})}
     remaining = annual_pool
-    shares: dict[str, float] = {}
-    for name in _suggest_order(a, active):
+    amounts: dict[str, float] = {}
+    for name in _suggest_order(a, active, config):
+        if name not in TAX_SHELTER_ACCOUNTS:
+            continue
         if remaining <= 0:
             break
         cap = _shelter_cap(a, config, name)
         take = min(remaining, cap) if cap else remaining
         if take > 1e-6:
-            shares[name] = take
+            amounts[name] = amounts.get(name, 0.0) + take
             remaining -= take
-    if not shares:
+
+    if remaining > 1e-6:
+        mix = STRATEGY_MIX.get(strat_key, {})
+        if mix and remaining >= MIX_MIN_ANNUAL:
+            for name, pct in mix.items():
+                share = remaining * pct / 100.0
+                if share > 1e-6:
+                    amounts[name] = amounts.get(name, 0.0) + share
+        else:
+            first = next(iter(mix), "broker")
+            amounts[first] = amounts.get(first, 0.0) + remaining
+
+    if not amounts:
         return {}
-    out = {n: round(share / annual_pool * 100.0, 2) for n, share in shares.items()}
+    out = {n: round(share / annual_pool * 100.0, 2) for n, share in amounts.items()}
     drift = 100.0 - sum(out.values())
     if abs(drift) > 1e-6 and out:
         biggest = max(out, key=out.__getitem__)
@@ -927,33 +1002,6 @@ def _phase_metrics(
     return phases
 
 
-IKZE_REFUND_ORDER = (
-    "broker",
-    "oki_inw",
-    "obligacje",
-    "lokata",
-    "oki_osk",
-    "krypto",
-    "gotowka",
-)
-
-
-def _ikze_refund_account(data: SimulationInput) -> str | None:
-    for si in data.stages:
-        if si.stage_type != "akumulacja":
-            continue
-        cfg = si.accounts.get("ikze")
-        if not cfg or cfg.annual_contribution <= 0:
-            continue
-        setting = cfg.ikze_refund_target
-        if setting in ("", "none"):
-            return None
-        if setting == "auto":
-            return next((acc for acc in IKZE_REFUND_ORDER if acc in si.accounts), None)
-        return setting if setting in si.accounts else None
-    return None
-
-
 def _project(
     data: SimulationInput, result: SimulationResult, target: float | None
 ) -> PlanProjection:
@@ -980,7 +1028,9 @@ def _project(
         mean_monthly=round(mean_m, 2),
         final_wealth=round(result.final_wealth, 2),
         final_wealth_net=round(result.final_wealth_net, 2),
-        ikze_refund_account=_ikze_refund_account(data),
+        ikze_refund_account=next(iter(result.ikze_refund_allocations), None),
+        ikze_refund_total=round(result.total_tax_refund, 2),
+        ikze_refund_allocations=result.ikze_refund_allocations,
         peak_wealth=round(result.peak_wealth, 2),
         exhaust_age=exhaust,
         warnings=result.warnings,

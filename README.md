@@ -90,7 +90,10 @@ Wszystkie **wypłaty** w wynikach są netto (po podatku). Majątek pokazujemy
 planu: IKZE 10% po 65 r.ż. lub skala przed, IKE 0%, broker 19% od zysku).
 Ulga IKZE obniża podatek w roku wpłaty; zwrot można reinwestować na wybranym
 koncie (w edytorze wybór jest obowiązkowy; Asystent robi to automatycznie:
-broker → OKI → obligacje → lokata → krypto → gotówka) albo zostawić jako samą ulgę.
+IKE → OIPE → broker → OKI → obligacje → lokata → krypto → gotówka, do wysokości
+limitów IKE/OIPE) albo zostawić jako samą ulgę. Asystent najpierw wypełnia ulgi
+(IKZE, gdy ulga PIT bije 10% ryczałtu), a nadwyżkę dzieli wg strategii — m.in.
+z małym udziałem krypto (5% zrównoważona, 15% agresywna).
 
 ## Obsługiwane konta
 

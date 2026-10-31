@@ -578,10 +578,27 @@ function renderMetrics(projection) {
     html += `<div class="metric"><span class="metric-label">Majątek szczytowy</span><span class="metric-value">${fmt(projection.peak_wealth)} zł</span></div>`;
     html += `<div class="metric${(projection.final_wealth || 0) <= 0 ? " is-muted" : ""}"><span class="metric-label">Na koniec brutto</span><span class="metric-value">${fmt(projection.final_wealth)} zł</span></div>`;
     html += `<div class="metric${(projection.final_wealth_net || 0) <= 0 ? " is-muted" : ""}" title="Po podatku od likwidacji kont na koniec horyzontu"><span class="metric-label">Na koniec netto</span><span class="metric-value">${fmt(projection.final_wealth_net ?? projection.final_wealth)} zł</span></div>`;
-    const refundAccount = projection.ikze_refund_account;
-    const refundNote = refundAccount
-        ? `<p class="field-hint wz-refund-note">Zwrot IKZE reinwestowany w: <strong>${escapeHtml(ACCOUNT_LABELS[refundAccount] || refundAccount)}</strong>.</p>`
-        : "";
+    const refundTotal = projection.ikze_refund_total || 0;
+    const refundParts = Object.entries(projection.ikze_refund_allocations || {})
+        .filter(([, amount]) => amount > 0.5)
+        .map(([acc, amount]) => `${escapeHtml(ACCOUNT_LABELS[acc] || acc)}: ${fmt(amount)} zł`);
+    const refundAllocated = Object.values(projection.ikze_refund_allocations || {})
+        .reduce((sum, amount) => sum + amount, 0);
+    let refundNote = "";
+    if (refundTotal > 0) {
+        let text = `Z ulgi IKZE wróciło ${fmt(refundTotal)} zł.`;
+        if (refundParts.length) {
+            text += ` Zainwestowano: ${refundParts.join(", ")}.`;
+            text += " Ulga wraca co roku i powiększa kapitał; bez reinwestycji nadal obniżałaby podatek, ale nie zwiększałaby majątku.";
+        } else {
+            text += " Nie ma celu reinwestycji — kwota pozostaje jako obniżenie podatku (nie jest reinwestowana).";
+        }
+        const unallocated = refundTotal - refundAllocated;
+        if (refundParts.length && unallocated > 0.5) {
+            text += ` Nierozdysponowane ${fmt(unallocated)} zł pozostaje jako obniżenie podatku (nie jest reinwestowane).`;
+        }
+        refundNote = `<p class="field-hint wz-refund-note">${text}</p>`;
+    }
     box.innerHTML = `<div class="metric-grid is-wide">${html}</div>${refundNote}`;
     box.classList.remove("hidden");
 }
@@ -1755,6 +1772,38 @@ function refreshAllocationDisplay() {
         sum.classList.toggle("wz-alloc-over", over);
         sum.classList.toggle("wz-alloc-ok", !over && usedPct >= 99.999);
     }
+    updateAllocRefundNote();
+}
+
+function updateAllocRefundNote() {
+    const el = document.getElementById("wzAllocRefundNote");
+    if (!el) return;
+    if (!isCapActive("ikze")) {
+        el.hidden = true;
+        return;
+    }
+    const room = (acc) => {
+        if (!isCapActive(acc)) return 0;
+        const cap = wzShelterCap(acc);
+        if (!cap) return 0;
+        return Math.max(0, cap - (wzAllocAmountAnnual(acc) || 0));
+    };
+    let target = null;
+    if (room("ike") > 0) target = "IKE";
+    else if (room("oipe") > 0) target = "OIPE";
+    else {
+        const fallback = ["broker", "oki_inw", "obligacje", "lokata", "oki_osk", "krypto", "gotowka"]
+            .find((acc) => isCapActive(acc));
+        if (fallback) target = ACCOUNT_LABELS[fallback] || fallback;
+    }
+    if (!target) {
+        el.textContent = "Zwrot IKZE nie ma gdzie trafić — dodaj konto docelowe (np. brokera).";
+    } else {
+        el.textContent =
+            `Zwrot IKZE automatycznie zasili ${target} (do limitu), a po jego wyczerpaniu kolejne konto. ` +
+            "Ulga wraca co roku i powiększa kapitał.";
+    }
+    el.hidden = false;
 }
 
 function bindAllocInputs() {

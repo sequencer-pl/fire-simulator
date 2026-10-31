@@ -184,6 +184,15 @@
 
 .wz-capital-grid:not(:empty) { margin-top: var(--sp-3); }
 
+.wz-capital-empty {
+    display: none;
+    margin: var(--sp-2) 0 0;
+}
+
+.wz-capital-grid:empty + .wz-capital-empty { display: block; }
+
+.wz-step .wz-capital-grid ~ .wz-panel { margin-top: var(--sp-4); }
+
 .wz-capital-item {
     background: var(--surface-2);
     border: 1px solid var(--border);
@@ -331,6 +340,7 @@
 
 .wz-alloc-cap { order: 2; color: var(--text-3); }
 .wz-alloc-overflow { order: 3; color: var(--warning); }
+.wz-alloc-refund-note { margin-top: var(--sp-3); }
 .wz-alloc-row .wz-pill-remove { order: 1; margin-left: auto; }
 
 .wz-alloc-cash {

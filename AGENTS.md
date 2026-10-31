@@ -24,13 +24,15 @@ bez TypeScript), SQLite, pytest. Odpowiadaj i pisz UI po polsku.
 - **IKZE**: ulga liczona od dochodu obniża podatek w roku wpłaty. Zwrot trafia
   na konto wybrane w `ikze_refund_target` (w edytorze wybór jest **obowiązkowy**:
   konto albo `none`; wybrane konto jest automatycznie dodawane do etapu z notą
-  o wpłatach ze zwrotu). `auto` = broker → OKI → obligacje → lokata → krypto →
-  gotówka, używane przez Asystenta i stare zapisy. Zwrot jest dopisywany
-  **na koniec roku** (po wzroście), bo realnie przychodzi po PIT. Brak celu
-  w `auto` = ostrzeżenie w wyniku. `SimulationResult` niesie `total_tax_refund`,
-  `exit_tax` i `final_wealth_net` (podatek wyjścia: IKZE 10% od całości po 65 r.ż.
-  lub skala przed, IKE 0%, broker 19% od zysku) — dzięki temu IKE i IKZE nie
-  wyglądają identycznie przy tej samej stopie zwrotu.
+  o wpłatach ze zwrotu). `auto` = IKE → OIPE → broker → OKI → obligacje → lokata
+  → krypto → gotówka, używane przez Asystenta i stare zapisy. IKE/OIPE przyjmują
+  zwrot tylko do wysokości rocznego limitu wpłat, reszta leci dalej. Zwrot jest
+  dopisywany **na koniec roku** (po wzroście), bo realnie przychodzi po PIT. Brak
+  celu w `auto` = ostrzeżenie w wyniku. `SimulationResult` niesie
+  `total_tax_refund`, `ikze_refund_allocations`, `exit_tax` i `final_wealth_net`
+  (podatek wyjścia: IKZE 10% od całości po 65 r.ż. lub skala przed, IKE 0%,
+  broker 19% od zysku) — dzięki temu IKE i IKZE nie wyglądają identycznie przy
+  tej samej stopie zwrotu.
 - **ZUS obsługuje engine**, nie etap (waloryzacja zamiast ROI, konwersja kapitału na
   rentę zamiast PMT; renta waloryzowana corocznie). Nie powielać `zus` w wielu etapach
   (`_process_stages`, engine.py — guard `zus_handled`).
@@ -142,9 +144,12 @@ bez TypeScript), SQLite, pytest. Odpowiadaj i pisz UI po polsku.
   `salary_mode` i `savings`; backend normalizuje netto→brutto **raz** na wejściu
   `plan()`/`estimate_pool_monthly()`.
 - Krok 3 „Kapitał": **wszystkie 14 kont** (w tym `zus:ofe`) jako `.pill-toggle.wz-pill`
-  w `#wzCapitalPicker`; wybrane konto dodaje `.wz-capital-item` do `#wzCapitalGrid`
+  w `#wzCapitalPicker`, ale **siatka `#wzCapitalGrid` jest nad pickerem** (picker
+  „Dodaj kolejne konto” pod spodem), żeby po wpisaniu kwoty kolejne konto było
+  tuż nad panelem dodawania. Wybrane konto dodaje `.wz-capital-item` do siatki
   (ponowne kliknięcie / `.wz-pill-remove` je zabiera). Do odpowiedzi trafiają tylko
-  kwoty > 0.
+  kwoty > 0. Pola liczbowe (wszędzie) zaznaczają całą wartość przy focusie
+  (`controls.js`), więc wpisanie `1000` nadpisuje domyślne `0`.
 - Krok 4 (tytuł wg ścieżki: „Kiedy chcesz przejść na FIRE?” / „Twój cel wypłaty i
   wiek FIRE” / „Wymarzona wypłata i horyzont”): 4 wiersze `.wz-slider` w `.wz-rows`,
   bez hint-podpowiedzi (kontekst w `title` labela). Cel wypłaty tylko dla ścieżek 2/3,
@@ -160,6 +165,12 @@ bez TypeScript), SQLite, pytest. Odpowiadaj i pisz UI po polsku.
   rozdziela oszczędności. Wybór strategii jest **wymagany** (na starcie żaden tryb).
   Strategie automatyczne: `wzAllocMode = "auto"`, `/api/wizard/suggest` (w ścieżce 2
   z celem i `pool_monthly`), sekcja „Podział" **read-only** (`.wz-alloc-readonly`).
+  Sugestia najpierw wypełnia ulgi (IKZE, gdy średnia ulga PIT > 10,5%, inaczej IKE;
+  potem drugi shelter i OIPE), a **nadwyżkę ponad limity** dzieli wg miksu strategii
+  (`STRATEGY_MIX`: broker/obligacje/OKI/lokata/krypto; krypto 5% zrównoważona, 15%
+  agresywna, 0% konserwatywna). Poniżej `MIX_MIN_ANNUAL` (20 tys. zł/rok) nadwyżka
+  idzie do pierwszego konta miksu. Krok 5 pokazuje, gdzie trafi zwrot IKZE
+  (`#wzAllocRefundNote`), a krok 6 — kwoty po kontach (`ikze_refund_allocations`).
   „Manualna": `"manual"`, pełny układ (pola `zł/rok` + suwaki, wiersz Gotówki,
   „Dodaj instrument", „Wpłaty z pensji"). **Wiersz podziału jest kwotowy (rocznie)**:
   etykieta | pole `zł/rok` | suwak | `≈zł/mies.` | `≈%` (procenty tylko

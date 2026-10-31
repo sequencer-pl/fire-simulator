@@ -281,6 +281,8 @@ STAGE_META: dict[str, dict[str, Any]] = {
                         "type": "select",
                         "options": [
                             {"value": "", "label": "— wybierz konto —"},
+                            {"value": "ike", "label": "IKE"},
+                            {"value": "oipe", "label": "OIPE"},
                             {"value": "broker", "label": "Broker"},
                             {"value": "lokata", "label": "Lokata"},
                             {"value": "obligacje", "label": "Obligacje"},
@@ -293,7 +295,8 @@ STAGE_META: dict[str, dict[str, Any]] = {
                         "hint": (
                             "Wybierz konto, na które ma trafiać zwrot z ulgi IKZE. "
                             "Konto zostanie automatycznie dodane do etapu, a część "
-                            "jego wpływów będzie pochodziła z tego zwrotu. "
+                            "jego wpływów będzie pochodziła z tego zwrotu. IKE/OIPE "
+                            "przyjmą zwrot tylko do wysokości rocznego limitu wpłat. "
                             "„Nie reinwestuj” oznacza, że ulga tylko obniża podatek."
                         ),
                     },

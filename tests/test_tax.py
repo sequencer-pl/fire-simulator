@@ -532,3 +532,59 @@ def test_total_tax_refund_is_positive_and_matches_tax_relief():
     )
     assert result.total_tax_refund > 0
     assert result.total_tax_refund == pytest.approx(90_432, rel=1e-3)
+
+
+def test_ikze_refund_goes_to_ike_within_limit():
+    result = ikze_growth(
+        {
+            "ikze": acc(annual_contribution=11_304, roi=0.05),
+            "ike": acc(annual_contribution=16_956, roi=0.05),
+            "broker": acc(roi=0.05),
+        }
+    )
+    alloc = result.ikze_refund_allocations
+    assert alloc.get("ike", 0) > 0
+    assert alloc.get("broker", 0) == 0
+    assert sum(alloc.values()) == pytest.approx(result.total_tax_refund, rel=1e-3)
+    assert result.years[-1].balances["ike"] > 16_956 * 25
+
+
+def test_ikze_refund_spills_to_broker_when_ike_limit_full():
+    result = ikze_growth(
+        {
+            "ikze": acc(annual_contribution=11_304, roi=0.05),
+            "ike": acc(annual_contribution=28_260, roi=0.05),
+            "broker": acc(roi=0.05),
+        }
+    )
+    alloc = result.ikze_refund_allocations
+    assert alloc.get("ike", 0) == 0
+    assert alloc.get("broker", 0) > 0
+    assert sum(alloc.values()) == pytest.approx(result.total_tax_refund, rel=1e-3)
+
+
+def test_ikze_refund_splits_between_ike_and_broker():
+    result = ikze_growth(
+        {
+            "ikze": acc(annual_contribution=11_304, roi=0.05),
+            "ike": acc(annual_contribution=27_500, roi=0.05),
+            "broker": acc(roi=0.05),
+        }
+    )
+    alloc = result.ikze_refund_allocations
+    assert alloc.get("ike", 0) > 0
+    assert alloc.get("broker", 0) > 0
+    assert sum(alloc.values()) == pytest.approx(result.total_tax_refund, rel=1e-3)
+
+
+def test_ikze_refund_explicit_ike_full_warns():
+    result = ikze_growth(
+        {
+            "ikze": acc(
+                annual_contribution=11_304, roi=0.05, ikze_refund_target="ike"
+            ),
+            "ike": acc(annual_contribution=28_260, roi=0.05),
+        }
+    )
+    assert result.ikze_refund_allocations.get("ike", 0) == 0
+    assert any("limit wpłat na IKE" in w for w in result.warnings)

@@ -41,6 +41,7 @@ class SimulationState:
     lokata_interest_nom: dict[str, float] = field(default_factory=dict)
     ikze_refund_total: float = 0.0
     ikze_refund_unallocated: float = 0.0
+    ikze_refund_allocations: dict[str, float] = field(default_factory=dict)
 
     def __iter__(self):
         yield self.config
@@ -785,6 +786,8 @@ def _assemble_years(
 
 
 _IKZE_REINVEST_ORDER = (
+    "ike",
+    "oipe",
     "broker",
     "oki_inw",
     "obligacje",
@@ -793,6 +796,33 @@ _IKZE_REINVEST_ORDER = (
     "krypto",
     "gotowka",
 )
+
+
+def _ikze_refund_targets(cfg, si: StageInput) -> list[str]:
+    """Lista kont, na które może trafić zwrot ulgi IKZE (w kolejności)."""
+    setting = cfg.ikze_refund_target
+    if setting in ("", "none"):
+        return []
+    if setting == "auto":
+        return [acc for acc in _IKZE_REINVEST_ORDER if acc in si.accounts]
+    if setting in si.accounts:
+        return [setting]
+    return []
+
+
+def _ikze_refund_room(target: str, si: StageInput, state: SimulationState) -> float:
+    """Wolne miejsce w rocznym limicie wpłat (IKE/OIPE); reszta bez limitu."""
+    if target not in si.accounts:
+        return 0.0
+    cfg = si.accounts[target]
+    limits = state.config.limits
+    if target == "ike":
+        limit = limits.ike_annual
+    elif target == "oipe":
+        limit = limits.oipe_annual
+    else:
+        return float("inf")
+    return max(0.0, limit - cfg.annual_contribution)
 
 
 def _apply_ikze_savings(
@@ -821,30 +851,26 @@ def _apply_ikze_savings(
             merged_tax[name] = merged_tax.get(name, 0.0) - saving
             state.ikze_refund_total += saving
 
-            target = _ikze_refund_target(cfg, si)
-            if target is None:
-                # "none" — ulga tylko obniża podatek, bez reinwestycji.
-                if cfg.ikze_refund_target != "none":
-                    state.ikze_refund_unallocated += saving
-                continue
-            state.balances[target] = state.balances.get(target, 0.0) + saving
-            rules = state.config.accounts.get(target)
-            if target != "gotowka" and not (rules and rules.tax_periodic):
-                state.basis[target] = state.basis.get(target, 0.0) + saving
-                v_age = age if age is not None else state.start_age
-                state.basis_vintages.setdefault(target, []).append((v_age, saving))
-
-
-def _ikze_refund_target(cfg, si: StageInput) -> str | None:
-    """Konto, na które trafia zwrot ulgi IKZE (None = nie reinwestuj)."""
-    setting = cfg.ikze_refund_target
-    if setting in ("", "none"):
-        return None
-    if setting == "auto":
-        return next((acc for acc in _IKZE_REINVEST_ORDER if acc in si.accounts), None)
-    if setting in si.accounts:
-        return setting
-    return None  # wybrane konto nie występuje w tym etapie — ostrzeżenie w wyniku
+            remaining = saving
+            for target in _ikze_refund_targets(cfg, si):
+                room = _ikze_refund_room(target, si, state)
+                amount = min(remaining, room)
+                if amount <= 1e-9:
+                    continue
+                state.balances[target] = state.balances.get(target, 0.0) + amount
+                state.ikze_refund_allocations[target] = (
+                    state.ikze_refund_allocations.get(target, 0.0) + amount
+                )
+                rules = state.config.accounts.get(target)
+                if target != "gotowka" and not (rules and rules.tax_periodic):
+                    state.basis[target] = state.basis.get(target, 0.0) + amount
+                    v_age = age if age is not None else state.start_age
+                    state.basis_vintages.setdefault(target, []).append((v_age, amount))
+                remaining -= amount
+                if remaining <= 1e-9:
+                    break
+            if remaining > 1e-9:
+                state.ikze_refund_unallocated += remaining
 
 
 def _run_year(
@@ -1021,6 +1047,9 @@ def _finalize_result(
         exit_tax=exit_tax,
         final_wealth_net=round(final_wealth - exit_tax, 2),
         total_tax_refund=round(state.ikze_refund_total, 2),
+        ikze_refund_allocations={
+            acc: round(amount, 2) for acc, amount in state.ikze_refund_allocations.items()
+        },
         has_pension=has_pension,
         warnings=warnings,
     )
@@ -1491,8 +1520,22 @@ def _collect_warnings(
                     ):
                         warnings.append(
                             "IKZE: zwrot podatku nie jest reinwestowany — w etapie nie ma "
-                            "konta docelowego (broker, OKI, obligacje, lokata, krypto, gotówka)."
+                            "konta docelowego (IKE, OIPE, broker, OKI, obligacje, "
+                            "lokata, krypto, gotówka)."
                         )
+                    elif refund_target in ("ike", "oipe"):
+                        target_cfg = si.accounts.get(refund_target)
+                        limit = (
+                            config.limits.ike_annual
+                            if refund_target == "ike"
+                            else config.limits.oipe_annual
+                        )
+                        if target_cfg and target_cfg.annual_contribution >= limit - 1e-6:
+                            label = ACCOUNT_LABELS.get(refund_target, refund_target)
+                            warnings.append(
+                                f"IKZE: limit wpłat na {label} jest już wykorzystany — "
+                                f"zwrot nie zostanie zainwestowany."
+                            )
 
                 if name == "ppk":
                     total_pct = cfg.employee_pct + cfg.employer_pct

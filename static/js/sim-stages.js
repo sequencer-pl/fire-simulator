@@ -914,20 +914,6 @@ function initStageEventHandlers(container) {
     // Steppery −/+ we wszystkich kontrolkach numerycznych (pola kont i wiek etapów)
     initNumControls(container);
 
-    // Kliknięcie w pole zaznacza całą wartość (wpisywanie nadpisuje, bez backspace)
-    document.addEventListener(
-        "focusin",
-        (e) => {
-            const input = e.target;
-            if (!input || !input.matches || !input.matches('input[type="number"], input[type="text"]')) return;
-            if (typeof input.select !== "function") return;
-            setTimeout(() => {
-                if (document.activeElement === input) input.select();
-            }, 0);
-        },
-        true
-    );
-
     const simForm = document.getElementById("simForm");
     document.getElementById("simulateBtn").addEventListener("click", () => {
         simForm.requestSubmit();
