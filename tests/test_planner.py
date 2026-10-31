@@ -1,5 +1,7 @@
 """Wizard planner — stage builder, three plan paths, guarantee metric."""
 
+import copy
+
 import pytest
 from pydantic import ValidationError
 
@@ -9,10 +11,27 @@ from app.simulation.engine import simulate
 from app.simulation.planner import (
     WizardAnswers,
     _resolve_allocation,
-    plan,
     suggest_allocations,
 )
+from app.simulation.planner import (
+    plan as _plan,
+)
 from app.simulation.schemas import SimulationInput
+
+_PLAN_CACHE: dict[tuple, P.WizardPlanResult] = {}
+
+
+def plan(
+    path: int, a: WizardAnswers, target: float | None = None, **kwargs
+) -> P.WizardPlanResult:
+    """Cache identycznych planów — solver jest deterministyczny, a testy często
+    pytają o ten sam ``answers()``. Zwracamy kopię, żeby mutacje nie przeciekały."""
+    kwargs.setdefault("scenarios", False)
+    key = (path, a.model_dump_json(), target, tuple(sorted(kwargs.items())))
+    if key not in _PLAN_CACHE:
+        _PLAN_CACHE[key] = _plan(path, a, target, **kwargs)
+    return copy.deepcopy(_PLAN_CACHE[key])
+
 
 BASE = dict(
     gender="m",
@@ -412,7 +431,7 @@ def test_stage_metrics_cover_all_stages_and_split_zus():
 
 
 def test_scenario_stage_metrics_follow_market_assumptions():
-    r = plan(1, answers(capital={"broker": 200_000}))
+    r = plan(1, answers(capital={"broker": 200_000}), scenarios=True)
     real = r.scenario_projections["realne"].stage_metrics
     cautious = r.scenario_projections["konserwatywne"].stage_metrics
     assert real and cautious
@@ -517,7 +536,7 @@ def test_phase_metrics_merge_empty_portfolio_retirement_into_zus():
 
 
 def test_scenarios_cover_all_three_and_are_internally_consistent():
-    r = plan(1, answers(capital={"broker": 100_000}), None)
+    r = plan(1, answers(capital={"broker": 100_000}), None, scenarios=True)
     keys = ["konserwatywne", "realne", "optymistyczne"]
     assert list(r.scenarios) == keys
     assert list(r.scenario_projections) == keys
@@ -535,13 +554,13 @@ def test_scenarios_cover_all_three_and_are_internally_consistent():
 
 
 def test_scenarios_payout_ordering_path1():
-    r = plan(1, answers(capital={"broker": 200_000}), None)
+    r = plan(1, answers(capital={"broker": 200_000}), None, scenarios=True)
     payouts = [r.scenarios[k].payout_monthly for k in ("konserwatywne", "realne", "optymistyczne")]
     assert payouts[0] < payouts[1] < payouts[2]
 
 
 def test_scenarios_savings_ordering_path2():
-    r = plan(2, answers(), 6000)
+    r = plan(2, answers(), 6000, scenarios=True)
     savings = [r.scenarios[k].savings_monthly for k in ("konserwatywne", "realne", "optymistyczne")]
     assert savings[0] > savings[1] > savings[2]
     assert r.scenario_solved["realne"].savings_monthly == pytest.approx(
@@ -555,7 +574,7 @@ def test_scenarios_fire_age_ordering_path3():
         allocations={"broker": 100},
         capital={"broker": 1_000_000},
     )
-    r = plan(3, a, 6000)
+    r = plan(3, a, 6000, scenarios=True)
     ages = [r.scenarios[k].retire_early_age for k in ("konserwatywne", "realne", "optymistyczne")]
     assert all(age is not None for age in ages)
     assert ages[0] > ages[1] > ages[2]
@@ -563,7 +582,7 @@ def test_scenarios_fire_age_ordering_path3():
 
 def test_scenario_selected_in_answers_reuses_main_result():
     a = answers(assumptions="konserwatywne", capital={"broker": 100_000})
-    r = plan(1, a, None)
+    r = plan(1, a, None, scenarios=True)
     assert r.scenario_projections["konserwatywne"] == r.projection
     assert r.scenario_solved["konserwatywne"] == r.solved
 

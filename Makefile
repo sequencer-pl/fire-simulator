@@ -27,7 +27,7 @@ prod-port:
 
 ## Uruchamia testy jednostkowe
 test:
-	$(PYTHON) pytest
+	$(PYTHON) pytest -n auto
 
 ## Instaluje zależności harnessa wizualnego (Playwright, pierwszy raz)
 visual-setup:

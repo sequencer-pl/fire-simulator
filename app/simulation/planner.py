@@ -1245,7 +1245,7 @@ def _solve_payout(data: SimulationInput) -> tuple[float, bool]:
     hi = max(100.0, data.monthly_gross)
     while _evaluate(data, hi).met and hi < 1e9:
         hi *= 2.0
-    for _ in range(32):
+    for _ in range(24):
         mid = (lo + hi) / 2.0
         if _evaluate(data, mid).met:
             lo = mid
@@ -1330,7 +1330,7 @@ def _solve_savings(a: WizardAnswers, target: float) -> tuple[float, bool]:
             return hi, False
 
     lo = 0.0
-    for _ in range(30):
+    for _ in range(24):
         mid = (lo + hi) / 2.0
         if meets(mid):
             hi = mid
@@ -1501,38 +1501,51 @@ SCENARIO_LABELS: dict[str, str] = {
 }
 
 
-def plan(path: int, a: WizardAnswers, target: float | None = None) -> WizardPlanResult:
+def plan(
+    path: int,
+    a: WizardAnswers,
+    target: float | None = None,
+    *,
+    scenarios: bool = True,
+) -> WizardPlanResult:
+    """Plan dla jednej ścieżki; ``scenarios=False`` pomija 3 scenariusze rynkowe.
+
+    Asystent zawsze potrzebuje scenariuszy (karty w kroku 6), ale testy i
+    wewnętrzne wywołania, które patrzą tylko na wynik główny, mogą je pominąć —
+    to oszczędza dwa pełne przeliczenia solvera.
+    """
     a = _normalize_salary(a)
     main_input, main_proj, main_solved = _plan_single(path, a, target)
 
-    scenarios: dict[str, ScenarioSummary] = {}
+    scenarios_out: dict[str, ScenarioSummary] = {}
     scenario_inputs: dict[str, SimulationInput] = {}
     scenario_projections: dict[str, PlanProjection] = {}
     scenario_solved: dict[str, PlanSolved] = {}
 
-    for key in ("konserwatywne", "realne", "optymistyczne"):
-        if key == a.assumptions:
-            s_in, s_proj, s_solved = main_input, main_proj, main_solved
-        else:
-            sa = a.model_copy(deep=True)
-            sa.assumptions = key  # type: ignore[assignment]
-            s_in, s_proj, s_solved = _plan_single(path, sa, target)
-        scenario_inputs[key] = s_in
-        scenario_projections[key] = s_proj
-        scenario_solved[key] = s_solved
-        scenarios[key] = ScenarioSummary(
-            assumptions=key,  # type: ignore[arg-type]
-            label=SCENARIO_LABELS[key],
-            feasible=s_solved.feasible and s_proj.met,
-            payout_monthly=round(s_proj.min_monthly) if path == 1 else target,
-            savings_monthly=s_solved.savings_monthly,
-            savings_pct=s_solved.savings_pct,
-            retire_early_age=s_solved.retire_early_age,
-            final_wealth=s_proj.final_wealth,
-            final_wealth_net=s_proj.final_wealth_net,
-            peak_wealth=s_proj.peak_wealth,
-            withdrawal_policy=s_proj.withdrawal_policy,
-        )
+    if scenarios:
+        for key in ("konserwatywne", "realne", "optymistyczne"):
+            if key == a.assumptions:
+                s_in, s_proj, s_solved = main_input, main_proj, main_solved
+            else:
+                sa = a.model_copy(deep=True)
+                sa.assumptions = key  # type: ignore[assignment]
+                s_in, s_proj, s_solved = _plan_single(path, sa, target)
+            scenario_inputs[key] = s_in
+            scenario_projections[key] = s_proj
+            scenario_solved[key] = s_solved
+            scenarios_out[key] = ScenarioSummary(
+                assumptions=key,  # type: ignore[arg-type]
+                label=SCENARIO_LABELS[key],
+                feasible=s_solved.feasible and s_proj.met,
+                payout_monthly=round(s_proj.min_monthly) if path == 1 else target,
+                savings_monthly=s_solved.savings_monthly,
+                savings_pct=s_solved.savings_pct,
+                retire_early_age=s_solved.retire_early_age,
+                final_wealth=s_proj.final_wealth,
+                final_wealth_net=s_proj.final_wealth_net,
+                peak_wealth=s_proj.peak_wealth,
+                withdrawal_policy=s_proj.withdrawal_policy,
+            )
 
     return WizardPlanResult(
         path=path,
@@ -1540,7 +1553,7 @@ def plan(path: int, a: WizardAnswers, target: float | None = None) -> WizardPlan
         net_monthly=_answers_net_monthly(a),
         projection=main_proj,
         solved=main_solved,
-        scenarios=scenarios,
+        scenarios=scenarios_out,
         scenario_inputs=scenario_inputs,
         scenario_projections=scenario_projections,
         scenario_solved=scenario_solved,

@@ -91,15 +91,16 @@ def test_salary_endpoint_ppk(client):
 
 
 def test_planner_net_salary_mode_matches_gross():
-    gross_plan = plan(1, WizardAnswers(**BASE, gross_monthly=8_000))
+    gross_plan = plan(1, WizardAnswers(**BASE, gross_monthly=8_000), scenarios=False)
     net_plan = plan(
         1,
         WizardAnswers(**BASE, gross_monthly=5_789.53, salary_mode="net"),
+        scenarios=False,
     )
     assert net_plan.input.monthly_gross == pytest.approx(gross_plan.input.monthly_gross, rel=1e-3)
     assert net_plan.net_monthly == pytest.approx(5_789.53, abs=0.1)
 
 
 def test_planner_net_monthly_includes_ppk():
-    result = plan(1, WizardAnswers(**BASE, gross_monthly=8_000, use_ppk=True))
+    result = plan(1, WizardAnswers(**BASE, gross_monthly=8_000, use_ppk=True), scenarios=False)
     assert result.net_monthly == pytest.approx(5_629.53, abs=0.1)
