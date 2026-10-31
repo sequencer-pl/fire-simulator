@@ -180,7 +180,7 @@ def test_path1_replay_keeps_guarantee():
         y.monthly_withdrawal
         for y in res.years
         if any(
-            s.start_age <= y.age < s.end_age
+            s.start_age <= y.age < s.end_age and "zus" not in s.accounts
             for s in data.stages
             if s.stage_type == "realizacja"
         )
@@ -493,7 +493,7 @@ def test_phase_metrics_merge_empty_portfolio_retirement_into_zus():
     r = plan(
         1,
         answers(
-            capital={},
+            capital={"zus": 300_000},
             use_ppk=False,
             use_ike=True,
             use_ikze=True,
@@ -983,3 +983,87 @@ def test_bridge_protects_retirement_accounts_before_min_age():
     assert r.solved.feasible
     assert not any("IKZE wypłacane" in w for w in r.projection.warnings)
     assert not any("IKE wypłacane" in w for w in r.projection.warnings)
+
+
+def test_auto_policy_picks_early_ikze_for_bridge_case():
+    a = answers(
+        capital={},
+        savings=1000,
+        use_ppk=False,
+        use_ike=True,
+        use_ikze=True,
+        gross_monthly=8000,
+        retire_early_age=55,
+        retirement_age=65,
+        plan_end_age=100,
+    )
+    a.allocations = suggest_allocations(a, default_config(), 12_000)
+    result = plan(1, a)
+
+    assert result.projection.withdrawal_policy == "early_tier"
+    defer = result.input.model_copy(
+        update={"withdrawal_policy": "defer_tier"}, deep=True
+    )
+    defer_result = simulate(defer)
+    chosen = result.projection.total_withdrawn + result.projection.final_wealth_net
+    alternative = defer_result.total_withdrawn + defer_result.final_wealth_net
+    assert chosen > alternative
+
+
+def test_auto_policy_keeps_defer_when_ike_is_large():
+    a = answers(
+        capital={"ike": 500_000, "ikze": 100_000},
+        savings=0,
+        allocations={"ike": 100},
+        use_ppk=False,
+        use_ike=True,
+        use_ikze=True,
+        retire_early_age=55,
+        retirement_age=65,
+        plan_end_age=100,
+    )
+    result = plan(1, a)
+    assert result.projection.withdrawal_policy == "defer_tier"
+
+
+def test_account_phases_split_by_tax_windows_and_amount():
+    a = answers(
+        capital={},
+        savings=1000,
+        use_ppk=False,
+        use_ike=True,
+        use_ikze=True,
+        gross_monthly=8000,
+        retire_early_age=55,
+        retirement_age=65,
+        plan_end_age=100,
+    )
+    a.allocations = suggest_allocations(a, default_config(), 12_000)
+    result = plan(1, a)
+    phases = result.projection.account_phases
+
+    ikze = [p for p in phases if p.account == "ikze"]
+    ike = [p for p in phases if p.account == "ike"]
+    assert (ikze[0].start_age, ikze[0].last_age) == (55, 59)
+    assert (ikze[1].start_age, ikze[1].last_age) == (60, 64)
+    assert ikze[2].start_age == 65
+    assert (ike[0].start_age, ike[0].last_age) == (60, 64)
+    assert ike[1].start_age == 65
+
+    first = ikze[0]
+    assert first.lump_tax > 0
+    assert first.avg_monthly_net > 2000
+    assert first.starting_balance > 200_000
+    assert first.total_net > 0
+
+    zus = [p for p in phases if p.account == "zus"]
+    assert len(zus) == 1
+    assert zus[0].start_age == 65
+    assert zus[0].last_age >= 90
+    assert zus[0].accumulation_start_age == 30
+    assert zus[0].lump_tax == 0
+    assert zus[0].total_net > 0
+    assert zus[0].total_health > 0
+    assert zus[0].total_net == pytest.approx(
+        zus[0].total_gross - zus[0].total_tax - zus[0].total_health, abs=0.02
+    )

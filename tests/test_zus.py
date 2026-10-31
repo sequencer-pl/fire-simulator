@@ -6,7 +6,7 @@ from app.simulation.engine import simulate
 from app.simulation.schemas import SimulationInput
 from app.simulation.tablica_sdtz import sdtz_months
 
-CFG_NOINFL = TaxConfig(inflation=0.0)
+CFG_NOINFL = TaxConfig(inflation=0.0, health_rate=0.0)
 
 # --- Składka i wzrost kapitału ---
 
@@ -131,6 +131,21 @@ def test_zus_conversion_sanity_500k_at_65():
     assert y.monthly_withdrawal == pytest.approx(2245.17, abs=0.01)
     assert y.zus_monthly == pytest.approx(y.monthly_withdrawal, abs=0.01)
     assert y.stage_name == "ZUS"
+
+
+def test_zus_health_contribution_reduces_net():
+    cfg = no_tax_config()
+    cfg.health_rate = 0.09
+    stages = [realization_stage("ZUS", {"zus": acc(monthly_pension=4000)}, 65, 66)]
+    result = simulate(SimulationInput(stages=stages, max_age=65, config=cfg))
+    y = result.years[0]
+    assert y.withdrawals["zus"] == pytest.approx(48_000)
+    assert y.health["zus"] == pytest.approx(4_320)
+    assert y.health_paid == pytest.approx(4_320)
+    assert y.monthly_withdrawal == pytest.approx(3_640)
+    assert y.zus_monthly == pytest.approx(3_640)
+    assert result.total_health == pytest.approx(4_320)
+    assert result.total_withdrawn == pytest.approx(43_680)
 
 
 def test_zus_waloryzacja_swiadczenia_yearly():

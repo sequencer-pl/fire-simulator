@@ -77,6 +77,15 @@ class SimulationInput(BaseModel):
         le=2.0,
         description="Per-sim inflation override; None = use config.inflation",
     )
+    # Polityka wypłat w etapach realizacji:
+    # - defer_tier: najpierw konta dostępne/IKE, IKZE później (zachowanie legacy),
+    # - early_tier: wymuś jednorazowy zwrot IKZE na starcie realizacji przed 65,
+    # - defer_roi / early_roi: jak wyżej, ale w ramach progu podatkowego najpierw
+    #   konta o niższym ROI (chroni wysokostopowe konta dłużej).
+    # "auto" rozwija Asystent; samo simulate() traktuje je jak defer_tier.
+    withdrawal_policy: Literal[
+        "auto", "defer_tier", "early_tier", "defer_roi", "early_roi"
+    ] = "defer_tier"
     config: TaxConfig = Field(default_factory=default_config)
 
 
@@ -89,6 +98,15 @@ class YearResult(BaseModel):
     monthly_withdrawal: float = 0.0
     zus_monthly: float = 0.0
     tax_paid: float = 0.0
+    # Składka zdrowotna (9%) od emerytury ZUS — nie jest podatkiem, ale
+    # pomniejsza kwotę „na rękę”.
+    health_paid: float = 0.0
+    # Przepływy per konto — do prezentacji wypłat z kont (Gantt/tabela).
+    withdrawals: dict[str, float] = Field(default_factory=dict)
+    taxes: dict[str, float] = Field(default_factory=dict)
+    health: dict[str, float] = Field(default_factory=dict)
+    ending_balances: dict[str, float] = Field(default_factory=dict)
+    early_return_tax_by_account: dict[str, float] = Field(default_factory=dict)
 
 
 class SimulationResult(BaseModel):
@@ -98,6 +116,7 @@ class SimulationResult(BaseModel):
     peak_wealth: float
     total_withdrawn: float
     total_tax: float
+    total_health: float = 0.0
     # Podatek, który zostałby zapłacony przy likwidacji wszystkich sald na
     # koniec planu (IKZE 10% po 65 r.ż., skala przed; IKE 0%; broker 19% od zysku).
     exit_tax: float = 0.0

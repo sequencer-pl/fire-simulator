@@ -249,7 +249,7 @@ BUILTIN_PRESETS: dict[str, dict] = {
     },
     "Konserwatywne": {
         "inflation": 0.035,
-        "zus": {"waloryzacja_skladek": 0.01, "waloryzacja_swiadczenia": 0.01},
+        "zus": {"waloryzacja_skladek": 0.01, "waloryzacja_swiadczenia": 0.0},
         "accounts": {
             "broker": {"default_roi": 0.035},
             "ike": {"default_roi": 0.035},
@@ -267,7 +267,7 @@ BUILTIN_PRESETS: dict[str, dict] = {
     },
     "Realne": {
         "inflation": 0.025,
-        "zus": {"waloryzacja_skladek": 0.02, "waloryzacja_swiadczenia": 0.02},
+        "zus": {"waloryzacja_skladek": 0.02, "waloryzacja_swiadczenia": 0.01},
         "accounts": {
             "broker": {"default_roi": 0.05},
             "ike": {"default_roi": 0.05},
@@ -285,7 +285,7 @@ BUILTIN_PRESETS: dict[str, dict] = {
     },
     "Optymistyczne": {
         "inflation": 0.015,
-        "zus": {"waloryzacja_skladek": 0.025, "waloryzacja_swiadczenia": 0.025},
+        "zus": {"waloryzacja_skladek": 0.025, "waloryzacja_swiadczenia": 0.02},
         "accounts": {
             "broker": {"default_roi": 0.065},
             "ike": {"default_roi": 0.065},

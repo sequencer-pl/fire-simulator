@@ -33,9 +33,21 @@ bez TypeScript), SQLite, pytest. Odpowiadaj i pisz UI po polsku.
   (podatek wyjścia: IKZE 10% od całości po 65 r.ż. lub skala przed, IKE 0%,
   broker 19% od zysku) — dzięki temu IKE i IKZE nie wyglądają identycznie przy
   tej samej stopie zwrotu.
+- **Polityka wypłat Asystenta**: `withdrawal_policy` = `defer_tier` (IKE/konta
+  dostępne najpierw, IKZE później), `early_tier` (wymuszony jednorazowy zwrot IKZE
+  na starcie realizacji przed 65), `defer_roi`/`early_roi` (w ramach progu
+  podatkowego najpierw konta o niższym ROI). Asystent `auto` uruchamia cztery
+  warianty i wybiera najwyższą wartość netto (`total_withdrawn + final_wealth_net`);
+  wybrany wariant trafia do `input.withdrawal_policy` i do `/sim` przez draft.
 - **ZUS obsługuje engine**, nie etap (waloryzacja zamiast ROI, konwersja kapitału na
   rentę zamiast PMT; renta waloryzowana corocznie). Nie powielać `zus` w wielu etapach
-  (`_process_stages`, engine.py — guard `zus_handled`).
+  (`_process_stages`, engine.py — guard `zus_handled`). Emerytura netto = brutto − PIT
+  (skala) − 9% składki zdrowotnej (`YearResult.health`, `health_paid`); portfel w
+  etapie „Dopłata” uzupełnia tylko różnicę do celu netto (`_zus_net_annual`).
+  Domyślne realne waloryzacje w presetach: świadczenie **0/1/2%**, składki
+  **1/2/2,5%** (Konserwatywne/Realne/Optymistyczne). Historycznie świadczenie rosło
+  realnie ~+1,1 pp/rok, składki ~+2–4 pp/rok (baza płacowa), więc 0% to podłoga,
+  nie baza.
 - Klucze kont są stałe (`broker, gotowka, ike, ikze, krypto, lokata, obligacje, oipe,
   oki_inw, oki_osk, ppe, ppk, zus`) — patrz `ACCOUNT_LABELS` w config.py.
 - Wizard: path 1 = maks. stała wypłata netto (bisekcja + gross-up), path 2 = ile
@@ -189,8 +201,18 @@ bez TypeScript), SQLite, pytest. Odpowiadaj i pisz UI po polsku.
   3 karty `#wzScenariosBox`, metryki `#wzMetrics` (`.metric-grid`), `#wzSolved`
   (baner info), `#wzWarnings` (baner warn z listą), oś czasu `#wzTimeline`,
   tabela faz `#wzPhaseTable` (na mobile ukryta, bo karty osi czasu niosą te same
-  dane), `#wzStageSummaryList` w `<details>` i nota o kwotach netto. **Nie ma
-  `#wzStagePreview`.** Klik karty scenariusza ustawia `wzSelectedScenario` i
+  dane), `#wzStageSummaryList` w `<details>`, sekcja **`#wzFlowsWrap`** („Wypłaty
+  z poszczególnych kont”: Gantt `#wzFlowsGantt` + tabela/karty `#wzFlowsTable`)
+  i nota o kwotach netto. **Nie ma `#wzStagePreview`.** Przepływy per konto
+  (`YearResult.withdrawals/taxes/health/ending_balances`) planner grupuje w
+  `AccountPhase` (`PlanProjection.account_phases`): kolejne lata z wypłatami,
+  podział przy progu wieku konta i istotnej zmianie kwoty (>20% i >100 zł/mies.),
+  ZUS jako „emerytura” (kapitał ZUS na starcie, bez salda końcowego), jednorazowy
+  podatek IKZE osobno. Kolumna „Podatki i składki” pokazuje PIT + 9% zdrowotnej
+  ZUS (z rozbiciem pod kwotą), a „Razem netto” jest już po obu obciążeniach.
+  Gantt ma wiersz „Razem” z sumą wypłat po okresach, podpis
+  „Łącznie wypłacono netto”, a na mobile jest przewijany w poziomie ze sticky
+  etykietami kont. Klik karty scenariusza ustawia `wzSelectedScenario` i
   przerenderowuje cały wynik (`renderScenarioResult`). Wybór scenariusza zapisywany
   w `localStorage`, odtwarzany przez `/wizard?restore=1`. Wejście z kroku 5 od razu
   uruchamia `runPlan()`.

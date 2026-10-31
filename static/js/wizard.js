@@ -505,6 +505,157 @@ function renderScenarioResult(data) {
     renderTimeline(active.input, active.projection);
     renderPhaseTable(active.projection);
     renderStageSummaryList(active.input, active.projection);
+    renderAccountFlows(active.input || (wzPlan && wzPlan.input), active.projection);
+}
+
+function flowsRange(input, phases, compact = false) {
+    const ages = [];
+    if (!compact) {
+        (input?.stages || []).forEach((s) => ages.push(s.start_age, s.end_age));
+        phases.forEach((p) => {
+            if (p.accumulation_start_age != null) ages.push(p.accumulation_start_age);
+        });
+    }
+    phases.forEach((p) => ages.push(p.start_age, p.last_age + 1));
+    if (!ages.length) return { min: 0, max: 1 };
+    const min = Math.min(...ages);
+    const max = Math.max(...ages);
+    return { min, max: Math.max(min + 1, max) };
+}
+
+function flowPct(age, range) {
+    return ((age - range.min) / (range.max - range.min)) * 100;
+}
+
+function flowYearsLabel(years) {
+    if (years === 1) return "1 rok";
+    if (years >= 2 && years <= 4) return `${years} lata`;
+    return `${years} lat`;
+}
+
+function flowMonthlyLabel(phase) {
+    const avg = phase.avg_monthly_net || 0;
+    const min = phase.min_monthly_net || avg;
+    const max = phase.max_monthly_net || avg;
+    if (max - min > Math.max(50, avg * 0.05)) {
+        return `${fmtZloty(min)}–${fmtZloty(max)}`;
+    }
+    return fmtZloty(avg);
+}
+
+function renderAccountFlows(input, projection) {
+    const wrap = document.getElementById("wzFlowsWrap");
+    const gantt = document.getElementById("wzFlowsGantt");
+    const table = document.getElementById("wzFlowsTable");
+    const phases = projection?.account_phases || [];
+    if (!wrap || !gantt || !table || !phases.length) {
+        if (wrap) wrap.classList.add("hidden");
+        return;
+    }
+    wrap.classList.remove("hidden");
+    const compact = window.matchMedia("(max-width: 640px)").matches;
+    const range = flowsRange(input, phases, compact);
+    phases.forEach((p, idx) => {
+        p._flowIndex = idx + 1;
+    });
+    const accountName = (acc) => (acc === "zus" ? "ZUS (emerytura)" : capitalLabel(acc));
+
+    /* --- Gantt: rząd na konto, pasek akumulacji + paski wypłat --- */
+    const accounts = [...new Set(phases.map((p) => p.account))];
+    const step = range.max - range.min <= 20 ? 2 : 5;
+    let ganttHtml = `<div class="wz-gantt-axis"><span class="wz-gantt-axis-label">Konto</span><div class="wz-gantt-axis-track">`;
+    for (let age = Math.ceil(range.min / step) * step; age <= range.max; age += step) {
+        ganttHtml += `<span class="wz-gantt-tick" style="left:${flowPct(age, range).toFixed(2)}%">${age}</span>`;
+    }
+    ganttHtml += `</div></div>`;
+
+    accounts.forEach((acc) => {
+        const list = phases.filter((p) => p.account === acc);
+        const starts = list.map((p) => p.accumulation_start_age).filter((v) => v != null);
+        const accumStart = starts.length ? Math.min(...starts) : null;
+        const firstStart = Math.min(...list.map((p) => p.start_age));
+        let bars = "";
+        if (accumStart != null && firstStart > accumStart && accumStart >= range.min) {
+            const left = flowPct(accumStart, range);
+            const width = flowPct(firstStart, range) - left;
+            bars += `<span class="wz-gantt-accum" style="left:${left.toFixed(2)}%;width:${width.toFixed(2)}%" title="Akumulacja ${accumStart}–${firstStart} r.ż."></span>`;
+        }
+        list.forEach((p) => {
+            const left = flowPct(p.start_age, range);
+            const width = Math.max(0.8, flowPct(p.last_age + 1, range) - left);
+            const short = Math.round(p.avg_monthly_net).toLocaleString("pl-PL");
+            const showAmount = width >= 6;
+            const label = showAmount ? short : String(p._flowIndex);
+            const cls = showAmount ? "" : " is-index";
+            const tip = `${accountName(acc)}: ${p.start_age}–${p.last_age} r.ż., ≈ ${flowMonthlyLabel(p)} netto`;
+            bars += `<span class="wz-gantt-phase${cls}" style="left:${left.toFixed(2)}%;width:${width.toFixed(2)}%" title="${escapeHtml(tip)}">${label}</span>`;
+        });
+        ganttHtml += `<div class="wz-gantt-row"><span class="wz-gantt-label">${accountIcon(acc)}<span>${escapeHtml(acc === "zus" ? "ZUS" : accountName(acc))}</span></span><div class="wz-gantt-track">${bars}</div></div>`;
+    });
+
+    const payouts = (projection.phase_metrics || []).filter(
+        (p) => p.cashflow === "payout" && p.end_age > p.start_age
+    );
+    if (payouts.length) {
+        let totalBars = "";
+        payouts.forEach((p) => {
+            const left = flowPct(p.start_age, range);
+            const width = Math.max(0.8, flowPct(p.end_age, range) - left);
+            const label = width >= 8
+                ? `${Math.round(p.monthly || 0).toLocaleString("pl-PL")} zł/mies.`
+                : "";
+            const tip = `${p.name}: ${p.start_age}–${p.end_age} r.ż., ≈ ${Math.round(p.monthly || 0).toLocaleString("pl-PL")} zł/mies. netto`;
+            totalBars += `<span class="wz-gantt-phase is-total" style="left:${left.toFixed(2)}%;width:${width.toFixed(2)}%" title="${escapeHtml(tip)}">${label}</span>`;
+        });
+        ganttHtml += `<div class="wz-gantt-row wz-gantt-total"><span class="wz-gantt-label">Razem</span><div class="wz-gantt-track">${totalBars}</div></div>`;
+    }
+    gantt.innerHTML = ganttHtml;
+
+    const totalNote = document.getElementById("wzFlowsTotal");
+    if (totalNote) {
+        const total = projection.total_withdrawn || 0;
+        totalNote.textContent = total > 0
+            ? `Łącznie wypłacono netto: ${fmtZloty(total)} zł.`
+            : "";
+        totalNote.hidden = !(total > 0);
+    }
+
+    /* --- Tabela (desktop) / karty (mobile) --- */
+    let tableHtml = `<table class="wz-flows-table"><thead><tr>
+        <th class="wz-flow-visual-head"></th><th>Konto</th><th>Saldo / kapitał</th>
+        <th>Okres</th><th>Miesięcznie netto</th><th>Razem netto</th><th>Podatki i składki</th>
+    </tr></thead><tbody>`;
+    phases.forEach((p) => {
+        const left = flowPct(p.start_age, range);
+        const width = Math.max(0.8, flowPct(p.last_age + 1, range) - left);
+        const health = p.total_health || 0;
+        const pit = p.total_tax || 0;
+        let taxMain = fmtZloty(pit + health);
+        let taxSub = "";
+        if (p.lump_tax > 0.5) {
+            taxSub = Math.abs(pit - p.lump_tax) < 0.5
+                ? "jednorazowo"
+                : `w tym ${fmtZloty(p.lump_tax)} zł jednorazowo`;
+        } else if (health > 0.5) {
+            taxSub = pit > 0.5
+                ? `PIT ${fmtZloty(pit)} zł + zdrowotna ${fmtZloty(health)} zł`
+                : "zdrowotna 9%";
+        }
+        const tax = `<span class="wz-flow-tax-main">${taxMain} zł</span>${taxSub ? `<span class="wz-flow-tax-sub">${taxSub}</span>` : ""}`;
+        const period = `${p.start_age}–${p.last_age} r.ż. (${flowYearsLabel(p.years)})`;
+        const startLabel = p.account === "zus" ? "Kapitał ZUS" : "Saldo na start";
+        tableHtml += `<tr>
+            <td class="wz-flow-visual"><div class="wz-flow-mini"><span style="left:${left.toFixed(2)}%;width:${width.toFixed(2)}%"></span></div></td>
+            <td data-label="Konto"><span class="wz-flow-account-wrap"><span class="wz-flow-index">${p._flowIndex}</span><span class="wz-flow-account">${accountIcon(p.account)} ${escapeHtml(accountName(p.account))}</span></span></td>
+            <td data-label="${startLabel}" title="${startLabel}">${fmtZloty(p.starting_balance)} zł</td>
+            <td data-label="Okres">${period}</td>
+            <td data-label="Miesięcznie netto">≈ ${flowMonthlyLabel(p)} zł</td>
+            <td data-label="Razem netto">${fmtZloty(p.total_net)} zł</td>
+            <td data-label="Podatki i składki">${tax}</td>
+        </tr>`;
+    });
+    tableHtml += `</tbody></table>`;
+    table.innerHTML = tableHtml;
 }
 
 function renderScenarios(data) {
@@ -599,7 +750,20 @@ function renderMetrics(projection) {
         }
         refundNote = `<p class="field-hint wz-refund-note">${text}</p>`;
     }
-    box.innerHTML = `<div class="metric-grid is-wide">${html}</div>${refundNote}`;
+    const policy = projection.withdrawal_policy;
+    let policyNote = "";
+    if (policy) {
+        const early = policy.startsWith("early");
+        const roi = policy.endsWith("_roi");
+        let text = early
+            ? "Kolejność wypłat: najpierw IKZE (jednorazowy zwrot przed 65), potem IKE po 60."
+            : "Kolejność wypłat: najpierw IKE i konta dostępne, IKZE później (10% po 65).";
+        text += roi
+            ? " W ramach progu podatkowego najpierw konta z niższym ROI."
+            : " Auto porównało warianty i wybrało ten o najwyższej wartości netto.";
+        policyNote = `<p class="field-hint wz-withdrawal-note">${text}</p>`;
+    }
+    box.innerHTML = `<div class="metric-grid is-wide">${html}</div>${refundNote}${policyNote}`;
     box.classList.remove("hidden");
 }
 
@@ -1093,6 +1257,7 @@ function finishWizard() {
         gender: activeInput.gender,
         config: activeInput.config,
         stages: activeInput.stages,
+        withdrawal_policy: activeInput.withdrawal_policy || "defer_tier",
     };
     localStorage.setItem("fire.wizardDraft", JSON.stringify(draft));
     window.location.href = "/sim?wizard=1";

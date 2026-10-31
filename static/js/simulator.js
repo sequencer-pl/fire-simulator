@@ -14,6 +14,8 @@ let CONFIG_OVERRIDE_PATHS = new Set();
 
 let lastInput = null;
 let lastResult = null;
+// Polityka wypłat przeniesiona z Asystenta (bez UI w edytorze).
+let loadedWithdrawalPolicy = "defer_tier";
 
 function gatherFormData() {
     const stages = [];
@@ -61,6 +63,7 @@ function gatherFormData() {
         gender: currentGender(),
         monthly_gross: 0,
         inflation: null,
+        withdrawal_policy: loadedWithdrawalPolicy,
         config: CONFIG,
     };
 }
@@ -317,6 +320,7 @@ function applyWizardDraftIfPresent() {
     try {
         const draft = JSON.parse(raw);
         if (!draft || !Array.isArray(draft.stages) || !draft.stages.length) return;
+        loadedWithdrawalPolicy = draft.withdrawal_policy || "defer_tier";
         populateStages(draft);
         showWizardDraftBanner();
     } catch (err) {
@@ -1109,6 +1113,7 @@ async function loadSimulation(simId, container) {
         const res = await fetch("/api/simulations/" + simId);
         const data = await res.json();
         if (!res.ok) throw new Error(data.detail || "Nie można wczytać symulacji");
+        loadedWithdrawalPolicy = data.input?.withdrawal_policy || "defer_tier";
         populateStages(data.input);
         if (data.name) document.title = "FIRE Simulator — " + data.name;
     } catch (err) {

@@ -5,7 +5,7 @@ from app.simulation.config import TaxConfig
 from app.simulation.engine import simulate
 from app.simulation.schemas import SimulationInput, StageInput
 
-CFG_NOINFL = TaxConfig(inflation=0.0)
+CFG_NOINFL = TaxConfig(inflation=0.0, health_rate=0.0)
 
 
 def test_stage_order_irrelevant_for_sequential():

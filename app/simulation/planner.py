@@ -244,6 +244,27 @@ class PhaseMetric(BaseModel):
     zus_monthly: float = 0.0
 
 
+class AccountPhase(BaseModel):
+    """Zwarty okres wypłat z jednego konta (do tabeli i Gantta)."""
+
+    account: str
+    accumulation_start_age: int | None = None
+    start_age: int
+    last_age: int
+    years: int
+    months: int
+    starting_balance: float = 0.0
+    ending_balance: float = 0.0
+    total_gross: float = 0.0
+    total_tax: float = 0.0
+    total_health: float = 0.0
+    lump_tax: float = 0.0
+    total_net: float = 0.0
+    avg_monthly_net: float = 0.0
+    min_monthly_net: float = 0.0
+    max_monthly_net: float = 0.0
+
+
 class PlanProjection(BaseModel):
     met: bool = False
     target_monthly: float | None = None
@@ -251,6 +272,8 @@ class PlanProjection(BaseModel):
     mean_monthly: float = 0.0
     final_wealth: float = 0.0
     final_wealth_net: float = 0.0
+    total_withdrawn: float = 0.0
+    withdrawal_policy: str = "defer_tier"
     ikze_refund_account: str | None = None
     ikze_refund_total: float = 0.0
     ikze_refund_allocations: dict[str, float] = Field(default_factory=dict)
@@ -259,6 +282,7 @@ class PlanProjection(BaseModel):
     warnings: list[str] = Field(default_factory=list)
     stage_metrics: list[StageMetric] = Field(default_factory=list)
     phase_metrics: list[PhaseMetric] = Field(default_factory=list)
+    account_phases: list[AccountPhase] = Field(default_factory=list)
 
 
 class PlanSolved(BaseModel):
@@ -280,6 +304,7 @@ class ScenarioSummary(BaseModel):
     final_wealth: float = 0.0
     final_wealth_net: float = 0.0
     peak_wealth: float = 0.0
+    withdrawal_policy: str = "defer_tier"
 
 
 class WizardPlanResult(BaseModel):
@@ -1002,6 +1027,117 @@ def _phase_metrics(
     return phases
 
 
+def _account_phases(
+    data: SimulationInput, result: SimulationResult
+) -> list[AccountPhase]:
+    """Grupuje lata z wypłatami danego konta w zwarte fazy.
+
+    Podatek jednorazowy IKZE (zwrot przed 65) jest pokazywany osobno: wypłata
+    w tym roku pochodzi już z kapitału netto, więc nie odejmujemy go drugi raz
+    od miesięcznej kwoty.
+    """
+    accum_start: dict[str, int] = {}
+    for si in data.stages:
+        if si.stage_type != "akumulacja":
+            continue
+        for acc in si.accounts:
+            accum_start.setdefault(acc, si.start_age)
+
+    accounts: set[str] = set()
+    for year in result.years:
+        accounts.update(year.withdrawals.keys())
+        accounts.update(year.early_return_tax_by_account.keys())
+
+    phases: list[AccountPhase] = []
+    for account in sorted(accounts):
+        if account == "zus:ofe":
+            continue
+        rules = data.config.accounts.get(account)
+        boundary_ages: set[int] = set()
+        if rules and rules.min_withdrawal_age > 0:
+            boundary_ages.add(rules.min_withdrawal_age)
+        current: dict | None = None
+
+        def flush(acc: str) -> None:
+            nonlocal current
+            if current is None:
+                return
+            years = current["last_age"] - current["start_age"] + 1
+            months = years * MONTHS_PER_YEAR
+            monthlies = current["monthlies"] or [0.0]
+            phases.append(
+                AccountPhase(
+                    account=acc,
+                    accumulation_start_age=accum_start.get(acc),
+                    start_age=current["start_age"],
+                    last_age=current["last_age"],
+                    years=years,
+                    months=months,
+                    starting_balance=round(current["starting_balance"], 2),
+                    ending_balance=round(current["ending_balance"], 2),
+                    total_gross=round(current["gross"], 2),
+                    total_tax=round(current["tax"], 2),
+                    total_health=round(current["health"], 2),
+                    lump_tax=round(current["lump"], 2),
+                    total_net=round(current["net"], 2),
+                    avg_monthly_net=round(current["net"] / months, 2),
+                    min_monthly_net=round(min(monthlies), 2),
+                    max_monthly_net=round(max(monthlies), 2),
+                )
+            )
+            current = None
+
+        for year in result.years:
+            gross = year.withdrawals.get(account, 0.0)
+            tax = year.taxes.get(account, 0.0)
+            health = year.health.get(account, 0.0)
+            lump = year.early_return_tax_by_account.get(account, 0.0)
+            active = gross > 0.005 or lump > 0.005
+            if not active:
+                flush(account)
+                continue
+            net = gross if lump > 0 else max(0.0, gross - tax - health)
+            monthly = net / MONTHS_PER_YEAR
+            if current is not None:
+                prev_monthly = current["last_monthly"]
+                crossed_boundary = year.age in boundary_ages and year.age > current["start_age"]
+                changed = abs(monthly - prev_monthly) > max(100.0, prev_monthly * 0.2)
+                if crossed_boundary or changed:
+                    flush(account)
+            if current is None:
+                current = {
+                    "start_age": year.age,
+                    "last_age": year.age,
+                    "starting_balance": year.balances.get(account, 0.0),
+                    "ending_balance": year.ending_balances.get(account, 0.0),
+                    "gross": 0.0,
+                    "tax": 0.0,
+                    "health": 0.0,
+                    "lump": 0.0,
+                    "net": 0.0,
+                    "monthlies": [],
+                    "last_monthly": 0.0,
+                }
+            current["last_age"] = year.age
+            current["last_monthly"] = monthly
+            current["ending_balance"] = year.ending_balances.get(account, 0.0)
+            current["gross"] += gross
+            current["tax"] += tax
+            current["health"] += health
+            current["lump"] += lump
+            current["net"] += net
+            current["monthlies"].append(net / MONTHS_PER_YEAR)
+        flush(account)
+
+    first_start: dict[str, int] = {}
+    for phase in phases:
+        first_start[phase.account] = min(
+            first_start.get(phase.account, phase.start_age), phase.start_age
+        )
+    phases.sort(key=lambda p: (first_start[p.account], p.start_age))
+    return phases
+
+
 def _project(
     data: SimulationInput, result: SimulationResult, target: float | None
 ) -> PlanProjection:
@@ -1028,6 +1164,8 @@ def _project(
         mean_monthly=round(mean_m, 2),
         final_wealth=round(result.final_wealth, 2),
         final_wealth_net=round(result.final_wealth_net, 2),
+        total_withdrawn=round(result.total_withdrawn, 2),
+        withdrawal_policy=data.withdrawal_policy,
         ikze_refund_account=next(iter(result.ikze_refund_allocations), None),
         ikze_refund_total=round(result.total_tax_refund, 2),
         ikze_refund_allocations=result.ikze_refund_allocations,
@@ -1036,6 +1174,7 @@ def _project(
         warnings=result.warnings,
         stage_metrics=_stage_metrics(data, result),
         phase_metrics=_phase_metrics(data, result),
+        account_phases=_account_phases(data, result),
     )
 
 
@@ -1243,6 +1382,35 @@ def _bake_realization_targets(data: SimulationInput, target_net: float | None) -
                         acc_cfg.buffer = round(max(0.0, end_bal[acc_name]), 2)
 
 
+WIZARD_POLICIES = ("defer_tier", "early_tier", "defer_roi", "early_roi")
+
+
+def _policy_score(proj: PlanProjection) -> tuple[bool, float, float]:
+    """Najpierw spełnienie celu, potem wartość netto (wypłaty + majątek netto)."""
+    return (
+        bool(proj.met),
+        proj.total_withdrawn + proj.final_wealth_net,
+        proj.mean_monthly,
+    )
+
+
+def _best_policy(
+    data: SimulationInput, target: float | None
+) -> tuple[SimulationInput, PlanProjection]:
+    """Porównuje warianty wypłat (kiedy zwrócić IKZE i wg jakiego ROI)."""
+    best: tuple[tuple[bool, float, float], SimulationInput, PlanProjection] | None = None
+    for policy in WIZARD_POLICIES:
+        candidate = data.model_copy(
+            update={"withdrawal_policy": policy}, deep=True
+        )
+        proj = _append_cash_warning(_evaluate(candidate, target), candidate)
+        score = _policy_score(proj)
+        if best is None or score > best[0]:
+            best = (score, candidate, proj)
+    assert best is not None
+    return best[1], best[2]
+
+
 def _plan_single(
     path: int, a: WizardAnswers, target: float | None = None
 ) -> tuple[SimulationInput, PlanProjection, PlanSolved]:
@@ -1250,7 +1418,11 @@ def _plan_single(
         data = build_stages(a)
         payout, _ = _solve_payout(data)
         _bake_realization_targets(data, payout)
-        proj = _append_cash_warning(_evaluate(data, payout), data)
+        data, proj = _best_policy(data, payout)
+        if data.withdrawal_policy != "defer_tier":
+            payout, _ = _solve_payout(data)
+            _bake_realization_targets(data, payout)
+            proj = _append_cash_warning(_evaluate(data, payout), data)
         return data, proj, PlanSolved(feasible=True)
 
     if target is None or target <= 0:
@@ -1260,7 +1432,7 @@ def _plan_single(
         amount, feasible = _solve_savings(a, target)
         data = _vary_savings(a, amount)
         _bake_realization_targets(data, target)
-        proj = _append_cash_warning(_evaluate(data, target), data)
+        data, proj = _best_policy(data, target)
         net = _answers_net_monthly(a)
         pct = None
         if net is not None and net > 0:
@@ -1306,9 +1478,10 @@ def _plan_single(
         )
     data = _vary_re(a, re)
     _bake_realization_targets(data, target)
+    data, proj = _best_policy(data, target)
     return (
         data,
-        _append_cash_warning(_evaluate(data, target), data),
+        proj,
         PlanSolved(
             retire_early_age=re,
             feasible=feasible,
@@ -1358,6 +1531,7 @@ def plan(path: int, a: WizardAnswers, target: float | None = None) -> WizardPlan
             final_wealth=s_proj.final_wealth,
             final_wealth_net=s_proj.final_wealth_net,
             peak_wealth=s_proj.peak_wealth,
+            withdrawal_policy=s_proj.withdrawal_policy,
         )
 
     return WizardPlanResult(

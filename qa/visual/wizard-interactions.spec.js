@@ -50,4 +50,25 @@ test("krok 5: nota sugeruje IKE jako cel zwrotu IKZE", async ({ page }) => {
 
     await page.locator('label:has(input[name="wzStrategy"][value="zbilansowana"])').click();
     await expect(page.locator("#wzAllocRefundNote")).toContainText("Zwrot IKZE automatycznie zasili IKE");
+
+    await page.locator("#wzNextBtn").click();
+    await expect(page.locator(".wz-withdrawal-note")).toContainText("Kolejność wypłat", {
+        timeout: 30_000,
+    });
+    await expect(page.locator("#wzFlowsWrap")).toBeVisible();
+    await expect(page.locator("#wzFlowsTable tbody tr")).toHaveCount(6);
+    await expect(page.locator("#wzFlowsTable thead")).toContainText("Podatki i składki");
+    await expect(
+        page.locator("#wzFlowsTable tbody tr").filter({ hasText: "ZUS (emerytura)" })
+    ).toContainText("zdrowotna");
+    await expect(page.locator("#wzFlowsGantt .wz-gantt-row:not(.wz-gantt-total)")).toHaveCount(3);
+    await expect(page.locator("#wzFlowsGantt .wz-gantt-total")).toContainText("Razem");
+    await expect(page.locator("#wzFlowsTotal")).toContainText("Łącznie wypłacono netto");
+
+    // Wybrana polityka przechodzi do edytora razem z draftem.
+    await page.locator("#wzNextBtn").click();
+    await page.waitForURL("**/sim?wizard=1");
+    await expect
+        .poll(() => page.evaluate(() => gatherFormData().withdrawal_policy))
+        .toMatch(/^early_/);
 });

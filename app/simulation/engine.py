@@ -42,6 +42,7 @@ class SimulationState:
     ikze_refund_total: float = 0.0
     ikze_refund_unallocated: float = 0.0
     ikze_refund_allocations: dict[str, float] = field(default_factory=dict)
+    withdrawal_policy: str = "defer_tier"
 
     def __iter__(self):
         yield self.config
@@ -189,6 +190,9 @@ def _init_state(data: SimulationInput) -> SimulationState:
         welcomed_ppk=welcomed_ppk,
         start_age=start_age,
         basis_vintages=basis_vintages,
+        withdrawal_policy=(
+            "defer_tier" if data.withdrawal_policy == "auto" else data.withdrawal_policy
+        ),
     )
 
 
@@ -207,6 +211,7 @@ def _process_ikze_returns(
         config = state.config
         early_returned = state.early_returned
     assert balances is not None and config is not None and early_returned is not None
+    force_early = state is not None and state.withdrawal_policy.startswith("early_")
     # One-time IKZE early return before qualifying age (e.g. 65):
     # Combined scale tax on IKZE balance + ZUS pension for the year,
     # prorated proportionally. IKZE share is deducted from capital
@@ -221,7 +226,7 @@ def _process_ikze_returns(
         )
         if not is_const_target and age != si.start_age:
             continue
-        if is_const_target:
+        if is_const_target and not force_early:
             assert stage_target is not None
             desired = max(0.0, stage_target * MONTHS_PER_YEAR - zus_pension)
             prior_bal = 0.0
@@ -291,7 +296,7 @@ def _process_ppk_forfeits(
     year_start_balances: dict[str, float] | None = None,
     state: SimulationState | None = None,
     target: float | None = None,
-    zus_pension: float = 0.0,
+    zus_net_pension: float = 0.0,
 ) -> None:
     if state is not None:
         balances = state.balances
@@ -319,7 +324,7 @@ def _process_ppk_forfeits(
             continue
         if is_const_target:
             assert stage_target is not None
-            desired = max(0.0, stage_target * MONTHS_PER_YEAR - zus_pension)
+            desired = max(0.0, stage_target * MONTHS_PER_YEAR - zus_net_pension)
             early_ret = state.early_returned if state is not None else set()
             unlocked_bal = 0.0
             for a in si.accounts:
@@ -362,6 +367,15 @@ def _process_ppk_forfeits(
                 forfeited.add(acc)
 
 
+def _zus_net_annual(zus_gross: float, config: TaxConfig) -> float:
+    """Renta ZUS netto: PIT wg skali + 9% składki zdrowotnej od brutto."""
+    if zus_gross <= 0:
+        return 0.0
+    pit = scale_tax(zus_gross, **config.scale_kwargs())
+    health = zus_gross * config.health_rate
+    return max(0.0, zus_gross - pit - health)
+
+
 def _process_stages(
     active_stages: list[StageInput],
     age: int,
@@ -376,7 +390,7 @@ def _process_stages(
     monthly_gross: float = 0.0,
     state: SimulationState | None = None,
     target: float | None = None,
-    zus_pension: float = 0.0,
+    zus_net_pension: float = 0.0,
 ) -> tuple[dict[str, float], list[str], dict[str, float]]:
     if state is not None:
         balances = state.balances
@@ -427,7 +441,9 @@ def _process_stages(
             and stage_target is not None
             and stage_target > 0
         ):
-            desired_withdrawal = max(0.0, stage_target * MONTHS_PER_YEAR - zus_pension)
+            desired_withdrawal = max(
+                0.0, stage_target * MONTHS_PER_YEAR - zus_net_pension
+            )
 
         # ZUS — contributions and capital indexation (accumulation) plus capital
         # conversion to pension (realization) are handled by the engine because
@@ -512,6 +528,12 @@ def _process_stages(
         kwargs: dict = {}
         if desired_withdrawal is not None:
             kwargs["desired_withdrawal"] = desired_withdrawal
+        if stage_input.stage_type == "realizacja":
+            kwargs["withdrawal_order"] = (
+                "roi_asc"
+                if state is not None and state.withdrawal_policy.endswith("_roi")
+                else "proportional"
+            )
         result = stage_obj.calculate_year(
             age=age,
             end_age=stage_input.end_age,
@@ -745,28 +767,35 @@ def _passive_growth(
 
 def _assemble_years(
     computed: dict[int, dict],
-) -> tuple[list[YearResult], float, float]:
+) -> tuple[list[YearResult], float, float, float]:
     sorted_ages = sorted(computed.keys())
     years: list[YearResult] = []
     total_withdrawn_net = 0.0
     total_tax = 0.0
+    total_health = 0.0
 
     for age in sorted_ages:
         c = computed[age]
         sb = c["starting_balances"]
         stage_withdrawal = sum(c["withdrawal"].values())
         stage_tax = sum(c["tax"].values())
+        stage_health = sum(c.get("health", {}).values())
         # IKZE early return tax is already deducted from capital
         # ("payout + deposit" model) — it doesn't further reduce the annual withdrawal.
         # A negative tax (IKZE contribution relief) must not inflate the withdrawal:
         # it is a tax saving, not money paid out.
         annual_net_deduction = max(0.0, stage_tax - c.get("early_return_tax", 0.0))
-        stage_withdrawal_net = max(0.0, stage_withdrawal - annual_net_deduction)
+        stage_withdrawal_net = max(
+            0.0, stage_withdrawal - annual_net_deduction - stage_health
+        )
         total_withdrawn_net += stage_withdrawal_net
         total_tax += stage_tax
+        total_health += stage_health
         zus_monthly = max(
             0.0,
-            c["withdrawal"].get("zus", 0.0) - c["tax"].get("zus", 0.0),
+            c["withdrawal"].get("zus", 0.0)
+            - c["tax"].get("zus", 0.0)
+            - c.get("health", {}).get("zus", 0.0),
         ) / MONTHS_PER_YEAR
 
         years.append(
@@ -779,10 +808,21 @@ def _assemble_years(
                 monthly_withdrawal=round(stage_withdrawal_net / MONTHS_PER_YEAR, 2),
                 zus_monthly=round(zus_monthly, 2),
                 tax_paid=round(stage_tax, 2),
+                health_paid=round(stage_health, 2),
+                withdrawals={k: round(v, 2) for k, v in c["withdrawal"].items()},
+                taxes={k: round(v, 2) for k, v in c["tax"].items()},
+                health={k: round(v, 2) for k, v in c.get("health", {}).items()},
+                ending_balances={
+                    k: round(v, 2) for k, v in c["ending_balances"].items()
+                },
+                early_return_tax_by_account={
+                    k: round(v, 2)
+                    for k, v in c.get("early_return_tax_by_account", {}).items()
+                },
             )
         )
 
-    return years, total_withdrawn_net, total_tax
+    return years, total_withdrawn_net, total_tax, total_health
 
 
 _IKZE_REINVEST_ORDER = (
@@ -902,7 +942,9 @@ def _run_year(
             "ending_balances": dict(state.balances),
             "withdrawal": {},
             "tax": merged_tax,
+            "health": {},
             "early_return_tax": 0.0,
+            "early_return_tax_by_account": {},
             "stage_name": "Bez etapu",
         }
         return
@@ -910,6 +952,9 @@ def _run_year(
     processed_accounts: set[str] = set()
 
     zus_pension = _estimate_zus_pension(state=state, active_stages=active_stages, age=age)
+    # Cel w etapach realizacji jest netto, więc portfel dopłaca tylko do
+    # emerytury ZUS po PIT i składce zdrowotnej.
+    zus_net_pension = _zus_net_annual(zus_pension, state.config)
 
     _process_ppk_forfeits(
         state=state,
@@ -917,7 +962,7 @@ def _run_year(
         age=age,
         year_start_balances=year_start_balances,
         target=target,
-        zus_pension=zus_pension,
+        zus_net_pension=zus_net_pension,
     )
 
     early_return_tax, yearly_scale_handled = _process_ikze_returns(
@@ -928,6 +973,15 @@ def _run_year(
         target=target,
     )
 
+    # W roku łącznego opodatkowania IKZE + ZUS udział ZUS jest już policzony —
+    # użyj go, żeby nie dublować kwoty wolnej przy szacowaniu netto.
+    zus_share = early_return_tax.get("zus", 0.0)
+    if zus_share > 0 and zus_pension > 0:
+        zus_net_pension = max(
+            0.0,
+            zus_pension - zus_share - zus_pension * state.config.health_rate,
+        )
+
     merged_withdrawal, stage_label_parts, periodic_tax = _process_stages(
         state=state,
         active_stages=active_stages,
@@ -935,7 +989,7 @@ def _run_year(
         processed_accounts=processed_accounts,
         monthly_gross=monthly_gross,
         target=target,
-        zus_pension=zus_pension,
+        zus_net_pension=zus_net_pension,
     )
 
     merged_tax = _apply_tax(
@@ -963,12 +1017,21 @@ def _run_year(
 
     _apply_asset_tax(state=state, year_start_balances=year_start_balances, merged_tax=merged_tax)
 
+    zus_withdrawal = merged_withdrawal.get("zus", 0.0)
+    health: dict[str, float] = (
+        {"zus": zus_withdrawal * state.config.health_rate}
+        if zus_withdrawal > 0
+        else {}
+    )
+
     state.computed[age] = {
         "starting_balances": year_start_balances,
         "ending_balances": dict(state.balances),
         "withdrawal": merged_withdrawal,
         "tax": merged_tax,
+        "health": health,
         "early_return_tax": sum(v for k, v in early_return_tax.items() if k != "zus"),
+        "early_return_tax_by_account": dict(early_return_tax),
         "stage_name": "+".join(stage_label_parts),
     }
 
@@ -1000,7 +1063,7 @@ def _exit_tax(state: SimulationState, age: int) -> float:
 def _finalize_result(
     data: SimulationInput, state: SimulationState, target: float | None = None
 ) -> SimulationResult:
-    years, total_withdrawn_net, total_tax = _assemble_years(state.computed)
+    years, total_withdrawn_net, total_tax, total_health = _assemble_years(state.computed)
     sorted_ages = sorted(state.computed.keys())
     final_balances = state.computed[sorted_ages[-1]]["ending_balances"] if sorted_ages else {}
     final_wealth = round(sum(final_balances.values()), 2)
@@ -1044,6 +1107,7 @@ def _finalize_result(
         peak_wealth=round(peak_wealth, 2),
         total_withdrawn=round(total_withdrawn_net, 2),
         total_tax=round(total_tax, 2),
+        total_health=round(total_health, 2),
         exit_tax=exit_tax,
         final_wealth_net=round(final_wealth - exit_tax, 2),
         total_tax_refund=round(state.ikze_refund_total, 2),

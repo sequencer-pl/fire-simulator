@@ -25,6 +25,7 @@ class RealizacjaStage(BaseStage):
         balances: dict[str, float],
         config: dict,
         desired_withdrawal: float | None = None,
+        withdrawal_order: str = "proportional",
     ) -> dict:
         new_balances = {}
         withdrawal = {}
@@ -86,15 +87,30 @@ class RealizacjaStage(BaseStage):
             for tier in (tier_0, tier_1, tier_2):
                 tier_balance = sum(max(0.0, balances.get(acc, 0.0)) for acc in tier)
                 if remaining_needed > 1e-9 and tier_balance > 0:
-                    tier_draw = min(tier_balance, remaining_needed)
-                    for account in tier:
-                        balance = max(0.0, balances.get(account, 0.0))
-                        roi = investable[account].get("roi", 0.02)
-                        withdrawn = min(balance, tier_draw * (balance / tier_balance))
-                        new_balances[account] = (balance - withdrawn) * (1 + roi)
-                        withdrawal[account] = withdrawn
-                        tax[account] = 0.0
-                    remaining_needed = max(0.0, remaining_needed - tier_draw)
+                    if withdrawal_order == "roi_asc":
+                        # Najpierw najniższe ROI — chroni wysokostopowe konta.
+                        ordered = sorted(
+                            tier,
+                            key=lambda acc: (investable[acc].get("roi", 0.02), acc),
+                        )
+                        for account in ordered:
+                            balance = max(0.0, balances.get(account, 0.0))
+                            roi = investable[account].get("roi", 0.02)
+                            withdrawn = min(balance, remaining_needed)
+                            new_balances[account] = (balance - withdrawn) * (1 + roi)
+                            withdrawal[account] = withdrawn
+                            tax[account] = 0.0
+                            remaining_needed = max(0.0, remaining_needed - withdrawn)
+                    else:
+                        tier_draw = min(tier_balance, remaining_needed)
+                        for account in tier:
+                            balance = max(0.0, balances.get(account, 0.0))
+                            roi = investable[account].get("roi", 0.02)
+                            withdrawn = min(balance, tier_draw * (balance / tier_balance))
+                            new_balances[account] = (balance - withdrawn) * (1 + roi)
+                            withdrawal[account] = withdrawn
+                            tax[account] = 0.0
+                        remaining_needed = max(0.0, remaining_needed - tier_draw)
                 else:
                     for account in tier:
                         balance = max(0.0, balances.get(account, 0.0))

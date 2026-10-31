@@ -22,7 +22,7 @@ Zamiast jednej magicznej liczby ("potrzebujesz 2 mln zł") pokazuje **rozpisane 
 
 ## Od czego zacząć
 
-- **Asystent** — sześć pytań i gotowy plan w trzech scenariuszach rynkowych. Pensję możesz podać miesięcznie albo rocznie. Najlepszy pierwszy krok.
+- **Asystent** — sześć pytań i gotowy plan w trzech scenariuszach rynkowych. Pensję możesz podać miesięcznie albo rocznie. Plan pokazuje też wypłaty z każdego konta (w tym ZUS) w podziale na okresy — Gantt z sumą i tabela/karty. Najlepszy pierwszy krok.
 - **Symulator** — pełna kontrola: etapy, konta, wpłaty, wypłaty i tabela rok po roku.
 - **Moje symulacje** — zapisane scenariusze i porównanie do czterech naraz.
 
@@ -61,7 +61,7 @@ Symulator celowo jest **prostym modelem deterministycznym**, a nie symulacją Mo
    - **lokata** — Belka 19% pobierana co okres; silnik przelicza ROI na nominalne brutto i urealnia,
    - **OKI** — ROI przed rocznym podatkiem od aktywów (0,85%),
    - **gotówka** — ROI = `-inflacja`,
-   - **ZUS** — waloryzacja, nie ROI.
+   - **ZUS** — waloryzacja, nie ROI; emerytura netto po 9% składce zdrowotnej.
 
    Przykład: lokata 5% realnie brutto, inflacja 0% → po Belce 19% zostaje 4,05% realnie. Przy inflacji 2,5% nominalne brutto ≈7,63%, po Belce ≈6,18% nominalnie, czyli ≈3,59% realnie. Nie ma zmienności rynku: 6% średnio nie znaczy 6% co roku.
 
@@ -94,6 +94,9 @@ IKE → OIPE → broker → OKI → obligacje → lokata → krypto → gotówka
 limitów IKE/OIPE) albo zostawić jako samą ulgę. Asystent najpierw wypełnia ulgi
 (IKZE, gdy ulga PIT bije 10% ryczałtu), a nadwyżkę dzieli wg strategii — m.in.
 z małym udziałem krypto (5% zrównoważona, 15% agresywna).
+Asystent porównuje też **kolejność wypłat**: wcześniejszy jednorazowy zwrot IKZE
+vs odłożenie go do 65, oraz w ramach progów podatkowych kolejność wg ROI
+(niższe ROI pierwsze). Wybiera wariant o najwyższej wartości netto.
 
 ## Obsługiwane konta
 

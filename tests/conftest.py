@@ -37,6 +37,7 @@ def no_tax_config():
     cfg.kwota_wolna = 0.0
     cfg.rate_lower = 0.0
     cfg.rate_upper = 0.0
+    cfg.health_rate = 0.0
     return cfg
 
 

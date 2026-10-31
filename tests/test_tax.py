@@ -6,7 +6,7 @@ from app.simulation.config import TaxConfig, backfill_tax_config, default_config
 from app.simulation.engine import simulate
 from app.simulation.schemas import SimulationInput
 
-CFG_NOINFL = TaxConfig(inflation=0.0)
+CFG_NOINFL = TaxConfig(inflation=0.0, health_rate=0.0)
 
 # --- Skala PIT 2026 ---
 
@@ -588,3 +588,41 @@ def test_ikze_refund_explicit_ike_full_warns():
     )
     assert result.ikze_refund_allocations.get("ike", 0) == 0
     assert any("limit wpłat na IKE" in w for w in result.warnings)
+
+
+def test_early_roi_order_preserves_high_roi_account():
+    def run(policy):
+        data = SimulationInput(
+            stages=[
+                accumulation_stage(
+                    {
+                        "ikze": acc(
+                            annual_contribution=11_304,
+                            monthly_base=8_000,
+                            roi=0.03,
+                        ),
+                        "broker": acc(starting_balance=100_000, roi=0.20),
+                    },
+                    start=40,
+                    end=55,
+                ),
+                realization_stage(
+                    "Wypłaty",
+                    {"ikze": acc(roi=0.03), "broker": acc(roi=0.20)},
+                    55,
+                    70,
+                ),
+            ],
+            monthly_gross=8_000,
+            config=CFG_NOINFL,
+            withdrawal_policy=policy,
+        )
+        data.stages[1].withdrawal_target_gross_monthly = 1_500
+        return simulate(data)
+
+    tier = run("early_tier")
+    roi = run("early_roi")
+    tier_broker = next(y for y in tier.years if y.age == 65).balances.get("broker", 0)
+    roi_broker = next(y for y in roi.years if y.age == 65).balances.get("broker", 0)
+    assert roi_broker > tier_broker
+    assert roi.total_tax < tier.total_tax
