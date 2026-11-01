@@ -3,6 +3,7 @@ from conftest import acc, accumulation_stage, realization_stage
 
 from app.simulation.config import TaxConfig
 from app.simulation.engine import simulate
+from app.simulation.planner import _account_phases
 from app.simulation.schemas import SimulationInput
 
 CFG_NOINFL = TaxConfig(inflation=0.0)
@@ -225,3 +226,33 @@ def test_ppk_starting_balance_treated_as_employee_money():
     # Saldo startowe = pieniądze pracownika → nie przepadają
     # Wypłacono co najmniej saldo startowe (brak przepadku)
     assert result.total_withdrawn >= 10000
+
+
+def test_ppk_accumulation_details_include_state_topups():
+    data = SimulationInput(
+        stages=[
+            accumulation_stage(
+                {
+                    "ppk": acc(
+                        starting_balance=6000,
+                        base_override_enabled=True,
+                        monthly_base=8000,
+                        roi=0.0,
+                    )
+                },
+                start=40,
+                end=47,
+            ),
+            realization_stage("PPK przed 60", {"ppk": acc(roi=0.0, buffer=0)}, 47, 60),
+        ],
+        max_age=59,
+        config=CFG_NOINFL,
+    )
+    result = simulate(data)
+    phase = next(p for p in _account_phases(data, result) if p.account == "ppk")
+    # (2% + 1,5%) * 96 000 + 240 zł dopłaty rocznej
+    assert phase.accumulation_annual_contribution == pytest.approx(3600.0)
+    # 7 lat wpłat + 250 zł dopłaty powitalnej
+    assert phase.accumulation_total_contributions == pytest.approx(25_450.0)
+    assert phase.accumulation_end_balance == pytest.approx(31_450.0)
+    assert phase.accumulation_growth == pytest.approx(0.0)

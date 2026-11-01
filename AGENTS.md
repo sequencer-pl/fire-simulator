@@ -215,16 +215,25 @@ bez TypeScript), SQLite, pytest. Odpowiadaj i pisz UI po polsku.
   w chipach `Ulga IKZE` / `Wcześniejszy zwrot IKZE` (`tipHtml`); nie ma już
   akapitów-legend ani notek pod tabelą faz. **Nie ma `#wzStagePreview`.**
   Gantt pokazuje kwoty na szerokich paskach (ze „zł”, gdy się mieści), a na
-  wąskich **litery faz (A, B, …)** — legenda `.wz-flows-legend` wyjaśnia, że
-  litera to faza z tabeli. Badge fazy i tabeli są w kolorze stage-real, nie
-  primary. Przyszłość: opcjonalny przycisk rozszerzenia + poziomy zoom/slider.
+  wąskich **litery faz (A, B, …)** — legenda w tooltipie przy tytule wyjaśnia,
+  że litera to faza z tabeli. Badge fazy i tabeli są w kolorze stage-real, nie
+  primary. Paski mają własny panel `#wzGanttTip`: hover/focus na desktopie,
+  tap na mobile; pokazuje start/wpłaty/koniec/wzrost akumulacji oraz salda,
+  podatki i kwoty netto realizacji (wszystko ze „zł”). Przyszłość: opcjonalny
+  przycisk rozszerzenia + poziomy zoom/slider.
   Przepływy per konto
   (`YearResult.withdrawals/taxes/health/ending_balances`) planner grupuje w
   `AccountPhase` (`PlanProjection.account_phases`): kolejne lata z wypłatami,
   podział przy progu wieku konta i istotnej zmianie kwoty (>20% i >100 zł/mies.),
   ZUS jako „emerytura” (kapitał ZUS na starcie, bez salda końcowego), jednorazowy
-  podatek IKZE osobno. Kolumna „Podatki i składki” pokazuje PIT + 9% zdrowotnej
-  ZUS (z rozbiciem pod kwotą), a „Razem netto” jest już po obu obciążeniach.
+  podatek IKZE osobno. `AccountPhase.accumulation_*` niesie start/koniec wpłat,
+  roczną składkę, sumę wpłat i wzrost — koniec liczony z `ending_balances` roku
+  `end_age - 1`, żeby nie łapać podatku/przepadku z pierwszego roku realizacji.
+  Kolumna „Podatki i składki” pokazuje PIT + 9% zdrowotnej
+  ZUS; rozbicie (PIT/zdrowotna/jednorazowo) siedzi w klasycznym tooltipie „?”
+  obok kwoty (`.wz-flow-tax-cell .tip`), a główna kwota pozostaje widoczna. „Razem netto” jest już po obu obciążeniach.
+  Tooltip Gantta na hover pojawia się po ~0,9 s (`GANTT_TIP_HOVER_DELAY`),
+  żeby nie wyskakiwał podczas przejeżdżania myszą; klik/tap pokazuje od razu.
   Gantt ma wiersz „Razem” z sumą wypłat po okresach, podpis
   „Łącznie wypłacono netto”, a na mobile jest przewijany w poziomie ze sticky
   etykietami kont. Klik karty scenariusza ustawia `wzSelectedScenario` i

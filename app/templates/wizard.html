@@ -298,12 +298,15 @@
                 <h3 class="eyebrow wz-panel-title">
                     <span class="tip-label-row">
                         <span class="tip-label-text">Wypłaty z poszczególnych kont</span>
-                        <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">Pasek pokazuje okres wypłat danego konta. Kwoty netto; ZUS płaci 9% składki zdrowotnej, a jednorazowy podatek IKZE jest pokazany osobno.</span></span>
+                        <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">Pasek = okres wypłat; cieńszy pasek = akumulacja. Litera = faza z tabeli; kwota = zł/mies. netto (ze „zł”, gdy się mieści). Najedź lub dotknij paska, aby zobaczyć szczegóły. ZUS ma 9% zdrowotnej, a jednorazowy podatek IKZE jest pokazany osobno.</span></span>
                     </span>
                 </h3>
-                <p class="field-hint wz-flows-legend">Litera = faza z tabeli · kwota (zł/mies. netto, ze „zł” gdy się mieści) obok.</p>
                 <div class="wz-flows-gantt-scroll">
                     <div class="wz-flows-gantt" id="wzFlowsGantt"></div>
+                </div>
+                <div class="wz-gantt-tip hidden" id="wzGanttTip" role="tooltip">
+                    <button type="button" class="wz-gantt-tip-close" id="wzGanttTipClose" aria-label="Zamknij podpowiedź">×</button>
+                    <div id="wzGanttTipBody"></div>
                 </div>
                 <p class="field-hint wz-flows-scroll-hint">Przewiń w poziomie, aby zobaczyć cały horyzont.</p>
                 <p class="wz-flows-total-note" id="wzFlowsTotal"></p>

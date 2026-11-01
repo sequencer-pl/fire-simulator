@@ -1111,6 +1111,22 @@ def test_account_phases_split_by_tax_windows_and_amount():
     assert ike[0].last_age == 64
     assert ike[1].start_age == 65
 
+    # Szczegóły akumulacji do tooltipa Gantta: start -> koniec wpłat + wzrost.
+    first_ike = ike[0]
+    assert first_ike.accumulation_start_age == 30
+    assert first_ike.accumulation_end_age == 55
+    assert first_ike.accumulation_annual_contribution > 0
+    assert first_ike.accumulation_total_contributions == pytest.approx(
+        first_ike.accumulation_annual_contribution * 25, abs=0.02
+    )
+    assert first_ike.accumulation_end_balance > first_ike.accumulation_start_balance
+    assert first_ike.accumulation_growth == pytest.approx(
+        first_ike.accumulation_end_balance
+        - first_ike.accumulation_start_balance
+        - first_ike.accumulation_total_contributions,
+        abs=0.02,
+    )
+
     first = broker[0]
     assert first.lump_tax == 0
     assert first.avg_monthly_net > 0

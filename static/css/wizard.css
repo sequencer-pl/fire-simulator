@@ -691,8 +691,6 @@
     font-size: var(--fs-sm);
 }
 
-.wz-flows-legend { margin: 0 0 var(--sp-2); }
-
 /* --- Responsywność ------------------------------------------------------------------------------ */
 
 @media (max-width: 640px) {
@@ -896,9 +894,100 @@
 .wz-gantt-total .wz-gantt-label { color: var(--text); }
 .wz-gantt-track:has(.is-total) { background: var(--surface-hover); }
 
+/* Wspólny panel podpowiedzi Gantta (hover/focus na desktopie, tap na mobile). */
+.wz-gantt-accum,
+.wz-gantt-phase { cursor: help; }
+
+.wz-gantt-accum:focus-visible,
+.wz-gantt-phase:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+}
+
+.wz-gantt-tip {
+    position: fixed;
+    z-index: 120;
+    width: max-content;
+    max-width: min(360px, calc(100vw - 16px));
+    padding: var(--sp-3);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--r-md);
+    background: var(--surface);
+    color: var(--text);
+    font-size: var(--fs-sm);
+    line-height: 1.45;
+    box-shadow: var(--shadow-pop);
+}
+
+.wz-gantt-tip-close {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 24px;
+    height: 24px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    border-radius: var(--r-pill);
+    background: transparent;
+    color: var(--text-2);
+    font-size: 1.1rem;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.wz-gantt-tip-close:hover {
+    background: var(--surface-hover);
+    color: var(--text);
+}
+
+.wz-gantt-tip-title {
+    padding-right: var(--sp-5);
+    font-weight: 700;
+}
+
+.wz-gantt-tip-sub {
+    margin-bottom: var(--sp-2);
+    color: var(--text-2);
+    font-size: var(--fs-xs);
+}
+
+.wz-gantt-tip-list {
+    display: grid;
+    gap: 2px;
+    margin: 0;
+}
+
+.wz-gantt-tip-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--sp-4);
+}
+
+.wz-gantt-tip-row dt {
+    color: var(--text-2);
+    white-space: nowrap;
+}
+
+.wz-gantt-tip-row dd {
+    margin: 0;
+    font-weight: 600;
+    text-align: right;
+}
+
+.wz-gantt-tip-note {
+    display: block;
+    color: var(--text-3);
+    font-size: var(--fs-xs);
+    font-weight: 400;
+}
+
 .wz-flows-table-wrap {
     margin-top: var(--sp-3);
-    overflow: hidden;
+    /* Tooltipy w tabeli mogą wystawać poza obudowę (np. długie PIT + zdrowotna). */
+    overflow: visible;
     border: 1px solid var(--border);
     border-radius: var(--r-md);
     background: var(--surface);
@@ -980,11 +1069,11 @@
     white-space: nowrap;
 }
 
-.wz-flow-tax-sub {
-    display: block;
-    color: var(--text-3);
-    font-size: var(--fs-xs);
-    white-space: normal;
+/* Klasyczny „?” obok kwoty podatków — rozbicie PIT/zdrowotna w tooltipie. */
+.wz-flow-tax-cell {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-1);
 }
 
 .wz-flow-visual-head,

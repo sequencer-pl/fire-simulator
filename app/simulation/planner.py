@@ -249,6 +249,12 @@ class AccountPhase(BaseModel):
 
     account: str
     accumulation_start_age: int | None = None
+    accumulation_end_age: int | None = None
+    accumulation_start_balance: float = 0.0
+    accumulation_annual_contribution: float = 0.0
+    accumulation_total_contributions: float = 0.0
+    accumulation_end_balance: float = 0.0
+    accumulation_growth: float = 0.0
     start_age: int
     last_age: int
     years: int
@@ -1054,6 +1060,7 @@ def _account_phases(
     od miesięcznej kwoty.
     """
     accum_start: dict[str, int] = {}
+    accum_stage: dict[str, StageInput] = {}
     for si in data.stages:
         if si.stage_type != "akumulacja":
             continue
@@ -1071,6 +1078,7 @@ def _account_phases(
                 )
             if funded:
                 accum_start.setdefault(acc, si.start_age)
+                accum_stage.setdefault(acc, si)
 
     accounts: set[str] = set()
     for year in result.years:
@@ -1094,10 +1102,46 @@ def _account_phases(
             years = current["last_age"] - current["start_age"] + 1
             months = years * MONTHS_PER_YEAR
             monthlies = current["monthlies"] or [0.0]
+            stage = accum_stage.get(acc)
+            accum_end_age: int | None = None
+            accum_start_balance = 0.0
+            accum_annual = 0.0
+            accum_total = 0.0
+            accum_end_balance = 0.0
+            accum_growth = 0.0
+            if stage is not None and acc in stage.accounts:
+                cfg = stage.accounts[acc]
+                accum_end_age = stage.end_age
+                accum_start_balance = cfg.starting_balance
+                accum_annual = (
+                    _monthly_contribution(acc, cfg, data.monthly_gross, data.config)
+                    * MONTHS_PER_YEAR
+                )
+                accum_years = max(0, stage.end_age - stage.start_age)
+                accum_total = accum_annual * accum_years
+                if acc == "ppk" and cfg.state_topups:
+                    accum_total += data.config.ppk.state_welcoming
+                accum_end_balance = next(
+                    (
+                        year.ending_balances.get(acc, 0.0)
+                        for year in result.years
+                        if year.age == accum_end_age - 1
+                    ),
+                    0.0,
+                )
+                if accum_end_age <= stage.start_age:
+                    accum_end_balance = accum_start_balance
+                accum_growth = accum_end_balance - accum_start_balance - accum_total
             phases.append(
                 AccountPhase(
                     account=acc,
                     accumulation_start_age=accum_start.get(acc),
+                    accumulation_end_age=accum_end_age,
+                    accumulation_start_balance=round(accum_start_balance, 2),
+                    accumulation_annual_contribution=round(accum_annual, 2),
+                    accumulation_total_contributions=round(accum_total, 2),
+                    accumulation_end_balance=round(accum_end_balance, 2),
+                    accumulation_growth=round(accum_growth, 2),
                     start_age=current["start_age"],
                     last_age=current["last_age"],
                     years=years,

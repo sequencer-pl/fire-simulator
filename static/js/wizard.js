@@ -553,6 +553,281 @@ function phaseBadge(n) {
     return out;
 }
 
+let ganttTipTips = [];
+let ganttTipBound = false;
+let ganttTipPinned = false;
+let ganttTipActive = null;
+let ganttTipHideTimer = null;
+let ganttTipShowTimer = null;
+const GANTT_TIP_HOVER_DELAY = 900;
+
+function ganttTipHide(force = false) {
+    if (ganttTipPinned && !force) return;
+    clearTimeout(ganttTipShowTimer);
+    ganttTipPinned = false;
+    ganttTipActive = null;
+    const tip = document.getElementById("wzGanttTip");
+    if (tip) tip.classList.add("hidden");
+}
+
+function ganttTipPlace() {
+    const tip = document.getElementById("wzGanttTip");
+    const anchor = ganttTipActive;
+    if (!tip || !anchor) return;
+    const rect = anchor.getBoundingClientRect();
+    const width = tip.offsetWidth;
+    const height = tip.offsetHeight;
+    let left = rect.left + rect.width / 2 - width / 2;
+    left = Math.max(8, Math.min(left, window.innerWidth - width - 8));
+    let top = rect.top - height - 8;
+    if (top < 8) top = rect.bottom + 8;
+    if (top + height > window.innerHeight - 8) {
+        top = Math.max(8, window.innerHeight - height - 8);
+    }
+    tip.style.left = `${left}px`;
+    tip.style.top = `${top}px`;
+}
+
+function ganttTipCancelShow() {
+    clearTimeout(ganttTipShowTimer);
+    ganttTipShowTimer = null;
+}
+
+function ganttTipShow(anchor, pin = false) {
+    const html = ganttTipTips[Number(anchor.dataset.tipId)];
+    const tip = document.getElementById("wzGanttTip");
+    const body = document.getElementById("wzGanttTipBody");
+    if (!html || !tip || !body) return;
+    ganttTipCancelShow();
+    body.innerHTML = html;
+    tip.classList.remove("hidden");
+    ganttTipActive = anchor;
+    ganttTipPinned = pin;
+    requestAnimationFrame(ganttTipPlace);
+}
+
+function ganttTipScheduleHide() {
+    clearTimeout(ganttTipHideTimer);
+    ganttTipHideTimer = setTimeout(() => {
+        if (!ganttTipPinned) ganttTipHide();
+    }, 140);
+}
+
+function setupGanttTips(gantt, tips) {
+    ganttTipTips = tips;
+    ganttTipHide(true);
+    if (ganttTipBound) return;
+    ganttTipBound = true;
+    const anchorOf = (event) => event.target.closest?.("[data-tip-id]");
+    gantt.addEventListener("mouseover", (event) => {
+        const anchor = anchorOf(event);
+        if (!anchor || ganttTipPinned) return;
+        if (event.relatedTarget && anchor.contains(event.relatedTarget)) return;
+        if (ganttTipActive === anchor) return;
+        ganttTipCancelShow();
+        clearTimeout(ganttTipHideTimer);
+        ganttTipShowTimer = setTimeout(() => {
+            ganttTipShowTimer = null;
+            if (!ganttTipPinned && anchor.isConnected) ganttTipShow(anchor);
+        }, GANTT_TIP_HOVER_DELAY);
+    });
+    gantt.addEventListener("mouseout", (event) => {
+        const anchor = anchorOf(event);
+        if (!anchor) return;
+        if (event.relatedTarget && anchor.contains(event.relatedTarget)) return;
+        ganttTipCancelShow();
+        ganttTipScheduleHide();
+    });
+    gantt.addEventListener("click", (event) => {
+        const anchor = anchorOf(event);
+        if (!anchor) return;
+        event.preventDefault();
+        ganttTipCancelShow();
+        if (ganttTipActive === anchor && ganttTipPinned) {
+            ganttTipHide(true);
+        } else {
+            ganttTipShow(anchor, true);
+        }
+    });
+    gantt.addEventListener("focusin", (event) => {
+        const anchor = anchorOf(event);
+        if (anchor) {
+            ganttTipCancelShow();
+            ganttTipShow(anchor, ganttTipPinned);
+        }
+    });
+    gantt.addEventListener("focusout", (event) => {
+        if (anchorOf(event)) ganttTipScheduleHide();
+    });
+    const tip = document.getElementById("wzGanttTip");
+    const close = document.getElementById("wzGanttTipClose");
+    if (tip) {
+        tip.addEventListener("mouseenter", () => clearTimeout(ganttTipHideTimer));
+        tip.addEventListener("mouseleave", ganttTipScheduleHide);
+    }
+    if (close) close.addEventListener("click", () => ganttTipHide(true));
+    document.addEventListener("pointerdown", (event) => {
+        ganttTipCancelShow();
+        if (!ganttTipActive) return;
+        if (tip && (tip.contains(event.target) || event.target.closest?.("[data-tip-id]"))) return;
+        ganttTipHide(true);
+    });
+    document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") ganttTipHide(true);
+    });
+    window.addEventListener(
+        "scroll",
+        () => {
+            ganttTipCancelShow();
+            if (!ganttTipPinned) ganttTipHide(true);
+            else if (ganttTipActive) requestAnimationFrame(ganttTipPlace);
+        },
+        true
+    );
+    window.addEventListener("resize", () => {
+        if (ganttTipActive) requestAnimationFrame(ganttTipPlace);
+    });
+}
+
+function ganttTipRow(label, value, note = "") {
+    const noteHtml = note ? `<span class="wz-gantt-tip-note">${escapeHtml(note)}</span>` : "";
+    return `<div class="wz-gantt-tip-row"><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}${noteHtml}</dd></div>`;
+}
+
+function ganttTipPanel(title, subtitle, rows) {
+    return `<div class="wz-gantt-tip-title">${escapeHtml(title)}</div>
+        <div class="wz-gantt-tip-sub">${escapeHtml(subtitle)}</div>
+        <dl class="wz-gantt-tip-list">${rows.join("")}</dl>`;
+}
+
+function accumulationTipHtml(input, phase, accountLabel) {
+    const rows = [];
+    rows.push(
+        ganttTipRow("Kapitał startowy", `${fmtZloty(phase.accumulation_start_balance)} zł`)
+    );
+
+    let annual = phase.accumulation_annual_contribution || 0;
+    if (phase.account === "ppk") {
+        const ppkCfg = input?.config?.ppk || {};
+        const ppkStage = (input?.stages || []).find(
+            (stage) => stage.stage_type === "akumulacja" && stage.accounts?.ppk
+        );
+        const topups = ppkStage?.accounts?.ppk?.state_topups !== false;
+        const stateAnnual = topups ? ppkCfg.state_annual ?? 240 : 0;
+        const welcoming = topups ? ppkCfg.state_welcoming ?? 250 : 0;
+        annual = Math.max(0, annual - stateAnnual);
+        if (annual > 0.5) {
+            rows.push(
+                ganttTipRow(
+                    "Wpłaty roczne",
+                    `${fmtZloty(annual)} zł`,
+                    `≈ ${fmtZloty(annual / 12)} zł/mies. (pracownik + pracodawca)`
+                )
+            );
+        }
+        if (topups) {
+            rows.push(
+                ganttTipRow(
+                    "Dopłaty państwa",
+                    `${fmtZloty(stateAnnual)} zł/rok`,
+                    `+ ${fmtZloty(welcoming)} zł jednorazowo`
+                )
+            );
+        }
+    } else if (annual > 0.5) {
+        rows.push(
+            ganttTipRow(
+                "Wpłaty roczne",
+                `${fmtZloty(annual)} zł`,
+                `≈ ${fmtZloty(annual / 12)} zł/mies.`
+            )
+        );
+    }
+
+    if (phase.accumulation_total_contributions > 0.5) {
+        rows.push(
+            ganttTipRow(
+                "Wpłaty łącznie",
+                `${fmtZloty(phase.accumulation_total_contributions)} zł`
+            )
+        );
+    }
+    const endAge = phase.accumulation_end_age;
+    rows.push(
+        ganttTipRow(
+            endAge != null ? `Kapitał na koniec wpłat (${endAge} r.ż.)` : "Kapitał na koniec",
+            `${fmtZloty(phase.accumulation_end_balance)} zł`
+        )
+    );
+    rows.push(
+        ganttTipRow(
+            phase.account === "zus" ? "Wzrost (składki + waloryzacja)" : "Wzrost (odsetki)",
+            `${fmtZloty(phase.accumulation_growth)} zł`
+        )
+    );
+    if (endAge != null && phase.start_age > endAge) {
+        const note =
+            phase.starting_balance < phase.accumulation_end_balance
+                ? `po podatkach lub przepadku (${phase.start_age} r.ż.)`
+                : `po dalszym wzroście lub transferach (${phase.start_age} r.ż.)`;
+        rows.push(
+            ganttTipRow(
+                "Saldo przed 1. wypłatą",
+                `${fmtZloty(phase.starting_balance)} zł`,
+                note
+            )
+        );
+    }
+
+    const start = phase.accumulation_start_age;
+    const years = start != null && endAge != null ? Math.max(0, endAge - start) : null;
+    const period = start != null && endAge != null ? `${start}–${endAge} r.ż.` : "";
+    const subtitle = `Akumulacja · ${period}${years ? ` · wpłaty przez ${flowYearsLabel(years)}` : ""}`;
+    return ganttTipPanel(accountLabel, subtitle, rows);
+}
+
+function phaseTipHtml(phase, accountLabel) {
+    const rows = [];
+    rows.push(ganttTipRow("Miesięcznie netto", `${flowMonthlyLabel(phase)} zł`));
+    rows.push(ganttTipRow("Razem netto", `${fmtZloty(phase.total_net)} zł`));
+    rows.push(
+        ganttTipRow(
+            phase.account === "zus" ? "Kapitał ZUS" : "Saldo na start",
+            `${fmtZloty(phase.starting_balance)} zł`
+        )
+    );
+    rows.push(ganttTipRow("Saldo na koniec", `${fmtZloty(phase.ending_balance)} zł`));
+
+    const tax = (phase.total_tax || 0) + (phase.total_health || 0);
+    const parts = [];
+    if (phase.total_tax > 0.5) parts.push(`PIT ${fmtZloty(phase.total_tax)} zł`);
+    if (phase.total_health > 0.5) parts.push(`zdrowotna ${fmtZloty(phase.total_health)} zł`);
+    if (phase.lump_tax > 0.5) parts.push(`jednorazowo ${fmtZloty(phase.lump_tax)} zł`);
+    rows.push(ganttTipRow("Podatki i składki", `${fmtZloty(tax)} zł`, parts.join(" · ")));
+
+    const subtitle = `Faza ${phase._flowLabel} · ${phase.start_age}–${phase.last_age} r.ż. · ${flowYearsLabel(phase.years)}`;
+    return ganttTipPanel(accountLabel, subtitle, rows);
+}
+
+function totalTipHtml(phase) {
+    const years = Math.max(0, phase.end_age - phase.start_age);
+    const rows = [];
+    rows.push(ganttTipRow("Miesięcznie netto", `${fmtZloty(phase.monthly || 0)} zł`));
+    rows.push(
+        ganttTipRow("Okres", `${phase.start_age}–${phase.end_age} r.ż.`, flowYearsLabel(years))
+    );
+    if (phase.portfolio_monthly > 0.5) {
+        rows.push(ganttTipRow("w tym portfel", `${fmtZloty(phase.portfolio_monthly)} zł/mies.`));
+    }
+    if (phase.zus_monthly > 0.5) {
+        rows.push(ganttTipRow("w tym ZUS", `${fmtZloty(phase.zus_monthly)} zł/mies.`));
+    }
+    rows.push(
+        ganttTipRow("Razem netto (≈)", `${fmtZloty((phase.monthly || 0) * years * 12)} zł`)
+    );
+    return ganttTipPanel(phase.name || "Razem", "Wypłaty łączne", rows);
+}
+
 function renderAccountFlows(input, projection) {
     const wrap = document.getElementById("wzFlowsWrap");
     const gantt = document.getElementById("wzFlowsGantt");
@@ -570,6 +845,11 @@ function renderAccountFlows(input, projection) {
         p._flowLabel = phaseBadge(idx + 1);
     });
     const accountName = (acc) => (acc === "zus" ? "ZUS (emerytura)" : capitalLabel(acc));
+    const tips = [];
+    const addTip = (html) => {
+        tips.push(html);
+        return tips.length - 1;
+    };
 
     /* --- Gantt: rząd na konto, pasek akumulacji + paski wypłat --- */
     const accounts = [...new Set(phases.map((p) => p.account))];
@@ -585,11 +865,15 @@ function renderAccountFlows(input, projection) {
         const starts = list.map((p) => p.accumulation_start_age).filter((v) => v != null);
         const accumStart = starts.length ? Math.min(...starts) : null;
         const firstStart = Math.min(...list.map((p) => p.start_age));
+        const firstPhase = list[0];
         let bars = "";
         if (accumStart != null && firstStart > accumStart && accumStart >= range.min) {
             const left = flowPct(accumStart, range);
             const width = flowPct(firstStart, range) - left;
-            bars += `<span class="wz-gantt-accum" style="left:${left.toFixed(2)}%;width:${width.toFixed(2)}%" title="Akumulacja ${accumStart}–${firstStart} r.ż."></span>`;
+            const tipIdx = addTip(accumulationTipHtml(input, firstPhase, accountName(acc)));
+            const accumEnd = firstPhase.accumulation_end_age ?? firstStart;
+            const tipLabel = `Akumulacja ${accumStart}–${accumEnd} r.ż. — szczegóły`;
+            bars += `<span class="wz-gantt-accum" style="left:${left.toFixed(2)}%;width:${width.toFixed(2)}%" data-tip-id="${tipIdx}" tabindex="0" aria-label="${escapeHtml(tipLabel)}"></span>`;
         }
         list.forEach((p) => {
             const left = flowPct(p.start_age, range);
@@ -604,8 +888,9 @@ function renderAccountFlows(input, projection) {
                 `<span class="wz-gantt-phase-letter">${p._flowLabel}</span>` +
                 (amountText ? `<span class="wz-gantt-phase-value">${amountText}</span>` : "");
             const cls = showAmount ? "" : " is-index";
-            const tip = `${accountName(acc)}: ${p.start_age}–${p.last_age} r.ż., ≈ ${flowMonthlyLabel(p)} netto · faza ${p._flowLabel}`;
-            bars += `<span class="wz-gantt-phase${cls}" style="left:${left.toFixed(2)}%;width:${width.toFixed(2)}%" title="${escapeHtml(tip)}">${label}</span>`;
+            const tipIdx = addTip(phaseTipHtml(p, accountName(acc)));
+            const tipLabel = `${accountName(acc)}: faza ${p._flowLabel}, ${p.start_age}–${p.last_age} r.ż., ${flowMonthlyLabel(p)} zł/mies. netto — szczegóły`;
+            bars += `<span class="wz-gantt-phase${cls}" style="left:${left.toFixed(2)}%;width:${width.toFixed(2)}%" data-tip-id="${tipIdx}" tabindex="0" aria-label="${escapeHtml(tipLabel)}">${label}</span>`;
         });
         ganttHtml += `<div class="wz-gantt-row"><span class="wz-gantt-label">${accountIcon(acc)}<span>${escapeHtml(acc === "zus" ? "ZUS" : accountName(acc))}</span></span><div class="wz-gantt-track">${bars}</div></div>`;
     });
@@ -621,12 +906,14 @@ function renderAccountFlows(input, projection) {
             const label = width >= 8
                 ? `${Math.round(p.monthly || 0).toLocaleString("pl-PL")} zł/mies.`
                 : "";
-            const tip = `${p.name}: ${p.start_age}–${p.end_age} r.ż., ≈ ${Math.round(p.monthly || 0).toLocaleString("pl-PL")} zł/mies. netto`;
-            totalBars += `<span class="wz-gantt-phase is-total" style="left:${left.toFixed(2)}%;width:${width.toFixed(2)}%" title="${escapeHtml(tip)}">${label}</span>`;
+            const tipIdx = addTip(totalTipHtml(p));
+            const tipLabel = `${p.name}: ${p.start_age}–${p.end_age} r.ż., ${Math.round(p.monthly || 0).toLocaleString("pl-PL")} zł/mies. netto — szczegóły`;
+            totalBars += `<span class="wz-gantt-phase is-total" style="left:${left.toFixed(2)}%;width:${width.toFixed(2)}%" data-tip-id="${tipIdx}" tabindex="0" aria-label="${escapeHtml(tipLabel)}">${label}</span>`;
         });
         ganttHtml += `<div class="wz-gantt-row wz-gantt-total"><span class="wz-gantt-label">Razem</span><div class="wz-gantt-track">${totalBars}</div></div>`;
     }
     gantt.innerHTML = ganttHtml;
+    setupGanttTips(gantt, tips);
 
     const totalNote = document.getElementById("wzFlowsTotal");
     if (totalNote) {
@@ -658,7 +945,7 @@ function renderAccountFlows(input, projection) {
                 ? `PIT ${fmtZloty(pit)} zł + zdrowotna ${fmtZloty(health)} zł`
                 : "zdrowotna 9%";
         }
-        const tax = `<span class="wz-flow-tax-main">${taxMain} zł</span>${taxSub ? `<span class="wz-flow-tax-sub">${taxSub}</span>` : ""}`;
+        const tax = `<span class="wz-flow-tax-cell"><span class="wz-flow-tax-main">${taxMain} zł</span>${taxSub ? tipHtml(taxSub) : ""}</span>`;
         const period = `${p.start_age}–${p.last_age} r.ż. (${flowYearsLabel(p.years)})`;
         const startLabel = p.account === "zus" ? "Kapitał ZUS" : "Saldo na start";
         tableHtml += `<tr>

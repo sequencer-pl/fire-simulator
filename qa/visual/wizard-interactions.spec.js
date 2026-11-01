@@ -61,15 +61,45 @@ test("krok 5: nota sugeruje IKE jako cel zwrotu IKZE", async ({ page }) => {
         page.locator(".wz-fact-row .wz-fact").filter({ hasText: "Ulga IKZE:" })
     ).toBeVisible();
     await expect(page.locator("#wzFlowsWrap")).toBeVisible();
-    await expect(page.locator(".wz-flows-legend")).toContainText("Litera");
+    await expect(page.locator("#wzFlowsWrap .wz-panel-title .tooltip")).toContainText("Litera");
     await expect(page.locator("#wzFlowsTable tbody tr")).toHaveCount(6);
     await expect(page.locator("#wzFlowsTable thead")).toContainText("Podatki i składki");
-    await expect(
-        page.locator("#wzFlowsTable tbody tr").filter({ hasText: "ZUS (emerytura)" })
-    ).toContainText("zdrowotna");
+    const zusRow = page
+        .locator("#wzFlowsTable tbody tr")
+        .filter({ hasText: "ZUS (emerytura)" });
+    const zusTax = zusRow.locator(".wz-flow-tax-cell .tip");
+    await expect(zusTax.locator(".tooltip")).toContainText("zdrowotna");
+    await expect(zusRow.locator(".wz-flow-tax-main")).not.toContainText("zdrowotna");
+    await zusTax.hover();
+    await expect(zusTax.locator(".tooltip")).toBeVisible();
+    // Długie „PIT … + zdrowotna …” nie mogą być ucinane przez obudowę tabeli.
+    const tableWrapOverflow = await page
+        .locator("#wzFlowsTable")
+        .evaluate((el) => getComputedStyle(el.parentElement).overflow);
+    expect(tableWrapOverflow).toBe("visible");
     await expect(page.locator("#wzFlowsGantt .wz-gantt-row:not(.wz-gantt-total)")).toHaveCount(3);
     await expect(page.locator("#wzFlowsGantt .wz-gantt-total")).toContainText("Razem");
     await expect(page.locator("#wzFlowsTotal")).toContainText("Łącznie wypłacono netto");
+
+    // Tooltip akumulacji: tap/klik pokazuje szczegóły etapu, Escape zamyka.
+    // Na mobile wykres zaczyna się od pierwszej wypłaty, więc pasek akumulacji
+    // może być poza zakresem — test go, gdy istnieje.
+    if ((await page.locator("#wzFlowsGantt .wz-gantt-accum").count()) > 0) {
+        await page.locator("#wzFlowsGantt .wz-gantt-accum").first().click();
+        await expect(page.locator("#wzGanttTip")).toBeVisible();
+        await expect(page.locator("#wzGanttTip")).toContainText("Kapitał startowy");
+        await expect(page.locator("#wzGanttTip")).toContainText("Wpłaty");
+        await page.keyboard.press("Escape");
+        await expect(page.locator("#wzGanttTip")).toBeHidden();
+    }
+
+    // Tooltip fazy realizacji: kwoty z „zł”.
+    await page.locator("#wzFlowsGantt .wz-gantt-phase:not(.is-total)").first().click();
+    await expect(page.locator("#wzGanttTip")).toBeVisible();
+    await expect(page.locator("#wzGanttTip")).toContainText("Razem netto");
+    await expect(page.locator("#wzGanttTip")).toContainText("zł");
+    await page.keyboard.press("Escape");
+    await expect(page.locator("#wzGanttTip")).toBeHidden();
 
     await page.locator(".wz-method-details summary").click();
     await expect(page.locator("#wzPolicyNote")).toContainText("Kolejność wypłat");
