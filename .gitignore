@@ -221,6 +221,8 @@ __marimo__/
 *.xlsx
 
 # Aplikacja FIRE
+# Lokalna konfiguracja narzędzi AI (agenty, plany, ustawienia sesji)
+.claude/
 # Baza SQLite generowana przy starcie (dane użytkowników i symulacji)
 fire.db
 fire.db-journal
