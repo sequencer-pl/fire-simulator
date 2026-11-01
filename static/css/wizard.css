@@ -4,6 +4,10 @@
 
 .wizard-progress { margin-bottom: var(--sp-5); }
 
+.wizard-progress-bar {
+    background: linear-gradient(90deg, var(--primary), var(--stage-real));
+}
+
 .wizard-progress-track { position: relative; }
 
 /* Podziałki na 6 kroków nad wypełnieniem. */
@@ -425,7 +429,13 @@
     padding: var(--sp-5);
     border: 1px solid color-mix(in srgb, var(--primary) 45%, transparent);
     border-radius: var(--r-md);
-    background: var(--primary-soft);
+    background:
+        radial-gradient(
+            ellipse at 100% 0%,
+            var(--glow-real),
+            transparent 58%
+        ),
+        var(--primary-soft);
 }
 
 .wz-hero-answer.is-warn {
@@ -482,6 +492,13 @@
 .wz-scenario-card.is-selected {
     border-color: var(--primary);
     box-shadow: inset 0 0 0 1px var(--primary);
+    background:
+        radial-gradient(
+            ellipse at 100% 0%,
+            var(--glow-primary),
+            transparent 60%
+        ),
+        var(--surface-2);
 }
 
 .wz-scenario-title {
@@ -1025,4 +1042,10 @@
     }
 
     .wz-flows-table .wz-flow-visual::before { display: none; content: ""; }
+}
+
+@media (prefers-contrast: more) {
+    .wz-hero-answer { background: var(--primary-soft); }
+    .wz-scenario-card.is-selected { background: var(--surface-2); }
+    .wizard-progress-bar { background: var(--primary); }
 }

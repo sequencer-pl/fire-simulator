@@ -21,12 +21,12 @@
     background:
         radial-gradient(
             ellipse at 70% 35%,
-            color-mix(in srgb, var(--primary) 16%, transparent),
+            var(--glow-primary),
             transparent 62%
         ),
         radial-gradient(
             ellipse at 35% 75%,
-            color-mix(in srgb, var(--stage-real) 10%, transparent),
+            var(--glow-real),
             transparent 60%
         );
     filter: blur(28px);
@@ -296,7 +296,12 @@
 .login-section {
     max-width: 420px;
     margin: var(--sp-6) auto 0;
+    position: relative;
+    isolation: isolate;
+    overflow: clip;
 }
+
+.login-head::before { display: none; }
 
 .login-head { text-align: center; }
 
@@ -330,4 +335,8 @@
     }
     .hero-actions .btn { flex: 1 1 100%; }
     .recent-item-side { display: none; }
+}
+
+@media (prefers-contrast: more) {
+    .hero::before { display: none; }
 }

@@ -45,6 +45,17 @@
     --stage-accum-soft: color-mix(in srgb, var(--stage-accum) 14%, transparent);
     --stage-real-soft: color-mix(in srgb, var(--stage-real) 14%, transparent);
 
+    /* --- Ambient / gradient marki --- */
+    --glow-primary: color-mix(in srgb, var(--primary) 16%, transparent);
+    --glow-real: color-mix(in srgb, var(--stage-real) 12%, transparent);
+    --glow-faint: color-mix(in srgb, var(--primary) 5%, transparent);
+    --brand-line: linear-gradient(
+        90deg,
+        color-mix(in srgb, var(--primary) 65%, transparent),
+        color-mix(in srgb, var(--stage-real) 50%, transparent) 45%,
+        transparent 85%
+    );
+
     /* --- Stan --- */
     --success: #3ccf91;
     --warning: #f0b64b;

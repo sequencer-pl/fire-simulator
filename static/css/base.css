@@ -17,10 +17,21 @@ body {
     font-family: var(--font);
     font-size: var(--fs-md);
     line-height: var(--lh);
-    background: var(--bg);
+    background-color: var(--bg);
+    background-image: radial-gradient(
+        1100px 520px at 100% 0%,
+        var(--glow-faint),
+        transparent 68%
+    );
+    background-position: top right;
+    background-repeat: no-repeat;
     color: var(--text);
     overflow-x: clip;
     min-height: 100vh;
+}
+
+@media (min-width: 641px) {
+    body { background-attachment: fixed; }
 }
 
 body.has-action-bar {
@@ -107,6 +118,25 @@ h4 { font-size: var(--fs-md); }
 
 .page-head {
     margin-bottom: var(--sp-6);
+    position: relative;
+    isolation: isolate;
+}
+
+.page-head::before {
+    content: "";
+    position: absolute;
+    z-index: -1;
+    top: -30%;
+    right: 0;
+    width: 70%;
+    height: 160%;
+    background: radial-gradient(
+        ellipse at 80% 30%,
+        var(--glow-primary),
+        transparent 65%
+    );
+    opacity: 0.55;
+    pointer-events: none;
 }
 
 .page-head .page-lead {
@@ -159,6 +189,19 @@ h4 { font-size: var(--fs-md); }
     padding: var(--sp-3) 0;
     margin-bottom: var(--sp-6);
     border-bottom: 1px solid var(--border);
+    position: relative;
+}
+
+.topbar::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -1px;
+    height: 1px;
+    background: var(--brand-line);
+    opacity: 0.55;
+    pointer-events: none;
 }
 
 .brand {
@@ -384,4 +427,10 @@ body[data-section="konfiguracja"] .nav-item[data-nav="konfiguracja"] {
 
 @media (max-width: 359px) {
     .brand .subtitle { display: none; }
+}
+
+@media (prefers-contrast: more) {
+    body { background-image: none; }
+    .topbar::after,
+    .page-head::before { display: none; }
 }
