@@ -17,6 +17,12 @@ const probe = (page, selector) =>
         return bg;
     }, selector);
 
+test("Inter jest bundlowany i gotowy", async ({ page }) => {
+    await page.goto("/", { waitUntil: "networkidle" });
+    await page.evaluate(() => document.fonts.ready);
+    expect(await page.evaluate(() => document.fonts.check('16px "Inter"'))).toBe(true);
+});
+
 test("karty = --surface", async ({ page }) => {
     await page.goto("/sim", { waitUntil: "networkidle" });
     for (const sel of [".card", ".stage-block", ".config-section", ".toolbar", ".action-bar"]) {

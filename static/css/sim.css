@@ -460,4 +460,14 @@
     .form-actions .action-bar-left,
     .form-actions .action-bar-right { gap: var(--sp-1); }
     .form-actions .btn { padding: 0 var(--sp-1); }
+
+    /* Poniżej 360 px etykiety etapów nie mieszczą się obok „Symuluj” — zostają
+       ikony (34 px) z aria-label/title, więc funkcja i dostępność nie znikają. */
+    .add-stage-btns .btn {
+        width: var(--control-h-sm);
+        padding: 0;
+        justify-content: center;
+    }
+    .add-stage-btns .btn .icon { display: block; }
+    .add-stage-btns .btn .btn-label-short { display: none; }
 }

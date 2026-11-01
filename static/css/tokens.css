@@ -1,6 +1,16 @@
 /* tokens.css — jedyne źródło kolorów, typografii, odstępów i promieni.
    Reguły i znaczenie tokenów: DESIGN.md. Nie dopisuj kolorów poza tym plikiem. */
 
+/* Inter jest bundlowany, żeby typografia (i baseline'y wizualne) była identyczna
+   na każdej maszynie — lokalnie, w CI i u użytkownika. */
+@font-face {
+    font-family: "Inter";
+    src: url("../fonts/InterVariable.woff2") format("woff2");
+    font-weight: 100 900;
+    font-style: normal;
+    font-display: swap;
+}
+
 :root {
     color-scheme: dark;
 
