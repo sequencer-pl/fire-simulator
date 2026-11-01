@@ -1593,6 +1593,17 @@ def _apply_tax(
     return tax
 
 
+def _first_withdrawal_age(state: SimulationState, name: str) -> int | None:
+    """Pierwszy rok, w którym konto faktycznie płaci (wypłata lub zwrot IKZE)."""
+    ages: list[int] = []
+    for age, computed in state.computed.items():
+        if computed.get("withdrawal", {}).get(name, 0.0) > 1e-6:
+            ages.append(age)
+        elif name in computed.get("early_return_tax_by_account", {}):
+            ages.append(age)
+    return min(ages) if ages else None
+
+
 def _collect_warnings(
     data: SimulationInput,
     state: SimulationState | None = None,
@@ -1600,6 +1611,7 @@ def _collect_warnings(
 ) -> list[str]:
     """Warnings about suboptimal configuration (premature withdrawals, contribution limits)."""
     warnings: list[str] = []
+    warned_early: set[str] = set()
     config = data.config
     retirement_age = _pension_age(config, data.gender)
 
@@ -1635,14 +1647,29 @@ def _collect_warnings(
                     if not tapped_early and name not in state.early_returned:
                         continue
                 label = ACCOUNT_LABELS.get(name, name)
-                if name == "ppk" and si.start_age < rules.min_withdrawal_age:
+                first_age = (
+                    _first_withdrawal_age(state, name)
+                    if state is not None
+                    else si.start_age
+                )
+                emit_early = (
+                    first_age is not None
+                    and first_age < rules.min_withdrawal_age
+                    and name not in warned_early
+                )
+                ppk_specific = name == "ppk"
+                if ppk_specific and emit_early:
+                    ppk_early = rules.early_tax_rate * 100
+                    ppk_after = rules.tax_rate * 100
                     warnings.append(
-                        f"PPK wypłacane od {si.start_age} r.ż. (przed "
-                        f"{rules.min_withdrawal_age} r.ż.) — środki pracodawcy i dopłaty "
-                        f"państwa przepadają; podatek Belka 19% od zysku pracownika."
+                        f"{label}: pierwsza wypłata w wieku {first_age} r.ż. — przed "
+                        f"{rules.min_withdrawal_age} r.ż. środki pracodawcy i dopłaty "
+                        f"państwa przepadają; podatek Belka {ppk_early:.0f}% od zysku "
+                        f"pracownika, po {rules.min_withdrawal_age} r.ż. {ppk_after:.0f}%."
                     )
+                    warned_early.add(name)
                 early = rules.early_tax_model
-                if early == "scale":
+                if emit_early and not ppk_specific and early == "scale":
                     lower = int(config.rate_lower * 100)
                     upper = int(config.rate_upper * 100)
                     if config.prog2 is not None and config.rate_middle is not None:
@@ -1651,23 +1678,30 @@ def _collect_warnings(
                     else:
                         skala = f"{lower}/{upper}%"
                     flat = rules.tax_rate * 100
-                    before = f"przed {rules.min_withdrawal_age} r.ż."
                     after = f"po {rules.min_withdrawal_age} r.ż."
                     warnings.append(
-                        f"{label} wypłacane od {si.start_age} r.ż. ({before}) — jednorazowe "
-                        f"opodatkowanie całości w pierwszym roku etapu (podatek wg skali "
-                        f"{skala}); netto jest reinwestowane w konto docelowe. "
-                        f"{after} ryczałt {flat:.0f}% od każdej wypłaty."
+                        f"{label}: pierwsza wypłata w wieku {first_age} r.ż. — przed "
+                        f"{rules.min_withdrawal_age} r.ż. jednorazowe opodatkowanie całości "
+                        f"przy pierwszej wypłacie (podatek wg skali {skala}); netto jest "
+                        f"reinwestowane w konto docelowe. {after} ryczałt {flat:.0f}% "
+                        f"od każdej wypłaty."
                     )
-                elif early in ("flat", "none") and rules.early_tax_rate != rules.tax_rate:
+                    warned_early.add(name)
+                elif (
+                    emit_early
+                    and not ppk_specific
+                    and early in ("flat", "none")
+                    and rules.early_tax_rate != rules.tax_rate
+                ):
                     early_pct = rules.early_tax_rate * 100
                     normal_pct = rules.tax_rate * 100
-                    before = f"przed {rules.min_withdrawal_age} r.ż."
                     after = f"po {rules.min_withdrawal_age} r.ż."
                     warnings.append(
-                        f"{label} wypłacane od {si.start_age} r.ż. ({before}) — podatek "
-                        f"{early_pct:.0f}% od zysku; {after} {normal_pct:.0f}%."
+                        f"{label}: pierwsza wypłata w wieku {first_age} r.ż. — przed "
+                        f"{rules.min_withdrawal_age} r.ż. podatek {early_pct:.0f}% od zysku; "
+                        f"{after} {normal_pct:.0f}%."
                     )
+                    warned_early.add(name)
 
         if si.stage_type == "akumulacja":
             for name, cfg in si.accounts.items():

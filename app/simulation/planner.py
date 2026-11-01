@@ -404,22 +404,33 @@ def _shelter_cap(a: WizardAnswers, config, name: str) -> float:
     return 0.0
 
 
+TINY_CASH_ANNUAL = 12.0
+
+
 def _resolve_allocation(a: WizardAnswers, config, annual_pool: float) -> dict[str, float]:
     """Split the discretionary pool by user weights; shelters cap at annual
     limits; whatever is not assigned stays in "gotowka" (the visible sink).
+
+    Resztki zaokrągleń poniżej 1 zł/mies. nie tworzą konta gotówki — dokładamy
+    je do największego konta bez limitu, żeby nie straszyć użytkownika
+    „2 zł/rok w gotówce”.
     """
     alloc: dict[str, float] = {}
-    used = 0.0
     for inst, weight in a.allocations.items():
         target = annual_pool * weight / 100.0
         cap = _shelter_cap(a, config, inst)
         contrib = min(target, cap) if cap else target
         if contrib > 1e-6:
             alloc[inst] = round(contrib, 2)
-            used += contrib
+    used = sum(alloc.values())
     overflow = max(0.0, annual_pool - used)
-    if overflow > 1e-6:
+    if overflow > TINY_CASH_ANNUAL:
         alloc["gotowka"] = round(overflow, 2)
+    elif overflow > 1e-6 and alloc:
+        uncapped = [name for name in alloc if _shelter_cap(a, config, name) <= 0]
+        if uncapped:
+            biggest = max(uncapped, key=lambda name: alloc[name])
+            alloc[biggest] = round(alloc[biggest] + overflow, 2)
     return alloc
 
 
@@ -560,7 +571,10 @@ def build_stages(a: WizardAnswers) -> SimulationInput:
     plan_end = max(a.plan_end_age, retirement + 1)
     annual_pool = _savings_monthly(a) * 12.0
     alloc = _resolve_allocation(a, config, annual_pool)
-    cash_present = a.capital.get("gotowka", 0.0) > 0 or alloc.get("gotowka", 0.0) > 0
+    cash_present = (
+        a.capital.get("gotowka", 0.0) > 0
+        or alloc.get("gotowka", 0.0) >= TINY_CASH_ANNUAL
+    )
 
     stages: list[StageInput] = []
     accum_accounts: dict[str, AccountConfig] = {}
@@ -1281,7 +1295,7 @@ def _append_cash_warning(proj: PlanProjection, data: SimulationInput) -> PlanPro
     for etap in data.stages:
         if etap.stage_type == "akumulacja" and "gotowka" in etap.accounts:
             monthly = etap.accounts["gotowka"].annual_contribution / 12.0
-            if monthly > 0.05:
+            if monthly >= 1.0:
                 infl = data.config.inflation * 100.0
                 proj.warnings.append(
                     f"Z oszczędności {round(monthly):,} zł/mies. pozostaje w gotówce "

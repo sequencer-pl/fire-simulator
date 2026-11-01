@@ -52,18 +52,16 @@ test("krok 5: nota sugeruje IKE jako cel zwrotu IKZE", async ({ page }) => {
     await expect(page.locator("#wzAllocRefundNote")).toContainText("Zwrot IKZE automatycznie zasili IKE");
 
     await page.locator("#wzNextBtn").click();
-    const policyChip = page.locator(".wz-fact-row .wz-fact").filter({ hasText: "Kolejność:" });
-    await expect(policyChip).toBeVisible({ timeout: 30_000 });
-    await expect(policyChip.locator(".tooltip")).toContainText("Kolejność wypłat");
     const earlyChip = page
         .locator(".wz-fact-row .wz-fact")
         .filter({ hasText: "Wcześniejszy zwrot IKZE" });
-    await expect(earlyChip).toBeVisible();
+    await expect(earlyChip).toBeVisible({ timeout: 30_000 });
     await expect(earlyChip.locator(".tooltip")).toContainText("reinwestycja");
     await expect(
         page.locator(".wz-fact-row .wz-fact").filter({ hasText: "Ulga IKZE:" })
     ).toBeVisible();
     await expect(page.locator("#wzFlowsWrap")).toBeVisible();
+    await expect(page.locator(".wz-flows-legend")).toContainText("Litera");
     await expect(page.locator("#wzFlowsTable tbody tr")).toHaveCount(6);
     await expect(page.locator("#wzFlowsTable thead")).toContainText("Podatki i składki");
     await expect(
@@ -72,6 +70,9 @@ test("krok 5: nota sugeruje IKE jako cel zwrotu IKZE", async ({ page }) => {
     await expect(page.locator("#wzFlowsGantt .wz-gantt-row:not(.wz-gantt-total)")).toHaveCount(3);
     await expect(page.locator("#wzFlowsGantt .wz-gantt-total")).toContainText("Razem");
     await expect(page.locator("#wzFlowsTotal")).toContainText("Łącznie wypłacono netto");
+
+    await page.locator(".wz-method-details summary").click();
+    await expect(page.locator("#wzPolicyNote")).toContainText("Kolejność wypłat");
 
     // Wybrana polityka przechodzi do edytora razem z draftem.
     await page.locator("#wzNextBtn").click();

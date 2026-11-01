@@ -198,6 +198,23 @@ def test_ppk_early_withdrawal_forfeit_no_warning():
     assert result.total_withdrawn > 0
 
 
+def test_ppk_early_warning_is_single_and_complete():
+    stages = [
+        accumulation_stage(
+            {"ppk": acc(base_override_enabled=True, starting_balance=50000, monthly_base=8000)},
+            start=40,
+            end=47,
+        ),
+        realization_stage("PPK przed 60", {"ppk": acc(roi=0.02, buffer=0)}, 47, 60),
+    ]
+    result = simulate(SimulationInput(stages=stages, max_age=59, config=CFG_NOINFL))
+    warnings = [w for w in result.warnings if w.startswith("PPK:")]
+    assert len(warnings) == 1
+    assert "pierwsza wypłata w wieku 47 r.ż." in warnings[0]
+    assert "przepadają" in warnings[0]
+    assert "po 60 r.ż. 0%" in warnings[0]
+
+
 def test_ppk_starting_balance_treated_as_employee_money():
     # starting_balance bez składek — nie powinien ulec przepadkowi
     stages = [

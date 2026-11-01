@@ -209,11 +209,16 @@ bez TypeScript), SQLite, pytest. Odpowiadaj i pisz UI po polsku.
   tabela faz `#wzPhaseTable` (na mobile ukryta, bo karty osi czasu niosą te same
   dane), `#wzStageSummaryList` w `<details>`, sekcja **`#wzFlowsWrap`** („Wypłaty
   z poszczególnych kont”: Gantt `#wzFlowsGantt` + tabela/karty `#wzFlowsTable`)
-  i zwijany blok **„Jak liczymy ten plan?”** (metodologia netto/siła nabywcza).
+  i zwijany blok **„Jak liczymy ten plan?”** (metodologia netto/siła nabywcza,
+  a w `#wzPolicyNote` opis kolejności wypłat/progów podatkowych).
   Teksty „jak czytać” są schowane w tooltipach `.tip` przy tytułach sekcji oraz
-  w chipach `Ulga IKZE` / `Kolejność` / `Wcześniejszy zwrot IKZE` (`tipHtml`);
-  nie ma już akapitów-legend
-  ani notek pod tabelą faz. **Nie ma `#wzStagePreview`.** Przepływy per konto
+  w chipach `Ulga IKZE` / `Wcześniejszy zwrot IKZE` (`tipHtml`); nie ma już
+  akapitów-legend ani notek pod tabelą faz. **Nie ma `#wzStagePreview`.**
+  Gantt pokazuje kwoty na szerokich paskach (ze „zł”, gdy się mieści), a na
+  wąskich **litery faz (A, B, …)** — legenda `.wz-flows-legend` wyjaśnia, że
+  litera to faza z tabeli. Badge fazy i tabeli są w kolorze stage-real, nie
+  primary. Przyszłość: opcjonalny przycisk rozszerzenia + poziomy zoom/slider.
+  Przepływy per konto
   (`YearResult.withdrawals/taxes/health/ending_balances`) planner grupuje w
   `AccountPhase` (`PlanProjection.account_phases`): kolejne lata z wypłatami,
   podział przy progu wieku konta i istotnej zmianie kwoty (>20% i >100 zł/mies.),

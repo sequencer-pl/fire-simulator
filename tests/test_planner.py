@@ -52,6 +52,46 @@ def answers(**over):
     return WizardAnswers(**merged)
 
 
+def test_tiny_allocation_residual_does_not_create_cash():
+    a = answers(
+        age_now=40,
+        savings=7000,
+        use_ike=True,
+        use_ikze=True,
+        use_oipe=True,
+        use_broker=True,
+        gross_monthly=20500,
+        allocations={"broker": 19.26, "ike": 33.64, "ikze": 13.46, "oipe": 33.64},
+    )
+    alloc = _resolve_allocation(a, default_config(), 84_000)
+    assert alloc.get("gotowka", 0) == 0
+    assert alloc["broker"] == pytest.approx(16_180.8, abs=0.01)
+    assert alloc["ikze"] == pytest.approx(11_304, abs=0.01)
+
+
+def test_tiny_cash_contribution_does_not_trigger_warning():
+    def project(annual: float):
+        data = SimulationInput(
+            stages=[
+                P.StageInput(
+                    stage_type="akumulacja",
+                    start_age=40,
+                    end_age=47,
+                    accounts={
+                        "gotowka": P.AccountConfig(annual_contribution=annual)
+                    },
+                )
+            ],
+            config=default_config(),
+        )
+        proj = P.PlanProjection()
+        P._append_cash_warning(proj, data)
+        return proj
+
+    assert project(2.0).warnings == []
+    assert any("Z oszczędności 2 zł/mies." in w for w in project(24.0).warnings)
+
+
 # --- Stage structure -------------------------------------------------------
 
 

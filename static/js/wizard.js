@@ -543,6 +543,16 @@ function flowMonthlyLabel(phase) {
     return fmtZloty(avg);
 }
 
+function phaseBadge(n) {
+    let out = "";
+    while (n > 0) {
+        n -= 1;
+        out = String.fromCharCode(65 + (n % 26)) + out;
+        n = Math.floor(n / 26);
+    }
+    return out;
+}
+
 function renderAccountFlows(input, projection) {
     const wrap = document.getElementById("wzFlowsWrap");
     const gantt = document.getElementById("wzFlowsGantt");
@@ -557,6 +567,7 @@ function renderAccountFlows(input, projection) {
     const range = flowsRange(input, phases, compact);
     phases.forEach((p, idx) => {
         p._flowIndex = idx + 1;
+        p._flowLabel = phaseBadge(idx + 1);
     });
     const accountName = (acc) => (acc === "zus" ? "ZUS (emerytura)" : capitalLabel(acc));
 
@@ -584,10 +595,16 @@ function renderAccountFlows(input, projection) {
             const left = flowPct(p.start_age, range);
             const width = Math.max(0.8, flowPct(p.last_age + 1, range) - left);
             const short = Math.round(p.avg_monthly_net).toLocaleString("pl-PL");
-            const showAmount = width >= 6;
-            const label = showAmount ? short : String(p._flowIndex);
+            // Litera fazy jest na każdym pasku; kwota dochodzi tylko, gdy się mieści.
+            // TODO: opcjonalny expand + poziomy zoom/slider dla pełnych kwot na wąskich paskach.
+            const showUnit = width >= 11;
+            const showAmount = width >= 7.5;
+            const amountText = showUnit ? `${short} zł` : showAmount ? short : "";
+            const label =
+                `<span class="wz-gantt-phase-letter">${p._flowLabel}</span>` +
+                (amountText ? `<span class="wz-gantt-phase-value">${amountText}</span>` : "");
             const cls = showAmount ? "" : " is-index";
-            const tip = `${accountName(acc)}: ${p.start_age}–${p.last_age} r.ż., ≈ ${flowMonthlyLabel(p)} netto`;
+            const tip = `${accountName(acc)}: ${p.start_age}–${p.last_age} r.ż., ≈ ${flowMonthlyLabel(p)} netto · faza ${p._flowLabel}`;
             bars += `<span class="wz-gantt-phase${cls}" style="left:${left.toFixed(2)}%;width:${width.toFixed(2)}%" title="${escapeHtml(tip)}">${label}</span>`;
         });
         ganttHtml += `<div class="wz-gantt-row"><span class="wz-gantt-label">${accountIcon(acc)}<span>${escapeHtml(acc === "zus" ? "ZUS" : accountName(acc))}</span></span><div class="wz-gantt-track">${bars}</div></div>`;
@@ -646,7 +663,7 @@ function renderAccountFlows(input, projection) {
         const startLabel = p.account === "zus" ? "Kapitał ZUS" : "Saldo na start";
         tableHtml += `<tr>
             <td class="wz-flow-visual"><div class="wz-flow-mini"><span style="left:${left.toFixed(2)}%;width:${width.toFixed(2)}%"></span></div></td>
-            <td data-label="Konto"><span class="wz-flow-account-wrap"><span class="wz-flow-index">${p._flowIndex}</span><span class="wz-flow-account">${accountIcon(p.account)} ${escapeHtml(accountName(p.account))}</span></span></td>
+            <td data-label="Konto"><span class="wz-flow-account-wrap"><span class="wz-flow-index">${p._flowLabel}</span><span class="wz-flow-account">${accountIcon(p.account)} ${escapeHtml(accountName(p.account))}</span></span></td>
             <td data-label="${startLabel}" title="${startLabel}">${fmtZloty(p.starting_balance)} zł</td>
             <td data-label="Okres">${period}</td>
             <td data-label="Miesięcznie netto">≈ ${flowMonthlyLabel(p)} zł</td>
@@ -774,20 +791,21 @@ function renderMetrics(projection) {
             `<span class="chip wz-fact">Ulga IKZE: ${fmt(refundTotal)} zł${targetSuffix}${tipHtml(tip)}</span>`
         );
     }
-    const policy = projection.withdrawal_policy;
-    if (policy) {
-        const early = policy.startsWith("early");
-        const roi = policy.endsWith("_roi");
-        let tip = early
-            ? "Kolejność wypłat: najpierw IKZE (jednorazowe opodatkowanie przed 65), potem IKE po 60."
-            : "Kolejność wypłat: najpierw IKE i konta dostępne, IKZE później (10% po 65).";
-        tip += roi
-            ? " W ramach progu podatkowego najpierw konta z niższym ROI."
-            : " Asystent porównał warianty i wybrał ten o najwyższej wartości netto.";
-        const label = early ? "IKZE → IKE" : "IKE → IKZE";
-        facts.push(
-            `<span class="chip wz-fact">Kolejność: ${label}${tipHtml(tip)}</span>`
-        );
+    const policy = projection.withdrawal_policy || "";
+    const early = policy.startsWith("early");
+    const roi = policy.endsWith("_roi");
+    const policyNote = document.getElementById("wzPolicyNote");
+    if (policyNote) {
+        let text =
+            "Kolejność wypłat: najpierw konta dostępne bez kary, potem wcześniejsze z 19% " +
+            "(IKE/PPK/PPE przed 60), na końcu IKZE przed 65 (skala).";
+        text += early
+            ? " W tym planie IKZE jest opodatkowane wcześniej, a IKE/PPK schodzą później."
+            : " W tym planie nie wymuszamy wcześniejszego zwrotu IKZE — najpierw schodzą IKE/PPK i konta dostępne. Jeśli portfel nie wystarcza, silnik może odblokować IKZE wcześniej.";
+        text += roi
+            ? " W obrębie progu najpierw konta z niższym ROI."
+            : " W obrębie progu wypłaty idą proporcjonalnie do sald.";
+        policyNote.textContent = text;
     }
     const factsHtml = facts.length
         ? `<div class="wz-fact-row">${facts.join("")}</div>`
@@ -1891,10 +1909,16 @@ function refreshAllocationDisplay() {
     }
     if (cashNote) cashNote.hidden = !poolKnown;
 
-    const cashAnnual = poolKnown ? Math.max(0, poolAnnual - usedAnnual) : 0;
+    const rawCashAnnual = poolKnown ? Math.max(0, poolAnnual - usedAnnual) : 0;
+    // Resztki zaokrągleń (<1 zł/mies.) nie są realną alokacją — nie pokazuj wiersza.
+    const cashAnnual = rawCashAnnual < 12 ? 0 : rawCashAnnual;
     const cashPct = poolAnnual && poolAnnual > 0 ? (cashAnnual / poolAnnual) * 100 : 0;
     const cashRow = document.getElementById("wzAllocCashRow");
     if (cashRow) {
+        cashRow.classList.toggle(
+            "hidden",
+            !(cashAnnual >= 12 || capitalSaldo("gotowka") > 0)
+        );
         const readonly = wzAllocMode === "auto";
         cashRow.classList.toggle("is-over", over);
         cashRow.classList.toggle("wz-alloc-readonly", readonly);

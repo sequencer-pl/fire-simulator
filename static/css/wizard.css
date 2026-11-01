@@ -685,6 +685,14 @@
     padding-left: 1.1em;
 }
 
+.wz-method-policy {
+    margin: var(--sp-2) 0 0;
+    color: var(--text-2);
+    font-size: var(--fs-sm);
+}
+
+.wz-flows-legend { margin: 0 0 var(--sp-2); }
+
 /* --- Responsywność ------------------------------------------------------------------------------ */
 
 @media (max-width: 640px) {
@@ -848,6 +856,7 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
+    gap: 2px;
     overflow: hidden;
     padding: 0 4px;
     border-radius: var(--r-pill);
@@ -858,7 +867,13 @@
     white-space: nowrap;
 }
 
+.wz-gantt-phase-letter { font-weight: 800; }
+.wz-gantt-phase-value { font-weight: 700; }
+
+/* Etykieta fazy zostaje na zielonym pasku — bez fioletowego badge'a.
+   Ciasny padding pozwala zmieścić literę nawet na rocznym etapie. */
 .wz-gantt-phase.is-index {
+    padding: 0 1px;
     font-size: var(--fs-xs);
     font-weight: 700;
 }
@@ -937,9 +952,10 @@
     min-width: 20px;
     height: 20px;
     padding: 0 4px;
+    border: 1px solid color-mix(in srgb, var(--stage-real) 40%, transparent);
     border-radius: var(--r-pill);
-    background: var(--primary-soft);
-    color: var(--primary-text);
+    background: var(--stage-real-soft);
+    color: var(--text);
     font-size: var(--fs-xs);
     font-weight: 700;
     line-height: 1;
