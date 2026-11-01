@@ -859,9 +859,10 @@
     gap: 2px;
     overflow: hidden;
     padding: 0 4px;
+    border: 1px solid color-mix(in srgb, var(--stage-real) 50%, transparent);
     border-radius: var(--r-pill);
-    background: var(--stage-real);
-    color: var(--bg);
+    background: var(--stage-real-soft);
+    color: var(--text);
     font-size: var(--fs-xs);
     font-weight: 700;
     white-space: nowrap;
@@ -881,6 +882,7 @@
 .wz-gantt-phase.is-total {
     top: 4px;
     height: 18px;
+    border-color: transparent;
     background: var(--primary);
     color: var(--on-primary);
 }
@@ -952,7 +954,7 @@
     min-width: 20px;
     height: 20px;
     padding: 0 4px;
-    border: 1px solid color-mix(in srgb, var(--stage-real) 40%, transparent);
+    border: 1px solid color-mix(in srgb, var(--stage-real) 50%, transparent);
     border-radius: var(--r-pill);
     background: var(--stage-real-soft);
     color: var(--text);
