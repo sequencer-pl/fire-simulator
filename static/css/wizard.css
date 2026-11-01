@@ -164,8 +164,15 @@
 
 .wz-hint { margin: 0; }
 
-.wz-refund-note { margin-top: var(--sp-2); }
-.wz-withdrawal-note { margin-top: var(--sp-1); }
+.wz-fact-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sp-2);
+    margin-top: var(--sp-3);
+}
+
+.wz-fact { white-space: nowrap; }
+.wz-fact .tip { margin-left: 2px; }
 
 .wz-field-block > .wz-hint { margin-top: var(--sp-2); }
 
@@ -614,15 +621,11 @@
     font-size: var(--fs-sm);
 }
 
-.wz-phase-note {
-    margin-top: var(--sp-2);
-    color: var(--text-3);
-    font-size: var(--fs-sm);
-}
+.wz-stage-details,
+.wz-method-details { margin-top: var(--sp-3); }
 
-.wz-stage-details { margin-top: var(--sp-3); }
-
-.wz-stage-details summary {
+.wz-stage-details summary,
+.wz-method-details summary {
     cursor: pointer;
     color: var(--text-2);
     font-size: var(--fs-sm);
@@ -630,7 +633,8 @@
     padding: var(--sp-2) 0;
 }
 
-.wz-stage-details summary:hover { color: var(--text); }
+.wz-stage-details summary:hover,
+.wz-method-details summary:hover { color: var(--text); }
 
 .wz-stage-summary-list {
     display: flex;
@@ -639,16 +643,23 @@
     margin-top: var(--sp-2);
 }
 
-.wz-stage-note {
-    color: var(--text-3);
+.wz-method-details {
+    margin-top: var(--sp-4);
+    padding-top: var(--sp-3);
+    border-top: 1px solid var(--border);
+}
+
+.wz-method-body {
+    margin-top: var(--sp-2);
+    color: var(--text-2);
     font-size: var(--fs-sm);
 }
 
-.wz-result-note {
-    padding-top: var(--sp-3);
-    border-top: 1px solid var(--border);
-    color: var(--text-3);
-    font-size: var(--fs-sm);
+.wz-method-body ul {
+    display: grid;
+    gap: var(--sp-1);
+    margin: 0;
+    padding-left: 1.1em;
 }
 
 /* --- Responsywność ------------------------------------------------------------------------------ */
@@ -730,8 +741,6 @@
 /* --- Krok 6: wypłaty z poszczególnych kont ------------------------------------------------ */
 
 .wz-flows-wrap { margin-top: var(--sp-4); min-width: 0; max-width: 100%; }
-
-.wz-flows-legend { margin: 0 0 var(--sp-2); }
 
 .wz-flows-gantt {
     min-width: 0;

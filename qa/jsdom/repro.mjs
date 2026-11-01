@@ -758,17 +758,24 @@ const harness = `
             && rows.length === 4
             && table.includes("Składniki")
             && flat(table).includes("portfel2000+ZUS3000")
-            && table.includes("szacunek z coroczną waloryzacją");
+            && document
+                .querySelector('.wz-step[data-step="6"] .wz-timeline-wrap .tooltip')
+                ?.textContent.includes("sumują się");
     });
     wzPlan = null;
     wzSelectedScenario = "realne";
 
-    // ---- Notatka o wypłatach netto w bloku wyniku (krok 6) ----
-    check("notatka o wypłatach netto w bloku wyniku, brak #wzStagePreview", () => {
+    // ---- Metodologia w zwijanym bloku (krok 6) ----
+    check("metodologia netto w zwijanym bloku, brak #wzStagePreview", () => {
         setStep(6);
-        const note = document.querySelector('.wz-step[data-step="6"] .wz-result-note');
-        return !!note
-            && note.textContent.includes("netto")
+        const summary = document.querySelector(
+            '.wz-step[data-step="6"] .wz-method-details summary'
+        );
+        const body = document.querySelector('.wz-step[data-step="6"] .wz-method-body');
+        return !!summary
+            && summary.textContent.includes("netto")
+            && !!body
+            && body.textContent.includes("edukacyjny")
             && document.getElementById("wzStagePreview") === null;
     });
 

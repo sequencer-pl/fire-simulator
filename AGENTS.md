@@ -203,7 +203,10 @@ bez TypeScript), SQLite, pytest. Odpowiadaj i pisz UI po polsku.
   tabela faz `#wzPhaseTable` (na mobile ukryta, bo karty osi czasu niosą te same
   dane), `#wzStageSummaryList` w `<details>`, sekcja **`#wzFlowsWrap`** („Wypłaty
   z poszczególnych kont”: Gantt `#wzFlowsGantt` + tabela/karty `#wzFlowsTable`)
-  i nota o kwotach netto. **Nie ma `#wzStagePreview`.** Przepływy per konto
+  i zwijany blok **„Jak liczymy ten plan?”** (metodologia netto/siła nabywcza).
+  Teksty „jak czytać” są schowane w tooltipach `.tip` przy tytułach sekcji oraz
+  w chipach `Ulga IKZE` / `Kolejność` (`tipHtml`); nie ma już akapitów-legend
+  ani notek pod tabelą faz. **Nie ma `#wzStagePreview`.** Przepływy per konto
   (`YearResult.withdrawals/taxes/health/ending_balances`) planner grupuje w
   `AccountPhase` (`PlanProjection.account_phases`): kolejne lata z wypłatami,
   podział przy progu wieku konta i istotnej zmianie kwoty (>20% i >100 zł/mies.),

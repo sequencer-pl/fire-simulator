@@ -89,6 +89,16 @@ test("IKZE: cel zwrotu jest wymagany, auto-dodaje konto i blokuje symulację", a
     expect(payload.stages[0].accounts.ikze.ikze_refund_target).toBe("none");
 });
 
+test("tooltipy nie rozpychają strony w poziomie", async ({ page }) => {
+    await page.goto("/sim?view=config", { waitUntil: "networkidle" });
+    await page.evaluate(() => document.fonts.ready);
+    await page.waitForTimeout(200);
+    const overflow = await page.evaluate(
+        () => document.body.scrollWidth - window.innerWidth
+    );
+    expect(overflow).toBeLessThanOrEqual(0);
+});
+
 test("nazwa etapu z importu jest escapowana", async ({ page }) => {
     await page.goto("/sim", { waitUntil: "networkidle" });
     const evil = '"><img src=x onerror=alert(1)>';

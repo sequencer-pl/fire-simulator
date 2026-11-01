@@ -52,9 +52,12 @@ test("krok 5: nota sugeruje IKE jako cel zwrotu IKZE", async ({ page }) => {
     await expect(page.locator("#wzAllocRefundNote")).toContainText("Zwrot IKZE automatycznie zasili IKE");
 
     await page.locator("#wzNextBtn").click();
-    await expect(page.locator(".wz-withdrawal-note")).toContainText("Kolejność wypłat", {
-        timeout: 30_000,
-    });
+    const policyChip = page.locator(".wz-fact-row .wz-fact").filter({ hasText: "Kolejność:" });
+    await expect(policyChip).toBeVisible({ timeout: 30_000 });
+    await expect(policyChip.locator(".tooltip")).toContainText("Kolejność wypłat");
+    await expect(
+        page.locator(".wz-fact-row .wz-fact").filter({ hasText: "Ulga IKZE:" })
+    ).toBeVisible();
     await expect(page.locator("#wzFlowsWrap")).toBeVisible();
     await expect(page.locator("#wzFlowsTable tbody tr")).toHaveCount(6);
     await expect(page.locator("#wzFlowsTable thead")).toContainText("Podatki i składki");

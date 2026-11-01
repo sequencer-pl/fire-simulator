@@ -671,7 +671,7 @@ function renderScenarios(data) {
     const icons = { konserwatywne: iconSvg("rain"), realne: iconSvg("cloud"), optymistyczne: iconSvg("sun") };
     const path = data.path || currentPath();
 
-    let html = `<h3 class="eyebrow wz-panel-title">Scenariusze rynkowe</h3><div class="wz-scenarios-grid">`;
+    let html = `<h3 class="eyebrow wz-panel-title">${tipLabelHtml("Scenariusze rynkowe", "Kliknij kartę, aby zobaczyć szczegóły i otworzyć scenariusz w symulatorze.")}</h3><div class="wz-scenarios-grid">`;
     keys.forEach((key) => {
         const s = scenarios[key];
         const selected = key === wzSelectedScenario;
@@ -730,40 +730,51 @@ function renderMetrics(projection) {
     html += `<div class="metric${(projection.final_wealth || 0) <= 0 ? " is-muted" : ""}"><span class="metric-label">Na koniec brutto</span><span class="metric-value">${fmt(projection.final_wealth)} zł</span></div>`;
     html += `<div class="metric${(projection.final_wealth_net || 0) <= 0 ? " is-muted" : ""}" title="Po podatku od likwidacji kont na koniec horyzontu"><span class="metric-label">Na koniec netto</span><span class="metric-value">${fmt(projection.final_wealth_net ?? projection.final_wealth)} zł</span></div>`;
     const refundTotal = projection.ikze_refund_total || 0;
-    const refundParts = Object.entries(projection.ikze_refund_allocations || {})
-        .filter(([, amount]) => amount > 0.5)
-        .map(([acc, amount]) => `${escapeHtml(ACCOUNT_LABELS[acc] || acc)}: ${fmt(amount)} zł`);
-    const refundAllocated = Object.values(projection.ikze_refund_allocations || {})
-        .reduce((sum, amount) => sum + amount, 0);
-    let refundNote = "";
+    const refundEntries = Object.entries(projection.ikze_refund_allocations || {}).filter(
+        ([, amount]) => amount > 0.5
+    );
+    const refundParts = refundEntries.map(
+        ([acc, amount]) => `${ACCOUNT_LABELS[acc] || acc}: ${fmt(amount)} zł`
+    );
+    const refundTargets = refundEntries.map(([acc]) => ACCOUNT_LABELS[acc] || acc);
+    const refundAllocated = refundEntries.reduce((sum, [, amount]) => sum + amount, 0);
+    const facts = [];
     if (refundTotal > 0) {
-        let text = `Z ulgi IKZE wróciło ${fmt(refundTotal)} zł.`;
+        let tip = refundParts.length
+            ? `Zainwestowano: ${refundParts.join(", ")}.`
+            : "Nie ma celu reinwestycji — kwota pozostaje jako obniżenie podatku (nie jest reinwestowana).";
         if (refundParts.length) {
-            text += ` Zainwestowano: ${refundParts.join(", ")}.`;
-            text += " Ulga wraca co roku i powiększa kapitał; bez reinwestycji nadal obniżałaby podatek, ale nie zwiększałaby majątku.";
-        } else {
-            text += " Nie ma celu reinwestycji — kwota pozostaje jako obniżenie podatku (nie jest reinwestowana).";
+            tip += " Ulga wraca co roku i powiększa kapitał; bez reinwestycji nadal obniżałaby podatek, ale nie zwiększałaby majątku.";
         }
         const unallocated = refundTotal - refundAllocated;
         if (refundParts.length && unallocated > 0.5) {
-            text += ` Nierozdysponowane ${fmt(unallocated)} zł pozostaje jako obniżenie podatku (nie jest reinwestowane).`;
+            tip += ` Nierozdysponowane ${fmt(unallocated)} zł pozostaje jako obniżenie podatku.`;
         }
-        refundNote = `<p class="field-hint wz-refund-note">${text}</p>`;
+        const targetSuffix =
+            refundTargets.length === 1 ? ` → ${escapeHtml(refundTargets[0])}` : "";
+        facts.push(
+            `<span class="chip wz-fact">Ulga IKZE: ${fmt(refundTotal)} zł${targetSuffix}${tipHtml(tip)}</span>`
+        );
     }
     const policy = projection.withdrawal_policy;
-    let policyNote = "";
     if (policy) {
         const early = policy.startsWith("early");
         const roi = policy.endsWith("_roi");
-        let text = early
+        let tip = early
             ? "Kolejność wypłat: najpierw IKZE (jednorazowy zwrot przed 65), potem IKE po 60."
             : "Kolejność wypłat: najpierw IKE i konta dostępne, IKZE później (10% po 65).";
-        text += roi
+        tip += roi
             ? " W ramach progu podatkowego najpierw konta z niższym ROI."
-            : " Auto porównało warianty i wybrało ten o najwyższej wartości netto.";
-        policyNote = `<p class="field-hint wz-withdrawal-note">${text}</p>`;
+            : " Asystent porównał warianty i wybrał ten o najwyższej wartości netto.";
+        const label = early ? "IKZE → IKE" : "IKE → IKZE";
+        facts.push(
+            `<span class="chip wz-fact">Kolejność: ${label}${tipHtml(tip)}</span>`
+        );
     }
-    box.innerHTML = `<div class="metric-grid is-wide">${html}</div>${refundNote}${policyNote}`;
+    const factsHtml = facts.length
+        ? `<div class="wz-fact-row">${facts.join("")}</div>`
+        : "";
+    box.innerHTML = `<div class="metric-grid is-wide">${html}</div>${factsHtml}`;
     box.classList.remove("hidden");
 }
 
@@ -838,33 +849,6 @@ function renderStageSummaryList(input, projection) {
             ${pills}${finance}`;
         box.appendChild(row);
     });
-
-    // Supplement + ZUS run in parallel after retirement; their component
-    // amounts add up to the total net payout shown in the metrics.
-    const zusStages = input.stages.filter(
-        (st) => st.stage_type === "realizacja" && st.accounts && st.accounts.zus
-    );
-    const portfolioStages = input.stages.filter(
-        (st) => st.stage_type === "realizacja" && !(st.accounts && st.accounts.zus)
-    );
-    let overlap = null;
-    for (const portfolioStage of portfolioStages) {
-        const zusStage = zusStages.find(
-            (z) => portfolioStage.start_age < z.end_age && z.start_age < portfolioStage.end_age
-        );
-        if (zusStage) {
-            overlap = { portfolioStage, zusStage };
-            break;
-        }
-    }
-    if (overlap) {
-        const note = document.createElement("p");
-        note.className = "wz-stage-note";
-        const portfolioName = overlap.portfolioStage.name || "Dopłata do emerytury";
-        const zusName = overlap.zusStage.name || "Emerytura ZUS";
-        note.textContent = `W latach nakładania się etapów „${portfolioName}” i „${zusName}” kwoty się sumują — to łączna wypłata netto.`;
-        box.appendChild(note);
-    }
 }
 
 async function postJson(url, body, errorLabel) {
@@ -1064,17 +1048,6 @@ function renderPhaseTable(projection) {
                 </tr>`;
         })
         .join("");
-    const hasTopup = phases.some(
-        (phase) => phase.key === "retirement_topup" && phase.zus_monthly > 0
-    );
-    const hasZusOnly = phases.some((phase) => phase.key === "zus_only");
-    let note = "";
-    if (hasTopup) {
-        note = "W etapie „Emerytura + dopłata” kwoty portfela i ZUS sumują się do łącznej wypłaty netto.";
-    }
-    if (hasZusOnly) {
-        note += `${note ? " " : ""}Sama emerytura ZUS po horyzoncie to szacunek z coroczną waloryzacją.`;
-    }
     box.innerHTML = `
         <div class="wz-phase-table-wrap">
             <table class="wz-phase-table" aria-label="Szczegóły etapów planu">
@@ -1083,13 +1056,12 @@ function renderPhaseTable(projection) {
                         <th scope="col">Etap</th>
                         <th scope="col">Wiek</th>
                         <th scope="col">Miesięcznie</th>
-                        <th scope="col">Składniki</th>
+                        <th scope="col" title="Kwoty portfela i ZUS sumują się do wypłaty netto.">Składniki</th>
                     </tr>
                 </thead>
                 <tbody>${rows}</tbody>
             </table>
-        </div>
-        ${note ? `<p class="wz-phase-note">${note}</p>` : ""}`;
+        </div>`;
 }
 
 function updateFooterNav(n) {
@@ -2296,6 +2268,7 @@ function initNav() {
 function initWizard() {
     if (wzInitialized) return;
     wzInitialized = true;
+    if (typeof initTipAnchoring === "function") initTipAnchoring();
     buildCapitalGrid();
     initSteppers();
     initSavingsMode();

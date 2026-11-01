@@ -263,7 +263,7 @@
     <!-- KROK 6: WYNIK I PODSUMOWANIE -->
     <section class="card wz-step hidden" data-step="6">
         <h2>Twój plan FIRE</h2>
-        <p class="subtitle">Odpowiedź na Twoje pytanie i porównanie w trzech scenariuszach rynkowych. Kliknij scenariusz, aby zobaczyć jego szczegóły i otworzyć go w symulatorze.</p>
+        <p class="subtitle">Twój plan w trzech scenariuszach rynkowych.</p>
 
         <div class="loader card-inset hidden" id="wzPlanLoader" role="status" aria-live="polite">
             <span class="spinner"></span>
@@ -281,7 +281,12 @@
             <div id="wzSolved" class="wz-solved hidden"></div>
             <div id="wzWarnings" class="wz-warnings" aria-live="polite"></div>
             <div class="wz-timeline-wrap">
-                <h3 class="eyebrow wz-panel-title">Oś czasu etapów planu</h3>
+                <h3 class="eyebrow wz-panel-title">
+                    <span class="tip-label-row">
+                        <span class="tip-label-text">Oś czasu etapów planu</span>
+                        <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">W etapie emerytury kwoty portfela i ZUS sumują się do łącznej wypłaty netto.</span></span>
+                    </span>
+                </h3>
                 <div class="wz-timeline" id="wzTimeline"></div>
                 <div class="wz-phase-table" id="wzPhaseTable"></div>
                 <details class="wz-stage-details">
@@ -290,8 +295,12 @@
                 </details>
             </div>
             <div class="wz-flows-wrap hidden" id="wzFlowsWrap">
-                <h3 class="eyebrow wz-panel-title">Wypłaty z poszczególnych kont</h3>
-                <p class="field-hint wz-flows-legend">Pasek pokazuje okres wypłat danego konta. Kwoty netto; ZUS płaci 9% składki zdrowotnej, a jednorazowy podatek IKZE jest pokazany osobno.</p>
+                <h3 class="eyebrow wz-panel-title">
+                    <span class="tip-label-row">
+                        <span class="tip-label-text">Wypłaty z poszczególnych kont</span>
+                        <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">Pasek pokazuje okres wypłat danego konta. Kwoty netto; ZUS płaci 9% składki zdrowotnej, a jednorazowy podatek IKZE jest pokazany osobno.</span></span>
+                    </span>
+                </h3>
                 <div class="wz-flows-gantt-scroll">
                     <div class="wz-flows-gantt" id="wzFlowsGantt"></div>
                 </div>
@@ -299,7 +308,16 @@
                 <p class="wz-flows-total-note" id="wzFlowsTotal"></p>
                 <div class="wz-flows-table-wrap" id="wzFlowsTable"></div>
             </div>
-            <p class="wz-result-note">Wszystkie kwoty są podane netto (po podatku) w dzisiejszej sile nabywczej. Symulacja ma charakter edukacyjny i opiera się na założonych stopach zwrotu.</p>
+            <details class="wz-method-details">
+                <summary>Jak liczymy ten plan? · kwoty netto w dzisiejszej sile nabywczej</summary>
+                <div class="wz-method-body">
+                    <ul>
+                        <li>Wszystkie kwoty są netto (po podatku) i w dzisiejszej sile nabywczej.</li>
+                        <li>ZUS: emerytura po 9% składce zdrowotnej, waloryzowana realnie 0/1/2% zależnie od scenariusza. Sama emerytura ZUS po horyzoncie planu to szacunek.</li>
+                        <li>Symulacja ma charakter edukacyjny i opiera się na założonych stopach zwrotu.</li>
+                    </ul>
+                </div>
+            </details>
         </div>
     </section>
 

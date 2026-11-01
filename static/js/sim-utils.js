@@ -5,7 +5,7 @@ function tipHtml(text, url, icon = "?") {
     const link = url
         ? ` <a href="${url}" target="_blank" rel="noopener">Więcej…</a>`
         : "";
-    return ` <span class="tip" tabindex="0">${icon}<span class="tooltip">${escapeHtml(text)}${link}</span></span>`;
+    return ` <span class="tip" tabindex="0" aria-label="Wyjaśnienie">${icon}<span class="tooltip">${escapeHtml(text)}${link}</span></span>`;
 }
 
 function tipLabelHtml(label, description, url, icon = "?") {
@@ -75,6 +75,23 @@ function initTipAnchoring() {
         };
         window.addEventListener("resize", schedule);
         document.addEventListener("scroll", schedule, true);
+
+        // Dynamiczne widoki (konfiguracja, krok 6) dokładają tooltipy po
+        // pierwszym renderze. Bez tego ich ukryte boxy mogą wystawać poza
+        // viewport i rozpychać stronę o kilka pikseli.
+        let allTicking = false;
+        const scheduleAll = () => {
+            if (allTicking) return;
+            allTicking = true;
+            requestAnimationFrame(() => {
+                allTicking = false;
+                _positionAllTips();
+            });
+        };
+        new MutationObserver(scheduleAll).observe(document.body, {
+            childList: true,
+            subtree: true,
+        });
     }
     _positionAllTips();
 }
