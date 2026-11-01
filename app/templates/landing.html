@@ -5,13 +5,48 @@
 {% block head_extra %}<link rel="stylesheet" href="/static/css/landing.css?v={{ version }}">{% endblock %}
 {% block content %}
         <section class="hero">
-            <p class="eyebrow">Polski planer FIRE</p>
-            <h2>Zaplanuj swoją drogę do niezależności finansowej</h2>
-            <p class="hero-lead">ZUS, PPK, IKE, IKZE, OKI i zwykły rachunek maklerski w jednym modelu. Wszystko w dzisiejszych złotych, z polskimi podatkami i limitami, bez obietnic.</p>
-            <div class="btn-row hero-actions">
-                <a href="/wizard" class="btn btn-primary">Zacznij od Asystenta</a>
-                <a href="/sim" class="btn btn-secondary">Otwórz symulator</a>
+            <div class="hero-copy">
+                <p class="eyebrow">Polski planer FIRE</p>
+                <h2>Zaplanuj swoją drogę do niezależności finansowej</h2>
+                <p class="hero-lead">ZUS, PPK, IKE, IKZE, OKI i zwykły rachunek maklerski w jednym modelu. Wszystko w dzisiejszych złotych, z polskimi podatkami i limitami, bez obietnic.</p>
+                <div class="btn-row hero-actions">
+                    <a href="/wizard" class="btn btn-primary">Zacznij od Asystenta</a>
+                    <a href="/sim" class="btn btn-secondary">Otwórz symulator</a>
+                </div>
             </div>
+            <aside class="hero-preview" aria-label="Przykładowa oś czasu planu FIRE">
+                <div class="hero-preview-head">
+                    <div>
+                        <span class="eyebrow">Przykładowy plan</span>
+                        <p class="hero-preview-title">Od wpłat do emerytury</p>
+                    </div>
+                    <span class="chip">3 scenariusze</span>
+                </div>
+                <div class="hero-track" aria-hidden="true">
+                    <span class="hero-seg is-accum"></span>
+                    <span class="hero-seg is-bridge"></span>
+                    <span class="hero-seg is-retire"></span>
+                    <span class="hero-pin"></span>
+                </div>
+                <div class="hero-marks">
+                    <div class="hero-mark">
+                        <span class="hero-mark-title">Akumulacja</span>
+                        <span class="hero-mark-age">40–55 r.ż.</span>
+                        <span class="hero-mark-desc">wpłaty</span>
+                    </div>
+                    <div class="hero-mark is-center">
+                        <span class="hero-mark-title">FIRE</span>
+                        <span class="hero-mark-age">55–65 r.ż.</span>
+                        <span class="hero-mark-desc">wypłaty</span>
+                    </div>
+                    <div class="hero-mark is-end">
+                        <span class="hero-mark-title">Emerytura</span>
+                        <span class="hero-mark-age">65+</span>
+                        <span class="hero-mark-desc">ZUS + portfel</span>
+                    </div>
+                </div>
+                <p class="hero-preview-note">Dla 40-latka · Twój plan dopasuje Asystent</p>
+            </aside>
         </section>
 
         <section class="landing-grid" aria-label="Dostępne sekcje">

@@ -1,9 +1,40 @@
 /* landing.css — strona startowa i logowanie. Tylko układ; kolory i klocki z components.css. */
 
 .hero {
-    max-width: 720px;
-    padding: var(--sp-6) 0 var(--sp-4);
+    position: relative;
+    isolation: isolate;
+    display: grid;
+    grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr);
+    gap: clamp(var(--sp-5), 5vw, var(--sp-8));
+    align-items: center;
+    max-width: none;
+    padding: var(--sp-6) 0 var(--sp-6);
+    overflow: clip;
 }
+
+/* Delikatna poświata pod hero — wypełnia szeroki ekran bez dokładania treści. */
+.hero::before {
+    content: "";
+    position: absolute;
+    z-index: -1;
+    inset: -20px -8vw -30px 30%;
+    background:
+        radial-gradient(
+            ellipse at 70% 35%,
+            color-mix(in srgb, var(--primary) 16%, transparent),
+            transparent 62%
+        ),
+        radial-gradient(
+            ellipse at 35% 75%,
+            color-mix(in srgb, var(--stage-real) 10%, transparent),
+            transparent 60%
+        );
+    filter: blur(28px);
+    opacity: 0.9;
+    pointer-events: none;
+}
+
+.hero-copy { min-width: 0; }
 
 .hero h2 {
     font-size: clamp(1.6rem, 3.4vw, 2.4rem);
@@ -17,8 +48,103 @@
     font-size: var(--fs-lg);
     line-height: 1.5;
     margin-bottom: var(--sp-5);
-    max-width: 64ch;
+    max-width: 58ch;
     text-wrap: pretty;
+}
+
+/* Mini-oś czasu po prawej stronie hero. */
+.hero-preview {
+    width: 100%;
+    max-width: 520px;
+    justify-self: end;
+    padding: var(--sp-5);
+    border: 1px solid var(--border);
+    border-radius: var(--r-lg);
+    background: var(--surface);
+}
+
+.hero-preview-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--sp-3);
+    margin-bottom: var(--sp-4);
+}
+
+.hero-preview-title {
+    margin: 2px 0 0;
+    font-size: var(--fs-md);
+    font-weight: 650;
+}
+
+.hero-track {
+    position: relative;
+    display: flex;
+    gap: 3px;
+    height: 18px;
+    padding: 3px;
+    border-radius: var(--r-pill);
+    background: var(--surface-2);
+}
+
+.hero-seg {
+    height: 100%;
+    border-radius: var(--r-pill);
+}
+
+.hero-seg.is-accum { flex: 46; background: var(--stage-accum); }
+.hero-seg.is-bridge { flex: 18; background: var(--stage-real); }
+.hero-seg.is-retire {
+    flex: 36;
+    background: color-mix(in srgb, var(--stage-real) 42%, var(--surface-2));
+}
+
+.hero-pin {
+    position: absolute;
+    top: 50%;
+    left: calc(49% - 6px);
+    width: 8px;
+    height: 8px;
+    margin-top: -6px;
+    border: 2px solid var(--surface);
+    border-radius: 50%;
+    background: var(--text);
+}
+
+.hero-marks {
+    display: grid;
+    grid-template-columns: 46fr 18fr 36fr;
+    gap: 3px;
+    margin-top: var(--sp-2);
+}
+
+.hero-mark {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
+}
+
+.hero-mark-title { font-size: var(--fs-xs); font-weight: 700; }
+.hero-mark-age {
+    color: var(--text-2);
+    font-size: var(--fs-xs);
+    font-variant-numeric: tabular-nums;
+}
+.hero-mark-desc {
+    color: var(--text-3);
+    font-size: var(--fs-xs);
+    line-height: 1.35;
+}
+.hero-mark.is-center { text-align: center; }
+.hero-mark.is-end { text-align: right; }
+
+.hero-preview-note {
+    margin: var(--sp-3) 0 0;
+    padding-top: var(--sp-2);
+    border-top: 1px solid var(--border);
+    color: var(--text-3);
+    font-size: var(--fs-xs);
 }
 
 .landing-grid {
@@ -177,6 +303,19 @@
 .login-head .page-lead { margin: var(--sp-2) auto 0; }
 
 @media (max-width: 900px) {
+    .hero {
+        grid-template-columns: 1fr;
+        gap: var(--sp-4);
+        align-items: start;
+    }
+    .hero-preview {
+        max-width: 640px;
+        justify-self: start;
+    }
+    .hero::before {
+        inset: -10px -10vw auto 0;
+        height: 70%;
+    }
     .about-grid { grid-template-columns: 1fr; }
     .principles-grid { grid-template-columns: 1fr; }
 }
@@ -184,6 +323,11 @@
 @media (max-width: 640px) {
     .landing-grid { grid-template-columns: 1fr; }
     .hero { padding-top: var(--sp-2); }
+    .hero-lead { max-width: none; }
+    .hero-preview {
+        max-width: none;
+        padding: var(--sp-4);
+    }
     .hero-actions .btn { flex: 1 1 100%; }
     .recent-item-side { display: none; }
 }
