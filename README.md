@@ -187,7 +187,7 @@ To narzędzie do myślenia, nie do wróżenia. **Nie jest poradą inwestycyjną 
 
 ## Autorstwo
 
-Projekt powstał metodą *vibe-coding*: kod napisał asystent AI (opencode, model big-pickle) w trakcie interaktywnych sesji z właścicielem repozytorium (sequencer-pl), który pełnił rolę nadzoru merytorycznego, recenzenta i akceptanta — w jego imieniu i pod jego czujnym okiem. Wszelkie błędy modelowe są efektem wspólnych, czasem zbyt śmiałych, decyzji. :)
+Projekt powstał metodą *vibe-coding*: kod napisali asystenci AI (opencode — różne modele w kolejnych sesjach) w trakcie interaktywnych sesji z właścicielem repozytorium (sequencer-pl), który pełnił rolę nadzoru merytorycznego, recenzenta i akceptanta — w jego imieniu i pod jego czujnym okiem. Wszelkie błędy modelowe są efektem wspólnych, czasem zbyt śmiałych, decyzji. :)
 
 ## Licencja
 
