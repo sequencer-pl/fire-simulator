@@ -281,6 +281,7 @@ STAGE_META: dict[str, dict[str, Any]] = {
                         "type": "select",
                         "options": [
                             {"value": "", "label": "— wybierz konto —"},
+                            {"value": "auto", "label": "Auto (IKE → OIPE → broker)"},
                             {"value": "ike", "label": "IKE"},
                             {"value": "oipe", "label": "OIPE"},
                             {"value": "broker", "label": "Broker"},

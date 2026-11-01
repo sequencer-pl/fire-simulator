@@ -79,7 +79,8 @@ class SimulationInput(BaseModel):
     )
     # Polityka wypłat w etapach realizacji:
     # - defer_tier: najpierw konta dostępne/IKE, IKZE później (zachowanie legacy),
-    # - early_tier: wymuś jednorazowy zwrot IKZE na starcie realizacji przed 65,
+    # - early_tier: wymuś opodatkowanie całości IKZE na starcie realizacji przed 65
+    #   (netto jest reinwestowane w konto docelowe),
     # - defer_roi / early_roi: jak wyżej, ale w ramach progu podatkowego najpierw
     #   konta o niższym ROI (chroni wysokostopowe konta dłużej).
     # "auto" rozwija Asystent; samo simulate() traktuje je jak defer_tier.
@@ -117,6 +118,10 @@ class SimulationResult(BaseModel):
     total_withdrawn: float
     total_tax: float
     total_health: float = 0.0
+    # Wcześniejszy zwrot IKZE: netto po podatku i jego reinwestycja.
+    early_return_total: float = 0.0
+    early_return_tax_total: float = 0.0
+    early_return_allocations: dict[str, float] = Field(default_factory=dict)
     # Podatek, który zostałby zapłacony przy likwidacji wszystkich sald na
     # koniec planu (IKZE 10% po 65 r.ż., skala przed; IKE 0%; broker 19% od zysku).
     exit_tax: float = 0.0

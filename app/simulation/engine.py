@@ -8,6 +8,7 @@ from app.core.tax import danina_solidarnosciowa, scale_tax
 from app.simulation.config import ACCOUNT_LABELS, AccountRules, TaxConfig
 from app.simulation.constants import DEFAULT_ROI, MONTHS_PER_YEAR, PPE_ZUS_FRACTION
 from app.simulation.schemas import (
+    AccountConfig,
     SimulationInput,
     SimulationResult,
     StageInput,
@@ -42,6 +43,9 @@ class SimulationState:
     ikze_refund_total: float = 0.0
     ikze_refund_unallocated: float = 0.0
     ikze_refund_allocations: dict[str, float] = field(default_factory=dict)
+    early_return_total: float = 0.0
+    early_return_tax_total: float = 0.0
+    early_return_allocations: dict[str, float] = field(default_factory=dict)
     withdrawal_policy: str = "defer_tier"
 
     def __iter__(self):
@@ -205,7 +209,7 @@ def _process_ikze_returns(
     zus_pension: float = 0.0,
     state: SimulationState | None = None,
     target: float | None = None,
-) -> tuple[dict[str, float], set[str]]:
+) -> tuple[dict[str, float], set[str], dict[str, float]]:
     if state is not None:
         balances = state.balances
         config = state.config
@@ -214,8 +218,8 @@ def _process_ikze_returns(
     force_early = state is not None and state.withdrawal_policy.startswith("early_")
     # One-time IKZE early return before qualifying age (e.g. 65):
     # Combined scale tax on IKZE balance + ZUS pension for the year,
-    # prorated proportionally. IKZE share is deducted from capital
-    # before PMT, so installments are based on net capital.
+    # prorated proportionally. Po opodatkowaniu całe netto opuszcza IKZE;
+    # _run_year reinwestuje je w konto docelowe (nie zostaje w IKZE).
     ikze_accounts: list[tuple[str, float]] = []
     for si in active_stages:
         if si.stage_type != "realizacja":
@@ -257,7 +261,7 @@ def _process_ikze_returns(
             ikze_accounts.append((acc, balances.get(acc, 0.0)))
 
     if not ikze_accounts:
-        return {}, set()
+        return {}, set(), {}
 
     total_ikze = sum(bal for _, bal in ikze_accounts)
     combined = total_ikze + zus_pension
@@ -269,12 +273,14 @@ def _process_ikze_returns(
     )
 
     early_return_tax: dict[str, float] = {}
+    early_return_net: dict[str, float] = {}
     handled_scale: set[str] = set()
 
     for acc, bal in ikze_accounts:
         share = combined_tax * (bal / combined) if combined > 0 else 0.0
         early_return_tax[acc] = share
-        balances[acc] = max(0.0, bal - share)
+        early_return_net[acc] = max(0.0, bal - share)
+        balances[acc] = 0.0
         early_returned.add(acc)
 
     if zus_pension > 0:
@@ -282,7 +288,7 @@ def _process_ikze_returns(
         early_return_tax["zus"] = zus_share
         handled_scale.add("zus")
 
-    return early_return_tax, handled_scale
+    return early_return_tax, handled_scale, early_return_net
 
 
 def _process_ppk_forfeits(
@@ -865,6 +871,84 @@ def _ikze_refund_room(target: str, si: StageInput, state: SimulationState) -> fl
     return max(0.0, limit - cfg.annual_contribution)
 
 
+def _ensure_reinvestment_account(
+    stage: StageInput,
+    target: str,
+    state: SimulationState,
+    all_stages: list[StageInput],
+    age: int,
+) -> None:
+    """Dodaje konto docelowe do etapu i przyszłych etapów portfelowych."""
+    if target in stage.accounts:
+        return
+    rules = state.config.accounts.get(target)
+    roi = state.account_rois.get(target, rules.default_roi if rules else 0.0)
+    if target == "gotowka":
+        roi = 0.0
+    cfg = AccountConfig(starting_balance=0.0, roi=roi, buffer=0.0)
+    for past in all_stages:
+        if past.stage_type == "akumulacja" and target not in past.accounts:
+            past.accounts[target] = cfg.model_copy(deep=True)
+    for future in all_stages:
+        if (
+            future.stage_type == "realizacja"
+            and future.start_age >= age
+            and "zus" not in future.accounts
+            and target not in future.accounts
+        ):
+            future.accounts[target] = cfg.model_copy(deep=True)
+
+
+def _reinvest_early_return(
+    state: SimulationState,
+    stage: StageInput,
+    all_stages: list[StageInput],
+    amount: float,
+    age: int,
+    year_start_balances: dict[str, float],
+) -> None:
+    """Reinwestuje netto z wcześniejszego zwrotu IKZE w konto docelowe.
+
+    Kolejność jak przy zwrocie ulgi IKZE (IKE/OIPE do limitu, potem broker,
+    obligacje, lokata, gotówka). Kwota jest już po podatku; zwiększa basis,
+    więc przyszła Belka liczy się tylko od zysku.
+    """
+    if amount <= 1e-9:
+        return
+    ikze_cfg = stage.accounts.get("ikze")
+    setting = ikze_cfg.ikze_refund_target if ikze_cfg else "auto"
+    if setting == "auto":
+        targets = _ikze_refund_targets(ikze_cfg, stage) if ikze_cfg else []
+        for fallback in ("broker", "lokata", "gotowka"):
+            if fallback not in targets:
+                targets.append(fallback)
+    elif setting in ("", "none"):
+        targets = ["broker", "lokata", "gotowka"]
+    else:
+        targets = [setting, "gotowka"]
+    remaining = amount
+    for target in targets:
+        if remaining <= 1e-9:
+            break
+        _ensure_reinvestment_account(stage, target, state, all_stages, age)
+        room = _ikze_refund_room(target, stage, state)
+        invested = min(remaining, room)
+        if invested <= 1e-9:
+            continue
+        state.balances[target] = state.balances.get(target, 0.0) + invested
+        state.all_accounts.add(target)
+        year_start_balances[target] = year_start_balances.get(target, 0.0) + invested
+        rules = state.config.accounts.get(target)
+        if target != "gotowka" and not (rules and rules.tax_periodic):
+            state.basis[target] = state.basis.get(target, 0.0) + invested
+            state.basis_vintages.setdefault(target, []).append((age, invested))
+        state.early_return_allocations[target] = (
+            state.early_return_allocations.get(target, 0.0) + invested
+        )
+        remaining -= invested
+    state.early_return_total += amount - max(0.0, remaining)
+
+
 def _apply_ikze_savings(
     state: SimulationState,
     active_stages: list[StageInput],
@@ -965,13 +1049,40 @@ def _run_year(
         zus_net_pension=zus_net_pension,
     )
 
-    early_return_tax, yearly_scale_handled = _process_ikze_returns(
+    early_return_tax, yearly_scale_handled, early_return_net = _process_ikze_returns(
         state=state,
         active_stages=active_stages,
         age=age,
         zus_pension=zus_pension,
         target=target,
     )
+
+    if early_return_net:
+        early_stage = next(
+            (
+                si
+                for si in active_stages
+                if si.stage_type == "realizacja"
+                and any(acc in si.accounts for acc in early_return_net)
+            ),
+            None,
+        )
+        if early_stage is not None:
+            state.early_return_tax_total += sum(
+                early_return_tax.get(acc, 0.0) for acc in early_return_net
+            )
+            _reinvest_early_return(
+                state=state,
+                stage=early_stage,
+                all_stages=all_stages,
+                amount=sum(early_return_net.values()),
+                age=age,
+                year_start_balances=year_start_balances,
+            )
+            # Po zwrocie IKZE jest zamknięte; snapshot startowy pokazuje już
+            # stan po opodatkowaniu (netto w koncie docelowym), bez dubletu.
+            for acc in early_return_net:
+                year_start_balances[acc] = 0.0
 
     # W roku łącznego opodatkowania IKZE + ZUS udział ZUS jest już policzony —
     # użyj go, żeby nie dublować kwoty wolnej przy szacowaniu netto.
@@ -1108,6 +1219,12 @@ def _finalize_result(
         total_withdrawn=round(total_withdrawn_net, 2),
         total_tax=round(total_tax, 2),
         total_health=round(total_health, 2),
+        early_return_total=round(state.early_return_total, 2),
+        early_return_tax_total=round(state.early_return_tax_total, 2),
+        early_return_allocations={
+            acc: round(amount, 2)
+            for acc, amount in state.early_return_allocations.items()
+        },
         exit_tax=exit_tax,
         final_wealth_net=round(final_wealth - exit_tax, 2),
         total_tax_refund=round(state.ikze_refund_total, 2),
@@ -1537,9 +1654,10 @@ def _collect_warnings(
                     before = f"przed {rules.min_withdrawal_age} r.ż."
                     after = f"po {rules.min_withdrawal_age} r.ż."
                     warnings.append(
-                        f"{label} wypłacane od {si.start_age} r.ż. ({before}) — jednorazowy zwrot "
-                        f"całości w pierwszym roku etapu, podatek wg skali {skala} "
-                        f"od całości; {after} ryczałt {flat:.0f}% od każdej wypłaty."
+                        f"{label} wypłacane od {si.start_age} r.ż. ({before}) — jednorazowe "
+                        f"opodatkowanie całości w pierwszym roku etapu (podatek wg skali "
+                        f"{skala}); netto jest reinwestowane w konto docelowe. "
+                        f"{after} ryczałt {flat:.0f}% od każdej wypłaty."
                     )
                 elif early in ("flat", "none") and rules.early_tax_rate != rules.tax_rate:
                     early_pct = rules.early_tax_rate * 100

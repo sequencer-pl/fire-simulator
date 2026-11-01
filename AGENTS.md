@@ -33,10 +33,16 @@ bez TypeScript), SQLite, pytest. Odpowiadaj i pisz UI po polsku.
   (podatek wyjścia: IKZE 10% od całości po 65 r.ż. lub skala przed, IKE 0%,
   broker 19% od zysku) — dzięki temu IKE i IKZE nie wyglądają identycznie przy
   tej samej stopie zwrotu.
+- **Wcześniejszy zwrot IKZE**: przed 65 podatek liczony od całości salda (skala),
+  ale netto **nie zostaje w IKZE** — jest reinwestowane w konto docelowe wg
+  `ikze_refund_target` (auto: IKE/OIPE do limitu, potem broker → lokata → gotówka).
+  `SimulationResult` niesie `early_return_total`, `early_return_tax_total` i
+  `early_return_allocations`; w przepływach pokazujemy chip „Wcześniejszy zwrot
+  IKZE”, a nie wiersz IKZE 0 zł. Konto docelowe jest dodawane do etapu w locie.
 - **Polityka wypłat Asystenta**: `withdrawal_policy` = `defer_tier` (IKE/konta
-  dostępne najpierw, IKZE później), `early_tier` (wymuszony jednorazowy zwrot IKZE
-  na starcie realizacji przed 65), `defer_roi`/`early_roi` (w ramach progu
-  podatkowego najpierw konta o niższym ROI). Asystent `auto` uruchamia cztery
+  dostępne najpierw, IKZE później), `early_tier` (wymuszone opodatkowanie całości
+  IKZE na starcie realizacji przed 65; netto jest reinwestowane w konto docelowe),
+  `defer_roi`/`early_roi` (w ramach progu podatkowego najpierw konta o niższym ROI). Asystent `auto` uruchamia cztery
   warianty i wybiera najwyższą wartość netto (`total_withdrawn + final_wealth_net`);
   wybrany wariant trafia do `input.withdrawal_policy` i do `/sim` przez draft.
 - **ZUS obsługuje engine**, nie etap (waloryzacja zamiast ROI, konwersja kapitału na
@@ -205,7 +211,8 @@ bez TypeScript), SQLite, pytest. Odpowiadaj i pisz UI po polsku.
   z poszczególnych kont”: Gantt `#wzFlowsGantt` + tabela/karty `#wzFlowsTable`)
   i zwijany blok **„Jak liczymy ten plan?”** (metodologia netto/siła nabywcza).
   Teksty „jak czytać” są schowane w tooltipach `.tip` przy tytułach sekcji oraz
-  w chipach `Ulga IKZE` / `Kolejność` (`tipHtml`); nie ma już akapitów-legend
+  w chipach `Ulga IKZE` / `Kolejność` / `Wcześniejszy zwrot IKZE` (`tipHtml`);
+  nie ma już akapitów-legend
   ani notek pod tabelą faz. **Nie ma `#wzStagePreview`.** Przepływy per konto
   (`YearResult.withdrawals/taxes/health/ending_balances`) planner grupuje w
   `AccountPhase` (`PlanProjection.account_phases`): kolejne lata z wypłatami,

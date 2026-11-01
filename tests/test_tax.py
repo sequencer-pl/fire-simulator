@@ -146,15 +146,21 @@ def test_ikze_after_65_flat_10_percent():
 def test_ikze_before_65_zwrot_lump_tax():
     stages = [
         accumulation_stage({"ikze": acc(starting_balance=500_000, roi=0.0)}, start=40, end=50),
-        realization_stage("IKZE", {"ikze": acc(roi=0.0, buffer=0)}, 50, 55),
+        realization_stage(
+            "IKZE",
+            {"ikze": acc(roi=0.0, buffer=0, ikze_refund_target="gotowka")},
+            50,
+            55,
+        ),
     ]
     result = simulate(SimulationInput(stages=stages, max_age=54, config=CFG_NOINFL))
     lump = result.years[10]
-    # Zwrot całości w 50 r.ż.: skala 2026 od 500k = 132 400 zł.
-    # Kapitał netto 367 600 zł rozłożony PMT na 5 lat -> 73 520 zł/rok.
+    # Opodatkowanie całości w 50 r.ż.: skala 2026 od 500k = 132 400 zł.
+    # Netto 367 600 zł jest reinwestowane i wypłacane PMT na 5 lat -> 73 520 zł/rok.
     assert lump.tax_paid == pytest.approx(132_400, rel=1e-3)
     assert lump.annual_withdrawal == pytest.approx(73_520, rel=1e-3)
-    assert lump.balances["ikze"] == pytest.approx(500_000)
+    assert lump.balances["ikze"] == pytest.approx(0)
+    assert lump.balances["gotowka"] == pytest.approx(367_600, rel=1e-3)
     for y in result.years[11:]:
         assert y.tax_paid == 0
         assert y.annual_withdrawal == pytest.approx(73_520, rel=1e-3)
@@ -167,7 +173,12 @@ def test_ikze_zwrot_no_tax_after_65():
     # ponownie opodatkowane (brak podwójnego opodatkowania 10% ryczałtem).
     stages = [
         accumulation_stage({"ikze": acc(starting_balance=500_000, roi=0.0)}, start=40, end=50),
-        realization_stage("IKZE", {"ikze": acc(roi=0.0, buffer=0)}, 50, 70),
+        realization_stage(
+            "IKZE",
+            {"ikze": acc(roi=0.0, buffer=0, ikze_refund_target="gotowka")},
+            50,
+            70,
+        ),
     ]
     result = simulate(SimulationInput(stages=stages, max_age=69, config=CFG_NOINFL))
     assert result.years[10].tax_paid == pytest.approx(132_400, rel=1e-3)
@@ -608,7 +619,10 @@ def test_early_roi_order_preserves_high_roi_account():
                 ),
                 realization_stage(
                     "Wypłaty",
-                    {"ikze": acc(roi=0.03), "broker": acc(roi=0.20)},
+                    {
+                        "ikze": acc(roi=0.03, ikze_refund_target="gotowka"),
+                        "broker": acc(roi=0.20),
+                    },
                     55,
                     70,
                 ),

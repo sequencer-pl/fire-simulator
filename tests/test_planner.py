@@ -1019,7 +1019,8 @@ def test_auto_policy_picks_early_ikze_for_bridge_case():
     a.allocations = suggest_allocations(a, default_config(), 12_000)
     result = plan(1, a)
 
-    assert result.projection.withdrawal_policy == "early_tier"
+    assert result.projection.withdrawal_policy.startswith("early_")
+    assert result.projection.early_return_total > 0
     defer = result.input.model_copy(
         update={"withdrawal_policy": "defer_tier"}, deep=True
     )
@@ -1063,17 +1064,23 @@ def test_account_phases_split_by_tax_windows_and_amount():
 
     ikze = [p for p in phases if p.account == "ikze"]
     ike = [p for p in phases if p.account == "ike"]
-    assert (ikze[0].start_age, ikze[0].last_age) == (55, 59)
-    assert (ikze[1].start_age, ikze[1].last_age) == (60, 64)
-    assert ikze[2].start_age == 65
-    assert (ike[0].start_age, ike[0].last_age) == (60, 64)
+    broker = [p for p in phases if p.account == "broker"]
+    assert not ikze  # wcześniejszy zwrot: podatek jednorazowy, brak wiersza 0 zł
+    assert broker and broker[0].start_age == 55
+    assert ike[0].start_age >= 60
+    assert ike[0].last_age == 64
     assert ike[1].start_age == 65
 
-    first = ikze[0]
-    assert first.lump_tax > 0
-    assert first.avg_monthly_net > 2000
-    assert first.starting_balance > 200_000
+    first = broker[0]
+    assert first.lump_tax == 0
+    assert first.avg_monthly_net > 0
+    assert first.starting_balance > 0
     assert first.total_net > 0
+    assert result.projection.early_return_total > 0
+    assert result.projection.early_return_tax_total > 0
+    assert sum(result.projection.early_return_allocations.values()) == pytest.approx(
+        result.projection.early_return_total, abs=0.02
+    )
 
     zus = [p for p in phases if p.account == "zus"]
     assert len(zus) == 1

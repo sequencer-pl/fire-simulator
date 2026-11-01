@@ -55,6 +55,11 @@ test("krok 5: nota sugeruje IKE jako cel zwrotu IKZE", async ({ page }) => {
     const policyChip = page.locator(".wz-fact-row .wz-fact").filter({ hasText: "Kolejność:" });
     await expect(policyChip).toBeVisible({ timeout: 30_000 });
     await expect(policyChip.locator(".tooltip")).toContainText("Kolejność wypłat");
+    const earlyChip = page
+        .locator(".wz-fact-row .wz-fact")
+        .filter({ hasText: "Wcześniejszy zwrot IKZE" });
+    await expect(earlyChip).toBeVisible();
+    await expect(earlyChip.locator(".tooltip")).toContainText("reinwestycja");
     await expect(
         page.locator(".wz-fact-row .wz-fact").filter({ hasText: "Ulga IKZE:" })
     ).toBeVisible();
@@ -74,4 +79,10 @@ test("krok 5: nota sugeruje IKE jako cel zwrotu IKZE", async ({ page }) => {
     await expect
         .poll(() => page.evaluate(() => gatherFormData().withdrawal_policy))
         .toMatch(/^early_/);
+    // Draft z wcześniejszym zwrotem IKZE ma być od razu symulowalny
+    // (konto docelowe dołożone do etapów, auto jako cel zwrotu).
+    await expect(page.locator("#simulateBtn")).toBeEnabled();
+    await page.locator("#simulateBtn").click();
+    await expect(page.locator("#results")).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator("#results")).toContainText("Broker");
 });

@@ -406,8 +406,8 @@ function updateStageHints(container) {
                             level: "warning",
                             text:
                                 `${label} wypłacane od ${startAge} r.ż. — przed ${rules.min_withdrawal_age} r.ż. ` +
-                                `jednorazowy zwrot całości w pierwszym roku (podatek wg skali ${skala} od całości); ` +
-                                `wypłaty ratalne liczone od kapitału netto. Po ${rules.min_withdrawal_age} r.ż. ${normalTaxDescription(acc)}.`
+                                `jednorazowe opodatkowanie całości w pierwszym roku (podatek wg skali ${skala}); ` +
+                                `netto jest reinwestowane w konto docelowe. Po ${rules.min_withdrawal_age} r.ż. ${normalTaxDescription(acc)}.`
                         });
                     } else {
                         hints.push({

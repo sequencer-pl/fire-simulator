@@ -71,7 +71,7 @@ Symulator celowo jest **prostym modelem deterministycznym**, a nie symulacją Mo
 
 5. **Wypłaty przed wiekiem uprawniającym** kosztują i nie zawsze da się to zamodelować w 100%:
    - **IKE przed 60** — Belka 19% od zysku (zamodelowane);
-   - **IKZE przed 65** — jednorazowy zwrot całości ze skalą PIT, potem wypłaty z kapitału netto (model "wypłata + lokata");
+   - **IKZE przed 65** — jednorazowe opodatkowanie całości skalą PIT; netto jest reinwestowane w konto docelowe (auto: IKE do limitu, reszta broker → lokata → gotówka);
    - **PPK przed 60** — środki pracodawcy i dopłaty państwa przepadają, podatek Belka od zysku tylko na części pracownika;
    - **PPE przed 60** — 30% składek podstawowych pracodawcy trafia do ZUS subkonto.
 
@@ -94,9 +94,11 @@ IKE → OIPE → broker → OKI → obligacje → lokata → krypto → gotówka
 limitów IKE/OIPE) albo zostawić jako samą ulgę. Asystent najpierw wypełnia ulgi
 (IKZE, gdy ulga PIT bije 10% ryczałtu), a nadwyżkę dzieli wg strategii — m.in.
 z małym udziałem krypto (5% zrównoważona, 15% agresywna).
-Asystent porównuje też **kolejność wypłat**: wcześniejszy jednorazowy zwrot IKZE
+Asystent porównuje też **kolejność wypłat**: wcześniejsze opodatkowanie IKZE
 vs odłożenie go do 65, oraz w ramach progów podatkowych kolejność wg ROI
-(niższe ROI pierwsze). Wybiera wariant o najwyższej wartości netto.
+(niższe ROI pierwsze). Wcześniejszy zwrot netto jest reinwestowany w konto
+docelowe, więc porównanie uwzględnia jego niższe ROI/podatek. Wybiera wariant
+o najwyższej wartości netto.
 
 ## Obsługiwane konta
 

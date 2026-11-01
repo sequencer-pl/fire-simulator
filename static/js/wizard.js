@@ -739,6 +739,24 @@ function renderMetrics(projection) {
     const refundTargets = refundEntries.map(([acc]) => ACCOUNT_LABELS[acc] || acc);
     const refundAllocated = refundEntries.reduce((sum, [, amount]) => sum + amount, 0);
     const facts = [];
+    const earlyTotal = projection.early_return_total || 0;
+    if (earlyTotal > 0.5) {
+        const entries = Object.entries(projection.early_return_allocations || {}).filter(
+            ([, amount]) => amount > 0.5
+        );
+        const parts = entries.map(
+            ([acc, amount]) => `${ACCOUNT_LABELS[acc] || acc}: ${fmt(amount)} zł`
+        );
+        const targets = entries.map(([acc]) => ACCOUNT_LABELS[acc] || acc);
+        const tax = projection.early_return_tax_total || 0;
+        const label = targets.length ? targets.join(" + ") : "konto docelowe";
+        const tip = `Podatek jednorazowy: ${fmt(tax)} zł. Netto ${fmt(earlyTotal)} zł${
+            parts.length ? `; reinwestycja: ${parts.join(", ")}` : ""
+        }.`;
+        facts.push(
+            `<span class="chip wz-fact">Wcześniejszy zwrot IKZE: ${fmt(earlyTotal)} zł → ${escapeHtml(label)}${tipHtml(tip)}</span>`
+        );
+    }
     if (refundTotal > 0) {
         let tip = refundParts.length
             ? `Zainwestowano: ${refundParts.join(", ")}.`
@@ -761,7 +779,7 @@ function renderMetrics(projection) {
         const early = policy.startsWith("early");
         const roi = policy.endsWith("_roi");
         let tip = early
-            ? "Kolejność wypłat: najpierw IKZE (jednorazowy zwrot przed 65), potem IKE po 60."
+            ? "Kolejność wypłat: najpierw IKZE (jednorazowe opodatkowanie przed 65), potem IKE po 60."
             : "Kolejność wypłat: najpierw IKE i konta dostępne, IKZE później (10% po 65).";
         tip += roi
             ? " W ramach progu podatkowego najpierw konta z niższym ROI."

@@ -277,6 +277,9 @@ class PlanProjection(BaseModel):
     ikze_refund_account: str | None = None
     ikze_refund_total: float = 0.0
     ikze_refund_allocations: dict[str, float] = Field(default_factory=dict)
+    early_return_total: float = 0.0
+    early_return_tax_total: float = 0.0
+    early_return_allocations: dict[str, float] = Field(default_factory=dict)
     peak_wealth: float = 0.0
     exhaust_age: int | None = None
     warnings: list[str] = Field(default_factory=list)
@@ -1040,8 +1043,20 @@ def _account_phases(
     for si in data.stages:
         if si.stage_type != "akumulacja":
             continue
-        for acc in si.accounts:
-            accum_start.setdefault(acc, si.start_age)
+        for acc, cfg in si.accounts.items():
+            # Konta dodane w locie po wcześniejszym zwrocie (broker/lokata)
+            # mają zerowe saldo i wpłaty w akumulacji — nie rysuj tam paska.
+            funded = cfg.starting_balance > 0 or cfg.annual_contribution > 0
+            if acc == "zus":
+                funded = funded or cfg.monthly_base > 0
+            if acc in ("ppk", "ppe"):
+                funded = funded or (
+                    cfg.monthly_base > 0
+                    or cfg.employee_pct > 0
+                    or cfg.employer_pct > 0
+                )
+            if funded:
+                accum_start.setdefault(acc, si.start_age)
 
     accounts: set[str] = set()
     for year in result.years:
@@ -1094,6 +1109,11 @@ def _account_phases(
             lump = year.early_return_tax_by_account.get(account, 0.0)
             active = gross > 0.005 or lump > 0.005
             if not active:
+                flush(account)
+                continue
+            # Wcześniejszy zwrot IKZE: to jednorazowy podatek, a netto jest
+            # reinwestowane w innym koncie — nie pokazujemy wiersza „0 zł”.
+            if gross <= 0.005 and lump > 0.005:
                 flush(account)
                 continue
             net = gross if lump > 0 else max(0.0, gross - tax - health)
@@ -1169,6 +1189,9 @@ def _project(
         ikze_refund_account=next(iter(result.ikze_refund_allocations), None),
         ikze_refund_total=round(result.total_tax_refund, 2),
         ikze_refund_allocations=result.ikze_refund_allocations,
+        early_return_total=round(result.early_return_total, 2),
+        early_return_tax_total=round(result.early_return_tax_total, 2),
+        early_return_allocations=result.early_return_allocations,
         peak_wealth=round(result.peak_wealth, 2),
         exhaust_age=exhaust,
         warnings=result.warnings,

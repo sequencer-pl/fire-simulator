@@ -171,7 +171,13 @@
     margin-top: var(--sp-3);
 }
 
-.wz-fact { white-space: nowrap; }
+.wz-fact {
+    height: auto;
+    min-height: 22px;
+    padding: 4px var(--sp-2);
+    line-height: 1.3;
+    white-space: normal;
+}
 .wz-fact .tip { margin-left: 2px; }
 
 .wz-field-block > .wz-hint { margin-top: var(--sp-2); }

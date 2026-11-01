@@ -21,18 +21,26 @@ from app.simulation.schemas import SimulationInput
 CFG_NOINFL = TaxConfig(inflation=0.0)
 
 
-def ikze_zwrot_scenario(balance, start=50, end=55, roi=0.0, buffer=0.0):
-    """500k -> podatek skali 132 400; kapitał netto PMT na raty."""
+def ikze_zwrot_scenario(
+    balance, start=50, end=55, roi=0.0, buffer=0.0, target="gotowka", config=None
+):
+    """500k -> podatek skali 132 400; netto reinwestowane i wypłacane ratami."""
+    cfg = config or CFG_NOINFL
     return simulate(
         SimulationInput(
             stages=[
                 accumulation_stage(
                     {"ikze": acc(starting_balance=balance, roi=0.0)}, start=40, end=start
                 ),
-                realization_stage("IKZE", {"ikze": acc(roi=roi, buffer=buffer)}, start, end),
+                realization_stage(
+                    "IKZE",
+                    {"ikze": acc(roi=roi, buffer=buffer, ikze_refund_target=target)},
+                    start,
+                    end,
+                ),
             ],
             max_age=end - 1,
-            config=CFG_NOINFL,
+            config=cfg,
         )
     )
 
@@ -55,9 +63,35 @@ def test_zwrot_lump_is_one_off_at_stage_start():
     y1 = result.years[11]  # 51 r.ż.
     assert y0.tax_paid == pytest.approx(132_400, rel=1e-3)
     assert y0.annual_withdrawal == pytest.approx(73_520, rel=1e-3)
-    assert y0.balances["ikze"] == pytest.approx(500_000)  # saldo startowe przed zwrotem
-    assert y1.balances["ikze"] == pytest.approx(294_080, rel=1e-3)  # 367 600 - 73 520
+    assert y0.balances["ikze"] == pytest.approx(0)  # po zwrocie konto zamknięte
+    assert y0.balances["gotowka"] == pytest.approx(367_600, rel=1e-3)
+    assert y1.balances["gotowka"] == pytest.approx(294_080, rel=1e-3)
     assert all(y.tax_paid == 0 for y in result.years[11:])
+
+
+def test_zwrot_reinvests_into_ike_limit_then_broker():
+    stages = [
+        accumulation_stage({"ikze": acc(starting_balance=500_000, roi=0.0)}, 40, 50),
+        realization_stage(
+            "Wypłaty",
+            {
+                "ikze": acc(roi=0.0, ikze_refund_target="auto"),
+                "ike": acc(roi=0.0),
+            },
+            50,
+            55,
+        ),
+    ]
+    result = simulate(SimulationInput(stages=stages, max_age=54, config=CFG_NOINFL))
+    net = 500_000 - scale_tax(500_000)
+    assert result.early_return_total == pytest.approx(net, rel=1e-3)
+    assert result.early_return_allocations["ike"] == pytest.approx(
+        CFG_NOINFL.limits.ike_annual, rel=1e-3
+    )
+    assert result.early_return_allocations["broker"] == pytest.approx(
+        net - CFG_NOINFL.limits.ike_annual, rel=1e-3
+    )
+    assert result.early_return_tax_total == pytest.approx(scale_tax(500_000), rel=1e-3)
 
 
 # --- Granica 65 r.ż.: powyżej brak zwrotu, ryczałt 10% od każdej wypłaty ---
@@ -78,7 +112,12 @@ def test_zwrot_boundary_at_65_no_lump():
 def test_zwrot_boundary_one_year_early():
     stages = [
         accumulation_stage({"ikze": acc(starting_balance=500_000, roi=0.0)}, start=40, end=64),
-        realization_stage("IKZE", {"ikze": acc(roi=0.0, buffer=0)}, 64, 70),
+        realization_stage(
+            "IKZE",
+            {"ikze": acc(roi=0.0, buffer=0, ikze_refund_target="gotowka")},
+            64,
+            70,
+        ),
     ]
     result = simulate(SimulationInput(stages=stages, max_age=69, config=CFG_NOINFL))
     # Rok wcześniej (64 r.ż.) — pełny zwrot: skala od 500k = 132 400; PMT na 6 lat.
@@ -93,12 +132,17 @@ def test_zwrot_boundary_one_year_early():
 
 def test_zwrot_with_growth():
     balance = 500_000
-    result = ikze_zwrot_scenario(balance, start=50, end=60, roi=0.05)
+    config = TaxConfig(inflation=0.0)
+    config.accounts["broker"].tax_rate = 0.0
+    config.accounts["broker"].default_roi = 0.05
+    result = ikze_zwrot_scenario(
+        balance, start=50, end=60, roi=0.05, target="broker", config=config
+    )
     net = balance - scale_tax(balance)
     expected_pmt = pmt(0.05, 10, -net, 0.0, when=1)
     assert result.years[10].tax_paid == pytest.approx(132_400, rel=1e-3)
     assert result.years[10].annual_withdrawal == pytest.approx(expected_pmt, rel=1e-3)
-    # Od drugiego roku etapu brak podatku — kapitał netto rośnie i jest wypłacany bez opodatkowania
+    # Od drugiego roku etapu brak podatku — netto rośnie i jest wypłacane bez opodatkowania
     assert all(y.tax_paid == 0 for y in result.years[11:])
     assert result.total_tax == pytest.approx(132_400, rel=1e-3)
     assert result.final_wealth == pytest.approx(0, abs=1e-3)
@@ -138,7 +182,12 @@ def test_zwrot_year_mixed_with_broker_belka_is_additive():
             stages=[
                 *broker_stages,
                 accumulation_stage({"ikze": acc(starting_balance=500_000, roi=0.0)}, end=50),
-                realization_stage("IKZE", {"ikze": acc(roi=0.0, buffer=0)}, 50, 55),
+                realization_stage(
+                    "IKZE",
+                    {"ikze": acc(roi=0.0, buffer=0, ikze_refund_target="gotowka")},
+                    50,
+                    55,
+                ),
             ],
             max_age=54,
             config=CFG_NOINFL,
@@ -149,7 +198,9 @@ def test_zwrot_year_mixed_with_broker_belka_is_additive():
     assert solo_y.tax_paid > 0  # broker płaci Belkę od zysku
     # Podatek zwrotu jest DODATKOWY, nie pochłania wypłaty brokera.
     assert combo_y.tax_paid == pytest.approx(solo_y.tax_paid + 132_400, rel=1e-3)
-    assert combo_y.annual_withdrawal == pytest.approx(solo_y.annual_withdrawal + 73_520, rel=1e-3)
+    assert combo_y.annual_withdrawal == pytest.approx(
+        solo_y.annual_withdrawal + 73_520, rel=1e-3
+    )
 
 
 def test_zwrot_year_mixed_with_zus_scale_is_additive():
@@ -161,7 +212,12 @@ def test_zwrot_year_mixed_with_zus_scale_is_additive():
             stages=[
                 *zus_stages,
                 accumulation_stage({"ikze": acc(starting_balance=500_000, roi=0.0)}, end=50),
-                realization_stage("IKZE", {"ikze": acc(roi=0.0, buffer=0)}, 50, 55),
+                realization_stage(
+                    "IKZE",
+                    {"ikze": acc(roi=0.0, buffer=0, ikze_refund_target="gotowka")},
+                    50,
+                    55,
+                ),
             ],
             max_age=54,
             config=CFG_NOINFL,
@@ -172,7 +228,13 @@ def test_zwrot_year_mixed_with_zus_scale_is_additive():
     # 120k/rok + 500k IKZE -> scale_tax(620k) = 170 800, prorated.
     assert solo_y.tax_paid == pytest.approx(10_800, rel=1e-3)
     assert combo_y.tax_paid == pytest.approx(170_800, rel=1e-3)
-    assert combo_y.annual_withdrawal == pytest.approx(solo_y.annual_withdrawal + 50_194, rel=1e-3)
+    ikze_share = 170_800 * 500_000 / 620_000
+    zus_share = 170_800 * 120_000 / 620_000
+    assert combined.early_return_total == pytest.approx(500_000 - ikze_share, rel=1e-3)
+    zus_net = 120_000 - zus_share - 120_000 * CFG_NOINFL.health_rate
+    assert combo_y.annual_withdrawal == pytest.approx(
+        zus_net + combined.early_return_total / 5, rel=1e-3
+    )
 
 
 # --- Kolejny etap realizacji: brak podwójnego opodatkowania zwróconego kapitału ---
@@ -182,9 +244,18 @@ def test_zwrot_second_stage_no_double_taxation():
     grown = 500_000 * 1.02**10  # akumulacja 40-50 z ROI 2%
     stages = [
         accumulation_stage({"ikze": acc(starting_balance=500_000, roi=0.02)}, start=40, end=50),
-        # Etap A zostawia bufor 100k (powinien zostać wypłacony w etapie B bez podatku)
-        realization_stage("IKZE A", {"ikze": acc(roi=0.02, buffer=100_000)}, 50, 55),
-        realization_stage("IKZE B", {"ikze": acc(roi=0.02, buffer=0)}, 55, 70),
+        realization_stage(
+            "IKZE A",
+            {"ikze": acc(roi=0.02, buffer=100_000, ikze_refund_target="gotowka")},
+            50,
+            55,
+        ),
+        realization_stage(
+            "IKZE B",
+            {"ikze": acc(roi=0.02, buffer=0, ikze_refund_target="gotowka")},
+            55,
+            70,
+        ),
     ]
     result = simulate(SimulationInput(stages=stages, max_age=69, config=CFG_NOINFL))
 
@@ -192,9 +263,8 @@ def test_zwrot_second_stage_no_double_taxation():
     # Od 51 r.ż. aż do końca (także w etapie B) — zero podatku.
     assert all(y.tax_paid == 0 for y in result.years[11:])
     assert result.total_tax == pytest.approx(scale_tax(grown), rel=1e-3)
-    # Etap B faktycznie wypłaca zaległy bufor.
-    stage_b = [y for y in result.years if y.age >= 55]
-    assert all(y.annual_withdrawal > 0 for y in stage_b)
+    # Netto jest wypłacane z konta docelowego; nie ma drugiego opodatkowania.
+    assert result.early_return_total == pytest.approx(grown - scale_tax(grown), rel=1e-3)
 
 
 # --- Zwrot dotyczy wyłącznie reżimu "scale" przed wiekiem uprawniającym ---
@@ -236,7 +306,14 @@ def test_zwrot_not_triggered_when_early_model_none():
 
 
 def test_zwrot_with_starting_balance_on_realization_stage():
-    stages = [realization_stage("IKZE", {"ikze": acc(starting_balance=500_000, roi=0.0)}, 50, 55)]
+    stages = [
+        realization_stage(
+            "IKZE",
+            {"ikze": acc(starting_balance=500_000, roi=0.0, ikze_refund_target="gotowka")},
+            50,
+            55,
+        )
+    ]
     result = simulate(SimulationInput(stages=stages, max_age=54, config=CFG_NOINFL))
     assert result.years[0].tax_paid == pytest.approx(132_400, rel=1e-3)
     assert result.years[0].annual_withdrawal == pytest.approx(73_520, rel=1e-3)
