@@ -1,3 +1,11 @@
+from app.simulation.config import backfill_tax_config
+
+
+def test_legacy_config_gets_longevity_default():
+    out = backfill_tax_config({})
+    assert out["longevity"]["growth_months_per_year"] == 1.5
+
+
 def test_user_config_persists_preset_baseline_and_overrides(client):
     registered = client.post(
         "/api/register",

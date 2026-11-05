@@ -32,6 +32,9 @@ def _estimate_zus_pension(
         zus_pensions = state.zus_pensions
         config = state.config
     assert balances is not None and zus_pensions is not None and config is not None
+    retirement_year = (
+        state.start_year + (age - state.start_age) if state is not None else config.year
+    )
     for si in active_stages:
         if si.stage_type != "realizacja" or "zus" not in si.accounts:
             continue
@@ -43,7 +46,11 @@ def _estimate_zus_pension(
         if age == si.start_age and "zus" not in zus_pensions:
             # Capital-to-pension conversion: capital / SDTZ(age) * 12.
             capital = balances.get("zus", 0.0) + balances.get("zus:ofe", 0.0)
-            months = sdtz_months(age)
+            months = sdtz_months(
+                age,
+                year=retirement_year,
+                improvement_months_per_year=config.longevity.growth_months_per_year,
+            )
             return (capital / months * MONTHS_PER_YEAR) if months > 0 else 0.0
         if "zus" in zus_pensions:
             waloryzacja = (
@@ -92,6 +99,7 @@ def _convert_zus(
     accounts_config: dict[str, Any],
     balances: dict[str, float],
     config: TaxConfig,
+    retirement_year: int | None = None,
 ) -> None:
     """Convert capital to pension at the start of the realization stage.
 
@@ -106,7 +114,11 @@ def _convert_zus(
     zus_cfg = config.zus
     if age == start_age and "zus" not in zus_pensions:
         capital = balances.pop("zus", 0.0) + balances.pop("zus:ofe", 0.0)
-        months = sdtz_months(age)
+        months = sdtz_months(
+            age,
+            year=retirement_year if retirement_year is not None else config.year,
+            improvement_months_per_year=config.longevity.growth_months_per_year,
+        )
         zus_pensions["zus"] = capital / months if months > 0 else 0.0
     elif "zus" in zus_pensions:
         swiadczenia_param = cfg.get("waloryzacja_swiadczenia")

@@ -83,6 +83,8 @@ let wzNavStep = 1;
 let wzWeights = {};
 let wzAmounts = {};
 let wzLimits = null;
+let wzLongevityGrowth = 1.5;
+let wzConfigLoaded = false;
 let wzStrategyValue = null;
 let wzAssumptionsValue = "realne";
 let wzAllocMode = null;
@@ -247,6 +249,7 @@ function collectAnswers() {
     return {
         gender: radioChecked("wzGender") || "m",
         age_now: parseInt(document.getElementById("wzAge").value, 10) || 0,
+        life_expectancy_growth_months_per_year: wzLongevityGrowth,
         employment: radioChecked("wzEmployment") || "etat",
         gross_monthly: salaryMonthlyValue(),
         salary_mode: (radioChecked("wzEmployment") || "etat") === "etat"
@@ -1915,11 +1918,15 @@ function bindSliderRange(range, input, min, max, onChange) {
 
 // --- Krok 4: Cel i horyzont (domyślne wg płci i wieku) ----------------------
 
-function planEndDefault(gender, age) {
+function planEndDefault(gender, age, growth = wzLongevityGrowth) {
     const table = LIFE_EXPECTANCY[gender] || LIFE_EXPECTANCY.m;
     const years = table[age]
         ?? (age < 16 ? table[16] : age > 90 ? table[90] : 0);
-    return Math.min(120, Math.max(2, age + Math.round(years)));
+    // Kohortowe przybliżenie: każdy pozostały rok życia wydłuża się o
+    // `growth` miesięcy. growth=0 odtwarza tabelę GUS bez projekcji.
+    const rate = Number.isFinite(growth) ? Math.max(0, growth) : 0;
+    const projected = years * (1 + rate / 12);
+    return Math.min(120, Math.max(2, age + Math.round(projected)));
 }
 
 function applyStep5Value(input, value) {
@@ -2488,13 +2495,31 @@ function setAllocMode(mode) {
     refreshAllocGate();
 }
 
-async function loadWzLimits() {
-    if (wzLimits) return;
+async function loadWzConfig() {
+    if (wzConfigLoaded) return;
+    wzConfigLoaded = true;
     try {
-        const res = await fetch("/api/config");
-        if (!res.ok) return;
-        const cfg = await res.json();
-        wzLimits = cfg.limits;
+        const [userRes, defaultRes] = await Promise.all([
+            fetch("/api/config/user").catch(() => null),
+            fetch("/api/config").catch(() => null),
+        ]);
+        let cfg = null;
+        if (userRes && userRes.ok) {
+            const data = await userRes.json();
+            cfg = data.config || null;
+        }
+        if (!cfg && defaultRes && defaultRes.ok) {
+            cfg = await defaultRes.json();
+        }
+        if (!cfg) return;
+        wzLimits = cfg.limits || wzLimits;
+        const growth = cfg.longevity?.growth_months_per_year;
+        if (Number.isFinite(growth)) wzLongevityGrowth = growth;
+        if (!wzPlanEndTouched) {
+            const gender = radioChecked("wzGender") || "m";
+            const age = parseInt(document.getElementById("wzAge")?.value, 10) || 0;
+            applyStep5Value(document.getElementById("wzPlanEnd"), planEndDefault(gender, age));
+        }
         const step = document.querySelector(".wz-step:not(.hidden)");
         if (step && parseInt(step.dataset.step, 10) === 5) buildAllocationStep();
     } catch {
@@ -2615,7 +2640,7 @@ function initWizard() {
         });
     });
     initNav();
-    loadWzLimits();
+    loadWzConfig();
     if (!restoreWizardStateIfRequested()) {
         setStep(1);
     }

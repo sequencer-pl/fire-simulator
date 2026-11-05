@@ -71,6 +71,14 @@ class SimulationInput(BaseModel):
     )
     gender: Literal["k", "m"] = "m"
     monthly_gross: float = Field(default=0.0, ge=0.0, le=1e9)
+    start_year: int | None = Field(
+        default=None,
+        ge=1900,
+        le=2200,
+        description=(
+            "Calendar year corresponding to the first stage's start age. None = use config.year."
+        ),
+    )
     inflation: float | None = Field(
         default=None,
         ge=-0.99,

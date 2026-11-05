@@ -178,6 +178,18 @@ class PpeConfig(BaseModel):
     max_employer_pct: float = 0.07
 
 
+class LongevityConfig(BaseModel):
+    """Assumed annual improvement in remaining life expectancy.
+
+    ``growth_months_per_year`` is the number of months added to the 2026 GUS
+    life-expectancy table for each calendar year after 2026. It is used both
+    for the ZUS capital-to-pension conversion (future SDTZ table) and for the
+    default FIRE horizon in the wizard (cohort approximation).
+    """
+
+    growth_months_per_year: float = Field(default=1.5, ge=0.0, le=5.0)
+
+
 class TaxConfig(BaseModel):
     year: int = 2026
     kwota_wolna: float = 30_000
@@ -199,6 +211,7 @@ class TaxConfig(BaseModel):
     limits: Limits = Field(default_factory=Limits)
     accounts: dict[str, AccountRules] = Field(default_factory=default_account_rules)
     zus: ZusConfig = Field(default_factory=ZusConfig)
+    longevity: LongevityConfig = Field(default_factory=LongevityConfig)
     ppk: PpkConfig = Field(default_factory=PpkConfig)
     ppe: PpeConfig = Field(default_factory=PpeConfig)
 

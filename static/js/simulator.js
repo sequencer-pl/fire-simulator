@@ -507,6 +507,10 @@ function renderConfigView() {
         configNumberField("zus.min_emerytura", "Emerytura minimalna", USER_CONFIG.zus.min_emerytura, "Najniższa gwarantowana emerytura (2026 r.: 1 740 zł)."),
     ]));
 
+    root.appendChild(configSection("Długowieczność", [
+        configNumberField("longevity.growth_months_per_year", "Wydłużenie życia (mies./rok)", USER_CONFIG.longevity.growth_months_per_year, "O ile miesięcy rocznie wydłuża się prognozowane życie. Wpływa na wysokość emerytury ZUS (dłuższa tabela ŚDTŻ) i domyślny horyzont w Asystencie."),
+    ]));
+
     const accountsSection = document.createElement("div");
     accountsSection.className = "config-section";
     accountsSection.innerHTML = "<h3>Konta — reguły wypłat i podatków</h3>";

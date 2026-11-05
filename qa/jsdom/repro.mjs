@@ -554,6 +554,13 @@ const harness = `
         age.dispatchEvent(new Event("input", { bubbles: true }));
         return document.getElementById("wzPlanEnd").value === String(planEndDefault("k", 50));
     });
+    check("krok 4: growth=0 odtwarza czystą tabelę GUS (40M -> 77)", () => {
+        return planEndDefault("m", 40, 0) === 77;
+    });
+    check("krok 4: growth=1,5 mies./rok wydłuża horyzont (40M -> 81, 40K -> 88)", () => {
+        return planEndDefault("m", 40, 1.5) === 81
+            && planEndDefault("k", 40, 1.5) === 88;
+    });
     check("krok 4: ręczna edycja nie jest nadpisywana (płeć i wiek)", () => {
         const planEnd = document.getElementById("wzPlanEnd");
         planEnd.value = "100";

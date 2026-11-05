@@ -6,6 +6,10 @@ effective from 2026-04-01 to 2027-03-31.
 Values are remaining life expectancy in MONTHS for "0 completed months
 above a full year of life" (column for full years). Pension in the new
 system = accumulated capital / SDTZ(age), e.g. 500,000 / 222.7 ≈ 2,245 PLN.
+
+The 2026 table is the base. For retirements in later years, the table is
+projected linearly by ``longevity.growth_months_per_year`` (default 1.5
+months/year); this is an assumption, not an official GUS table.
 """
 
 # {wiek w latach: miesiące dalszego trwania życia}
@@ -75,12 +79,27 @@ TABLICA_SDTZ = {
 
 MIN_AGE = min(TABLICA_SDTZ)
 MAX_AGE = max(TABLICA_SDTZ)
+BASE_YEAR = 2026
 
 
-def sdtz_months(age: int) -> float:
-    """Remaining life expectancy (months) for a completed year of life."""
+def sdtz_months(
+    age: int,
+    *,
+    year: int = BASE_YEAR,
+    improvement_months_per_year: float = 0.0,
+) -> float:
+    """Remaining life expectancy (months) for a completed year of life.
+
+    The base table is the official GUS table for 2026. For retirements in
+    later years, the table is shifted by ``improvement_months_per_year`` for
+    every calendar year after ``BASE_YEAR``. This is a projection, not an
+    official table for that year.
+    """
     if age <= MIN_AGE:
-        return TABLICA_SDTZ[MIN_AGE]
-    if age >= MAX_AGE:
-        return TABLICA_SDTZ[MAX_AGE]
-    return TABLICA_SDTZ[age]
+        base = TABLICA_SDTZ[MIN_AGE]
+    elif age >= MAX_AGE:
+        base = TABLICA_SDTZ[MAX_AGE]
+    else:
+        base = TABLICA_SDTZ[age]
+    years_ahead = max(0, year - BASE_YEAR)
+    return base + improvement_months_per_year * years_ahead

@@ -15,6 +15,10 @@ bez TypeScript), SQLite, pytest. Odpowiadaj i pisz UI po polsku.
   app/simulation/zus.py), helperach Fisher/deflate (core/inflation.py), nominalnej
   Belce od zysku oraz mechanice lokaty. Nie dodawać inflacji do wzrostu kont ani do
   PMT bez zgody.
+- **Długowieczność** modelujemy liniowo: `longevity.growth_months_per_year`
+  (domyślnie 1,5 mies./rok) wydłuża tabelę ŚDTŻ dla roku emerytury oraz domyślny
+  horyzont Asystenta (przybliżenie kohortowe: `lata × (1 + growth/12)`).
+  `growth=0` odtwarza tabelę GUS 2026 bez projekcji.
 - **Dwa tryby realizacji** (app/stages/realizacja.py):
   - PMT (annuitizacja do zera) — edytor `/sim` bez targetu i legacy;
   - stały cel netto — TYLKO wizard (edytor nigdy). Wypłata = `cel − bieżąca renta ZUS`,
@@ -46,7 +50,9 @@ bez TypeScript), SQLite, pytest. Odpowiadaj i pisz UI po polsku.
   warianty i wybiera najwyższą wartość netto (`total_withdrawn + final_wealth_net`);
   wybrany wariant trafia do `input.withdrawal_policy` i do `/sim` przez draft.
 - **ZUS obsługuje engine**, nie etap (waloryzacja zamiast ROI, konwersja kapitału na
-  rentę zamiast PMT; renta waloryzowana corocznie). Nie powielać `zus` w wielu etapach
+  rentę zamiast PMT; renta waloryzowana corocznie). Rok emerytury = `start_year` +
+  (wiek − wiek startowy); tabela ŚDTŻ jest wtedy przesuwana o wzrost długowieczności.
+  Nie powielać `zus` w wielu etapach
   (`_process_stages`, engine.py — guard `zus_handled`). Emerytura netto = brutto − PIT
   (skala) − 9% składki zdrowotnej (`YearResult.health`, `health_paid`); portfel w
   etapie „Dopłata” uzupełnia tylko różnicę do celu netto (`_zus_net_annual`).
@@ -174,7 +180,8 @@ bez TypeScript), SQLite, pytest. Odpowiadaj i pisz UI po polsku.
   wiek FIRE tylko dla 1/2. Domyślne wartości **wg płci i wieku**, przeliczane dopóki
   pola nie były edytowane (`wzRetirementTouched`/`wzPlanEndTouched`): wiek emerytury
   ZUS = `RETIREMENT_DEFAULT` (60 k / 65 m); horyzont = wiek + `LIFE_EXPECTANCY`
-  (GUS 2024, dane UI w wizard.js).
+  (GUS 2024, dane UI w wizard.js) powiększona o
+  `longevity.growth_months_per_year` (przybliżenie kohortowe, patrz wyżej).
 - Krok 5 „Strategia i założenia": 5 paneli `.wz-alloc-panel` — „Założenia rynkowe
   (koniunktura)", „Strategia podziału oszczędności", „Podział", „Dodaj instrument",
   „Wpłaty z pensji". **Założenia i strategia to dwa niezależne wybory** (`.segmented`

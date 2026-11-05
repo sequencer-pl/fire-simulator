@@ -38,6 +38,7 @@ class SimulationState:
     zus_pensions: dict[str, float] = field(default_factory=dict)
     welcomed_ppk: set[str] = field(default_factory=set)
     start_age: int = 0
+    start_year: int = 2026
     basis_vintages: dict[str, list[tuple[int, float]]] = field(default_factory=dict)
     lokata_interest_nom: dict[str, float] = field(default_factory=dict)
     ikze_refund_total: float = 0.0
@@ -161,6 +162,7 @@ def _init_state(data: SimulationInput) -> SimulationState:
     zus_pensions: dict[str, float] = {}
     welcomed_ppk: set[str] = set()
     start_age = min((s.start_age for s in data.stages), default=0)
+    start_year = data.start_year if data.start_year is not None else config.year
     basis_vintages: dict[str, list[tuple[int, float]]] = {}
     for stage_input in sorted(data.stages, key=lambda s: s.start_age):
         for name, cfg in stage_input.accounts.items():
@@ -193,6 +195,7 @@ def _init_state(data: SimulationInput) -> SimulationState:
         zus_pensions=zus_pensions,
         welcomed_ppk=welcomed_ppk,
         start_age=start_age,
+        start_year=start_year,
         basis_vintages=basis_vintages,
         withdrawal_policy=(
             "defer_tier" if data.withdrawal_policy == "auto" else data.withdrawal_policy
@@ -468,6 +471,11 @@ def _process_stages(
                     accounts_config=accounts_config,
                     balances=balances,
                     config=config,
+                    retirement_year=(
+                        state.start_year + (age - state.start_age)
+                        if state is not None
+                        else config.year
+                    ),
                 )
             zus_handled = True
 

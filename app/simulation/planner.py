@@ -169,6 +169,7 @@ class WizardAnswers(BaseModel):
 
     strategy: Literal["konserwatywna", "zbilansowana", "agresywna", "manualna"] = "zbilansowana"
     assumptions: Literal["konserwatywne", "realne", "optymistyczne"] = "realne"
+    life_expectancy_growth_months_per_year: float | None = Field(default=None, ge=0.0, le=5.0)
     roi_overrides: dict[str, float] = Field(default_factory=dict)
 
     # Monthly-savings shares (%) per allocatable account. Money NOT assigned
@@ -381,9 +382,10 @@ def estimate_pool_monthly(
 def _config_for_answers(a: WizardAnswers) -> TaxConfig:
     preset_name = ASSUMPTIONS_PRESET_MAP.get(a.assumptions, "Realne")
     preset_dict = get_builtin_preset(preset_name)
-    if preset_dict is not None:
-        return TaxConfig.model_validate(preset_dict)
-    return default_config()
+    config = TaxConfig.model_validate(preset_dict) if preset_dict is not None else default_config()
+    if a.life_expectancy_growth_months_per_year is not None:
+        config.longevity.growth_months_per_year = a.life_expectancy_growth_months_per_year
+    return config
 
 
 def _roi(a: WizardAnswers, name: str, config: TaxConfig | None = None) -> float:

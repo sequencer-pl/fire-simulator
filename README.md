@@ -65,7 +65,7 @@ Symulator celowo jest **prostym modelem deterministycznym**, a nie symulacją Mo
 
    Przykład: lokata 5% realnie brutto, inflacja 0% → po Belce 19% zostaje 4,05% realnie. Przy inflacji 2,5% nominalne brutto ≈7,63%, po Belce ≈6,18% nominalnie, czyli ≈3,59% realnie. Nie ma zmienności rynku: 6% średnio nie znaczy 6% co roku.
 
-3. **Emerytura ZUS = kapitał ÷ ŚDTŻ(GUS).** Dla danego wieku emeryturę liczy się jako zgromadzony kapitał podzielony przez tablicę średniego dalszego trwania życia. Tablica jest **wspólna dla obu płci** (GUS publikuje jedną; zróżnicowanie usunął wyrok TK K 1/13) — płeć zmienia jedynie **wiek emerytalny: kobiety 60, mężczyźni 65**. Silnik nie sprawdza warunków stażowych ani nie wyrównuje do emerytury minimalnej — o tym tylko ostrzega.
+3. **Emerytura ZUS = kapitał ÷ ŚDTŻ(GUS).** Dla danego wieku emeryturę liczy się jako zgromadzony kapitał podzielony przez tablicę średniego dalszego trwania życia. Bazą jest oficjalna tablica GUS 2026; dla emerytury w późniejszym roku tabela jest wydłużana o `longevity.growth_months_per_year` (domyślnie **1,5 mies./rok**). To **projekcja**, nie oficjalna tabela na dany rok. Tablica jest **wspólna dla obu płci** (GUS publikuje jedną; zróżnicowanie usunął wyrok TK K 1/13) — płeć zmienia jedynie **wiek emerytalny: kobiety 60, mężczyźni 65**. Silnik nie sprawdza warunków stażowych ani nie wyrównuje do emerytury minimalnej — o tym tylko ostrzega.
 
 4. **Wiek emerytalny ZUS to sugestia, nie twarda granica.** Silnik policzy emeryturę z dowolnego wieku (np. 55), bo "przed 60/65 realnie świadczenie nie przysługuje" — dostaniesz ostrzeżenie, ale wynik się pojawi. Traktuj go jako poglądowy.
 
@@ -80,6 +80,8 @@ Symulator celowo jest **prostym modelem deterministycznym**, a nie symulacją Mo
 7. **OKI (od 2027 r.)** — zamiast Belki coroczny podatek od wartości aktywów (0,85%) od średniego stanu ponad **wspólny limit 100 000 zł** dla wszystkich kont OKI, z czego max 25 000 zł na część oszczędnościową (lokaty/obligacje). Podatek płacisz niezależnie od zysku lub straty. Wypłaty nie podlegają Belce. Zamodelowane wprost.
 
 8. **ZUS w akumulacji rośnie przez waloryzację (domyślnie 1%/rok), nie przez ROI** — plus składka 19,52% od podstawy do limitu 30× przeciętnego wynagrodzenia. Członkowie OFE mają rozdzielany strumień: 2,92 pkt do OFE (rośnie z ROI), reszta waloryzowana w ZUS.
+
+8a. **Domyślny horyzont Asystenta** = oczekiwana długość życia (GUS 2024, wg płci) powiększona o skumulowany wzrost długowieczności (`longevity.growth_months_per_year`). To przybliżenie kohortowe: każdy pozostały rok życia wydłuża się o założoną liczbę miesięcy. Użytkownik może nadpisać horyzont suwakiem.
 
 9. **Limity wpłat (2026):** IKE 28 260 zł, IKZE 11 304 zł (16 956 zł samozatrudnieni), OIPE 28 260 zł, składka dodatkowa PPE 42 390 zł. Przekroczenie to ostrzeżenie, nie automatyczne obcięcie — dopłaty ponad limit po prostu "wchodzą" i tracą sens podatkowy.
 
@@ -114,7 +116,7 @@ o najwyższej wartości netto.
 | PPE | 0% po 60. r.ż. | od 60 | składka podstawowa pracodawcy do 7% |
 | OIPE | 0% po 60. r.ż. | od 60 | limit wpłat jak IKE |
 | OKI (inw./osk.) | podatek od aktywów 0,85% | dowolna | wspólny limit 100 000 zł / 25 000 zł |
-| ZUS | skala PIT przy wypłacie | od 60/65 | emerytura = kapitał ÷ ŚDTŻ(GUS) |
+| ZUS | skala PIT przy wypłacie | od 60/65 | emerytura = kapitał ÷ ŚDTŻ(GUS, projekcja na rok emerytury) |
 
 ## Wiek emerytalny i płeć
 

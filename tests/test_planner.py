@@ -404,6 +404,18 @@ def test_unemployed_savings_create_accumulation_stage():
     assert data.stages[0].stage_type == "akumulacja"
 
 
+def test_wizard_longevity_growth_overrides_preset_value():
+    a = answers(assumptions="realne", life_expectancy_growth_months_per_year=2.0)
+    data = P.build_stages(a)
+    assert data.config.longevity.growth_months_per_year == pytest.approx(2.0)
+
+
+def test_wizard_longevity_growth_defaults_to_preset_value():
+    a = answers(assumptions="realne")
+    data = P.build_stages(a)
+    assert data.config.longevity.growth_months_per_year == pytest.approx(1.5)
+
+
 # --- Path 3: earliest FIRE age ----------------------------------------------
 
 
@@ -1107,9 +1119,12 @@ def test_account_phases_split_by_tax_windows_and_amount():
     broker = [p for p in phases if p.account == "broker"]
     assert not ikze  # wcześniejszy zwrot: podatek jednorazowy, brak wiersza 0 zł
     assert broker and broker[0].start_age == 55
-    assert ike[0].start_age >= 60
-    assert ike[0].last_age == 64
-    assert ike[1].start_age == 65
+    # Projekcja długowieczności obniża ZUS, więc bridge 55–64 finansuje broker,
+    # a IKE wchodzi dopiero od 65 r.ż. (granica podatkowa IKE/IKZE).
+    assert broker[0].last_age == 64
+    assert broker[1].start_age == 65
+    assert ike[0].start_age == 65
+    assert ike[1].start_age == 66
 
     # Szczegóły akumulacji do tooltipa Gantta: start -> koniec wpłat + wzrost.
     first_ike = ike[0]

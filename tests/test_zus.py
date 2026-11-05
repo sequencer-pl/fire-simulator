@@ -119,6 +119,31 @@ def test_zus_ofe_subaccount_grows_at_market_roi_passively():
 # --- Konwersja na emeryturę ---
 
 
+def test_sdtz_projection_uses_retirement_year():
+    assert sdtz_months(65) == pytest.approx(222.7)
+    assert sdtz_months(65, year=2026, improvement_months_per_year=1.5) == pytest.approx(222.7)
+    assert sdtz_months(65, year=2051, improvement_months_per_year=1.5) == pytest.approx(260.2)
+    assert sdtz_months(60, year=2056, improvement_months_per_year=1.5) == pytest.approx(313.9)
+
+
+def test_zus_conversion_uses_projected_sdtz_for_future_retirement():
+    cfg = no_tax_config()
+    cfg.longevity.growth_months_per_year = 1.5
+    stages = [
+        accumulation_stage(
+            {"zus": acc(starting_balance=500000, ofe_member=False)},
+            start=40,
+            end=65,
+        ),
+        realization_stage("ZUS", {"zus": acc(monthly_pension=0)}, 65, 66),
+    ]
+    result = simulate(SimulationInput(stages=stages, max_age=65, config=cfg))
+    y = next(year for year in result.years if year.age == 65)
+    capital = 500000 * 1.01**25
+    expected = capital / sdtz_months(65, year=2051, improvement_months_per_year=1.5)
+    assert y.monthly_withdrawal == pytest.approx(expected, abs=0.01)
+
+
 def test_zus_conversion_sanity_500k_at_65():
     # 500 000 / 222,7 mies. = ~2 245 zł/mies. (brutto, bez podatku)
     cfg = no_tax_config()
