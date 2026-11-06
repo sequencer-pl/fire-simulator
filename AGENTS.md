@@ -193,12 +193,11 @@ bez TypeScript), SQLite, pytest. Odpowiadaj i pisz UI po polsku.
   ZUS = `RETIREMENT_DEFAULT` (60 k / 65 m); horyzont = wiek + `LIFE_EXPECTANCY`
   (GUS 2024, dane UI w wizard.js) powiększona o
   `longevity.growth_months_per_year` (przybliżenie kohortowe, patrz wyżej).
-- Krok 5 „Strategia i założenia": 5 paneli `.wz-alloc-panel` — „Założenia rynkowe
-  (koniunktura)", „Strategia podziału oszczędności", „Podział", „Dodaj instrument",
-  „Wpłaty z pensji". **Założenia i strategia to dwa niezależne wybory** (`.segmented`
-  z 3 i 4 `.seg-option`; na ≤640 px `.segmented-stack` układa je pionowo).
-  Założenia sterują ROI, inflacją i waloryzacją ZUS (`planner.py`); strategia tylko
-  rozdziela oszczędności. Wybór strategii jest **wymagany** (na starcie żaden tryb).
+- Krok 5 „Strategia i podział": 4 panele `.wz-alloc-panel` — „Strategia podziału
+  oszczędności", „Podział", „Dodaj instrument", „Wpłaty z pensji". **Bez wyboru
+  założeń rynkowych** — te są wybierane w kroku 6 przez karty scenariuszy.
+  Wybór strategii jest **wymagany** (na starcie żaden tryb); po jego wyborze
+  widok przewija się do `#wzAllocPanel` (manual od razu, auto po sugestii).
   Strategie automatyczne: `wzAllocMode = "auto"`, `/api/wizard/suggest` (w ścieżce 2
   z celem i `pool_monthly`), sekcja „Podział" **read-only** (`.wz-alloc-readonly`).
   Sugestia najpierw wypełnia ulgi (IKZE, gdy średnia ulga PIT > 10,5%, inaczej IKE;

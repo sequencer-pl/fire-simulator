@@ -1003,7 +1003,7 @@ function renderScenarios(data) {
     const icons = { konserwatywne: iconSvg("rain"), realne: iconSvg("cloud"), optymistyczne: iconSvg("sun") };
     const path = data.path || currentPath();
 
-    let html = `<h3 class="eyebrow wz-panel-title">${tipLabelHtml("Scenariusze rynkowe", "Kliknij kartę, aby zobaczyć szczegóły i otworzyć scenariusz w symulatorze.")}</h3><div class="wz-scenarios-grid">`;
+    let html = `<h3 class="eyebrow wz-panel-title">${tipLabelHtml("Scenariusze rynkowe", "Konserwatywne: wyższa inflacja, niższe ROI i słabsza waloryzacja ZUS. Realne: Twoja konfiguracja bazowa. Optymistyczne: niższa inflacja, wyższe ROI i mocniejsza waloryzacja. Kliknij kartę, aby ustawić scenariusz główny.")}</h3><div class="wz-scenarios-grid">`;
     keys.forEach((key) => {
         const s = scenarios[key];
         const selected = key === wzSelectedScenario;
@@ -1592,7 +1592,7 @@ function restoreWizardStateIfRequested() {
         wzWeights = st.weights || {};
         wzAllocMode = st.allocMode || null;
         wzStrategyValue = st.strategy || null;
-        wzAssumptionsValue = st.assumptions || "realne";
+        wzAssumptionsValue = "realne";
         wzEstimatedPoolMonthly = st.estimatedPoolMonthly != null ? st.estimatedPoolMonthly : null;
         const restoredPath = st.path || 1;
         if (st.amounts) {
@@ -1609,10 +1609,8 @@ function restoreWizardStateIfRequested() {
         } else {
             wzAmounts = {};
         }
-        wzSelectedScenario = st.selectedScenario || wzAssumptionsValue;
+        wzSelectedScenario = st.selectedScenario || "realne";
 
-        const assumpRadio = document.querySelector(`input[name="wzAssumptions"][value="${wzAssumptionsValue}"]`);
-        if (assumpRadio) assumpRadio.checked = true;
         if (wzStrategyValue) {
             const stratRadio = document.querySelector(`input[name="wzStrategy"][value="${wzStrategyValue}"]`);
             if (stratRadio) stratRadio.checked = true;
@@ -2515,9 +2513,18 @@ function buildAllocationPills() {
     box.classList.remove("hidden");
 }
 
-async function runSuggestAllocation() {
+function scrollToAllocation() {
+    const panel = document.getElementById("wzAllocPanel");
+    if (!panel || panel.classList.contains("hidden")) return;
+    if (typeof panel.scrollIntoView === "function") {
+        panel.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+}
+
+async function runSuggestAllocation({ scroll = false } = {}) {
     const loader = document.getElementById("wzSuggestLoader");
     if (loader) loader.classList.remove("hidden");
+    let suggested = false;
     try {
         const path = currentPath();
         const target = path !== 1 ? (parseFloat(document.getElementById("wzTarget")?.value) || null) : null;
@@ -2538,11 +2545,13 @@ async function runSuggestAllocation() {
         });
         wzSyncAmountsFromWeights();
         buildAllocationStep();
+        suggested = true;
     } catch (err) {
         alert("Błąd: " + err.message);
     } finally {
         if (loader) loader.classList.add("hidden");
         refreshAllocGate();
+        if (scroll && suggested) scrollToAllocation();
     }
 }
 
@@ -2649,7 +2658,7 @@ async function loadWzConfig() {
     }
 }
 
-function initStrategyAndAssumptions() {
+function initStrategy() {
     const stratOpts = document.querySelectorAll('input[name="wzStrategy"]');
     stratOpts.forEach((r) => {
         r.addEventListener("change", () => {
@@ -2657,21 +2666,10 @@ function initStrategyAndAssumptions() {
             wzStrategyValue = r.value;
             if (wzStrategyValue === "manualna") {
                 setAllocMode("manual");
+                scrollToAllocation();
             } else {
                 setAllocMode("auto");
-                runSuggestAllocation();
-            }
-            saveWizardState();
-        });
-    });
-
-    const assumpOpts = document.querySelectorAll('input[name="wzAssumptions"]');
-    assumpOpts.forEach((r) => {
-        r.addEventListener("change", () => {
-            if (!r.checked) return;
-            wzAssumptionsValue = r.value;
-            if (wzNavStep === 5 && wzAllocMode === "auto" && currentPath() === 2) {
-                runSuggestAllocation();
+                runSuggestAllocation({ scroll: true });
             }
             saveWizardState();
         });
@@ -2752,7 +2750,7 @@ function initWizard() {
     bindSliderRange(document.getElementById("wzGrossRange"), document.getElementById("wzGross"), 0, 100000, () => scheduleSalaryHint());
     bindSliderRange(document.getElementById("wzAgeRange"), document.getElementById("wzAge"), 16, 90);
     initGoalHorizon();
-    initStrategyAndAssumptions();
+    initStrategy();
     syncPathUI();
     document.querySelectorAll('input[name="wzPath"]').forEach((r) => {
         r.addEventListener("change", () => {

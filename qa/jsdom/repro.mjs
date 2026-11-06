@@ -104,7 +104,7 @@ const harness = `
     });
     check("h2 kroku 2 = Twoje dane", () => document.querySelector('.wz-step[data-step="2"] h2').textContent.trim() === "Twoje dane");
     check("h2 kroku 4 dopasowane do ścieżki 1", () => document.querySelector('.wz-step[data-step="4"] h2').textContent.trim() === "Kiedy chcesz przejść na FIRE?");
-    check("h2 kroku 5 = Strategia i założenia", () => document.querySelector('.wz-step[data-step="5"] h2').textContent.trim() === "Strategia i założenia");
+    check("h2 kroku 5 = Strategia i podział", () => document.querySelector('.wz-step[data-step="5"] h2').textContent.trim() === "Strategia i podział");
     check("h2 kroku 6 = Twój plan FIRE", () => document.querySelector('.wz-step[data-step="6"] h2').textContent.trim() === "Twój plan FIRE");
     check("krok 3: wszystkie 14 kont jako pastylki + dodawanie/usuwanie pola kwotowego", () => {
         const pills = document.querySelectorAll("#wzCapitalPicker .wz-pill");
@@ -256,13 +256,12 @@ const harness = `
         return document.getElementById("wzSavingsAmtRange").max === "10000";
     });
 
-    // ---- Pkt 4/5: struktura kroku 5 (Strategia i założenia) ----
-    check("krok 5: 5 paneli w kolejności (Założenia, Strategia, Podział, Dodaj, Wpłaty)", () => {
+    // ---- Pkt 4/5: struktura kroku 5 (Strategia i podział) ----
+    check("krok 5: 4 panele w kolejności (Strategia, Podział, Dodaj, Wpłaty)", () => {
         const panels = [...document.querySelector('.wz-step[data-step="5"]').querySelectorAll(".wz-alloc-panel")];
-        if (panels.length !== 5) return false;
+        if (panels.length !== 4) return false;
         const titles = panels.map((p) => p.querySelector(".wz-panel-title")?.textContent.trim());
         return JSON.stringify(titles) === JSON.stringify([
-            "Założenia rynkowe (koniunktura)",
             "Strategia podziału oszczędności",
             "Podział",
             "Dodaj instrument",
@@ -293,13 +292,9 @@ const harness = `
             && !document.getElementById("wzAllocPillsPanel").classList.contains("hidden");
     });
     check("payroll panel ukryty gdy brak PPK/PPE", () => document.getElementById("wzPayrollPanel").classList.contains("hidden"));
-    check("strategia: 4 opcje (Konserwatywna, Zrównoważona, Agresywna, Manualna) + 3 opcje założeń", () => {
+    check("strategia: 4 opcje (Konserwatywna, Zrównoważona, Agresywna, Manualna)", () => {
         const stratBox = document.querySelector(".wz-alloc-strategy-options");
-        const assumpBox = document.querySelector(".wz-assumptions-options");
-        return !!stratBox
-            && !!assumpBox
-            && stratBox.querySelectorAll(".seg-option").length === 4
-            && assumpBox.querySelectorAll(".seg-option").length === 3;
+        return !!stratBox && stratBox.querySelectorAll(".seg-option").length === 4;
     });
 
     // ---- Gotówka jako bufor: pełna pula roczna/miesięczna na starcie ----
