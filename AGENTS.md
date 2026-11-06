@@ -222,8 +222,8 @@ bez TypeScript), SQLite, pytest. Odpowiadaj i pisz UI po polsku.
   Usunięcie instrumentu czyści kwotę i wagę (`deactivateAllocAccount`/`togglePill`),
   `collectAllocations` pomija nieaktywne konta.
 - Krok 6 „Twój plan FIRE": loader `#wzPlanLoader` jest indeterministyczny
-  (jeden komunikat + „nadal liczę” po 3 s, bez cyklu 1/3–3/3); przed nowym
-  planem `resetPlanResult()` czyści stary wynik i `wzPlan`. Potem `#wzHeroAnswer`,
+  (losowe teksty o cierpliwości, zmieniane co 8 s, bez cyklu 1/3–3/3); przed
+  nowym planem `resetPlanResult()` czyści stary wynik i `wzPlan`. Potem `#wzHeroAnswer`,
   3 karty `#wzScenariosBox`, metryki `#wzMetrics` (`.metric-grid`), `#wzSolved`
   (baner info), `#wzWarnings` (baner warn z listą), oś czasu `#wzTimeline`,
   tabela faz `#wzPhaseTable` (na mobile ukryta, bo karty osi czasu niosą te same

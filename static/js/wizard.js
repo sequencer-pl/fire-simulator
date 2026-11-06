@@ -107,6 +107,26 @@ const WZ_SALARY_HINT_RETRY_MAX = 2;
 let wzRetirementTouched = false;
 let wzPlanEndTouched = false;
 let wzLoaderTimer = null;
+let wzLoaderTipBag = [];
+let wzLoaderLastTip = "";
+
+const PLAN_LOADER_TIPS = [
+    "Cierpliwość to klucz do niezależności finansowej. Liczę Twój plan…",
+    "Dobre plany dojrzewają dłużej niż sekundę.",
+    "Procent składany lubi cierpliwych. Ten loader też.",
+    "Plan FIRE to maraton, nie sprint. Dlatego liczę go chwilę dłużej.",
+    "Nie chodzi o szybki zysk. Chodzi o to, żeby nie musieć się spieszyć.",
+    "Każdy rok cierpliwości to zwykle kilka lat spokoju później.",
+    "Czas w rynku bije timing rynku — nawet gdy czekasz na wynik symulacji.",
+    "Twoje pieniądze nie spieszą się z inwestowaniem. Ten loader też nie.",
+    "Cierpliwość jest jak procent składany: początkowo niewidoczna, potem robi całą robotę.",
+    "Im mniej pośpiechu w planie, tym więcej spokoju w realizacji.",
+    "Ten loader też ćwiczy cierpliwość. To umiejętność, nie bug.",
+    "Portfel nie pyta, czy masz już wynik. Pyta, czy wytrzymasz.",
+    "Spokojnie. Wolność finansowa i tak nie przyjdzie w 8 sekund.",
+    "Najlepsze decyzje finansowe rzadko mieszczą się w jednej sekundzie.",
+    "Nie ma trybu instant na niezależność. Jest dobra mapa i czas.",
+];
 let wzInitialized = false;
 
 function capitalLabel(account) {
@@ -1197,21 +1217,46 @@ async function postJson(url, body, errorLabel) {
     return data;
 }
 
+function shufflePlanLoaderTips() {
+    const tips = [...PLAN_LOADER_TIPS];
+    for (let i = tips.length - 1; i > 0; i -= 1) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [tips[i], tips[j]] = [tips[j], tips[i]];
+    }
+    return tips;
+}
+
+function nextPlanLoaderTip() {
+    if (!wzLoaderTipBag.length) wzLoaderTipBag = shufflePlanLoaderTips();
+    let tip = wzLoaderTipBag.pop();
+    if (tip === wzLoaderLastTip && wzLoaderTipBag.length) {
+        const swap = wzLoaderTipBag.pop();
+        wzLoaderTipBag.push(tip);
+        tip = swap;
+    }
+    wzLoaderLastTip = tip;
+    return tip;
+}
+
+function showNextPlanLoaderTip() {
+    const stepText = document.getElementById("wzPlanLoaderStep");
+    if (stepText) stepText.textContent = nextPlanLoaderTip();
+}
+
+function schedulePlanLoaderTip(delay) {
+    wzLoaderTimer = setTimeout(() => {
+        showNextPlanLoaderTip();
+        schedulePlanLoaderTip(8000);
+    }, delay);
+}
+
 function startPlanLoader() {
     const loader = document.getElementById("wzPlanLoader");
-    const stepText = document.getElementById("wzPlanLoaderStep");
     if (!loader) return;
     loader.classList.remove("hidden");
-    if (stepText) {
-        stepText.textContent = "To może potrwać kilka sekund. Porównuję scenariusze rynkowe i rozliczam podatki.";
-    }
     if (wzLoaderTimer) clearTimeout(wzLoaderTimer);
-    wzLoaderTimer = setTimeout(() => {
-        if (stepText) {
-            stepText.textContent = "Nadal liczę — scenariusze wymagają kilku pełnych symulacji…";
-        }
-        wzLoaderTimer = null;
-    }, 3000);
+    showNextPlanLoaderTip();
+    schedulePlanLoaderTip(8000);
 }
 
 function stopPlanLoader() {
