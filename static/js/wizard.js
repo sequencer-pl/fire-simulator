@@ -78,6 +78,7 @@ let wzCapitalSelected = new Set();
 let wzPill = new Set();
 let wzPlan = null;
 let wzSelectedScenario = null;
+let wzPlanRequestSeq = 0;
 let wzNavStep = 1;
 // Paths 1/3: annual amounts are canonical (extra pool goes to cash).
 // Path 2: percentage weights are canonical (amounts scale with the solved pool).
@@ -1201,27 +1202,56 @@ function startPlanLoader() {
     const stepText = document.getElementById("wzPlanLoaderStep");
     if (!loader) return;
     loader.classList.remove("hidden");
-    const steps = [
-        "Krok 1 / 3: Budowanie etapów akumulacji, brydża i emerytury ZUS…",
-        "Krok 2 / 3: Poszukiwanie optymalnej wypłaty i rozliczanie podatków…",
-        "Krok 3 / 3: Porównywanie scenariusza ostrożnego, realnego i optymistycznego…",
-    ];
-    let idx = 0;
-    if (stepText) stepText.textContent = steps[0];
-    if (wzLoaderTimer) clearInterval(wzLoaderTimer);
-    wzLoaderTimer = setInterval(() => {
-        idx = (idx + 1) % steps.length;
-        if (stepText) stepText.textContent = steps[idx];
-    }, 550);
+    if (stepText) {
+        stepText.textContent = "To może potrwać kilka sekund. Porównuję scenariusze rynkowe i rozliczam podatki.";
+    }
+    if (wzLoaderTimer) clearTimeout(wzLoaderTimer);
+    wzLoaderTimer = setTimeout(() => {
+        if (stepText) {
+            stepText.textContent = "Nadal liczę — scenariusze wymagają kilku pełnych symulacji…";
+        }
+        wzLoaderTimer = null;
+    }, 3000);
 }
 
 function stopPlanLoader() {
     if (wzLoaderTimer) {
-        clearInterval(wzLoaderTimer);
+        clearTimeout(wzLoaderTimer);
         wzLoaderTimer = null;
     }
     const loader = document.getElementById("wzPlanLoader");
     if (loader) loader.classList.add("hidden");
+}
+
+function resetPlanResult() {
+    wzPlan = null;
+    wzSelectedScenario = null;
+    const result = document.getElementById("wzResult");
+    if (result) result.classList.add("hidden");
+    [
+        "wzHeroAnswer",
+        "wzScenariosBox",
+        "wzMetrics",
+        "wzSolved",
+        "wzWarnings",
+        "wzTimeline",
+        "wzPhaseTable",
+        "wzStageSummaryList",
+        "wzFlowsGantt",
+        "wzFlowsTable",
+    ].forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) el.innerHTML = "";
+    });
+    const solved = document.getElementById("wzSolved");
+    if (solved) solved.classList.add("hidden");
+    const flows = document.getElementById("wzFlowsWrap");
+    if (flows) flows.classList.add("hidden");
+    const error = document.getElementById("wzResultError");
+    if (error) {
+        error.classList.add("hidden");
+        error.textContent = "";
+    }
 }
 
 async function runPlan() {
@@ -1231,15 +1261,16 @@ async function runPlan() {
     if (path !== 1) {
         body.target_monthly = parseFloat(document.getElementById("wzTarget").value) || null;
     }
+    const seq = ++wzPlanRequestSeq;
     const runBtn = document.getElementById("wzNextBtn");
     const errorBox = document.getElementById("wzResultError");
-    errorBox.classList.add("hidden");
-    errorBox.textContent = "";
+    resetPlanResult();
     runBtn.disabled = true;
     runBtn.textContent = "Wyliczam...";
     startPlanLoader();
     try {
         const data = await postJson("/api/wizard/plan", body, "Błąd planowania.");
+        if (seq !== wzPlanRequestSeq) return;
         wzPlan = data;
         wzSelectedScenario = answers.assumptions || "realne";
         document.getElementById("wzResult").classList.remove("hidden");
@@ -1247,15 +1278,18 @@ async function runPlan() {
         renderScenarioResult(data);
         saveWizardState();
     } catch (err) {
+        if (seq !== wzPlanRequestSeq) return;
         wzPlan = null;
         document.getElementById("wzResult").classList.remove("hidden");
         errorBox.innerHTML = `${iconSvg("danger")}<div class="banner-body"></div>`;
         errorBox.querySelector(".banner-body").textContent = "Błąd: " + err.message;
         errorBox.classList.remove("hidden");
     } finally {
-        stopPlanLoader();
-        runBtn.disabled = false;
-        updateFooterNav(wzNavStep);
+        if (seq === wzPlanRequestSeq) {
+            stopPlanLoader();
+            runBtn.disabled = false;
+            updateFooterNav(wzNavStep);
+        }
     }
 }
 
