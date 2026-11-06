@@ -24,6 +24,7 @@ from app.simulation.planner import (
     WizardSuggestRequest,
     estimate_pool_monthly,
     plan,
+    resolve_config,
     suggest_allocations,
 )
 from app.simulation.salary import salary_preview
@@ -82,6 +83,23 @@ def _require_user(request: Request) -> int:
     if not user_id:
         raise HTTPException(status_code=401, detail="Zaloguj się, aby kontynuować.")
     return user_id
+
+
+def _user_tax_config(request: Request) -> TaxConfig | None:
+    """Saved config for the current user, or None for anonymous/legacy users."""
+    user_id = _current_user_id(request)
+    if not user_id:
+        return None
+    saved = db.get_user_config(user_id)
+    if not saved:
+        return None
+    try:
+        payload = json.loads(saved)
+        if isinstance(payload, dict) and "config" in payload:
+            payload = payload["config"]
+        return TaxConfig.model_validate(payload)
+    except (json.JSONDecodeError, TypeError, ValidationError):
+        return None
 
 
 def _summary_from_result(result: SimulationResult) -> dict:
@@ -272,7 +290,8 @@ async def wizard(request: Request):
 def api_wizard_plan(body: WizardPlanRequest, request: Request):
     check_limit("wizard_plan", request)
     try:
-        return plan(body.path, body.answers, body.target_monthly)
+        answers = body.answers.model_copy(update={"base_config": _user_tax_config(request)})
+        return plan(body.path, answers, body.target_monthly)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
 
@@ -281,12 +300,13 @@ def api_wizard_plan(body: WizardPlanRequest, request: Request):
 def api_wizard_suggest(body: WizardSuggestRequest, request: Request):
     check_limit("wizard_suggest", request)
     try:
+        answers = body.answers.model_copy(update={"base_config": _user_tax_config(request)})
         pool_monthly = estimate_pool_monthly(
-            body.answers, body.path, body.target_monthly
+            answers, body.path, body.target_monthly
         )
         pool = pool_monthly * 12.0
         return {
-            "allocations": suggest_allocations(body.answers, default_config(), pool),
+            "allocations": suggest_allocations(answers, resolve_config(answers), pool),
             "pool_monthly": round(pool_monthly, 2),
         }
     except ValueError as e:
@@ -301,7 +321,7 @@ def api_wizard_salary(body: SalaryPreviewRequest, request: Request):
         body.amount,
         body.salary_mode,
         body.employment,
-        default_config(),
+        _user_tax_config(request) or default_config(),
         ppk_pct=ppk_pct,
     )
     return {

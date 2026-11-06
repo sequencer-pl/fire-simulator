@@ -170,6 +170,9 @@ class WizardAnswers(BaseModel):
     strategy: Literal["konserwatywna", "zbilansowana", "agresywna", "manualna"] = "zbilansowana"
     assumptions: Literal["konserwatywne", "realne", "optymistyczne"] = "realne"
     life_expectancy_growth_months_per_year: float | None = Field(default=None, ge=0.0, le=5.0)
+    # Server-injected saved config. Wizard endpoints overwrite it from the
+    # user's saved configuration; None keeps the legacy built-in preset path.
+    base_config: TaxConfig | None = None
     roi_overrides: dict[str, float] = Field(default_factory=dict)
 
     # Monthly-savings shares (%) per allocatable account. Money NOT assigned
@@ -379,13 +382,49 @@ def estimate_pool_monthly(
     return _savings_monthly(a)
 
 
+def _with_market_overlay(config: TaxConfig, preset_name: str) -> TaxConfig:
+    """Apply only market assumptions from a built-in preset.
+
+    Structural data (taxes, limits, account rules, PPK/PPE, longevity) stays
+    from the user's saved config; the preset changes inflation, default ROI
+    and ZUS indexation.
+    """
+    preset = get_builtin_preset(preset_name)
+    if preset is None:
+        return config
+    data = config.model_dump()
+    data["inflation"] = preset["inflation"]
+    data["zus"]["waloryzacja_skladek"] = preset["zus"]["waloryzacja_skladek"]
+    data["zus"]["waloryzacja_swiadczenia"] = preset["zus"]["waloryzacja_swiadczenia"]
+    for name, rules in preset["accounts"].items():
+        if name in data["accounts"]:
+            data["accounts"][name]["default_roi"] = rules["default_roi"]
+    return TaxConfig.model_validate(data)
+
+
 def _config_for_answers(a: WizardAnswers) -> TaxConfig:
-    preset_name = ASSUMPTIONS_PRESET_MAP.get(a.assumptions, "Realne")
-    preset_dict = get_builtin_preset(preset_name)
-    config = TaxConfig.model_validate(preset_dict) if preset_dict is not None else default_config()
+    if a.base_config is not None:
+        config = a.base_config.model_copy(deep=True)
+        if a.assumptions != "realne":
+            config = _with_market_overlay(
+                config, ASSUMPTIONS_PRESET_MAP.get(a.assumptions, "Realne")
+            )
+    else:
+        preset_name = ASSUMPTIONS_PRESET_MAP.get(a.assumptions, "Realne")
+        preset_dict = get_builtin_preset(preset_name)
+        config = (
+            TaxConfig.model_validate(preset_dict)
+            if preset_dict is not None
+            else default_config()
+        )
     if a.life_expectancy_growth_months_per_year is not None:
         config.longevity.growth_months_per_year = a.life_expectancy_growth_months_per_year
     return config
+
+
+def resolve_config(a: WizardAnswers) -> TaxConfig:
+    """Effective config for one assistant run (saved base + market overlay)."""
+    return _config_for_answers(a)
 
 
 def _roi(a: WizardAnswers, name: str, config: TaxConfig | None = None) -> float:

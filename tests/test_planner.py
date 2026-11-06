@@ -416,6 +416,29 @@ def test_wizard_longevity_growth_defaults_to_preset_value():
     assert data.config.longevity.growth_months_per_year == pytest.approx(1.5)
 
 
+def test_wizard_realne_uses_saved_base_config():
+    base = default_config()
+    base.inflation = 0.07
+    base.zus.waloryzacja_skladek = 0.0
+    base.limits.ike_annual = 50_000
+    a = answers(assumptions="realne", base_config=base)
+    data = P.build_stages(a)
+    assert data.config.inflation == pytest.approx(0.07)
+    assert data.config.zus.waloryzacja_skladek == pytest.approx(0.0)
+    assert data.config.limits.ike_annual == pytest.approx(50_000)
+
+
+def test_wizard_market_overlay_keeps_saved_structural_config():
+    base = default_config()
+    base.kwota_wolna = 12_345
+    base.zus.waloryzacja_skladek = 0.0
+    a = answers(assumptions="konserwatywne", base_config=base)
+    data = P.build_stages(a)
+    assert data.config.kwota_wolna == pytest.approx(12_345)
+    assert data.config.zus.waloryzacja_skladek == pytest.approx(0.01)
+    assert data.config.inflation == pytest.approx(0.035)
+
+
 # --- Path 3: earliest FIRE age ----------------------------------------------
 
 
@@ -689,6 +712,42 @@ def test_api_path1(client):
         body["scenario_projections"]["realne"]["phase_metrics"]
         == body["projection"]["phase_metrics"]
     )
+
+
+def test_api_wizard_plan_uses_saved_config(client):
+    assert client.post(
+        "/api/register",
+        json={"email": "wizard-config@example.com", "password": "haslo12345"},
+    ).status_code == 200
+    payload = {"path": 1, "answers": dict(BASE, capital={"broker": 50_000})}
+    before = client.post("/api/wizard/plan", json=payload).json()
+
+    config = client.get("/api/config").json()
+    config["inflation"] = 0.10
+    config["zus"]["waloryzacja_skladek"] = 0.0
+    config["accounts"]["broker"]["default_roi"] = 0.01
+    assert client.put("/api/config/user", json=config).status_code == 200
+
+    after = client.post("/api/wizard/plan", json=payload).json()
+    assert after["projection"]["min_monthly"] != pytest.approx(
+        before["projection"]["min_monthly"]
+    )
+
+
+def test_api_wizard_salary_uses_saved_config(client):
+    assert client.post(
+        "/api/register",
+        json={"email": "wizard-salary-config@example.com", "password": "haslo12345"},
+    ).status_code == 200
+    payload = {"amount": 10_000, "salary_mode": "gross", "employment": "etat"}
+    before = client.post("/api/wizard/salary", json=payload).json()
+    config = client.get("/api/config").json()
+    config["kwota_wolna"] = 0.0
+    config["rate_lower"] = 0.30
+    config["rate_upper"] = 0.30
+    assert client.put("/api/config/user", json=config).status_code == 200
+    after = client.post("/api/wizard/salary", json=payload).json()
+    assert after["net_monthly"] < before["net_monthly"]
 
 
 def test_api_path2(client):

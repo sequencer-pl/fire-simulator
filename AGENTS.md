@@ -132,7 +132,14 @@ bez TypeScript), SQLite, pytest. Odpowiadaj i pisz UI po polsku.
 - **Konfiguracja edytuje w miejscu**: `configFieldShell` renderuje kontrolkę od
   razu (bez przycisku „Zmień”); kropka `.config-override-indicator` i aktywny
   `.config-restore-btn` oznaczają wartość inną niż w presecie
-  (`qa/visual/config-interactions.spec.js`).
+  (`qa/visual/config-interactions.spec.js`). Pierwsza ręczna zmiana ustawia
+  `CONFIG_IS_CUSTOM` i pokazuje w `#presetSelect` „Własna konfiguracja”;
+  `CONFIG_BASELINE_NAME` nadal wskazuje preset bazowy do przywracania.
+- **Asystent a zapisana konfiguracja**: endpointy `/api/wizard/plan`,
+  `/api/wizard/suggest` i `/api/wizard/salary` wstrzykują zapisany config jako
+  `WizardAnswers.base_config`. `realne` używa go w całości, a
+  `konserwatywne`/`optymistyczne` nakładają tylko inflację, `default_roi` kont
+  i waloryzację ZUS; podatki, limity i zasady kont zostają z configu.
 - Nowe pola liczbowe przez `numControlsHtml`/`initNumControls` (controls.js), nie
   surowe inputy. Pola kwotowe: `tabular-nums`, w asystencie `.wz-slider .num-control`
   ma stałe 150 px i stoi PRZED `input[type="range"]` (na mobile liczba nad suwakiem).

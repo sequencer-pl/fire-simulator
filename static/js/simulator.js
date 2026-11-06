@@ -10,6 +10,7 @@ let _currentPresetId = null;
 let _currentPresetName = "Domyślne 2026";
 let CONFIG_BASELINE = null;
 let CONFIG_BASELINE_NAME = "Domyślne 2026";
+let CONFIG_IS_CUSTOM = false;
 let CONFIG_OVERRIDE_PATHS = new Set();
 
 let lastInput = null;
@@ -380,12 +381,15 @@ async function initConfig() {
                 _currentPresetId = userData.preset_id ?? null;
                 _currentPresetName = CONFIG_BASELINE_NAME === "Własna konfiguracja" ? null : CONFIG_BASELINE_NAME;
                 CONFIG_OVERRIDE_PATHS = new Set(userData.overrides || []);
+                CONFIG_IS_CUSTOM = CONFIG_OVERRIDE_PATHS.size > 0
+                    || CONFIG_BASELINE_NAME === "Własna konfiguracja";
             } else {
                 CONFIG_BASELINE = structuredClone(USER_CONFIG);
                 CONFIG_BASELINE_NAME = "Własna konfiguracja";
                 _currentPresetId = null;
                 _currentPresetName = null;
                 CONFIG_OVERRIDE_PATHS = new Set();
+                CONFIG_IS_CUSTOM = true;
             }
         } else {
             USER_CONFIG = structuredClone(DEFAULT_CONFIG);
@@ -394,6 +398,7 @@ async function initConfig() {
             _currentPresetId = null;
             _currentPresetName = "Domyślne 2026";
             CONFIG_OVERRIDE_PATHS = new Set();
+            CONFIG_IS_CUSTOM = false;
         }
         const presetsData = await presetsRes.json();
         PRESETS = presetsData.presets || [];
@@ -591,6 +596,7 @@ function configFieldShell(path, label, hint, editorMarkup, displayValue, inputVa
         wrap.classList.toggle("has-override", isChanged);
         restoreBtn.disabled = !isChanged;
         wrap.title = displayValue(configPathValue(USER_CONFIG, path));
+        syncConfigCustomState();
     }
 
     restoreBtn.addEventListener("click", () => {
@@ -706,6 +712,7 @@ async function resetConfig() {
     USER_CONFIG = structuredClone(DEFAULT_CONFIG);
     CONFIG_BASELINE = structuredClone(DEFAULT_CONFIG);
     CONFIG_BASELINE_NAME = "Domyślne 2026";
+    CONFIG_IS_CUSTOM = false;
     CONFIG_OVERRIDE_PATHS.clear();
     _currentPresetId = null;
     _currentPresetName = "Domyślne 2026";
@@ -734,9 +741,9 @@ function initPresetBar() {
         const presetId = opt.dataset.presetId;
         const presetName = opt.dataset.presetName;
         const isBuiltin = opt.dataset.isBuiltin === "true";
-        const samePreset = isBuiltin
+        const samePreset = !CONFIG_IS_CUSTOM && (isBuiltin
             ? presetName === CONFIG_BASELINE_NAME
-            : Number(presetId) === _currentPresetId;
+            : Number(presetId) === _currentPresetId);
         if (samePreset) return;
         if (CONFIG_OVERRIDE_PATHS.size && !confirm("Zmiana presetu zastąpi bieżące wartości i usunie ich nadpisania. Kontynuować?")) {
             refreshPresetBar();
@@ -768,6 +775,7 @@ function initPresetBar() {
             _currentPresetName = null;
             CONFIG_BASELINE = structuredClone(USER_CONFIG);
             CONFIG_BASELINE_NAME = saved.name;
+            CONFIG_IS_CUSTOM = false;
             CONFIG_OVERRIDE_PATHS.clear();
             await refreshPresets();
             renderConfigView();
@@ -835,23 +843,36 @@ function initPresetBar() {
     refreshPresetBar();
 }
 
+function syncConfigCustomState() {
+    const custom = CONFIG_OVERRIDE_PATHS.size > 0
+        || CONFIG_BASELINE_NAME === "Własna konfiguracja";
+    if (custom === CONFIG_IS_CUSTOM) return;
+    CONFIG_IS_CUSTOM = custom;
+    refreshPresetBar();
+}
+
 function refreshPresetBar() {
     const select = document.getElementById("presetSelect");
     const deleteBtn = document.getElementById("presetDeleteBtn");
     select.innerHTML = "";
 
+    const showCustom = CONFIG_IS_CUSTOM || CONFIG_BASELINE_NAME === "Własna konfiguracja";
     for (const p of PRESETS) {
         const opt = document.createElement("option");
         opt.textContent = p.name;
         opt.dataset.presetId = p.id ?? "";
         opt.dataset.presetName = p.name;
         opt.dataset.isBuiltin = p.is_builtin;
-        if (p.is_builtin && p.name === CONFIG_BASELINE_NAME) opt.selected = true;
-        else if (_currentPresetId !== null && p.id === _currentPresetId) opt.selected = true;
+        if (!showCustom && p.is_builtin && p.name === CONFIG_BASELINE_NAME) opt.selected = true;
+        else if (
+            !showCustom
+            && _currentPresetId !== null
+            && p.id === _currentPresetId
+        ) opt.selected = true;
         select.appendChild(opt);
     }
 
-    if (CONFIG_BASELINE_NAME === "Własna konfiguracja") {
+    if (showCustom) {
         const opt = document.createElement("option");
         opt.textContent = "Własna konfiguracja";
         opt.dataset.isCustom = "true";
@@ -886,6 +907,7 @@ async function applyPresetByName(name) {
             : backfillConfig(defaults);
         CONFIG_BASELINE = structuredClone(USER_CONFIG);
         CONFIG_BASELINE_NAME = name;
+        CONFIG_IS_CUSTOM = false;
         CONFIG_OVERRIDE_PATHS.clear();
         _currentPresetId = null;
         _currentPresetName = name;
@@ -986,6 +1008,7 @@ async function applyPresetById(presetId) {
         USER_CONFIG = backfillConfig(data.config);
         CONFIG_BASELINE = structuredClone(USER_CONFIG);
         CONFIG_BASELINE_NAME = PRESETS.find(preset => preset.id === presetId)?.name || "Własna konfiguracja";
+        CONFIG_IS_CUSTOM = CONFIG_BASELINE_NAME === "Własna konfiguracja";
         CONFIG_OVERRIDE_PATHS.clear();
         _currentPresetId = presetId;
         _currentPresetName = null;

@@ -85,6 +85,7 @@ let wzAmounts = {};
 let wzLimits = null;
 let wzLongevityGrowth = 1.5;
 let wzConfigLoaded = false;
+let wzConfigIsCustom = false;
 let wzStrategyValue = null;
 let wzAssumptionsValue = "realne";
 let wzAllocMode = null;
@@ -2504,12 +2505,26 @@ async function loadWzConfig() {
             fetch("/api/config").catch(() => null),
         ]);
         let cfg = null;
+        let isCustom = false;
         if (userRes && userRes.ok) {
             const data = await userRes.json();
             cfg = data.config || null;
+            isCustom = Boolean(
+                data.config
+                && ((data.overrides || []).length > 0
+                    || data.preset_name === "Własna konfiguracja")
+            );
         }
         if (!cfg && defaultRes && defaultRes.ok) {
             cfg = await defaultRes.json();
+        }
+        wzConfigIsCustom = isCustom;
+        const note = document.getElementById("wzConfigNote");
+        if (note) {
+            note.hidden = !wzConfigIsCustom;
+            note.textContent = wzConfigIsCustom
+                ? "Aktywne parametry z Twojej konfiguracji (Własna)."
+                : "";
         }
         if (!cfg) return;
         wzLimits = cfg.limits || wzLimits;

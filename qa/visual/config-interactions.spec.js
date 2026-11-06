@@ -16,7 +16,7 @@ test("ikona ? pokazuje dymek po najechaniu", async ({ page }) => {
     await expect(tip.locator(".tooltip")).toBeVisible();
 });
 
-test("pole jest edytowalne od razu, zmiana zaznacza nadpisanie, przywróć wraca do presetu", async ({ page }) => {
+test("pole jest edytowalne od razu, zmiana przełącza preset na Własną, przywróć wraca do presetu", async ({ page }) => {
     await page.goto("/sim?view=config", { waitUntil: "networkidle" });
     const f = field(page, "Inflacja roczna");
     const input = f.locator(".config-inline-editor input");
@@ -33,11 +33,13 @@ test("pole jest edytowalne od razu, zmiana zaznacza nadpisanie, przywróć wraca
     await expect(indicator).toBeVisible();
     await expect(f).toHaveClass(/has-override/);
     await expect(restore).toBeEnabled();
+    await expect(page.locator("#presetSelect option:checked")).toHaveText("Własna konfiguracja");
 
     await restore.click();
     await expect(input).toHaveValue("2.5");
     await expect(indicator).toBeHidden();
     await expect(restore).toBeDisabled();
+    await expect(page.locator("#presetSelect option:checked")).toHaveText("Domyślne 2026");
 });
 
 test("select konfiguracji jest natywnym <select> z klasą .select", async ({ page }) => {

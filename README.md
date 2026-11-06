@@ -83,6 +83,8 @@ Symulator celowo jest **prostym modelem deterministycznym**, a nie symulacją Mo
 
 8a. **Domyślny horyzont Asystenta** = oczekiwana długość życia (GUS 2024, wg płci) powiększona o skumulowany wzrost długowieczności (`longevity.growth_months_per_year`). To przybliżenie kohortowe: każdy pozostały rok życia wydłuża się o założoną liczbę miesięcy. Użytkownik może nadpisać horyzont suwakiem.
 
+8b. **Asystent a Konfiguracja:** jeśli użytkownik zapisał własną konfigurację, „Realne” używa jej w całości; „Konserwatywne”/„Optymistyczne” nakładają tylko inflację, domyślne ROI i waloryzację ZUS. Bez zapisanej konfiguracji działa stary preset. Pierwsza ręczna zmiana w Konfiguracji przełącza select presetu na „Własna konfiguracja”, a przywrócenie wszystkich wartości wraca do nazwy presetu.
+
 9. **Limity wpłat (2026):** IKE 28 260 zł, IKZE 11 304 zł (16 956 zł samozatrudnieni), OIPE 28 260 zł, składka dodatkowa PPE 42 390 zł. Przekroczenie to ostrzeżenie, nie automatyczne obcięcie — dopłaty ponad limit po prostu "wchodzą" i tracą sens podatkowy.
 
 10. **Nakładające się etapy** — dla danego konta wygrywa pierwszy z nich; konta nieobsługiwane w danym roku rosną pasywnie z ostatnim znanym ROI (domyślnie 2%).
