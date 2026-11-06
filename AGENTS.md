@@ -140,6 +140,10 @@ bez TypeScript), SQLite, pytest. Odpowiadaj i pisz UI po polsku.
   `WizardAnswers.base_config`. `realne` używa go w całości, a
   `konserwatywne`/`optymistyczne` nakładają tylko inflację, `default_roi` kont
   i waloryzację ZUS; podatki, limity i zasady kont zostają z configu.
+- **Niezalogowani**: config jest zapisywany w `localStorage` pod
+  `fire.config.anonymous`; Asystent dostaje go w `WizardAnswers.base_config`.
+  Zalogowani zawsze używają configu z serwera (klient nie nadpisuje). Zapis
+  zalogowanych jest flushowany na `pagehide`/`visibilitychange` z `keepalive`.
 - Nowe pola liczbowe przez `numControlsHtml`/`initNumControls` (controls.js), nie
   surowe inputy. Pola kwotowe: `tabular-nums`, w asystencie `.wz-slider .num-control`
   ma stałe 150 px i stoi PRZED `input[type="range"]` (na mobile liczba nad suwakiem).

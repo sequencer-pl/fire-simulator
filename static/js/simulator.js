@@ -11,7 +11,9 @@ let _currentPresetName = "Domyślne 2026";
 let CONFIG_BASELINE = null;
 let CONFIG_BASELINE_NAME = "Domyślne 2026";
 let CONFIG_IS_CUSTOM = false;
+let CONFIG_AUTHENTICATED = false;
 let CONFIG_OVERRIDE_PATHS = new Set();
+const ANON_CONFIG_KEY = "fire.config.anonymous";
 
 let lastInput = null;
 let lastResult = null;
@@ -366,13 +368,18 @@ window.setNavSection = function (section) {
 
 async function initConfig() {
     try {
-        const [defaultsRes, userRes, presetsRes] = await Promise.all([
+        const [defaultsRes, userRes, presetsRes, sessionRes] = await Promise.all([
             fetch("/api/config"),
             fetch("/api/config/user"),
             fetch("/api/presets"),
+            fetch("/api/session").catch(() => null),
         ]);
         DEFAULT_CONFIG = await defaultsRes.json();
         const userData = await userRes.json();
+        const session = sessionRes && sessionRes.ok ? await sessionRes.json() : null;
+        CONFIG_AUTHENTICATED = Boolean(session?.email);
+        const localData = CONFIG_AUTHENTICATED ? null : loadLocalConfig();
+
         if (userData.config) {
             USER_CONFIG = backfillConfig(userData.config);
             if (userData.baseline) {
@@ -391,6 +398,15 @@ async function initConfig() {
                 CONFIG_OVERRIDE_PATHS = new Set();
                 CONFIG_IS_CUSTOM = true;
             }
+        } else if (localData) {
+            USER_CONFIG = backfillConfig(localData.config);
+            CONFIG_BASELINE = backfillConfig(localData.baseline || localData.config);
+            CONFIG_BASELINE_NAME = localData.preset_name || "Własna konfiguracja";
+            _currentPresetId = localData.preset_id ?? null;
+            _currentPresetName = CONFIG_BASELINE_NAME === "Własna konfiguracja" ? null : CONFIG_BASELINE_NAME;
+            CONFIG_OVERRIDE_PATHS = new Set(localData.overrides || []);
+            CONFIG_IS_CUSTOM = CONFIG_OVERRIDE_PATHS.size > 0
+                || CONFIG_BASELINE_NAME === "Własna konfiguracja";
         } else {
             USER_CONFIG = structuredClone(DEFAULT_CONFIG);
             CONFIG_BASELINE = structuredClone(DEFAULT_CONFIG);
@@ -434,27 +450,80 @@ function setConfigPath(path, value) {
     let obj = USER_CONFIG;
     for (let i = 0; i < parts.length - 1; i++) obj = obj[parts[i]];
     obj[parts[parts.length - 1]] = value;
-    scheduleConfigSave();
 }
 
 let _configSaveTimeout = null;
-function scheduleConfigSave() {
-    if (!window.getCurrentUserEmail?.()) return;
-    clearTimeout(_configSaveTimeout);
-    _configSaveTimeout = setTimeout(() => {
-        fetch("/api/config/user", {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                config: USER_CONFIG,
-                baseline: CONFIG_BASELINE || USER_CONFIG,
-                preset_id: _currentPresetId,
-                preset_name: CONFIG_BASELINE_NAME,
-                overrides: [...CONFIG_OVERRIDE_PATHS],
-            }),
-        }).catch((err) => console.error("Błąd zapisu konfiguracji:", err));
-    }, 500);
+let _configSaveDirty = false;
+
+function configSavePayload() {
+    return {
+        config: USER_CONFIG,
+        baseline: CONFIG_BASELINE || USER_CONFIG,
+        preset_id: _currentPresetId,
+        preset_name: CONFIG_BASELINE_NAME,
+        overrides: [...CONFIG_OVERRIDE_PATHS],
+    };
 }
+
+function loadLocalConfig() {
+    try {
+        const raw = localStorage.getItem(ANON_CONFIG_KEY);
+        if (!raw) return null;
+        const payload = JSON.parse(raw);
+        return payload && typeof payload === "object" && payload.config ? payload : null;
+    } catch {
+        return null;
+    }
+}
+
+function persistConfigLocal() {
+    try {
+        localStorage.setItem(ANON_CONFIG_KEY, JSON.stringify(configSavePayload()));
+        return true;
+    } catch (err) {
+        console.error("Błąd lokalnego zapisu konfiguracji:", err);
+        return false;
+    }
+}
+
+function saveConfigNow({ keepalive = false } = {}) {
+    clearTimeout(_configSaveTimeout);
+    _configSaveTimeout = null;
+    if (!_configSaveDirty) return;
+    _configSaveDirty = false;
+    if (!CONFIG_AUTHENTICATED && !window.getCurrentUserEmail?.()) {
+        _configSaveDirty = !persistConfigLocal();
+        return;
+    }
+    fetch("/api/config/user", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(configSavePayload()),
+        keepalive,
+    }).catch((err) => {
+        _configSaveDirty = true;
+        console.error("Błąd zapisu konfiguracji:", err);
+    });
+}
+
+function scheduleConfigSave() {
+    _configSaveDirty = true;
+    if (!CONFIG_AUTHENTICATED && !window.getCurrentUserEmail?.()) {
+        _configSaveDirty = !persistConfigLocal();
+        return;
+    }
+    clearTimeout(_configSaveTimeout);
+    _configSaveTimeout = setTimeout(() => saveConfigNow(), 500);
+}
+
+function flushConfigSave() {
+    if (_configSaveDirty) saveConfigNow({ keepalive: true });
+}
+
+window.addEventListener("pagehide", flushConfigSave);
+document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") flushConfigSave();
+});
 
 function renderConfigView() {
     const root = document.getElementById("config-content");
@@ -640,7 +709,9 @@ function configField(path, label, value, percent, hint, ticks, nullable = false)
         setConfigPath(path, normalized == null ? null : percent ? normalized / 100 : normalized);
         wrap._updateConfigState();
         updateStageHints(document.getElementById("stages-container"));
+        scheduleConfigSave();
     });
+    input.addEventListener("change", () => saveConfigNow());
     return wrap;
 }
 
@@ -703,12 +774,17 @@ function configSelect(path, label, value, options, hint) {
         setConfigPath(path, select.value);
         wrap._updateConfigState();
         updateStageHints(document.getElementById("stages-container"));
+        scheduleConfigSave();
+        saveConfigNow();
     });
     return wrap;
 }
 
 async function resetConfig() {
     if (!confirm("Przywrócić domyślne wartości konfiguracji? Bieżące zmiany zostaną utracone.")) return;
+    clearTimeout(_configSaveTimeout);
+    _configSaveTimeout = null;
+    _configSaveDirty = false;
     USER_CONFIG = structuredClone(DEFAULT_CONFIG);
     CONFIG_BASELINE = structuredClone(DEFAULT_CONFIG);
     CONFIG_BASELINE_NAME = "Domyślne 2026";
@@ -720,7 +796,10 @@ async function resetConfig() {
     initTipAnchoring();
     updateStageHints(document.getElementById("stages-container"));
     refreshPresetBar();
-    if (window.getCurrentUserEmail?.()) {
+    if (!CONFIG_AUTHENTICATED) {
+        localStorage.removeItem(ANON_CONFIG_KEY);
+    }
+    if (CONFIG_AUTHENTICATED || window.getCurrentUserEmail?.()) {
         fetch("/api/config/user", { method: "DELETE" }).catch(() => {});
     }
 }

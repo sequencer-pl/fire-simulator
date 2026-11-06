@@ -20,6 +20,7 @@ from app.simulation.config import (
 from app.simulation.engine import simulate
 from app.simulation.planner import (
     SalaryPreviewRequest,
+    WizardAnswers,
     WizardPlanRequest,
     WizardSuggestRequest,
     estimate_pool_monthly,
@@ -100,6 +101,13 @@ def _user_tax_config(request: Request) -> TaxConfig | None:
         return TaxConfig.model_validate(payload)
     except (json.JSONDecodeError, TypeError, ValidationError):
         return None
+
+
+def _wizard_answers(request: Request, answers: WizardAnswers) -> WizardAnswers:
+    """Server config wins for logged-in users; anonymous clients may send theirs."""
+    if _current_user_id(request):
+        return answers.model_copy(update={"base_config": _user_tax_config(request)})
+    return answers
 
 
 def _summary_from_result(result: SimulationResult) -> dict:
@@ -290,7 +298,7 @@ async def wizard(request: Request):
 def api_wizard_plan(body: WizardPlanRequest, request: Request):
     check_limit("wizard_plan", request)
     try:
-        answers = body.answers.model_copy(update={"base_config": _user_tax_config(request)})
+        answers = _wizard_answers(request, body.answers)
         return plan(body.path, answers, body.target_monthly)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
@@ -300,7 +308,7 @@ def api_wizard_plan(body: WizardPlanRequest, request: Request):
 def api_wizard_suggest(body: WizardSuggestRequest, request: Request):
     check_limit("wizard_suggest", request)
     try:
-        answers = body.answers.model_copy(update={"base_config": _user_tax_config(request)})
+        answers = _wizard_answers(request, body.answers)
         pool_monthly = estimate_pool_monthly(
             answers, body.path, body.target_monthly
         )
@@ -317,11 +325,15 @@ def api_wizard_suggest(body: WizardSuggestRequest, request: Request):
 def api_wizard_salary(body: SalaryPreviewRequest, request: Request):
     check_limit("wizard_salary", request)
     ppk_pct = body.ppk_employee_pct if body.use_ppk else 0.0
+    if _current_user_id(request):
+        config = _user_tax_config(request) or default_config()
+    else:
+        config = body.base_config or default_config()
     gross, net = salary_preview(
         body.amount,
         body.salary_mode,
         body.employment,
-        _user_tax_config(request) or default_config(),
+        config,
         ppk_pct=ppk_pct,
     )
     return {

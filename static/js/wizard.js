@@ -4,6 +4,7 @@ let CONFIG = null;
 
 const WZ_TOTAL_STEPS = 6;
 const WIZARD_STATE_KEY = "fire.wizardState";
+const ANON_CONFIG_KEY = "fire.config.anonymous";
 
 // Step 3 rows: wszystkie 14 kont widoczne od razu jako pastylki wyboru,
 // a pola kwotowe renderowane pod spodem tylko dla wybranych kont.
@@ -86,6 +87,7 @@ let wzLimits = null;
 let wzLongevityGrowth = 1.5;
 let wzConfigLoaded = false;
 let wzConfigIsCustom = false;
+let wzAnonymousConfig = null;
 let wzStrategyValue = null;
 let wzAssumptionsValue = "realne";
 let wzAllocMode = null;
@@ -251,6 +253,7 @@ function collectAnswers() {
         gender: radioChecked("wzGender") || "m",
         age_now: parseInt(document.getElementById("wzAge").value, 10) || 0,
         life_expectancy_growth_months_per_year: wzLongevityGrowth,
+        base_config: wzAnonymousConfig || undefined,
         employment: radioChecked("wzEmployment") || "etat",
         gross_monthly: salaryMonthlyValue(),
         salary_mode: (radioChecked("wzEmployment") || "etat") === "etat"
@@ -1804,6 +1807,7 @@ async function updateSalaryHint() {
                 employment,
                 use_ppk: isCapActive("ppk"),
                 ppk_employee_pct: 0.02,
+                base_config: wzAnonymousConfig || undefined,
             }),
         });
         if (seq !== wzSalaryPreviewSeq) return;
@@ -2496,16 +2500,32 @@ function setAllocMode(mode) {
     refreshAllocGate();
 }
 
+function loadAnonymousConfig() {
+    try {
+        const raw = localStorage.getItem(ANON_CONFIG_KEY);
+        if (!raw) return null;
+        const payload = JSON.parse(raw);
+        return payload && typeof payload === "object" && payload.config ? payload : null;
+    } catch {
+        return null;
+    }
+}
+
 async function loadWzConfig() {
     if (wzConfigLoaded) return;
     wzConfigLoaded = true;
     try {
-        const [userRes, defaultRes] = await Promise.all([
+        const [userRes, defaultRes, sessionRes] = await Promise.all([
             fetch("/api/config/user").catch(() => null),
             fetch("/api/config").catch(() => null),
+            fetch("/api/session").catch(() => null),
         ]);
+        const session = sessionRes && sessionRes.ok ? await sessionRes.json() : null;
+        const authenticated = Boolean(session?.email);
+        const localData = authenticated ? null : loadAnonymousConfig();
         let cfg = null;
         let isCustom = false;
+        wzAnonymousConfig = null;
         if (userRes && userRes.ok) {
             const data = await userRes.json();
             cfg = data.config || null;
@@ -2513,6 +2533,14 @@ async function loadWzConfig() {
                 data.config
                 && ((data.overrides || []).length > 0
                     || data.preset_name === "Własna konfiguracja")
+            );
+        }
+        if (!cfg && localData) {
+            cfg = localData.config;
+            wzAnonymousConfig = localData.config;
+            isCustom = Boolean(
+                (localData.overrides || []).length > 0
+                || localData.preset_name === "Własna konfiguracja"
             );
         }
         if (!cfg && defaultRes && defaultRes.ok) {

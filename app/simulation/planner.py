@@ -211,6 +211,8 @@ class SalaryPreviewRequest(BaseModel):
     employment: Literal["etat", "b2b", "niepracujacy"] = "etat"
     use_ppk: bool = False
     ppk_employee_pct: float = 0.02
+    # Anonymous wizard sessions send their locally saved config here.
+    base_config: TaxConfig | None = None
 
 
 class StageMetric(BaseModel):

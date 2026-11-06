@@ -733,6 +733,57 @@ def test_api_wizard_plan_uses_saved_config(client):
         before["projection"]["min_monthly"]
     )
 
+    forged = default_config()
+    forged.inflation = 0.50
+    hijack = client.post(
+        "/api/wizard/plan",
+        json={
+            "path": 1,
+            "answers": dict(
+                BASE,
+                capital={"broker": 50_000},
+                base_config=forged.model_dump(),
+            ),
+        },
+    ).json()
+    assert hijack["projection"] == after["projection"]
+
+
+def test_api_wizard_plan_uses_anonymous_base_config(client):
+    payload = {"path": 1, "answers": dict(BASE, capital={"broker": 50_000})}
+    before = client.post("/api/wizard/plan", json=payload).json()
+
+    base = default_config()
+    base.inflation = 0.10
+    base.zus.waloryzacja_skladek = 0.0
+    payload_with_config = {
+        "path": 1,
+        "answers": dict(
+            BASE,
+            capital={"broker": 50_000},
+            base_config=base.model_dump(),
+        ),
+    }
+    after = client.post("/api/wizard/plan", json=payload_with_config).json()
+    assert after["projection"]["min_monthly"] != pytest.approx(
+        before["projection"]["min_monthly"]
+    )
+
+
+def test_api_wizard_salary_uses_anonymous_base_config(client):
+    payload = {"amount": 10_000, "salary_mode": "gross", "employment": "etat"}
+    before = client.post("/api/wizard/salary", json=payload).json()
+
+    base = default_config()
+    base.kwota_wolna = 0.0
+    base.rate_lower = 0.30
+    base.rate_upper = 0.30
+    after = client.post(
+        "/api/wizard/salary",
+        json={**payload, "base_config": base.model_dump()},
+    ).json()
+    assert after["net_monthly"] < before["net_monthly"]
+
 
 def test_api_wizard_salary_uses_saved_config(client):
     assert client.post(
