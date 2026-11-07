@@ -132,9 +132,12 @@ bez TypeScript), SQLite, pytest. Odpowiadaj i pisz UI po polsku.
 - **Konfiguracja edytuje w miejscu**: `configFieldShell` renderuje kontrolkę od
   razu (bez przycisku „Zmień”); kropka `.config-override-indicator` i aktywny
   `.config-restore-btn` oznaczają wartość inną niż w presecie
-  (`qa/visual/config-interactions.spec.js`). Pierwsza ręczna zmiana ustawia
-  `CONFIG_IS_CUSTOM` i pokazuje w `#presetSelect` „Własna konfiguracja”;
-  `CONFIG_BASELINE_NAME` nadal wskazuje preset bazowy do przywracania.
+  (`qa/visual/config-interactions.spec.js`). Wszystkie sekcje i karty kont są
+  `<details>` domyślnie zwinięte; badge `.config-section-modified` pokazuje
+  liczbę zmienionych pól, a `#configExpandBtn` rozwija/zwija sekcje. Pierwsza
+  ręczna zmiana ustawia `CONFIG_IS_CUSTOM` i pokazuje w `#presetSelect`
+  „Własna konfiguracja”; `CONFIG_BASELINE_NAME` nadal wskazuje preset bazowy
+  do przywracania.
 - **Asystent a zapisana konfiguracja**: endpointy `/api/wizard/plan`,
   `/api/wizard/suggest` i `/api/wizard/salary` wstrzykują zapisany config jako
   `WizardAnswers.base_config`. `realne` używa go w całości, a

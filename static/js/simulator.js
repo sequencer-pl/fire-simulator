@@ -585,27 +585,72 @@ function renderConfigView() {
         configNumberField("longevity.growth_months_per_year", "Wydłużenie życia (mies./rok)", USER_CONFIG.longevity.growth_months_per_year, "O ile miesięcy rocznie wydłuża się prognozowane życie. Wpływa na wysokość emerytury ZUS (dłuższa tabela ŚDTŻ) i domyślny horyzont w Asystencie."),
     ]));
 
-    const accountsSection = document.createElement("div");
+    const accountsSection = document.createElement("details");
     accountsSection.className = "config-section";
-    accountsSection.innerHTML = "<h3>Konta — reguły wypłat i podatków</h3>";
+    accountsSection.innerHTML = `<summary class="config-section-summary"><span class="config-section-title">Konta — reguły wypłat i podatków</span><span class="config-section-modified" hidden></span><span class="config-section-chevron" aria-hidden="true">${iconSvg("chevron")}</span></summary>`;
     const grid = document.createElement("div");
-    grid.className = "config-accounts";
+    grid.className = "config-accounts config-section-body";
     for (const [key, rules] of Object.entries(USER_CONFIG.accounts)) {
         grid.appendChild(renderAccountRulesCard(key, rules));
     }
     accountsSection.appendChild(grid);
     root.appendChild(accountsSection);
+    root.querySelectorAll("details.config-section").forEach((section) => {
+        section.addEventListener("toggle", updateConfigExpandButton);
+    });
+    updateConfigExpandButton();
+    refreshConfigSectionBadges();
 }
 
 function configSection(title, fields) {
-    const section = document.createElement("div");
+    const section = document.createElement("details");
     section.className = "config-section";
-    section.innerHTML = `<h3>${title}</h3>`;
+    section.innerHTML = `<summary class="config-section-summary"><span class="config-section-title">${escapeHtml(title)}</span><span class="config-section-modified" hidden></span><span class="config-section-chevron" aria-hidden="true">${iconSvg("chevron")}</span></summary>`;
     const grid = document.createElement("div");
-    grid.className = "config-fields";
+    grid.className = "config-fields config-section-body";
     fields.forEach((f) => grid.appendChild(f));
     section.appendChild(grid);
     return section;
+}
+
+function setModifiedBadge(badge, count) {
+    if (!badge) return;
+    badge.hidden = count === 0;
+    badge.textContent = count > 0 ? String(count) : "";
+    const label = count === 1 ? "1 zmienione pole" : `${count} zmienionych pól`;
+    badge.title = count > 0 ? label : "";
+    badge.setAttribute("aria-label", count > 0 ? label : "");
+}
+
+function refreshConfigSectionBadges() {
+    document.querySelectorAll("#config-content details.config-section").forEach((section) => {
+        const count = section.querySelectorAll(".config-field.has-override").length;
+        setModifiedBadge(section.querySelector("summary .config-section-modified"), count);
+        section.classList.toggle("has-override", count > 0);
+    });
+    document.querySelectorAll("#config-content .account-rules-card").forEach((card) => {
+        const count = card.querySelectorAll(".config-field.has-override").length;
+        setModifiedBadge(card.querySelector("summary .account-rules-modified"), count);
+        card.classList.toggle("has-override", count > 0);
+    });
+}
+
+function updateConfigExpandButton() {
+    const btn = document.getElementById("configExpandBtn");
+    if (!btn) return;
+    const sections = [...document.querySelectorAll("#config-content details.config-section")];
+    const allOpen = sections.length > 0 && sections.every((section) => section.open);
+    btn.textContent = allOpen ? "Zwiń sekcje" : "Rozwiń sekcje";
+    btn.setAttribute("aria-pressed", String(allOpen));
+}
+
+function toggleConfigSections() {
+    const sections = [...document.querySelectorAll("#config-content details.config-section")];
+    const allOpen = sections.length > 0 && sections.every((section) => section.open);
+    sections.forEach((section) => {
+        section.open = !allOpen;
+    });
+    updateConfigExpandButton();
 }
 
 function configPathValue(config, path) {
@@ -666,6 +711,7 @@ function configFieldShell(path, label, hint, editorMarkup, displayValue, inputVa
         restoreBtn.disabled = !isChanged;
         wrap.title = displayValue(configPathValue(USER_CONFIG, path));
         syncConfigCustomState();
+        refreshConfigSectionBadges();
     }
 
     restoreBtn.addEventListener("click", () => {
@@ -735,8 +781,8 @@ function renderAccountRulesCard(key, rules) {
     const info = getAccountInfo(key);
     const card = document.createElement("details");
     card.className = "account-rules-card";
-    card.open = !window.matchMedia("(max-width: 768px)").matches;
-    card.innerHTML = `<summary class="account-rules-summary"><span class="account-rules-icon">${ACCOUNT_ICONS[key] || ""}</span>${tipLabelHtml(ACCOUNT_LABELS[key] || key, info)}<span class="account-rules-chevron" aria-hidden="true">${iconSvg("chevron")}</span></summary><div class="account-rules-body"></div>`;
+    card.open = false;
+    card.innerHTML = `<summary class="account-rules-summary"><span class="account-rules-icon">${ACCOUNT_ICONS[key] || ""}</span>${tipLabelHtml(ACCOUNT_LABELS[key] || key, info)}<span class="account-rules-modified" hidden></span><span class="account-rules-chevron" aria-hidden="true">${iconSvg("chevron")}</span></summary><div class="account-rules-body"></div>`;
     card.querySelector(".account-rules-summary .tip")?.addEventListener("click", (event) => {
         event.preventDefault();
         event.stopPropagation();
@@ -812,6 +858,8 @@ function initPresetBar() {
     const deleteBtn = document.getElementById("presetDeleteBtn");
     const exportBtn = document.getElementById("presetExportBtn");
     const importInput = document.getElementById("presetImportInput");
+    const expandBtn = document.getElementById("configExpandBtn");
+    if (expandBtn) expandBtn.addEventListener("click", toggleConfigSections);
 
     select.addEventListener("change", async () => {
         const opt = select.selectedOptions[0];
