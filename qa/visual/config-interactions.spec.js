@@ -16,7 +16,7 @@ const section = (page, title) =>
 async function openSection(page, title) {
     const target = section(page, title);
     if (!(await target.evaluate((element) => element.open))) {
-        await target.locator("summary").click();
+        await target.locator(":scope > summary").click();
     }
     await expect(target).toHaveJSProperty("open", true);
 }
