@@ -880,6 +880,15 @@ const harness = `
         recoveredHint.includes("netto") && cachedCalls === 0
     );
 
+    check("loader tips: minimum 40, brak duplikatów i pustych tekstów", () => {
+        const tips = PLAN_LOADER_TIPS;
+        return (
+            tips.length >= 40
+            && new Set(tips).size === tips.length
+            && tips.every((tip) => tip.length > 0 && tip.trim() === tip)
+        );
+    });
+
     const failed = results.filter((r) => !r.ok);
     const NL = String.fromCharCode(10);
     console.log(NL + "=== FIRE wizard.js — harness jsdom ===");

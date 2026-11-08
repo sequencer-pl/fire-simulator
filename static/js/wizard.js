@@ -111,6 +111,7 @@ let wzLoaderTipBag = [];
 let wzLoaderLastTip = "";
 
 const PLAN_LOADER_TIPS = [
+    // Cierpliwość
     "Cierpliwość to klucz do niezależności finansowej. Liczę Twój plan…",
     "Dobre plany dojrzewają dłużej niż sekundę.",
     "Procent składany lubi cierpliwych. Ten loader też.",
@@ -121,11 +122,66 @@ const PLAN_LOADER_TIPS = [
     "Twoje pieniądze nie spieszą się z inwestowaniem. Ten loader też nie.",
     "Cierpliwość jest jak procent składany: początkowo niewidoczna, potem robi całą robotę.",
     "Im mniej pośpiechu w planie, tym więcej spokoju w realizacji.",
-    "Ten loader też ćwiczy cierpliwość. To umiejętność, nie bug.",
-    "Portfel nie pyta, czy masz już wynik. Pyta, czy wytrzymasz.",
-    "Spokojnie. Wolność finansowa i tak nie przyjdzie w 8 sekund.",
+    "Ten loader też ćwiczy cierpliwość. To feature, nie bug.",
+    "Nie chodzi o to, czy masz już wynik. Chodzi o to, czy wytrwasz w postanowieniach.",
+    "Spokojnie. Wolność finansowa i tak nie przyjdzie w kilka sekund.",
     "Najlepsze decyzje finansowe rzadko mieszczą się w jednej sekundzie.",
     "Nie ma trybu instant na niezależność. Jest dobra mapa i czas.",
+    "Procent składany nie potrzebuje idealnego momentu. Potrzebuje lat.",
+
+    // Oczekiwanie na wynik symulacji
+    "Za chwilę zobaczysz wynik symulacji, ale nie zobaczysz przyszłości.",
+    "Za chwilę zobaczysz trzy scenariusze. Żaden nie jest przepowiednią.",
+    "Symulacja trwa sekundy. Oszczędzanie — lata. Ten podział jest sprawiedliwy.",
+    "Ten symulator działa znacznie szybciej niż procent składany.",
+    "Wynik — za chwilę. Konsekwencje — za dwadzieścia lat.",
+    "Plan będzie gotowy, zanim zdążysz zmienić strategię. To akurat dobrze.",
+    "Ten pasek postępu nie ma nic wspólnego z postępem Twojego portfela.",
+
+    // Czas i rynek
+    "Inwestowanie długoterminowe jest trudne głównie dlatego, że jest długoterminowe.",
+    "Każdy chce procentu składanego. Nikt nie chce czekać na jego efekty.",
+    "Największy zysk często nie pochodzi z trafionej spółki, tylko z tego, że nie sprzedałeś wszystkiego w panice.",
+    "Długi horyzont nie czyni złej strategii dobrą — daje tylko więcej czasu, żeby to zauważyć.",
+    "Nikt nie wie, kiedy rynek spadnie. Ci, którzy twierdzą inaczej, zwykle sprzedają szkolenia.",
+    "Każdy potrafi czytać wykres w lewo.",
+    "„Tym razem jest inaczej” to najdroższe zdanie w inwestowaniu.",
+
+    // Ryzyko i niepewność
+    "Każdy plan opiera się na założeniach. Problem zaczyna się, gdy traktujesz je jak pewniki.",
+    "ROI z symulacji nie jest obietnicą. Jest hipotezą, dopóki rynek nie powie „sprawdzam”.",
+    "Zmienność to nie usterka rynku, tylko koszt uczestnictwa w nim.",
+    "Ryzyko rynkowe możesz ograniczyć gotówką. Wtedy zamieniasz je na ryzyko inflacji.",
+    "Dywersyfikacja nie sprawia, że nie tracisz. Sprawia, że nie tracisz wszystkiego naraz.",
+    "Bezpieczna poduszka finansowa nie zwiększa zysku, ale zmniejsza liczbę głupich decyzji.",
+    "Spadek o 50% wymaga wzrostu o 100%, żeby wrócić do punktu wyjścia.",
+    "Historyczna stopa zwrotu mówi, co się wydarzyło, a nie co się stanie.",
+    "Jeśli nie znasz swojego horyzontu, każdy spadek wygląda jak katastrofa.",
+
+    // Podatki i polskie realia
+    "IKE i IKZE nie tworzą zysku. Zmniejszają podatek, który od niego zapłacisz.",
+    "Inflacja nie zabiera Ci banknotów. Zabiera to, co możesz za nie kupić.",
+
+    // Zachowanie i psychologia
+    "Twój największy koszt inwestycyjny to nie prowizja. To decyzje pod wpływem emocji.",
+    "Nie potrzebujesz perfekcyjnej strategii. Potrzebujesz takiej, której nie porzucisz po pierwszym spadku.",
+    "Wybór strategii jest łatwy. Trudniej jest jej nie zmieniać co tydzień.",
+    "Podnoszenie standardu życia wraz z pensją to inflacja, którą tworzysz sam.",
+    "Oglądanie portfela codziennie nie zwiększa stopy zwrotu.",
+    "Zmiana strategii po każdym spadku to też strategia, tylko kosztowna.",
+
+    // FIRE
+    "FIRE to nie moment, w którym przestajesz pracować. To moment, w którym przestajesz musieć pracować.",
+    "Twoja stopa oszczędności jest ważniejsza niż stopa zwrotu z ostatniego miesiąca.",
+    "Wiek FIRE to wynik oszczędności, nie odwagi.",
+    "Im niższe wydatki, tym mniej kapitału potrzebujesz. Wydatki zmienisz szybciej niż stopę zwrotu.",
+
+    // Wpłaty vs procent składany
+    "Na początku oszczędzania liczą się wpłaty, nie stopa zwrotu. Dołożenie 1 000 zł do 1 000 zł podwaja kapitał.",
+    "Przy 1 000 000 zł kapitału nawet 2% odsetek daje więcej niż kolejne 1 000 zł odłożone z pensji.",
+    "Przy małym kapitale liczy się każda wpłata. Przy dużym — każdy ułamek procenta.",
+    "Na pierwszy milion w większości zapracują wpłaty. Na kolejne — procent składany.",
+
 ];
 let wzInitialized = false;
 
@@ -1246,7 +1302,7 @@ function showNextPlanLoaderTip() {
 function schedulePlanLoaderTip(delay) {
     wzLoaderTimer = setTimeout(() => {
         showNextPlanLoaderTip();
-        schedulePlanLoaderTip(8000);
+        schedulePlanLoaderTip(6000);
     }, delay);
 }
 
@@ -1256,7 +1312,7 @@ function startPlanLoader() {
     loader.classList.remove("hidden");
     if (wzLoaderTimer) clearTimeout(wzLoaderTimer);
     showNextPlanLoaderTip();
-    schedulePlanLoaderTip(8000);
+    schedulePlanLoaderTip(6000);
 }
 
 function stopPlanLoader() {
