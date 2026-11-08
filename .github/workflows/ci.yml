@@ -24,7 +24,7 @@ jobs:
         run: uv run mypy app/
 
       - name: Run tests
-        run: uv run pytest -n auto
+        run: uv run pytest -n auto --dist worksteal
 
   jsdom:
     runs-on: ubuntu-24.04
@@ -43,7 +43,6 @@ jobs:
 
   visual:
     runs-on: ubuntu-24.04
-    needs: test
     steps:
       - uses: actions/checkout@v4
 
@@ -59,6 +58,12 @@ jobs:
 
       - name: Install Playwright harness
         run: npm ci --prefix qa/visual
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('qa/visual/package-lock.json') }}
 
       - name: Install Chromium
         run: cd qa/visual && npx playwright install --with-deps chromium

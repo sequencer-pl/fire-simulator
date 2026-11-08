@@ -275,11 +275,15 @@ bez TypeScript), SQLite, pytest. Odpowiadaj i pisz UI po polsku.
 ## Weryfikacja przed oddaniem
 
 - `uv run ruff check app/ tests/ scripts/`
-- `uv run pytest -q -n auto` (suite musi być zielony; xdist jest w dev-deps)
-- `make test` robi to samo przez `pytest -n auto`
+- `uv run pytest -q -n auto --dist worksteal` (suite musi być zielony; xdist jest w dev-deps)
+- `make test` robi to samo przez `pytest -n auto --dist worksteal`
+- **Dev-loop:** `make test-fast` (`-m "not slow"`) + `make harness-jsdom`;
+  `make check-fast` zbiera lint, typy, jsdom i szybkie testy bez Playwrighta.
+- **Przed pushem:** `make check` (pełny pytest + jsdom + visual).
 - Testy planera: `plan(..., scenarios=False)` pomija 3 scenariusze rynkowe;
   `tests/test_planner.py` cache'uje identyczne plany i domyślnie używa
-  `scenarios=False` (scenariusze tylko w testach kart).
+  `scenarios=False` (scenariusze tylko w testach kart). Pełne integracje
+  solvera/API i scenariusze są oznaczone `@pytest.mark.slow`.
 - `uv run mypy app/` (make typecheck) — typy muszą być czyste
 - `node --check static/js/...` dla zmienionych plików JS
 - zmiany w wizard.js / sim-stages.js / simulator.js (binding): `make harness-jsdom`

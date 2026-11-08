@@ -34,6 +34,9 @@ constraint-dependencies = ["anyio<4.15,>=4.14"]
 testpaths = ["tests"]
 pythonpath = ["."]
 addopts = "-q"
+markers = [
+    "slow: pełne integracje solvera/API i scenariusze — uruchamiane przed pushem, pomijane przez `make test-fast`",
+]
 
 [tool.ruff]
 line-length = 100

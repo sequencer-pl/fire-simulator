@@ -3,7 +3,7 @@ APP := app.main:app
 QA := qa/visual
 QA_JS := qa/jsdom
 
-.PHONY: setup dev dev-port prod prod-port test lint typecheck format shots visual-baseline visual harness-jsdom clean
+.PHONY: setup dev dev-port prod prod-port test test-fast check check-fast lint typecheck format shots visual-baseline visual harness-jsdom clean
 
 ## Instaluje zależności (tworzy .venv)
 setup:
@@ -27,7 +27,17 @@ prod-port:
 
 ## Uruchamia testy jednostkowe
 test:
-	$(PYTHON) pytest -n auto
+	$(PYTHON) pytest -n auto --dist worksteal
+
+## Szybki zestaw dev: pomija testy oznaczone @pytest.mark.slow
+test-fast:
+	$(PYTHON) pytest -n auto --dist worksteal -m "not slow"
+
+## Szybka weryfikacja w trakcie developmentu (bez Playwrighta)
+check-fast: lint typecheck harness-jsdom test-fast
+
+## Pełna weryfikacja przed pushem / w CI
+check: lint typecheck test harness-jsdom visual
 
 ## Instaluje zależności harnessa wizualnego (Playwright, pierwszy raz)
 visual-setup:

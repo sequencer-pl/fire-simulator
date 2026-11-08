@@ -2,12 +2,16 @@ import { defineConfig } from "@playwright/test";
 
 // Harness regresji wizualnej — urlopy screenshota porównują z baseline.
 // Backend musi działać na http://localhost:8000 (uv run uvicorn app.main:app).
+//
+// Workers: lokalnie 4, w CI 2. Można nadpisać przez PLAYWRIGHT_WORKERS.
+const workers = Number(process.env.PLAYWRIGHT_WORKERS) || (process.env.CI ? 2 : 4);
+
 export default defineConfig({
   testDir: ".",
   testMatch: "**/*.spec.js",
   timeout: 60_000,
   fullyParallel: false,
-  workers: 1,
+  workers,
   snapshotDir: "baselines",
   expect: {
     toHaveScreenshot: {

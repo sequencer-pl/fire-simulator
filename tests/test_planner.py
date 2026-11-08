@@ -96,6 +96,7 @@ def test_tiny_cash_contribution_does_not_trigger_warning():
 
 
 @pytest.mark.parametrize("path", [1, 2, 3])
+@pytest.mark.slow
 def test_all_paths_return_valid_input(path):
     target = 6000 if path in (2, 3) else None
     r = plan(path, answers(), target)
@@ -128,6 +129,7 @@ def test_path1_has_bridge_when_re_below_retirement():
     assert zus_stage.start_age == 65
 
 
+@pytest.mark.slow
 def test_no_bridge_when_re_equals_retirement():
     r = plan(1, answers(retire_early_age=65))
     types = [s.stage_type for s in r.input.stages]
@@ -137,6 +139,7 @@ def test_no_bridge_when_re_equals_retirement():
     assert bridge.start_age == zus_stage.start_age == 65
 
 
+@pytest.mark.slow
 def test_accumulation_includes_zus_and_ppk():
     r = plan(1, answers())
     stage_a = r.input.stages[0]
@@ -157,6 +160,7 @@ def test_only_used_accounts_appear():
     assert "krypto" in stage_a2.accounts
 
 
+@pytest.mark.slow
 def test_advanced_instruments_ok():
     r = plan(
         1,
@@ -174,12 +178,14 @@ def test_advanced_instruments_ok():
         assert k in stage_a.accounts
 
 
+@pytest.mark.slow
 def test_b2b_ikze_limit_field():
     r = plan(1, answers(employment="b2b", use_ikze=True, capital={"ikze": 1000}))
     ikze = r.input.stages[0].accounts["ikze"]
     assert ikze.ikze_limit == "self_employed"
 
 
+@pytest.mark.slow
 def test_realization_mirrors_accumulation():
     r = plan(1, answers())
     acc = set(r.input.stages[0].accounts)
@@ -225,6 +231,7 @@ def test_path1_guarantees_constant_target():
     assert p.mean_monthly >= p.min_monthly
 
 
+@pytest.mark.slow
 def test_path1_replay_keeps_guarantee():
     r = plan(1, answers())
     data: SimulationInput = r.input
@@ -247,6 +254,7 @@ def test_path1_replay_keeps_guarantee():
     assert min(months) >= W - 2
 
 
+@pytest.mark.slow
 def test_realization_overlap_zus_starts_at_pension_age():
     r = plan(1, answers())
     types = [s.stage_type for s in r.input.stages]
@@ -287,6 +295,7 @@ def test_exhaust_reported_when_plan_runs_out():
 # --- Path 2: required savings -----------------------------------------------
 
 
+@pytest.mark.slow
 def test_path2_solves_required_savings():
     target = 15_000
     r = plan(2, answers(allocations={"broker": 100}), target)
@@ -296,6 +305,7 @@ def test_path2_solves_required_savings():
     assert r.projection.min_monthly >= target - 1
 
 
+@pytest.mark.slow
 def test_path2_oki_asset_tax_does_not_break_solver():
     # OKI's 0.85% asset tax grows with the balance: at very high savings the
     # net payout can drop below the target, so the "provably sufficient" upper
@@ -353,6 +363,7 @@ def test_path2_zero_savings_when_already_met():
     assert r.projection.met
 
 
+@pytest.mark.slow
 def test_path2_pct_conversion():
     r = plan(2, answers(), 15_000)
     assert r.solved.savings_pct is not None
@@ -488,6 +499,7 @@ def test_path3_no_income_uses_capital():
 # --- Stage metrics ----------------------------------------------------------
 
 
+@pytest.mark.slow
 def test_stage_metrics_cover_all_stages_and_split_zus():
     r = plan(2, answers(use_zus=True, capital={"broker": 100_000}), 5000)
     metrics = r.projection.stage_metrics
@@ -505,6 +517,7 @@ def test_stage_metrics_cover_all_stages_and_split_zus():
     assert supplement.monthly + zus.monthly > zus.monthly
 
 
+@pytest.mark.slow
 def test_scenario_stage_metrics_follow_market_assumptions():
     r = plan(1, answers(capital={"broker": 200_000}), scenarios=True)
     real = r.scenario_projections["realne"].stage_metrics
@@ -516,6 +529,7 @@ def test_scenario_stage_metrics_follow_market_assumptions():
 # --- Timeline phase metrics -------------------------------------------------
 
 
+@pytest.mark.slow
 def test_phase_metrics_split_retirement_and_zus_beyond_horizon():
     r = plan(
         1,
@@ -553,6 +567,7 @@ def test_phase_metrics_split_retirement_and_zus_beyond_horizon():
     assert zus.monthly > 0
 
 
+@pytest.mark.slow
 def test_phase_metrics_skip_bridge_when_re_equals_retirement():
     r = plan(1, answers(retire_early_age=65, plan_end_age=77))
     assert [p.key for p in r.projection.phase_metrics] == [
@@ -575,6 +590,7 @@ def test_phase_metrics_without_zus_end_at_plan_horizon():
     assert phases[-1].zus_monthly == 0
 
 
+@pytest.mark.slow
 def test_phase_metrics_no_zus_only_when_horizon_reaches_pension_end():
     r = plan(1, answers(plan_end_age=100))
     keys = [p.key for p in r.projection.phase_metrics]
@@ -610,6 +626,7 @@ def test_phase_metrics_merge_empty_portfolio_retirement_into_zus():
 # --- Market scenarios -------------------------------------------------------
 
 
+@pytest.mark.slow
 def test_scenarios_cover_all_three_and_are_internally_consistent():
     r = plan(1, answers(capital={"broker": 100_000}), None, scenarios=True)
     keys = ["konserwatywne", "realne", "optymistyczne"]
@@ -628,12 +645,14 @@ def test_scenarios_cover_all_three_and_are_internally_consistent():
         assert summary.peak_wealth == pytest.approx(proj.peak_wealth)
 
 
+@pytest.mark.slow
 def test_scenarios_payout_ordering_path1():
     r = plan(1, answers(capital={"broker": 200_000}), None, scenarios=True)
     payouts = [r.scenarios[k].payout_monthly for k in ("konserwatywne", "realne", "optymistyczne")]
     assert payouts[0] < payouts[1] < payouts[2]
 
 
+@pytest.mark.slow
 def test_scenarios_savings_ordering_path2():
     r = plan(2, answers(), 6000, scenarios=True)
     savings = [r.scenarios[k].savings_monthly for k in ("konserwatywne", "realne", "optymistyczne")]
@@ -643,6 +662,7 @@ def test_scenarios_savings_ordering_path2():
     )
 
 
+@pytest.mark.slow
 def test_scenarios_fire_age_ordering_path3():
     a = answers(
         savings=1500,
@@ -655,6 +675,7 @@ def test_scenarios_fire_age_ordering_path3():
     assert ages[0] > ages[1] > ages[2]
 
 
+@pytest.mark.slow
 def test_scenario_selected_in_answers_reuses_main_result():
     a = answers(assumptions="konserwatywne", capital={"broker": 100_000})
     r = plan(1, a, None, scenarios=True)
@@ -686,6 +707,7 @@ def test_missing_target_raises():
 # --- API surface ------------------------------------------------------------
 
 
+@pytest.mark.slow
 def test_api_path1(client):
     resp = client.post(
         "/api/wizard/plan",
@@ -714,6 +736,7 @@ def test_api_path1(client):
     )
 
 
+@pytest.mark.slow
 def test_api_wizard_plan_uses_saved_config(client):
     assert client.post(
         "/api/register",
@@ -749,6 +772,7 @@ def test_api_wizard_plan_uses_saved_config(client):
     assert hijack["projection"] == after["projection"]
 
 
+@pytest.mark.slow
 def test_api_wizard_plan_uses_anonymous_base_config(client):
     payload = {"path": 1, "answers": dict(BASE, capital={"broker": 50_000})}
     before = client.post("/api/wizard/plan", json=payload).json()
@@ -801,6 +825,7 @@ def test_api_wizard_salary_uses_saved_config(client):
     assert after["net_monthly"] < before["net_monthly"]
 
 
+@pytest.mark.slow
 def test_api_path2(client):
     resp = client.post(
         "/api/wizard/plan",
@@ -810,6 +835,7 @@ def test_api_path2(client):
     assert resp.json()["solved"]["savings_monthly"] > 0
 
 
+@pytest.mark.slow
 def test_api_path3(client):
     resp = client.post(
         "/api/wizard/plan",
@@ -1051,6 +1077,7 @@ def test_suggest_ikze_b2b_higher_capacity():
     assert sum(b2b.values()) <= 100 + 1e-6
 
 
+@pytest.mark.slow
 def test_gotowka_accums_when_all_cash():
     a = answers(allocations={}, savings=1000)
     r = plan(1, a)
@@ -1066,6 +1093,7 @@ def test_gotowka_absent_when_fully_allocated():
     assert "gotowka" not in acc
 
 
+@pytest.mark.slow
 def test_gotowka_warning_present():
     a = answers(allocations={}, savings=1000)
     r = plan(1, a)
@@ -1098,6 +1126,7 @@ def test_suggest_endpoint(client):
     assert sum(body["allocations"].values()) <= 100 + 1e-6
 
 
+@pytest.mark.slow
 def test_suggest_endpoint_path2_returns_estimated_pool(client):
     resp = client.post(
         "/api/wizard/suggest",
@@ -1113,6 +1142,7 @@ def test_suggest_endpoint_path2_returns_estimated_pool(client):
     assert sum(body["allocations"].values()) <= 100 + 1e-6
 
 
+@pytest.mark.slow
 def test_suggest_endpoint_path2_oki_flow_is_feasible(client):
     payload = {
         "gender": "m",
@@ -1166,6 +1196,7 @@ def test_bridge_protects_retirement_accounts_before_min_age():
     assert not any("IKE wypłacane" in w for w in r.projection.warnings)
 
 
+@pytest.mark.slow
 def test_auto_policy_picks_early_ikze_for_bridge_case():
     a = answers(
         capital={},
