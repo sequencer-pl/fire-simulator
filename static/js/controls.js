@@ -45,15 +45,31 @@ function initNumControls(scope, stepFn) {
 
 // Kliknięcie w pole liczbowe/tekstowe zaznacza całą wartość — wpisywanie
 // nadpisuje, zamiast dopisywać się do domyślnego „0” (Asystent i edytor).
+function selectAllOnFocus(input) {
+    if (document.activeElement !== input) return;
+    if (typeof input.select === "function") input.select();
+}
+
+function isSelectableInput(target) {
+    return Boolean(target?.matches?.('input[type="number"], input[type="text"]'));
+}
+
 document.addEventListener(
     "focusin",
     (e) => {
-        const input = e.target;
-        if (!input || !input.matches || !input.matches('input[type="number"], input[type="text"]')) return;
-        if (typeof input.select !== "function") return;
-        setTimeout(() => {
-            if (document.activeElement === input) input.select();
-        }, 0);
+        if (!isSelectableInput(e.target)) return;
+        // Synchronicznie, żeby pierwsze wpisanie po focus() już nadpisywało wartość.
+        selectAllOnFocus(e.target);
+    },
+    true
+);
+
+// Po kliknięciu myszą przeglądarka ustawia kursor dopiero po focusin — zaznaczamy ponownie.
+document.addEventListener(
+    "mouseup",
+    (e) => {
+        if (!isSelectableInput(e.target)) return;
+        selectAllOnFocus(e.target);
     },
     true
 );
