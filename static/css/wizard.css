@@ -1342,6 +1342,18 @@
 
 .wz-step-count { font-variant-numeric: tabular-nums; }
 
+.wz-footer {
+    min-width: 0;
+}
+
+.v2-add-multi {
+    white-space: nowrap;
+}
+
+.v2-cap-row {
+    width: 100%;
+}
+
 .wz-footer-left { justify-content: flex-start; }
 
 .wz-footer-right { justify-content: flex-end; }

@@ -1621,6 +1621,41 @@ function v2BindEvents() {
     });
 }
 
+function v2RestoreIfRequested() {
+    const params = new URLSearchParams(window.location.search || "");
+    if (!params.get("restore")) return false;
+    let raw = null;
+    try {
+        raw = localStorage.getItem(V2_PLAN_KEY);
+    } catch {
+        return false;
+    }
+    if (!raw) return false;
+    let stored = null;
+    try {
+        stored = JSON.parse(raw);
+    } catch {
+        return false;
+    }
+    if (!stored || !stored.plan) return false;
+
+    v2Plan = stored.plan;
+    v2PlanSignature = "";
+    v2SelectedScenario = stored.selectedScenario || "realne";
+
+    if (stored.path) {
+        const radio = document.querySelector(`input[name="v2Path"][value="${stored.path}"]`);
+        if (radio) {
+            radio.checked = true;
+            v2SyncPathUI();
+            v2SyncSemiBounds();
+        }
+    }
+
+    v2ShowStep("wynik", true);
+    return true;
+}
+
 function v2Init() {
     if (v2Initialized) return;
     v2Initialized = true;
@@ -1665,6 +1700,8 @@ function v2Init() {
 
     // Pierwszy podgląd pensji jest opóźniony, żeby nie konkurować z renderingiem.
     setTimeout(v2ScheduleSalaryPreview, 150);
+
+    v2RestoreIfRequested();
 }
 
 document.addEventListener("DOMContentLoaded", v2Init);
