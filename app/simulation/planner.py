@@ -559,6 +559,21 @@ def _ikze_deduction_rate(a: WizardAnswers, config: TaxConfig) -> float:
         return 0.19
     if a.employment == "b2b" and a.b2b_tax_form == "ryczalt":
         return max(0.0, a.b2b_lump_rate)
+    if a.employment == "b2b" and a.b2b_tax_form == "skala":
+        base, social_m = b2b_zus_base_and_social(
+            a.b2b_zus_mode, config, a.b2b_custom_zus_base
+        )
+        income = max(0.0, (gross - social_m) * MONTHS_PER_YEAR)
+        limit = (
+            config.limits.ikze_annual_self_employed
+            if a.employment == "b2b"
+            else config.limits.ikze_annual
+        )
+        if income <= 0 or limit <= 0:
+            return 0.0
+        before = scale_tax(income, **config.scale_kwargs())
+        after = scale_tax(max(0.0, income - limit), **config.scale_kwargs())
+        return max(0.0, before - after) / limit
     income = _compute_monthly_gross_dochod(gross, config)
     limit = (
         config.limits.ikze_annual_self_employed
@@ -829,22 +844,72 @@ def build_stages(a: WizardAnswers) -> SimulationInput:
         or has_zus_capital
     ):
         if coast_active and a.semi_fire_age is not None:
-            # Faza 1: pełna praca do semi_fire_age
-            acc1 = _build_accum_stage_accounts(
-                a, config, inv_names, alloc, cash_present, employed, gross, include_starting=True
+            semi_age = int(a.semi_fire_age)
+            redirect = (
+                a.redirect_mortgage_to_savings
+                and a.mortgage_monthly > 0
+                and a.mortgage_end_age is not None
             )
-            if acc1:
-                stages.append(
-                    StageInput(
-                        stage_type="akumulacja",
-                        name="Akumulacja do emerytury",
-                        start_age=a.age_now,
-                        end_age=int(a.semi_fire_age),
-                        accounts=acc1,
-                    )
+            m_end = int(a.mortgage_end_age) if a.mortgage_end_age is not None else None
+
+            # Faza 1: pełna praca do semi_age, z ewentualnym podziałem
+            # akumulacji przy spłacie kredytu hipotecznego.
+            phase1_boosted = redirect and m_end is not None and m_end <= a.age_now
+            phase1_pool_monthly = _savings_monthly(a) + (
+                a.mortgage_monthly if phase1_boosted else 0.0
+            )
+            phase1_alloc = _resolve_allocation(a, config, phase1_pool_monthly * 12.0)
+            if redirect and m_end is not None and a.age_now < m_end < semi_age:
+                acc1 = _build_accum_stage_accounts(
+                    a, config, inv_names, alloc, cash_present, employed, gross, include_starting=True
                 )
-            # Faza 2: Coast FIRE / część etatu od semi_fire_age do re
-            coast_pool = max(0.0, a.semi_fire_savings_monthly) * 12.0
+                if acc1:
+                    stages.append(
+                        StageInput(
+                            stage_type="akumulacja",
+                            name="Akumulacja (z kredytem)",
+                            start_age=a.age_now,
+                            end_age=m_end,
+                            accounts=acc1,
+                        )
+                    )
+                boosted_pool = (_savings_monthly(a) + a.mortgage_monthly) * 12.0
+                boosted_alloc = _resolve_allocation(a, config, boosted_pool)
+                acc1b = _build_accum_stage_accounts(
+                    a, config, inv_names, boosted_alloc, cash_present, employed, gross, include_starting=False
+                )
+                if acc1b:
+                    stages.append(
+                        StageInput(
+                            stage_type="akumulacja",
+                            name="Akumulacja (po spłacie kredytu)",
+                            start_age=m_end,
+                            end_age=semi_age,
+                            accounts=acc1b,
+                        )
+                    )
+            else:
+                acc1 = _build_accum_stage_accounts(
+                    a, config, inv_names, phase1_alloc, cash_present, employed, gross, include_starting=True
+                )
+                if acc1:
+                    stages.append(
+                        StageInput(
+                            stage_type="akumulacja",
+                            name="Akumulacja do emerytury",
+                            start_age=a.age_now,
+                            end_age=semi_age,
+                            accounts=acc1,
+                        )
+                    )
+
+            # Faza 2: Coast FIRE / część etatu od semi_age do re, z ewentualnym
+            # podziałem przy spłacie kredytu hipotecznego.
+            coast_base_monthly = a.semi_fire_savings_monthly
+            coast_pool_boosted_from_start = redirect and m_end is not None and m_end <= semi_age
+            if coast_pool_boosted_from_start:
+                coast_base_monthly = coast_base_monthly + a.mortgage_monthly
+            coast_pool = max(0.0, coast_base_monthly) * 12.0
             coast_alloc = _resolve_allocation(a, config, coast_pool) if coast_pool > 0 else {}
             coast_gross = (
                 gross_from_net(a.semi_fire_net_monthly, config)
@@ -856,27 +921,61 @@ def build_stages(a: WizardAnswers) -> SimulationInput:
                 if a.employment == "b2b"
                 else coast_gross
             )
-            acc2 = _build_accum_stage_accounts(
-                a,
-                config,
-                inv_names,
-                coast_alloc,
-                cash_present,
-                employed and coast_gross > 0,
-                coast_gross,
-                zus_base_override=coast_zus,
-                include_starting=False,
-            )
-            if acc2:
-                stages.append(
-                    StageInput(
-                        stage_type="akumulacja",
-                        name="Coast FIRE (część etatu)",
-                        start_age=int(a.semi_fire_age),
-                        end_age=re,
-                        accounts=acc2,
-                    )
+            if redirect and m_end is not None and semi_age < m_end < re:
+                acc2 = _build_accum_stage_accounts(
+                    a, config, inv_names, coast_alloc, cash_present,
+                    employed and coast_gross > 0, coast_gross,
+                    zus_base_override=coast_zus, include_starting=False,
                 )
+                if acc2:
+                    stages.append(
+                        StageInput(
+                            stage_type="akumulacja",
+                            name="Coast FIRE (z kredytem)",
+                            start_age=semi_age,
+                            end_age=m_end,
+                            accounts=acc2,
+                        )
+                    )
+                boosted_coast_pool = (
+                    max(0.0, a.semi_fire_savings_monthly) + a.mortgage_monthly
+                ) * 12.0
+                boosted_coast_alloc = (
+                    _resolve_allocation(a, config, boosted_coast_pool)
+                    if boosted_coast_pool > 0
+                    else {}
+                )
+                acc2b = _build_accum_stage_accounts(
+                    a, config, inv_names, boosted_coast_alloc, cash_present,
+                    employed and coast_gross > 0, coast_gross,
+                    zus_base_override=coast_zus, include_starting=False,
+                )
+                if acc2b:
+                    stages.append(
+                        StageInput(
+                            stage_type="akumulacja",
+                            name="Coast FIRE (po spłacie kredytu)",
+                            start_age=m_end,
+                            end_age=re,
+                            accounts=acc2b,
+                        )
+                    )
+            else:
+                acc2 = _build_accum_stage_accounts(
+                    a, config, inv_names, coast_alloc, cash_present,
+                    employed and coast_gross > 0, coast_gross,
+                    zus_base_override=coast_zus, include_starting=False,
+                )
+                if acc2:
+                    stages.append(
+                        StageInput(
+                            stage_type="akumulacja",
+                            name="Coast FIRE (część etatu)",
+                            start_age=semi_age,
+                            end_age=re,
+                            accounts=acc2,
+                        )
+                    )
         elif (
             a.mortgage_monthly > 0
             and a.mortgage_end_age is not None
