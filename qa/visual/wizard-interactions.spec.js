@@ -44,6 +44,10 @@ test("krok 3: konta są nad pickerem, nowe ląduje tuż nad nim", async ({ page 
 });
 
 test("krok 5: nota sugeruje IKE jako cel zwrotu IKZE", async ({ page }) => {
+    let planCalls = 0;
+    page.on("request", (req) => {
+        if (req.url().includes("/api/wizard/plan")) planCalls += 1;
+    });
     await page.goto("/wizard", { waitUntil: "networkidle" });
     for (let i = 0; i < 4; i += 1) await page.locator("#wzNextBtn").click();
     await expect(page.locator('.wz-step[data-step="5"]')).toBeVisible();
@@ -103,6 +107,8 @@ test("krok 5: nota sugeruje IKE jako cel zwrotu IKZE", async ({ page }) => {
 
     await page.locator(".wz-method-details summary").click();
     await expect(page.locator("#wzPolicyNote")).toContainText("Kolejność wypłat");
+    await expect(page.locator("#wzNextBtn")).toHaveText("Dostosuj w symulatorze");
+    await expect(page.locator("#wzNextBtn")).toHaveClass(/btn-real/);
 
     // Wybrana polityka przechodzi do edytora razem z draftem.
     await page.locator("#wzNextBtn").click();
@@ -110,10 +116,46 @@ test("krok 5: nota sugeruje IKE jako cel zwrotu IKZE", async ({ page }) => {
     await expect
         .poll(() => page.evaluate(() => gatherFormData().withdrawal_policy))
         .toMatch(/^early_/);
-    // Draft z wcześniejszym zwrotem IKZE ma być od razu symulowalny
-    // (konto docelowe dołożone do etapów, auto jako cel zwrotu).
-    await expect(page.locator("#simulateBtn")).toBeEnabled();
+    // Draft z Asystenta od razu pokazuje wynik — bez drugiego kliknięcia „Symuluj”.
+    await expect(page.locator("#results")).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator("#simulateBtn")).toBeHidden();
+    await expect(page.locator("#editConfigBtn")).toBeVisible();
+    await expect(page.locator("#backToWizardBtn")).toBeVisible();
+    await expect(page.locator("#backToWizardBtn")).toHaveAttribute(
+        "href",
+        "/wizard?restore=1"
+    );
+    await expect(page.locator("#results")).toContainText("Broker");
+    // Pasek wyników: eksport/zapis po lewej, powrót/edycja po prawej.
+    await expect(page.locator("#formActions .action-bar-left #exportSimBtn")).toBeVisible();
+    await expect(page.locator("#formActions .action-bar-left #saveSimBtn")).toBeVisible();
+    await expect(page.locator("#formActions .action-bar-right #backToWizardBtn")).toBeVisible();
+    await expect(page.locator("#formActions .action-bar-right #editConfigBtn")).toBeVisible();
+
+    // W trybie edycji etapów powrót jest w banerze, a pasek nie pęka na mobile.
+    await page.locator("#editConfigBtn").click();
+    await expect(page.locator("#simConfigSection")).not.toHaveClass(/collapsed/);
+    await expect(page.locator("#backToWizardBtn")).toBeHidden();
+    await expect(page.locator("#simulateBtn")).toBeVisible();
     await page.locator("#simulateBtn").click();
     await expect(page.locator("#results")).toBeVisible({ timeout: 30_000 });
-    await expect(page.locator("#results")).toContainText("Broker");
+    await expect(page.locator("#backToWizardBtn")).toBeVisible();
+
+    // Powrót ma odtworzyć krok 6 z gotowym wynikiem, bez nowego planu.
+    const planCallsBeforeReturn = planCalls;
+    await page.locator("#backToWizardBtn").click();
+    await page.waitForURL("**/wizard?restore=1");
+    await expect(page.locator('.wz-step[data-step="6"]')).toBeVisible();
+    await expect(page.locator("#wzResult")).toBeVisible();
+    await expect(page.locator("#wzStepCount")).toHaveText("Krok 6 / 6");
+    await expect(page.locator("#wzNextBtn")).toHaveText("Dostosuj w symulatorze");
+    expect(planCalls).toBe(planCallsBeforeReturn);
+
+    // Tabela przepływów nie może wyjeżdżać poza ekran w przedziale tabletowym.
+    await page.setViewportSize({ width: 920, height: 900 });
+    await page.locator("#wzFlowsWrap").scrollIntoViewIfNeeded();
+    await expect(page.locator("#wzFlowsTable tbody tr").first()).toHaveCSS("display", "block");
+    expect(
+        await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)
+    ).toBe(true);
 });

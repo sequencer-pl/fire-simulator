@@ -178,6 +178,12 @@
 
 /* --- Pasek akcji: stany ------------------------------------------------------------ */
 
+.add-stage-btns {
+    display: flex;
+    align-items: center;
+    gap: var(--sp-2);
+}
+
 .form-actions.config-collapsed .add-stage-btns,
 .form-actions.config-collapsed #importSimBtn,
 .form-actions.config-collapsed #simulateBtn { display: none; }
@@ -185,6 +191,10 @@
 .form-actions.config-collapsed #exportSimBtn,
 .form-actions.config-collapsed #saveSimBtn,
 .form-actions.config-collapsed #editConfigBtn { display: inline-flex; }
+
+/* Powrót do Asystenta jest dostępny w widoku wyników; w edytorze ten sam
+   link jest w banerze u góry, a pasek jest zbyt wąski na dodatkowy tekst. */
+.form-actions:not(.config-collapsed) #backToWizardBtn { display: none; }
 
 /* --- Wyniki ------------------------------------------------------------------------- */
 
@@ -488,6 +498,8 @@
        Etykieta jest w `aria-label`/`title`, więc czytniki i long-press jej nie gubią. */
     .form-actions #importSimBtn { width: var(--control-h-sm); padding: 0; }
     .form-actions #importSimBtn .import-label { display: none; }
+    .form-actions #backToWizardBtn { width: var(--control-h-sm); padding: 0; }
+    .form-actions #backToWizardBtn .btn-label-long { display: none; }
     .form-actions .action-bar-center { display: none; }
     .form-actions { grid-template-columns: auto 1fr; }
     .form-actions .btn { padding: 0 var(--sp-2); }

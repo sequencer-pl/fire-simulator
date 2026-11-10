@@ -1094,14 +1094,10 @@
     background: var(--stage-real);
 }
 
-@media (max-width: 640px) {
-    .wz-flows-gantt { min-width: 680px; }
-
-    .wz-flows-scroll-hint {
-        display: block;
-        margin: var(--sp-1) 0 0;
-    }
-
+/* Tabela przepływów ma 7 kolumn i poniżej ~960 px nie mieści się już
+   w kartach. Wcześniej karty włączały się dopiero przy 640 px, więc w
+   przedziale 641–959 px tabela wyjeżdżała poza ekran. */
+@media (max-width: 960px) {
     .wz-flows-table-wrap {
         overflow: visible;
         border: 0;
@@ -1149,6 +1145,15 @@
     }
 
     .wz-flows-table .wz-flow-visual::before { display: none; content: ""; }
+}
+
+@media (max-width: 640px) {
+    .wz-flows-gantt { min-width: 680px; }
+
+    .wz-flows-scroll-hint {
+        display: block;
+        margin: var(--sp-1) 0 0;
+    }
 }
 
 @media (prefers-contrast: more) {

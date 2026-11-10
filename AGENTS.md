@@ -243,6 +243,15 @@ bez TypeScript), SQLite, pytest. Odpowiadaj i pisz UI po polsku.
   tap na mobile; pokazuje start/wpłaty/koniec/wzrost akumulacji oraz salda,
   podatki i kwoty netto realizacji (wszystko ze „zł”). Przyszłość: opcjonalny
   przycisk rozszerzenia + poziomy zoom/slider.
+  Po gotowym planie przycisk kroku 6 zmienia się na `btn-real`
+  „Dostosuj w symulatorze”; `finishWizard` zapisuje draft i przechodzi do
+  `/sim?wizard=1`. Symulator **automatycznie uruchamia** `/api/simulate`
+  i pokazuje wynik (bez drugiego kliknięcia „Symuluj”). W widoku wyników pasek
+  akcji ma eksport/zapis po lewej, a `#backToWizardBtn` (`/wizard?restore=1`)
+  i „Edytuj etapy” po prawej; w trybie edycji powrót jest w banerze, bo pasek
+  jest zbyt wąski na dodatkowy przycisk. Gotowy plan jest cache'owany w
+  `fire.wizardPlan`; `restore=1` wraca na krok 6 bez ponownego `/api/wizard/plan`,
+  jeśli answers i ścieżka się zgadzają.
   Przepływy per konto
   (`YearResult.withdrawals/taxes/health/ending_balances`) planner grupuje w
   `AccountPhase` (`PlanProjection.account_phases`): kolejne lata z wypłatami,

@@ -295,10 +295,15 @@ document.addEventListener("DOMContentLoaded", () => {
     if (simId) {
         loadSimulation(simId, container);
     } else {
-        applyWizardDraftIfPresent();
+        const draftApplied = applyWizardDraftIfPresent();
         updateStageButtons(container);
         updateStageHints(container);
         refreshRealizationToggles(container);
+        if (draftApplied) {
+            // Plan z Asystenta jest już policzony — pokaż wynik od razu,
+            // zamiast zmuszać użytkownika do drugiego kliknięcia „Symuluj”.
+            document.getElementById("simForm")?.requestSubmit();
+        }
     }
 
     updateEmptyState();
@@ -319,25 +324,31 @@ const WIZARD_DRAFT_KEY = "fire.wizardDraft";
 function applyWizardDraftIfPresent() {
     const container = document.getElementById("stages-container");
     const raw = localStorage.getItem(WIZARD_DRAFT_KEY);
-    if (!raw || !container) return;
+    if (!raw || !container) return false;
     try {
         const draft = JSON.parse(raw);
-        if (!draft || !Array.isArray(draft.stages) || !draft.stages.length) return;
+        if (!draft || !Array.isArray(draft.stages) || !draft.stages.length) return false;
         loadedWithdrawalPolicy = draft.withdrawal_policy || "defer_tier";
         populateStages(draft);
         showWizardDraftBanner();
+        return true;
     } catch (err) {
         localStorage.removeItem(WIZARD_DRAFT_KEY);
+        return false;
     }
 }
 
 function showWizardDraftBanner() {
     const bar = document.getElementById("wizardDraftBar");
     if (bar) bar.classList.remove("hidden");
+    const back = document.getElementById("backToWizardBtn");
+    if (back) back.hidden = false;
 }
 
 function clearWizardDraft() {
     localStorage.removeItem(WIZARD_DRAFT_KEY);
+    const back = document.getElementById("backToWizardBtn");
+    if (back) back.hidden = true;
 }
 
 // --- Tryby: Symulator / Konfiguracja ---

@@ -4,6 +4,7 @@ let CONFIG = null;
 
 const WZ_TOTAL_STEPS = 6;
 const WIZARD_STATE_KEY = "fire.wizardState";
+const WIZARD_PLAN_KEY = "fire.wizardPlan";
 const ANON_CONFIG_KEY = "fire.config.anonymous";
 
 // Step 3 rows: wszystkie 14 kont widoczne od razu jako pastylki wyboru,
@@ -1536,12 +1537,21 @@ function updateFooterNav(n) {
     if (back) back.classList.toggle("hidden", n === 1);
     const next = document.getElementById("wzNextBtn");
     if (!next) return;
+    const planReady = n === 6 && Boolean(wzPlan);
     if (n === 5) {
         next.textContent = "Wylicz plan";
     } else if (n === 6) {
-        next.textContent = wzPlan ? "Przejdź do symulatora" : "Wylicz plan";
+        next.textContent = planReady ? "Dostosuj w symulatorze" : "Wylicz plan";
     } else {
         next.textContent = "Dalej";
+    }
+    next.classList.toggle("btn-real", planReady);
+    next.classList.toggle("btn-primary", !planReady);
+    const tip = document.getElementById("wzNextTip");
+    if (tip && n !== 5) {
+        tip.title = planReady
+            ? "Symulacja jest już wyliczona. Otwórz ją, aby zmienić etapy i założenia."
+            : "";
     }
     if (n === 5) {
         refreshAllocGate();
@@ -1672,7 +1682,30 @@ function restoreWizardStateIfRequested() {
             if (stratRadio) stratRadio.checked = true;
         }
 
-        const targetStep = Math.min(5, Math.max(1, st.step || 5));
+        // Powrót z symulatora ma trafić od razu na krok 6 z gotowym wynikiem,
+        // bez ponownego liczenia tego samego planu.
+        let restoredPlan = null;
+        try {
+            const rawPlan = localStorage.getItem(WIZARD_PLAN_KEY);
+            if (rawPlan && Number(st.step) >= 6) {
+                const cached = JSON.parse(rawPlan);
+                const sameAnswers = cached && cached.plan
+                    && JSON.stringify(cached.answers) === JSON.stringify(st.answers)
+                    && Number(cached.path || 1) === Number(st.path || 1);
+                if (sameAnswers) restoredPlan = cached;
+            }
+        } catch {
+            restoredPlan = null;
+        }
+        if (restoredPlan) {
+            wzPlan = restoredPlan.plan;
+            wzSelectedScenario = restoredPlan.selectedScenario || wzSelectedScenario;
+            document.getElementById("wzResult").classList.remove("hidden");
+            renderScenarios(wzPlan);
+            renderScenarioResult(wzPlan);
+        }
+
+        const targetStep = restoredPlan ? 6 : Math.min(5, Math.max(1, st.step || 5));
         if (wzAllocMode) {
             const panel = document.getElementById("wzAllocPanel");
             if (panel) panel.classList.remove("hidden");
@@ -1687,6 +1720,16 @@ function restoreWizardStateIfRequested() {
 function finishWizard() {
     if (!wzPlan) return;
     saveWizardState();
+    try {
+        localStorage.setItem(WIZARD_PLAN_KEY, JSON.stringify({
+            plan: wzPlan,
+            answers: collectAnswers(),
+            path: currentPath(),
+            selectedScenario: wzSelectedScenario || "realne",
+        }));
+    } catch {
+        // Gdy localStorage jest pełny, powrót po prostu pominie cache planu.
+    }
     const activeInput = (wzSelectedScenario && wzPlan.scenario_inputs?.[wzSelectedScenario]) || wzPlan.input;
     const draft = {
         gender: activeInput.gender,

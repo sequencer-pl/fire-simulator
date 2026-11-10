@@ -603,10 +603,14 @@ const harness = `
         return document.getElementById("wzNextBtn").textContent.trim() === "Wylicz plan"
             && wzPlan === null;
     });
-    check("footer: krok 6 z planem -> 'Przejdź do symulatora'", () => {
+    check("footer: krok 6 z planem -> 'Dostosuj w symulatorze'", () => {
         wzPlan = { input: { stages: [] } };
         setStep(6);
-        const ok = document.getElementById("wzNextBtn").textContent.trim() === "Przejdź do symulatora";
+        const btn = document.getElementById("wzNextBtn");
+        const ok =
+            btn.textContent.trim() === "Dostosuj w symulatorze"
+            && btn.classList.contains("btn-real")
+            && !btn.classList.contains("btn-primary");
         wzPlan = null;
         return ok;
     });

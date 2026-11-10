@@ -10,7 +10,7 @@
         <div id="simulatorView">
             <div id="wizardDraftBar" class="banner banner-info hidden">
                 <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg>
-                <div class="banner-body">Konfiguracja wczytana z Asystenta. <a href="/wizard?restore=1">Wróć do Asystenta</a>, aby zmienić dane, albo zapisz symulację, żeby ją zachować.</div>
+                <div class="banner-body">Konfiguracja wczytana z Asystenta. Symulacja jest już wyliczona — <a href="/wizard?restore=1">wróć do Asystenta</a>, aby zmienić dane, albo zapisz ją, żeby zachować.</div>
             </div>
             <div id="emptyState" class="empty-state">
                 <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 3a2.83 2.83 0 0 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
@@ -81,9 +81,13 @@
             </div>
 
             <div class="action-bar form-actions" id="formActions">
-                <div class="action-bar-left add-stage-btns">
-                    <button type="button" id="addAccumulationBtn" class="btn btn-accum btn-sm" aria-label="Dodaj etap akumulacji" title="Dodaj etap akumulacji"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span class="btn-label-long">Etap akumulacji</span><span class="btn-label-short">Akumulacja</span></button>
-                    <button type="button" id="addRealizationBtn" class="btn btn-real btn-sm" aria-label="Dodaj etap realizacji" title="Dodaj etap realizacji"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span class="btn-label-long">Etap realizacji</span><span class="btn-label-short">Realizacja</span></button>
+                <div class="action-bar-left">
+                    <div class="add-stage-btns">
+                        <button type="button" id="addAccumulationBtn" class="btn btn-accum btn-sm" aria-label="Dodaj etap akumulacji" title="Dodaj etap akumulacji"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span class="btn-label-long">Etap akumulacji</span><span class="btn-label-short">Akumulacja</span></button>
+                        <button type="button" id="addRealizationBtn" class="btn btn-real btn-sm" aria-label="Dodaj etap realizacji" title="Dodaj etap realizacji"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span class="btn-label-long">Etap realizacji</span><span class="btn-label-short">Realizacja</span></button>
+                    </div>
+                    <button type="button" id="exportSimBtn" class="btn btn-secondary" hidden>Eksportuj JSON</button>
+                    <button type="button" id="saveSimBtn" class="btn btn-secondary" hidden>Zapisz</button>
                 </div>
                 <div class="action-bar-center" id="formActionsStatus"></div>
                 <div class="action-bar-right form-actions-right">
@@ -92,9 +96,11 @@
                         <span class="import-label">Importuj</span>
                     </label>
                     <input type="file" id="importSimInput" accept=".json" hidden />
-                    <button type="button" id="exportSimBtn" class="btn btn-secondary" hidden>Eksportuj JSON</button>
-                    <button type="button" id="saveSimBtn" class="btn btn-secondary" hidden>Zapisz</button>
                     <button type="button" id="simulateBtn" class="btn btn-primary">Symuluj</button>
+                    <a href="/wizard?restore=1" id="backToWizardBtn" class="btn btn-ghost btn-sm" title="Wróć do Asystenta, aby zmienić dane" aria-label="Wróć do Asystenta" hidden>
+                        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7v6h6"/><path d="M5.1 13a8 8 0 1 0 2.3-5.7L3 10"/></svg>
+                        <span class="btn-label-long">Wróć do Asystenta</span>
+                    </a>
                     <button type="button" id="editConfigBtn" class="btn btn-primary" title="Wróć do edycji etapów" hidden>Edytuj etapy</button>
                 </div>
             </div>
