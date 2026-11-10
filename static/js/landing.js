@@ -42,6 +42,7 @@ async function renderRecent(email) {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
+    if (typeof initTipAnchoring === "function") initTipAnchoring();
     initAuth(async (email) => {
         show("recentSection", true);
         await renderRecent(email);
