@@ -163,3 +163,23 @@ def test_summary_contains_stages(client):
     assert stages[0]["start_age"] == 40
     assert stages[0]["end_age"] == 50
     assert "Broker" in stages[0]["accounts"]
+
+
+def test_compare_evaluate_json_without_login(client):
+    r = client.post(
+        "/api/compare/evaluate",
+        json={
+            "items": [
+                {"name": "JSON A", "input": valid_input(0.03)},
+                {"name": "JSON B", "input": valid_input(0.07)},
+            ]
+        },
+    )
+    assert r.status_code == 200, r.text
+    items = r.json()
+    assert len(items) == 2
+    assert items[0]["name"] == "JSON A"
+    assert items[0]["from_json"] is True
+    assert items[0]["result"]["final_wealth"] < items[1]["result"]["final_wealth"]
+    assert items[0]["summary"]["initial_capital"] == 100000
+

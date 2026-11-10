@@ -7,11 +7,31 @@
         <div class="page-head cmp-head">
             <div>
                 <a href="/moje-symulacje" class="btn btn-ghost btn-sm cmp-back"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M11 18l-6-6 6-6"/></svg>Moje symulacje</a>
-                <h2 class="page-title">Porównanie</h2>
-                <p class="page-lead">Najlepsza wartość w każdym wierszu jest podświetlona. Kolory serii są takie same na wykresach, osi etapów i w tabelach.</p>
+                <h2 class="page-title">Porównanie scenariuszy</h2>
+                <p class="page-lead">Sprawdź od razu, który wariant przynosi najwyższą korzyść netto. Możesz porównać zapisane symulacje oraz dograć pliki JSON z dysku (do 4 naraz).</p>
+            </div>
+            <div class="btn-row cmp-head-actions">
+                <label class="btn btn-secondary btn-sm" for="cmpJsonInput">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3M7 8l5-5 5 5M4 21h16"/></svg>
+                    <span>Wczytaj z JSON</span>
+                </label>
+                <input type="file" id="cmpJsonInput" accept=".json,application/json" multiple hidden>
+                <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">Możesz wczytać pojedyncze pliki JSON wyeksportowane z Symulatora lub paczkę wyeksportowaną z „Moich symulacji”. Jeśli plik zawiera same dane wejściowe, silnik przeliczy go w locie.</span></span>
+                <button type="button" id="cmpClearBtn" class="btn btn-ghost btn-sm hidden">Wyczyść</button>
             </div>
         </div>
         <div id="errorMsg" class="banner banner-danger hidden"></div>
+
+        <div id="cmpEmptyState" class="empty-state hidden">
+            <h3>Dodaj symulacje do porównania</h3>
+            <p>Wczytaj od 1 do 4 plików JSON z dysku albo wybierz zapisane scenariusze na liście „Moje symulacje”.</p>
+            <div class="btn-row">
+                <label class="btn btn-primary" for="cmpJsonInput">Wczytaj pliki JSON</label>
+                <a href="/moje-symulacje" class="btn btn-secondary">Moje symulacje</a>
+            </div>
+        </div>
+
+        <section id="verdictSection" class="cmp-verdict-wrap hidden" aria-label="Werdykt porównania"></section>
 
         <section id="cardsSection" class="cmp-cards hidden" aria-label="Porównywane symulacje"></section>
 

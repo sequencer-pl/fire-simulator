@@ -35,6 +35,15 @@ class DeleteBulkPayload(BaseModel):
     ids: list[int]
 
 
+class CompareEvaluateItem(BaseModel):
+    name: str = Field(default="Symulacja z pliku", min_length=1, max_length=200)
+    input: SimulationInput
+
+
+class CompareEvaluatePayload(BaseModel):
+    items: list[CompareEvaluateItem] = Field(min_length=1, max_length=4)
+
+
 @router.post("/api/simulations")
 async def api_save_simulation(payload: SaveSimulationPayload, request: Request):
     user_id = _require_user(request)
@@ -153,6 +162,36 @@ async def api_compare(ids: str, request: Request):
                 "input": json.loads(row["input_json"]),
                 "result": json.loads(row["result_json"]),
                 "summary": json.loads(row["summary_json"]),
+            }
+        )
+    return items
+
+
+@router.post("/api/compare/evaluate")
+async def api_compare_evaluate(payload: CompareEvaluatePayload, request: Request):
+    check_limit("simulate", request)
+    items = []
+    for idx, item in enumerate(payload.items, start=1):
+        try:
+            result = simulate(item.input)
+        except ValueError as e:
+            raise HTTPException(
+                status_code=400, detail=f"{item.name}: {e}"
+            ) from e
+        summary = _summary_from_result(result)
+        summary["stages"] = _stages_summary(item.input, result)
+        summary["total_user_contributions"] = _total_user_contributions(item.input)
+        summary["initial_capital"] = _initial_capital(item.input)
+        items.append(
+            {
+                "id": None,
+                "name": item.name.strip() or f"Plik JSON #{idx}",
+                "created_at": None,
+                "updated_at": None,
+                "from_json": True,
+                "input": item.input.model_dump(mode="json"),
+                "result": result.model_dump(mode="json"),
+                "summary": summary,
             }
         )
     return items

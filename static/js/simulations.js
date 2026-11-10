@@ -192,6 +192,59 @@ document.addEventListener("DOMContentLoaded", () => {
         a.click();
         URL.revokeObjectURL(a.href);
     });
+    const importInput = $("simsImportJsonInput");
+    if (importInput) {
+        importInput.addEventListener("change", async (e) => {
+            const files = e.target.files;
+            if (!files || !files.length) return;
+            const extracted = [];
+            for (const file of Array.from(files)) {
+                try {
+                    const text = await file.text();
+                    const parsed = JSON.parse(text);
+                    const list = Array.isArray(parsed) ? parsed : [parsed];
+                    const cleanName = file.name.replace(/\.json$/i, "") || "Symulacja z JSON";
+                    list.forEach((item, idx) => {
+                        if (!item || typeof item !== "object") return;
+                        const input = item.input && Array.isArray(item.input.stages) ? item.input : item;
+                        if (!input || !Array.isArray(input.stages)) return;
+                        const name =
+                            (typeof item.name === "string" && item.name.trim()) ||
+                            (list.length > 1 ? `${cleanName} #${idx + 1}` : cleanName);
+                        extracted.push({ name: name.slice(0, 200), input });
+                    });
+                } catch (err) {
+                    alert("Nieprawidłowy plik JSON (" + file.name + "): " + err.message);
+                    importInput.value = "";
+                    return;
+                }
+            }
+            importInput.value = "";
+            if (!extracted.length) {
+                alert("Wybrany plik JSON nie zawiera poprawnych etapów symulacji.");
+                return;
+            }
+            const checkedIds = selectedIds();
+            if (checkedIds.length > 0 || extracted.length >= 2) {
+                sessionStorage.setItem("fire.compareJsonItems", JSON.stringify(extracted.slice(0, 4)));
+                const qs = checkedIds.length ? "?ids=" + checkedIds.slice(0, 3).join(",") : "";
+                window.location.href = "/compare" + qs;
+                return;
+            }
+            try {
+                for (const item of extracted) {
+                    await api("/api/simulations", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify(item),
+                    });
+                }
+                await loadSims();
+            } catch (err) {
+                alert("Nie udało się zaimportować symulacji: " + err.message);
+            }
+        });
+    }
     initAuth(async () => {
         show("simsPanel", true);
         await loadSims();
