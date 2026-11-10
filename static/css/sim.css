@@ -91,6 +91,17 @@
 
 .account-card .remove-account-btn { margin: calc(-1 * var(--sp-1)) calc(-1 * var(--sp-2)) calc(-1 * var(--sp-1)) 0; }
 
+.account-card .add-instance-btn {
+    padding: 0 var(--sp-2);
+    font-size: var(--fs-xs);
+    height: 28px;
+}
+
+.account-custom-name-field .account-custom-name {
+    height: var(--control-h-sm);
+    font-size: var(--fs-sm);
+}
+
 .refund-source-note {
     margin: 0 0 var(--sp-3);
     padding: var(--sp-2) var(--sp-3);

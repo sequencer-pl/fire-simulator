@@ -15,6 +15,8 @@ from app.simulation.config import (
     ACCOUNT_LABELS,
     BUILTIN_PRESETS,
     TaxConfig,
+    account_display_label,
+    base_account_key,
     default_config,
 )
 from app.simulation.engine import simulate
@@ -133,11 +135,12 @@ def _monthly_contribution(stage, monthly_gross: float = 0.0) -> float | None:
     """Employee's own monthly investment cost for an accumulation stage."""
     total_annual = 0.0
     for name, cfg in stage.accounts.items():
-        if name in ("gotowka", "zus"):
+        base_name = base_account_key(name)
+        if base_name in ("gotowka", "zus"):
             continue
-        elif name == "ppk":
+        elif base_name == "ppk":
             total_annual += cfg.employee_pct * resolve_base(cfg.model_dump(), monthly_gross) * 12
-        elif name == "ppe":
+        elif base_name == "ppe":
             total_annual += cfg.annual_contribution
         else:
             total_annual += cfg.annual_contribution
@@ -152,12 +155,13 @@ def _total_user_contributions(input_data: SimulationInput) -> float:
         if years <= 0:
             continue
         for name, cfg in stage.accounts.items():
-            if name in ("gotowka", "zus"):
+            base_name = base_account_key(name)
+            if base_name in ("gotowka", "zus"):
                 continue
-            if name == "ppk":
+            if base_name == "ppk":
                 base_annual = resolve_base(cfg.model_dump(), input_data.monthly_gross) * 12
                 total += cfg.employee_pct * base_annual * years
-            elif name == "ppe":
+            elif base_name == "ppe":
                 total += cfg.annual_contribution * years
             else:
                 total += cfg.annual_contribution * years
@@ -184,8 +188,16 @@ def _stages_summary(
     for stage in input_data.stages:
         meta = STAGE_META.get(stage.stage_type, {})
         accounts = []
-        for key in stage.accounts:
-            acc_label = meta.get("available_accounts", {}).get(key, {}).get("label", key)
+        for key, cfg in stage.accounts.items():
+            if cfg.custom_name and cfg.custom_name.strip():
+                acc_label = cfg.custom_name.strip()
+            else:
+                base_key = base_account_key(key)
+                acc_label = (
+                    meta.get("available_accounts", {}).get(key, {}).get("label")
+                    or account_display_label(key)
+                    or meta.get("available_accounts", {}).get(base_key, {}).get("label", key)
+                )
             accounts.append(acc_label)
         info = {
             "label": meta.get("label", stage.stage_type),

@@ -5,7 +5,13 @@ from app.core.base import resolve_base
 from app.core.inflation import cumulative_factor, deflate, fisher_nominal
 from app.core.roi import effective_roi, periodic_net_roi
 from app.core.tax import danina_solidarnosciowa, scale_tax
-from app.simulation.config import ACCOUNT_LABELS, AccountRules, TaxConfig
+from app.simulation.config import (
+    ACCOUNT_LABELS,
+    AccountRules,
+    TaxConfig,
+    account_display_label,
+    base_account_key,
+)
 from app.simulation.constants import DEFAULT_ROI, MONTHS_PER_YEAR, PPE_ZUS_FRACTION
 from app.simulation.schemas import (
     AccountConfig,
@@ -48,6 +54,8 @@ class SimulationState:
     early_return_tax_total: float = 0.0
     early_return_allocations: dict[str, float] = field(default_factory=dict)
     withdrawal_policy: str = "defer_tier"
+    custom_names: dict[str, str] = field(default_factory=dict)
+    liquidated_real_estate: set[str] = field(default_factory=set)
 
     def __iter__(self):
         yield self.config
@@ -71,13 +79,20 @@ def _compute_ikze_tax_saving(
     ikze_contribution: float,
     annual_income: float,
     config: TaxConfig,
+    tax_regime: str = "scale",
+    lump_sum_rate: float = 0.12,
 ) -> float:
-    """Tax saving from IKZE contribution (odliczenie od dochodu).
+    """Tax saving from IKZE contribution (odliczenie od dochodu/przychodu).
 
-    Compares PIT on full income vs income reduced by the IKZE contribution.
+    Supports PIT scale (12%/32%), flat 19% (B2B liniowy), and lump-sum (B2B ryczałt).
     """
     if ikze_contribution <= 0 or annual_income <= 0:
         return 0.0
+    deductible = min(ikze_contribution, annual_income)
+    if tax_regime == "flat_19":
+        return max(0.0, deductible * 0.19)
+    if tax_regime == "lump_sum":
+        return max(0.0, deductible * max(0.0, lump_sum_rate))
     tax_without = scale_tax(annual_income, **config.scale_kwargs())
     tax_with = scale_tax(max(0.0, annual_income - ikze_contribution), **config.scale_kwargs())
     return max(0.0, tax_without - tax_with)
@@ -116,10 +131,11 @@ def _validate_roi(data: SimulationInput) -> None:
     eff_infl = data.inflation if data.inflation is not None else data.config.inflation
     for si in data.stages:
         for name, cfg in si.accounts.items():
-            roi = -eff_infl if name == "gotowka" else cfg.roi
+            roi = -eff_infl if base_account_key(name) == "gotowka" else cfg.roi
             if roi <= -1:
+                label = account_display_label(name, cfg.custom_name)
                 raise ValueError(
-                    f"ROI konta {ACCOUNT_LABELS.get(name, name)} nie może być mniejsze "
+                    f"ROI konta {label} nie może być mniejsze "
                     f"lub równe -100% (otrzymano {roi * 100:.0f}%)."
                 )
 
@@ -133,15 +149,19 @@ def _init_state(data: SimulationInput) -> SimulationState:
     account_rois: dict[str, float] = {}
     asset_exemptions: dict[str, float] = {}
     all_accounts: set[str] = set()
+    custom_names: dict[str, str] = {}
 
     # Initialize balances and ROI independent of stage order
     # (earliest chronological stage defines starting balance)
     for stage_input in sorted(data.stages, key=lambda s: s.start_age):
         all_accounts.update(stage_input.accounts.keys())
         for name, cfg in stage_input.accounts.items():
-            if name == "gotowka":
+            if cfg.custom_name and cfg.custom_name.strip() and name not in custom_names:
+                custom_names[name] = cfg.custom_name.strip()
+            base_name = base_account_key(name)
+            if base_name == "gotowka":
                 account_rois[name] = -config.inflation
-            elif name != "zus" or stage_input.stage_type == "akumulacja":
+            elif base_name != "zus" or stage_input.stage_type == "akumulacja":
                 account_rois[name] = cfg.roi
             if cfg.asset_exemption is not None:
                 asset_exemptions[name] = cfg.asset_exemption
@@ -151,9 +171,9 @@ def _init_state(data: SimulationInput) -> SimulationState:
                 if cfg.cost_basis_enabled and cfg.cost_basis is not None:
                     initial_basis = cfg.cost_basis
                 basis.setdefault(name, initial_basis)
-                if name == "ppk":
+                if base_name == "ppk":
                     basis_employee.setdefault(name, cfg.starting_balance)
-            if name == "zus" and cfg.starting_balance_ofe > 0 and cfg.ofe_member:
+            if base_name == "zus" and cfg.starting_balance_ofe > 0 and cfg.ofe_member:
                 balances.setdefault("zus:ofe", cfg.starting_balance_ofe)
 
     computed: dict[int, dict] = {}
@@ -200,6 +220,7 @@ def _init_state(data: SimulationInput) -> SimulationState:
         withdrawal_policy=(
             "defer_tier" if data.withdrawal_policy == "auto" else data.withdrawal_policy
         ),
+        custom_names=custom_names,
     )
 
 
@@ -238,9 +259,9 @@ def _process_ikze_returns(
             desired = max(0.0, stage_target * MONTHS_PER_YEAR - zus_pension)
             prior_bal = 0.0
             for a in si.accounts:
-                if a == "zus":
+                if a == "zus" or base_account_key(a) == "nieruchomosc":
                     continue
-                r = config.accounts.get(a)
+                r = config.get_account_rules(a)
                 if (
                     not r
                     or r.min_withdrawal_age <= 0
@@ -252,7 +273,7 @@ def _process_ikze_returns(
             if prior_bal >= desired - 1e-6:
                 continue
         for acc in si.accounts:
-            rules = config.accounts.get(acc)
+            rules = config.get_account_rules(acc)
             if (
                 acc in early_returned
                 or not rules
@@ -337,9 +358,9 @@ def _process_ppk_forfeits(
             early_ret = state.early_returned if state is not None else set()
             unlocked_bal = 0.0
             for a in si.accounts:
-                if a == "zus":
+                if a == "zus" or base_account_key(a) == "nieruchomosc":
                     continue
-                r = config.accounts.get(a)
+                r = config.get_account_rules(a)
                 if (
                     not r
                     or r.min_withdrawal_age <= 0
@@ -350,7 +371,7 @@ def _process_ppk_forfeits(
             if unlocked_bal >= desired - 1e-6:
                 continue
         for acc in si.accounts:
-            rules = config.accounts.get(acc)
+            rules = config.get_account_rules(acc)
             if (
                 acc != "ppk"
                 or acc in forfeited
@@ -385,6 +406,18 @@ def _zus_net_annual(zus_gross: float, config: TaxConfig) -> float:
     return max(0.0, zus_gross - pit - health)
 
 
+def _pick_liquid_target(
+    stage_accounts: dict,
+    preferred_bases: tuple[str, ...] = ("broker", "obligacje", "lokata", "oki_inw", "gotowka"),
+) -> str | None:
+    """Wybiera pierwsze płynne konto obecne w etapie wg preferencji bazowej."""
+    for base in preferred_bases:
+        for acc in stage_accounts:
+            if base_account_key(acc) == base:
+                return acc
+    return None
+
+
 def _process_stages(
     active_stages: list[StageInput],
     age: int,
@@ -400,6 +433,9 @@ def _process_stages(
     state: SimulationState | None = None,
     target: float | None = None,
     zus_net_pension: float = 0.0,
+    all_stages: list[StageInput] | None = None,
+    year_start_balances: dict[str, float] | None = None,
+    mortgage_extra_monthly: float = 0.0,
 ) -> tuple[dict[str, float], list[str], dict[str, float]]:
     if state is not None:
         balances = state.balances
@@ -429,9 +465,9 @@ def _process_stages(
         stage_obj = create_stage(stage_input.stage_type)
         accounts_config = {name: cfg.model_dump() for name, cfg in stage_input.accounts.items()}
         for n, c in accounts_config.items():
-            if n == "gotowka":
+            if base_account_key(n) == "gotowka":
                 c["roi"] = -config.inflation
-            acc_rules = config.accounts.get(n)
+            acc_rules = config.get_account_rules(n)
             if acc_rules:
                 c["min_withdrawal_age"] = acc_rules.min_withdrawal_age
                 c["early_tax_model"] = acc_rules.early_tax_model
@@ -441,7 +477,8 @@ def _process_stages(
 
         # Constant-target withdrawal for non-ZUS realization stages (wizard FIRE
         # model): the portfolio pays out a fixed monthly amount, reduced by the
-        # ZUS pension once it kicks in, instead of annuitizing to zero via PMT.
+        # ZUS pension and any part-time work income (Barista FIRE), and increased
+        # by active mortgage payments if any.
         stage_target = target if target is not None else stage_input.withdrawal_target_gross_monthly
         desired_withdrawal: float | None = None
         if (
@@ -450,9 +487,36 @@ def _process_stages(
             and stage_target is not None
             and stage_target > 0
         ):
-            desired_withdrawal = max(
-                0.0, stage_target * MONTHS_PER_YEAR - zus_net_pension
+            eff_monthly_target = max(
+                0.0,
+                stage_target - stage_input.part_time_net_monthly + mortgage_extra_monthly,
             )
+            desired_withdrawal = max(
+                0.0, eff_monthly_target * MONTHS_PER_YEAR - zus_net_pension
+            )
+
+        # Barista FIRE / Sabbatical: praca na część etatu w okresie realizacji
+        # nadal odkłada mniejsze składki do ZUS przed osiągnięciem wieku emerytalnego.
+        if (
+            stage_input.stage_type == "realizacja"
+            and stage_input.part_time_zus_base > 0
+            and not zus_handled
+            and "zus" not in zus_pensions
+            and "zus" not in processed_accounts
+        ):
+            _accumulate_zus(
+                {
+                    "monthly_base": stage_input.part_time_zus_base,
+                    "ofe_member": "zus:ofe" in balances,
+                    "roi": account_rois.get("zus", DEFAULT_ROI),
+                },
+                balances,
+                config,
+                stage_input.part_time_zus_base,
+            )
+            processed_accounts.add("zus")
+            if "zus:ofe" in balances:
+                processed_accounts.add("zus:ofe")
 
         # ZUS — contributions and capital indexation (accumulation) plus capital
         # conversion to pension (realization) are handled by the engine because
@@ -507,12 +571,92 @@ def _process_stages(
                 )
                 processed_accounts.add("ppe")
 
-        # Periodic-tax accounts (lokata) — Belka deducted on each term.
+        # Nieruchomości inwestycyjne (nieruchomosc, nieruchomosc:2, ...):
+        # niepodzielne mury rosną wg ROI, generują czynsz najmu (ryczałt 8,5%/12,5%)
+        # i mogą zostać spieniężone w wybranym wieku (liquidation_age) z 0% PIT.
+        pending_rent_reinvestments: list[tuple[str, float]] = []
+        for name in list(accounts_config.keys()):
+            if base_account_key(name) != "nieruchomosc":
+                continue
+            if name in processed_accounts:
+                accounts_config.pop(name)
+                continue
+            re_cfg = accounts_config.pop(name)
+            processed_accounts.add(name)
+            liq_age = re_cfg.get("liquidation_age")
+            if liq_age is not None and int(liq_age) > 0 and age >= int(liq_age):
+                bal = balances.get(name, 0.0)
+                already_liq = state is not None and name in state.liquidated_real_estate
+                if bal > 0 and not already_liq:
+                    if state is not None:
+                        state.liquidated_real_estate.add(name)
+                    balances[name] = 0.0
+                    if year_start_balances is not None:
+                        year_start_balances[name] = 0.0
+                    target_acc = _pick_liquid_target(stage_input.accounts)
+                    if target_acc is None:
+                        target_acc = "broker"
+                        if state is not None and all_stages is not None:
+                            _ensure_reinvestment_account(
+                                stage_input, target_acc, state, all_stages, age
+                            )
+                            if target_acc in stage_input.accounts:
+                                accounts_config[target_acc] = stage_input.accounts[
+                                    target_acc
+                                ].model_dump()
+                    balances[target_acc] = balances.get(target_acc, 0.0) + bal
+                    if year_start_balances is not None:
+                        year_start_balances[target_acc] = (
+                            year_start_balances.get(target_acc, 0.0) + bal
+                        )
+                    t_rules = config.get_account_rules(target_acc)
+                    if base_account_key(target_acc) != "gotowka" and not (
+                        t_rules and t_rules.tax_periodic
+                    ):
+                        basis[target_acc] = basis.get(target_acc, 0.0) + bal
+                        if state is not None:
+                            state.basis_vintages.setdefault(target_acc, []).append(
+                                (age, bal)
+                            )
+                    if state is not None:
+                        state.all_accounts.add(target_acc)
+                continue
+
+            re_roi = re_cfg.get("roi", 0.015)
+            re_contrib = (
+                re_cfg.get("annual_contribution", 0.0)
+                if stage_input.stage_type == "akumulacja"
+                else 0.0
+            )
+            cur_bal = balances.get(name, 0.0)
+            balances[name] = cur_bal * (1.0 + re_roi) + re_contrib
+            if re_contrib > 0:
+                basis[name] = basis.get(name, 0.0) + re_contrib
+            rent_m = re_cfg.get("rental_income_monthly", 0.0) or 0.0
+            if rent_m > 0 and balances[name] > 0:
+                gross_rent = rent_m * MONTHS_PER_YEAR
+                rent_tax = (
+                    min(gross_rent, 100_000.0) * 0.085
+                    + max(0.0, gross_rent - 100_000.0) * 0.125
+                )
+                net_rent = max(0.0, gross_rent - rent_tax)
+                periodic_tax[name] = periodic_tax.get(name, 0.0) + rent_tax
+                if stage_input.stage_type == "akumulacja":
+                    target_acc = _pick_liquid_target(stage_input.accounts) or "gotowka"
+                    pending_rent_reinvestments.append((target_acc, net_rent))
+                else:
+                    merged_withdrawal[name] = (
+                        merged_withdrawal.get(name, 0.0) + gross_rent
+                    )
+                    if desired_withdrawal is not None:
+                        desired_withdrawal = max(0.0, desired_withdrawal - net_rent)
+
+        # Periodic-tax accounts (lokata, lokata:2, ...) — Belka deducted on each term.
         # During accumulation growth is net-of-tax, computed here (like ZUS).
         # During realization the ROI is replaced by the net rate so the money
         # keeps growing after tax; _apply_tax skips such accounts entirely.
         for name in list(accounts_config.keys()):
-            rules = config.accounts.get(name)
+            rules = config.get_account_rules(name)
             if not rules or not rules.tax_periodic:
                 continue
             if stage_input.stage_type == "akumulacja":
@@ -536,39 +680,51 @@ def _process_stages(
             name: cfg for name, cfg in accounts_config.items() if name not in processed_accounts
         }
 
-        if not accounts_to_process:
-            continue
-
-        kwargs: dict = {}
-        if desired_withdrawal is not None:
-            kwargs["desired_withdrawal"] = desired_withdrawal
-        if stage_input.stage_type == "realizacja":
-            kwargs["withdrawal_order"] = (
-                "roi_asc"
-                if state is not None and state.withdrawal_policy.endswith("_roi")
-                else "proportional"
+        if accounts_to_process:
+            kwargs: dict = {}
+            if desired_withdrawal is not None:
+                kwargs["desired_withdrawal"] = desired_withdrawal
+            if stage_input.stage_type == "realizacja":
+                kwargs["withdrawal_order"] = (
+                    "roi_asc"
+                    if state is not None and state.withdrawal_policy.endswith("_roi")
+                    else "proportional"
+                )
+            result = stage_obj.calculate_year(
+                age=age,
+                end_age=stage_input.end_age,
+                balances=balances,
+                config=accounts_to_process,
+                **kwargs,
             )
-        result = stage_obj.calculate_year(
-            age=age,
-            end_age=stage_input.end_age,
-            balances=balances,
-            config=accounts_to_process,
-            **kwargs,
-        )
 
-        for k, v in result["withdrawal"].items():
-            merged_withdrawal[k] = merged_withdrawal.get(k, 0) + v
+            for k, v in result["withdrawal"].items():
+                merged_withdrawal[k] = merged_withdrawal.get(k, 0) + v
 
-        balances.update(result["balances"])
-        processed_accounts.update(accounts_to_process.keys())
+            balances.update(result["balances"])
+            processed_accounts.update(accounts_to_process.keys())
 
-        if stage_input.stage_type == "akumulacja":
-            for name, cfg in accounts_to_process.items():
-                contrib = cfg.get("annual_contribution", 0.0)
-                if contrib:
-                    basis[name] = basis.get(name, 0.0) + contrib
-                    if state is not None:
-                        state.basis_vintages.setdefault(name, []).append((age, contrib))
+            if stage_input.stage_type == "akumulacja":
+                for name, cfg in accounts_to_process.items():
+                    contrib = cfg.get("annual_contribution", 0.0)
+                    if contrib:
+                        basis[name] = basis.get(name, 0.0) + contrib
+                        if state is not None:
+                            state.basis_vintages.setdefault(name, []).append((age, contrib))
+
+        for target_acc, net_rent in pending_rent_reinvestments:
+            balances[target_acc] = balances.get(target_acc, 0.0) + net_rent
+            t_rules = config.get_account_rules(target_acc)
+            if base_account_key(target_acc) != "gotowka" and not (
+                t_rules and t_rules.tax_periodic
+            ):
+                basis[target_acc] = basis.get(target_acc, 0.0) + net_rent
+                if state is not None:
+                    state.basis_vintages.setdefault(target_acc, []).append(
+                        (age, net_rent)
+                    )
+            if state is not None:
+                state.all_accounts.add(target_acc)
 
         label = stage_input.name or stage_obj.name
         if label not in seen_labels:
@@ -598,7 +754,7 @@ def _accumulate_periodic(
     mies.). Odroczenie Belki daje realną przewagę (efekt kapitalizacji na
     brutto), dlatego dłuższe lokaty dają wyższy saldo przy tym samym ROI.
     """
-    rules = config.accounts.get(name)
+    rules = config.get_account_rules(name)
     tax_rate = rules.tax_rate if rules else 0.0
     balance = balances.get(name, 0.0)
     roi_real = effective_roi(name, cfg.get("roi", DEFAULT_ROI))
@@ -733,7 +889,7 @@ def _account_rois_for_age(
     future: dict[str, float] = {}
     for si in sorted(all_stages, key=lambda s: s.start_age):
         for name, cfg in si.accounts.items():
-            roi = -config.inflation if name == "gotowka" else cfg.roi
+            roi = -config.inflation if base_account_key(name) == "gotowka" else cfg.roi
             if si.start_age <= age:
                 rois[name] = roi
             else:
@@ -769,7 +925,7 @@ def _passive_growth(
         elif acc_name == "zus:ofe":
             balances[acc_name] = balances[acc_name] * (1 + account_rois.get("zus", DEFAULT_ROI))
         else:
-            rules = config.accounts.get(acc_name)
+            rules = config.get_account_rules(acc_name)
             if rules and rules.tax_periodic:
                 roi = account_rois.get(acc_name, DEFAULT_ROI)
                 net = _periodic_net_roi(acc_name, rules, {"roi": roi}, config.inflation)
@@ -858,7 +1014,12 @@ def _ikze_refund_targets(cfg, si: StageInput) -> list[str]:
     if setting in ("", "none"):
         return []
     if setting == "auto":
-        return [acc for acc in _IKZE_REINVEST_ORDER if acc in si.accounts]
+        out: list[str] = []
+        for base in _IKZE_REINVEST_ORDER:
+            for acc in si.accounts:
+                if base_account_key(acc) == base and acc not in out:
+                    out.append(acc)
+        return out
     if setting in si.accounts:
         return [setting]
     return []
@@ -889,9 +1050,9 @@ def _ensure_reinvestment_account(
     """Dodaje konto docelowe do etapu i przyszłych etapów portfelowych."""
     if target in stage.accounts:
         return
-    rules = state.config.accounts.get(target)
+    rules = state.config.get_account_rules(target)
     roi = state.account_rois.get(target, rules.default_roi if rules else 0.0)
-    if target == "gotowka":
+    if base_account_key(target) == "gotowka":
         roi = 0.0
     cfg = AccountConfig(starting_balance=0.0, roi=roi, buffer=0.0)
     for past in all_stages:
@@ -946,8 +1107,8 @@ def _reinvest_early_return(
         state.balances[target] = state.balances.get(target, 0.0) + invested
         state.all_accounts.add(target)
         year_start_balances[target] = year_start_balances.get(target, 0.0) + invested
-        rules = state.config.accounts.get(target)
-        if target != "gotowka" and not (rules and rules.tax_periodic):
+        rules = state.config.get_account_rules(target)
+        if base_account_key(target) != "gotowka" and not (rules and rules.tax_periodic):
             state.basis[target] = state.basis.get(target, 0.0) + invested
             state.basis_vintages.setdefault(target, []).append((age, invested))
         state.early_return_allocations[target] = (
@@ -976,8 +1137,17 @@ def _apply_ikze_savings(
             base = cfg.monthly_base if cfg.monthly_base > 0 else monthly_gross
             if base <= 0:
                 continue
-            dochód = _compute_monthly_gross_dochod(base, state.config)
-            saving = _compute_ikze_tax_saving(contribution, dochód, state.config)
+            if cfg.ikze_tax_regime in ("flat_19", "lump_sum"):
+                annual_income = base * MONTHS_PER_YEAR
+            else:
+                annual_income = _compute_monthly_gross_dochod(base, state.config)
+            saving = _compute_ikze_tax_saving(
+                contribution,
+                annual_income,
+                state.config,
+                tax_regime=cfg.ikze_tax_regime,
+                lump_sum_rate=cfg.ikze_lump_sum_rate,
+            )
             if saving <= 0:
                 continue
             merged_tax[name] = merged_tax.get(name, 0.0) - saving
@@ -993,8 +1163,10 @@ def _apply_ikze_savings(
                 state.ikze_refund_allocations[target] = (
                     state.ikze_refund_allocations.get(target, 0.0) + amount
                 )
-                rules = state.config.accounts.get(target)
-                if target != "gotowka" and not (rules and rules.tax_periodic):
+                rules = state.config.get_account_rules(target)
+                if base_account_key(target) != "gotowka" and not (
+                    rules and rules.tax_periodic
+                ):
                     state.basis[target] = state.basis.get(target, 0.0) + amount
                     v_age = age if age is not None else state.start_age
                     state.basis_vintages.setdefault(target, []).append((v_age, amount))
@@ -1011,6 +1183,8 @@ def _run_year(
     monthly_gross: float,
     all_stages: list[StageInput],
     target: float | None = None,
+    mortgage_monthly: float = 0.0,
+    mortgage_end_age: int | None = None,
 ) -> None:
     active_stages = [si for si in all_stages if si.start_age <= age < si.end_age]
     year_start_balances = dict(state.balances)
@@ -1101,6 +1275,12 @@ def _run_year(
             zus_pension - zus_share - zus_pension * state.config.health_rate,
         )
 
+    mortgage_extra = (
+        mortgage_monthly
+        if (mortgage_monthly > 0 and mortgage_end_age is not None and age < mortgage_end_age)
+        else 0.0
+    )
+
     merged_withdrawal, stage_label_parts, periodic_tax = _process_stages(
         state=state,
         active_stages=active_stages,
@@ -1109,6 +1289,9 @@ def _run_year(
         monthly_gross=monthly_gross,
         target=target,
         zus_net_pension=zus_net_pension,
+        all_stages=all_stages,
+        year_start_balances=year_start_balances,
+        mortgage_extra_monthly=mortgage_extra,
     )
 
     merged_tax = _apply_tax(
@@ -1201,6 +1384,10 @@ def _finalize_result(
         ),
     )
     display_accounts = sorted(a for a in state.all_accounts if a != "zus")
+    account_labels = {
+        a: account_display_label(a, state.custom_names.get(a, ""))
+        for a in display_accounts
+    }
     has_pension = any("zus" in si.accounts for si in data.stages)
     warnings = _collect_warnings(data, state, target)
     for name, pension in state.zus_pensions.items():
@@ -1222,6 +1409,7 @@ def _finalize_result(
     return SimulationResult(
         years=years,
         accounts=display_accounts,
+        account_labels=account_labels,
         final_wealth=final_wealth,
         peak_wealth=round(peak_wealth, 2),
         total_withdrawn=round(total_withdrawn_net, 2),
@@ -1283,7 +1471,15 @@ def simulate(data: SimulationInput, target: float | None = None) -> SimulationRe
     max_age = max(si.end_age - 1 for si in data.stages)
 
     for age in range(min_age, max_age + 1):
-        _run_year(state, age, data.monthly_gross, data.stages, target)
+        _run_year(
+            state,
+            age,
+            data.monthly_gross,
+            data.stages,
+            target,
+            mortgage_monthly=data.mortgage_monthly,
+            mortgage_end_age=data.mortgage_end_age,
+        )
 
     return _finalize_result(data, state, target)
 
@@ -1406,26 +1602,37 @@ def _apply_asset_tax(
     )
     groups: dict[str, list[str]] = {}
     for account in balances:
-        rules = config.accounts.get(account)
+        rules = config.get_account_rules(account)
         if not rules or rules.tax_model != "assets":
             continue
         groups.setdefault(rules.asset_group or account, []).append(account)
 
     for members in groups.values():
         savings = [
-            a for a in members if _asset_class_of(config.accounts.get(a)) == "oszczednosciowe"
+            a
+            for a in members
+            if _asset_class_of(config.get_account_rules(a)) == "oszczednosciowe"
         ]
         invested = [
-            a for a in members if _asset_class_of(config.accounts.get(a)) != "oszczednosciowe"
+            a
+            for a in members
+            if _asset_class_of(config.get_account_rules(a)) != "oszczednosciowe"
         ]
-        rate = max((config.accounts[a].asset_tax_rate for a in members), default=0.0)
+        rate = max(
+            (
+                (config.get_account_rules(a).asset_tax_rate if config.get_account_rules(a) else 0.0)  # type: ignore[union-attr]
+                for a in members
+            ),
+            default=0.0,
+        )
 
         def _avg(account: str) -> float:
             return (year_start_balances.get(account, 0.0) + balances[account]) / 2.0
 
         def _exemption(account: str) -> float:
-            rules = config.accounts[account]
-            return asset_exemptions.get(account, rules.asset_exemption)
+            rules = config.get_account_rules(account)
+            default_ex = rules.asset_exemption if rules else 0.0
+            return asset_exemptions.get(account, default_ex)
 
         savings_avg = sum(_avg(a) for a in savings)
         invested_avg = sum(_avg(a) for a in invested)
@@ -1497,7 +1704,11 @@ def _apply_tax(
     scale_accounts: list[tuple[str, float]] = []
 
     for account, amount in withdrawals.items():
-        rules = config.accounts.get(account)
+        if base_account_key(account) == "nieruchomosc":
+            # Podatek ryczałtowy od najmu jest już policzony w periodic_tax,
+            # a sprzedaż nieruchomości po 5 latach jest zwolniona z PIT (0%).
+            continue
+        rules = config.get_account_rules(account)
         if not rules:
             continue
         if rules.tax_periodic:
@@ -1641,7 +1852,7 @@ def _collect_warnings(
                             f"Realnie świadczenie nie przysługuje wcześniej; "
                             f"wynik ma charakter poglądowy."
                         )
-                rules = config.accounts.get(name)
+                rules = config.get_account_rules(name)
                 if not rules or rules.min_withdrawal_age <= 0:
                     continue
                 if si.start_age >= rules.min_withdrawal_age:
@@ -1654,7 +1865,7 @@ def _collect_warnings(
                     )
                     if not tapped_early and name not in state.early_returned:
                         continue
-                label = ACCOUNT_LABELS.get(name, name)
+                label = account_display_label(name, cfg.custom_name)
                 first_age = (
                     _first_withdrawal_age(state, name)
                     if state is not None
@@ -1740,7 +1951,7 @@ def _collect_warnings(
                 if name == "ikze" and contribution > 0:
                     refund_target = cfg.ikze_refund_target
                     if refund_target == "auto" and not any(
-                        acc in si.accounts for acc in _IKZE_REINVEST_ORDER
+                        base_account_key(acc) in _IKZE_REINVEST_ORDER for acc in si.accounts
                     ):
                         warnings.append(
                             "IKZE: zwrot podatku nie jest reinwestowany — w etapie nie ma "
@@ -1780,7 +1991,7 @@ def _collect_warnings(
     cash_warnings: set[str] = set()
     for si in data.stages:
         for name in si.accounts:
-            if name == "gotowka" and eff_infl <= 1e-9:
+            if base_account_key(name) == "gotowka" and eff_infl <= 1e-9:
                 cash_warnings.add(
                     f"Gotówka — inflacja {eff_infl * 100:.1f}% — zakładasz brak inflacji lub "
                     f"wieloletnią deflację. Realnie gotówka traci na wartości "

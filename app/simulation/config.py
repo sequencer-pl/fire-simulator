@@ -7,6 +7,7 @@ ACCOUNT_LABELS = {
     "ikze": "IKZE",
     "krypto": "Krypto",
     "lokata": "Lokata",
+    "nieruchomosc": "Nieruchomość",
     "obligacje": "Obligacje",
     "oipe": "OIPE",
     "oki_inw": "OKI inwestycyjne",
@@ -15,6 +16,36 @@ ACCOUNT_LABELS = {
     "ppk": "PPK",
     "zus": "ZUS (emerytura)",
 }
+
+# Konta, których można mieć wiele niezależnych instancji (np. lokata:2, broker:2).
+MULTI_INSTANCE_ACCOUNTS = (
+    "broker",
+    "lokata",
+    "obligacje",
+    "krypto",
+    "gotowka",
+    "nieruchomosc",
+)
+
+
+def base_account_key(name: str) -> str:
+    """Zwraca bazowy typ konta (np. 'lokata' dla 'lokata:2', 'zus:ofe' bez zmian)."""
+    if name == "zus:ofe":
+        return "zus:ofe"
+    return name.split(":", 1)[0]
+
+
+def account_display_label(name: str, custom_name: str = "") -> str:
+    """Czytelna etykieta konta uwzględniająca nazwę własną oraz numer instancji."""
+    if custom_name and custom_name.strip():
+        return custom_name.strip()
+    if name in ACCOUNT_LABELS:
+        return ACCOUNT_LABELS[name]
+    base = base_account_key(name)
+    if base in ACCOUNT_LABELS and ":" in name:
+        suffix = name.split(":", 1)[1]
+        return f"{ACCOUNT_LABELS[base]} #{suffix}"
+    return ACCOUNT_LABELS.get(base, name)
 
 
 class AccountRules(BaseModel):
@@ -131,6 +162,7 @@ def default_account_rules() -> dict[str, AccountRules]:
             default_roi=0.02,
         ),
         "zus": AccountRules(tax_model="scale", default_roi=0.04),
+        "nieruchomosc": AccountRules(tax_model="none", default_roi=0.015),
     }
 
 
@@ -226,6 +258,12 @@ class TaxConfig(BaseModel):
             "rate_middle": self.rate_middle,
         }
 
+    def get_account_rules(self, name: str) -> AccountRules | None:
+        """Zwraca reguły konta, wspierając wielokrotne instancje (np. 'lokata:2')."""
+        if name in self.accounts:
+            return self.accounts[name]
+        return self.accounts.get(base_account_key(name))
+
 
 def default_config(year: int = 2026) -> TaxConfig:
     cfg = TaxConfig()
@@ -276,6 +314,7 @@ BUILTIN_PRESETS: dict[str, dict] = {
             "lokata": {"default_roi": 0.014},
             "krypto": {"default_roi": 0.03},
             "zus": {"default_roi": 0.03},
+            "nieruchomosc": {"default_roi": 0.005},
         },
     },
     "Realne": {
@@ -294,6 +333,7 @@ BUILTIN_PRESETS: dict[str, dict] = {
             "lokata": {"default_roi": 0.018},
             "krypto": {"default_roi": 0.06},
             "zus": {"default_roi": 0.04},
+            "nieruchomosc": {"default_roi": 0.015},
         },
     },
     "Optymistyczne": {
@@ -312,6 +352,7 @@ BUILTIN_PRESETS: dict[str, dict] = {
             "lokata": {"default_roi": 0.022},
             "krypto": {"default_roi": 0.08},
             "zus": {"default_roi": 0.05},
+            "nieruchomosc": {"default_roi": 0.025},
         },
     },
 }

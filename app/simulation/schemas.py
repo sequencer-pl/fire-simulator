@@ -1,11 +1,27 @@
 from typing import Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
-from app.simulation.config import TaxConfig, default_config
+from app.simulation.config import TaxConfig, base_account_key, default_config
+
+_ALLOWED_IKZE_TARGETS = {
+    "",
+    "auto",
+    "none",
+    "broker",
+    "lokata",
+    "obligacje",
+    "oki_inw",
+    "oki_osk",
+    "krypto",
+    "gotowka",
+    "ike",
+    "oipe",
+}
 
 
 class AccountConfig(BaseModel):
+    custom_name: str = Field(default="", max_length=80)
     starting_balance: float = Field(default=0.0, ge=0.0, le=1e12)
     cost_basis_enabled: bool = False
     cost_basis: float | None = Field(default=None, ge=0.0, le=1e12)
@@ -15,13 +31,14 @@ class AccountConfig(BaseModel):
     buffer: float = Field(default=0.0, ge=0.0, le=1e12)
     monthly_pension: float = Field(default=0.0, ge=0.0, le=1e7)
     ikze_limit: str = "etat"
-    # Gdzie trafia zwrot podatku z ulgi IKZE: "auto" (pierwsze dostępne konto
-    # w etapie wg kolejności broker → OKI → obligacje → lokata → krypto →
-    # gotówka), "none" (tylko obniża podatek) albo konkretne konto w etapie.
-    ikze_refund_target: Literal[
-        "", "auto", "none", "broker", "lokata", "obligacje",
-        "oki_inw", "oki_osk", "krypto", "gotowka", "ike", "oipe",
-    ] = "auto"
+    # Forma opodatkowania dochodu, od którego odliczana jest wpłata na IKZE:
+    # "scale" = skala PIT (12%/32%), "flat_19" = liniowy 19% (B2B),
+    # "lump_sum" = ryczałt ewidencjonowany wg stawki ikze_lump_sum_rate (B2B).
+    ikze_tax_regime: Literal["scale", "flat_19", "lump_sum"] = "scale"
+    ikze_lump_sum_rate: float = Field(default=0.12, ge=0.0, le=0.5)
+    # Gdzie trafia zwrot podatku z ulgi IKZE: "auto", "none" albo konkretne konto
+    # w etapie (w tym sub-konta np. "broker:2", "lokata:2").
+    ikze_refund_target: str = "auto"
     base_override_enabled: bool = False
     monthly_base: float = Field(default=0.0, ge=0.0, le=1e9)
     ofe_member: bool = False
@@ -32,6 +49,20 @@ class AccountConfig(BaseModel):
     employer_pct: float = Field(default=0.015, ge=0.0, le=1.0)
     state_topups: bool = True
     asset_exemption: float | None = Field(default=None, ge=0.0, le=1e12)
+    # Nieruchomość inwestycyjna: miesięczny przychód z najmu (przed ryczałtem 8,5%/12,5%)
+    # oraz opcjonalny wiek sprzedaży nieruchomości (0 lub None = nie sprzedawaj).
+    rental_income_monthly: float = Field(default=0.0, ge=0.0, le=1e7)
+    liquidation_age: int | None = Field(default=None, ge=0, le=120)
+
+    @field_validator("ikze_refund_target")
+    @classmethod
+    def _validate_ikze_refund_target(cls, v: str) -> str:
+        if v in _ALLOWED_IKZE_TARGETS:
+            return v
+        base = base_account_key(v)
+        if base in _ALLOWED_IKZE_TARGETS and base not in ("", "auto", "none"):
+            return v
+        raise ValueError(f"Nieprawidłowy cel zwrotu IKZE: {v}")
 
 
 class StageInput(BaseModel):
@@ -48,6 +79,24 @@ class StageInput(BaseModel):
             "Stały cel wypłaty brutto (zł/mies.) dla fazy realizacji bez ZUS. "
             ">0 = tryb stałego celu (wypłata z portfela, pomniejszona o rentę ZUS); "
             "0 = klasyczna annuitetyzacja PMT."
+        ),
+    )
+    part_time_net_monthly: float = Field(
+        default=0.0,
+        ge=0.0,
+        le=1e8,
+        description=(
+            "Miesięczny dochód netto z pracy na część etatu w okresie częściowego FIRE "
+            "(Barista FIRE / Sabbatical), zmniejszający zapotrzebowanie na wypłatę z portfela."
+        ),
+    )
+    part_time_zus_base: float = Field(
+        default=0.0,
+        ge=0.0,
+        le=1e8,
+        description=(
+            "Podstawa miesięczna ZUS z pracy na część etatu w okresie częściowego FIRE "
+            "(dopisuje składki do kapitału ZUS przed osiągnięciem wieku emerytalnego)."
         ),
     )
 
@@ -95,6 +144,9 @@ class SimulationInput(BaseModel):
     withdrawal_policy: Literal[
         "auto", "defer_tier", "early_tier", "defer_roi", "early_roi"
     ] = "defer_tier"
+    # Kredyt hipoteczny (mieszkanie własne): miesięczna rata i wiek końca spłaty.
+    mortgage_monthly: float = Field(default=0.0, ge=0.0, le=1e7)
+    mortgage_end_age: int | None = Field(default=None, ge=0, le=120)
     config: TaxConfig = Field(default_factory=default_config)
 
 
@@ -121,6 +173,7 @@ class YearResult(BaseModel):
 class SimulationResult(BaseModel):
     years: list[YearResult]
     accounts: list[str] = Field(default_factory=list)
+    account_labels: dict[str, str] = Field(default_factory=dict)
     final_wealth: float
     peak_wealth: float
     total_withdrawn: float

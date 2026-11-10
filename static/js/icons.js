@@ -17,6 +17,7 @@ const ICON_PATHS = {
     oki_osk: '<rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M16 14.5h2"/>',
     krypto: '<path d="M9 4v16M13 4v2M13 18v2"/><path d="M9 6h4.5a3 3 0 0 1 0 6H9m0 0h5a3 3 0 0 1 0 6H9"/>',
     zus: '<path d="M4 21h16M6 21v-9M10 21v-9M14 21v-9M18 21v-9M3 12l9-6 9 6z"/>',
+    nieruchomosc: '<path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9.5"/><path d="M9 21v-6a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v6"/>',
     // --- nawigacja i UI ----------------------------------------------------
     list: '<path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"/>',
     bolt: '<path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/>',

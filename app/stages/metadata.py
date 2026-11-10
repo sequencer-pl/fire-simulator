@@ -101,10 +101,23 @@ ACCOUNT_INFO = {
         ),
         "url": "https://www.zus.pl/",
     },
+    "nieruchomosc": {
+        "description": (
+            "Nieruchomość inwestycyjna (na wynajem lub pod wzrost wartości). "
+            "Niepodzielne aktywo: jej wartość rośnie wg realnego ROI, czynsz najmu "
+            "(opodatkowany ryczałtem 8,5% do 100 tys. zł/rok i 12,5% powyżej) "
+            "zasila portfel w akumulacji lub wypłaty w realizacji, a opcjonalnie "
+            "można ją spieniężyć w wybranym wieku (0% PIT po 5 latach)."
+        ),
+    },
 }
 
 # Short descriptive hints for form fields (tooltip text next to field labels).
 FIELD_HINTS = {
+    "custom_name": (
+        "Opcjonalna własna nazwa konta (np. „Lokata mBank”, „XTB — ETF”, „IBKR — Akcje”, "
+        "„Kawalerka Kraków”), wyświetlana w tabelach i na wykresach."
+    ),
     "starting_balance": "Saldo zgromadzone na starcie etapu (przenoszone między etapami).",
     "annual_contribution": "Dopłata wnoszona co roku (równymi ratami przez cały etap).",
     "buffer": "Kwota, która zostaje na koncie po etapie (nie jest wypłacana).",
@@ -133,6 +146,14 @@ FIELD_HINTS = {
         "a nie od całej kwoty wypłaty."
     ),
     "cost_basis": ("Łączny koszt zakupu (wpłacony kapitał) — podatek zapłacisz tylko od różnicy."),
+    "rental_income_monthly": (
+        "Miesięczny przychód z wynajmu (po kosztach administracyjnych, przed ryczałtem). "
+        "Silnik automatycznie potrąca ryczałt 8,5% (12,5% powyżej 100 tys. zł/rok)."
+    ),
+    "liquidation_age": (
+        "Opcjonalny wiek sprzedaży nieruchomości (0 = nie sprzedawaj, czerp czynsz). "
+        "W podanym wieku cała wartość nieruchomości zasila płynny portfel z 0% PIT."
+    ),
 }
 
 ROI_HINTS = {
@@ -181,6 +202,10 @@ ROI_HINTS = {
         "podatkiem od aktywów (0,85%)."
     ),
     "zus": "ROI części kapitału w OFE; reszta kapitału ZUS rośnie przez waloryzację.",
+    "nieruchomosc": (
+        "Realna zmiana wartości rynkowej samej nieruchomości (ponad inflacją). "
+        "Przychód z wynajmu podaj w osobnym polu."
+    ),
 }
 
 STAGE_META: dict[str, dict[str, Any]] = {
@@ -650,6 +675,36 @@ STAGE_META: dict[str, dict[str, Any]] = {
                     },
                 },
             },
+            "nieruchomosc": {
+                "label": "Nieruchomość",
+                "fields": {
+                    "starting_balance": {
+                        "label": "Wartość obecna",
+                        "type": "number",
+                        "step": 10000,
+                        "hint": "Obecna wartość rynkowa nieruchomości inwestycyjnej (zł).",
+                    },
+                    "rental_income_monthly": {
+                        "label": "Przychód z najmu (mies.)",
+                        "type": "number",
+                        "step": 100,
+                        "hint": FIELD_HINTS["rental_income_monthly"],
+                    },
+                    "roi": {
+                        "label": "Wzrost wartości",
+                        "type": "number",
+                        "step": 0.5,
+                        "percent": True,
+                        "hint": ROI_HINTS["nieruchomosc"],
+                    },
+                    "liquidation_age": {
+                        "label": "Wiek sprzedaży (0 = brak)",
+                        "type": "number",
+                        "step": 1,
+                        "hint": FIELD_HINTS["liquidation_age"],
+                    },
+                },
+            },
         },
     },
     "realizacja": {
@@ -916,6 +971,30 @@ STAGE_META: dict[str, dict[str, Any]] = {
                         "step": 1,
                         "percent": True,
                         "hint": FIELD_HINTS["waloryzacja_swiadczenia"],
+                    },
+                },
+            },
+            "nieruchomosc": {
+                "label": "Nieruchomość",
+                "fields": {
+                    "rental_income_monthly": {
+                        "label": "Przychód z najmu (mies.)",
+                        "type": "number",
+                        "step": 100,
+                        "hint": FIELD_HINTS["rental_income_monthly"],
+                    },
+                    "roi": {
+                        "label": "Wzrost wartości",
+                        "type": "number",
+                        "step": 0.5,
+                        "percent": True,
+                        "hint": ROI_HINTS["nieruchomosc"],
+                    },
+                    "liquidation_age": {
+                        "label": "Wiek sprzedaży (0 = brak)",
+                        "type": "number",
+                        "step": 1,
+                        "hint": FIELD_HINTS["liquidation_age"],
                     },
                 },
             },

@@ -134,8 +134,9 @@ function computeTotalUserContributions(input) {
         const years = Math.max(0, (stage.end_age || 0) - (stage.start_age || 0));
         if (years <= 0) continue;
         for (const [name, cfg] of Object.entries(stage.accounts || {})) {
-            if (name === "gotowka" || name === "lokata" || name === "zus") continue;
-            if (name === "ppk") {
+            const base = name === "zus:ofe" ? name : String(name).split(":")[0];
+            if (base === "gotowka" || base === "lokata" || base === "zus") continue;
+            if (base === "ppk") {
                 total += (cfg.employee_pct || 0) * resolveBase(cfg, monthlyGross) * years * 12;
             } else {
                 total += (cfg.annual_contribution || 0) * years;
@@ -162,8 +163,9 @@ function computeInitialCapital(input) {
 }
 
 function _accountMonthly(name, cfg, monthlyGross) {
-    if (name === "gotowka" || name === "lokata" || name === "zus") return 0;
-    if (name === "ppk") return (cfg.employee_pct || 0) * resolveBase(cfg, monthlyGross);
+    const base = name === "zus:ofe" ? name : String(name).split(":")[0];
+    if (base === "gotowka" || base === "lokata" || base === "zus") return 0;
+    if (base === "ppk") return (cfg.employee_pct || 0) * resolveBase(cfg, monthlyGross);
     return (cfg.annual_contribution || 0) / 12;
 }
 

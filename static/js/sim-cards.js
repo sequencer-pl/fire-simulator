@@ -52,6 +52,11 @@ const FIELD_DEFAULTS = {
         lokata_term_months: 12,
         roi: () => CONFIG?.accounts?.lokata?.default_roi ?? 0.018,
     },
+    nieruchomosc: {
+        rental_income_monthly: 0,
+        liquidation_age: 0,
+        roi: () => CONFIG?.accounts?.nieruchomosc?.default_roi ?? 0.015,
+    },
     ikze: {
         ikze_refund_target: "",
     },
@@ -60,13 +65,18 @@ const FIELD_DEFAULTS = {
 let _genderCardSeq = 0;
 
 function fieldDefault(accountKey, key) {
-    const table = FIELD_DEFAULTS[accountKey];
+    const baseKey = baseAccountKey(accountKey);
+    const table = FIELD_DEFAULTS[accountKey] || FIELD_DEFAULTS[baseKey];
     if (table && table[key] !== undefined) {
         const val = table[key];
         return typeof val === "function" ? val() : val;
     }
     if (key === "roi") {
-        return CONFIG?.accounts?.[accountKey]?.default_roi ?? 0.04;
+        return (
+            CONFIG?.accounts?.[accountKey]?.default_roi ??
+            CONFIG?.accounts?.[baseKey]?.default_roi ??
+            0.04
+        );
     }
     return 0;
 }
@@ -184,15 +194,54 @@ function createAccountCard(stageType, accountKey, accountData) {
         `;
     }
 
-    const headerTip = tipLabelHtml(meta.label, meta.description, meta.url);
+    const baseKey = baseAccountKey(accountKey);
+    const isMulti = MULTI_INSTANCE_ACCOUNTS.has(baseKey);
+    const initialCustomName = accountData?.custom_name || "";
+    const displayTitle = initialCustomName.trim() || meta.label;
+    const headerTip = tipLabelHtml(displayTitle, meta.description, meta.url);
+    const addInstanceBtnHtml =
+        isMulti && stageType === "akumulacja"
+            ? `<button type="button" class="btn btn-ghost btn-sm add-instance-btn" title="Dodaj kolejne niezależne konto tego typu (np. drugą lokatę w innym banku lub drugiego brokera o innym ROI)" aria-label="Dodaj kolejne konto ${escapeHtml(meta.label)}">${iconSvg("plus")}<span>Kolejne</span></button>`
+            : "";
+    const customNameFieldHtml = isMulti
+        ? `<div class="field account-custom-name-field">
+               <label>${tipLabelHtml("Nazwa własna", "Opcjonalna własna nazwa tego konta (np. „Lokata mBank”, „XTB — ETF”, „IBKR — Akcje”, „Kawalerka”), widoczna w tabeli wyników i na wykresach.")}</label>
+               <input type="text" class="acc-field input account-custom-name" data-account="${accountKey}" data-key="custom_name" maxlength="80" placeholder="${escapeHtml(meta.label)} (np. własna nazwa)" value="${escapeHtml(initialCustomName)}" />
+           </div>`
+        : "";
+
     card.innerHTML = `
         <div class="account-card-header">
-            <span class="account-card-icon">${ACCOUNT_ICONS[accountKey] || ""}</span>
+            <span class="account-card-icon">${accountIconFor(accountKey)}</span>
             <h4>${headerTip}</h4>
+            ${addInstanceBtnHtml}
             <button type="button" class="btn btn-ghost btn-icon btn-sm remove-account-btn" title="Usuń konto" aria-label="Usuń konto ${escapeHtml(meta.label)}">${iconSvg("x")}</button>
         </div>
-        <div class="fields-row">${fieldsHtml}</div>
+        <div class="fields-row">${customNameFieldHtml}${fieldsHtml}</div>
     `;
+
+    const customNameInput = card.querySelector(".account-custom-name");
+    if (customNameInput) {
+        customNameInput.addEventListener("input", () => {
+            const newTitle = customNameInput.value.trim() || meta.label;
+            const titleSpan = card.querySelector(".account-card-header h4 .tip-label-text");
+            if (titleSpan) titleSpan.textContent = newTitle;
+            const stageBlock = card.closest(".stage-block");
+            if (stageBlock) updateStageName(stageBlock);
+            const container = document.getElementById("stages-container");
+            if (stageType === "akumulacja") refreshRealizationToggles(container);
+        });
+    }
+
+    const addInstBtn = card.querySelector(".add-instance-btn");
+    if (addInstBtn) {
+        addInstBtn.addEventListener("click", () => {
+            const stageBlock = card.closest(".stage-block");
+            if (stageBlock && typeof addAnotherAccountInstance === "function") {
+                addAnotherAccountInstance(stageBlock, baseKey, card);
+            }
+        });
+    }
 
     card.querySelectorAll("[data-key]").forEach((el) => {
         if (el.type !== "checkbox") return;

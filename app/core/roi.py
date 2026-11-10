@@ -4,7 +4,8 @@ DEFAULT_ROI = 0.02
 
 
 def effective_roi(account: str, roi: float) -> float:
-    if account == "gotowka" and roi > 0:
+    base = account.split(":", 1)[0] if account != "zus:ofe" else account
+    if base == "gotowka" and roi > 0:
         return -roi
     return roi
 

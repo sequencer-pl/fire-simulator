@@ -98,6 +98,51 @@ function getActiveAccounts(stageBlock) {
     return accounts;
 }
 
+function customNameOfAccount(container, accountKey) {
+    if (!container) return "";
+    const input = container.querySelector(
+        `.account-card[data-account="${accountKey}"] .account-custom-name`
+    );
+    return input && input.value.trim() ? input.value.trim() : "";
+}
+
+function nextInstanceAccountKey(container, stageBlock, baseKey) {
+    const used = new Set();
+    const scope = container || stageBlock;
+    if (scope) {
+        scope.querySelectorAll(".account-card").forEach((card) => {
+            used.add(card.dataset.account);
+        });
+    }
+    if (!used.has(baseKey)) return baseKey;
+    let idx = 2;
+    while (used.has(`${baseKey}:${idx}`)) {
+        idx += 1;
+    }
+    return `${baseKey}:${idx}`;
+}
+
+function addAnotherAccountInstance(stageBlock, baseKey, afterCard = null) {
+    const stageType = stageTypeOf(stageBlock);
+    const container = stageBlock.closest("#stages-container") || document.getElementById("stages-container");
+    const newKey = nextInstanceAccountKey(container, stageBlock, baseKey);
+    const defaultLabel = accountDisplayLabel(newKey);
+    const card = createAccountCard(stageType, newKey, { custom_name: defaultLabel });
+    if (!card) return;
+    const grid = stageBlock.querySelector(".accounts-grid");
+    if (afterCard && afterCard.parentElement === grid && afterCard.nextSibling) {
+        grid.insertBefore(card, afterCard.nextSibling);
+    } else {
+        grid.appendChild(card);
+    }
+    const nameInput = card.querySelector(".account-custom-name");
+    if (nameInput) nameInput.focus();
+    updateStageName(stageBlock);
+    syncIkzeRefundTargets(stageBlock);
+    updateStageHints(container);
+    if (stageType === "akumulacja") refreshRealizationToggles(container);
+}
+
 function updateStageName(stageBlock) {
     const stageType = stageTypeOf(stageBlock);
     const nameInput = stageBlock.querySelector(".stage-name");
@@ -108,7 +153,8 @@ function updateStageName(stageBlock) {
         return;
     }
 
-    const labels = accounts.map(a => ACCOUNT_LABELS[a] || a);
+    const container = stageBlock.closest("#stages-container") || document.getElementById("stages-container");
+    const labels = accounts.map((a) => customNameOfAccount(container, a) || accountDisplayLabel(a));
     nameInput.value = labels.join("+") || "Realizacja";
 }
 
@@ -133,6 +179,7 @@ function renderAccountToggles(stageBlock) {
     const accountsContainer = stageBlock.querySelector(".accounts-grid");
     const togglesContainer = stageBlock.querySelector(".accounts-toggles");
     const available = getAvailableAccounts(stageType);
+    const container = stageBlock.closest("#stages-container") || document.getElementById("stages-container");
 
     const activeAccounts = new Set();
     accountsContainer.querySelectorAll(".account-card").forEach(card => {
@@ -140,11 +187,22 @@ function renderAccountToggles(stageBlock) {
     });
 
     const accumulated = stageType === "realizacja"
-        ? accumulatedAccounts(stageBlock.closest("#stages-container") || document.getElementById("stages-container"))
+        ? accumulatedAccounts(container)
         : null;
 
+    const entries = [...Object.entries(available)];
+    if (stageType === "realizacja") {
+        const extraKeys = new Set([...(accumulated || []), ...activeAccounts]);
+        extraKeys.forEach((key) => {
+            if (!available[key]) {
+                const meta = getAccountMeta(stageType, key);
+                if (meta) entries.push([key, meta]);
+            }
+        });
+    }
+
     togglesContainer.innerHTML = "";
-    for (const [key, meta] of Object.entries(available)) {
+    for (const [key, meta] of entries) {
         if (stageType === "realizacja" && !activeAccounts.has(key) && !accumulated.has(key)) continue;
         const btn = document.createElement("button");
         btn.type = "button";
@@ -152,11 +210,13 @@ function renderAccountToggles(stageBlock) {
         btn.className = "pill-toggle account-toggle" + (isActive ? " active" : "");
         btn.dataset.account = key;
         btn.setAttribute("aria-pressed", String(isActive));
-        const icon = ACCOUNT_ICONS[key] || iconSvg("info");
+        const icon = accountIconFor(key) || iconSvg("info");
+        const labelText =
+            (stageType === "realizacja" && customNameOfAccount(container, key)) || meta.label;
         const tip = meta.description
             ? tipHtml(meta.description, meta.url, "?")
             : "";
-        btn.innerHTML = `${icon}<span class="account-toggle-label">${meta.label}</span>${tip}`;
+        btn.innerHTML = `${icon}<span class="account-toggle-label">${escapeHtml(labelText)}</span>${tip}`;
 
         btn.addEventListener("click", (e) => {
             if (e.target.closest(".tip")) return;
@@ -169,12 +229,16 @@ function renderAccountToggles(stageBlock) {
             } else {
                 btn.classList.add("active");
                 btn.setAttribute("aria-pressed", "true");
-                const card = createAccountCard(stageType, key, {});
+                const inheritedName = stageType === "realizacja" ? customNameOfAccount(container, key) : "";
+                const card = createAccountCard(
+                    stageType,
+                    key,
+                    inheritedName ? { custom_name: inheritedName } : {}
+                );
                 if (card) accountsContainer.appendChild(card);
             }
             updateStageName(stageBlock);
             syncIkzeRefundTargets(stageBlock);
-            const container = document.getElementById("stages-container");
             updateStageHints(container);
             if (stageType === "akumulacja") refreshRealizationToggles(container);
         });
@@ -200,6 +264,12 @@ function createStageBlock(defaults) {
     block.dataset.stageType = stageType;
     if (defaults?.withdrawal_target_gross_monthly > 0) {
         block.dataset.withdrawalTargetGrossMonthly = String(defaults.withdrawal_target_gross_monthly);
+    }
+    if (defaults?.part_time_net_monthly > 0) {
+        block.dataset.partTimeNetMonthly = String(defaults.part_time_net_monthly);
+    }
+    if (defaults?.part_time_zus_base > 0) {
+        block.dataset.partTimeZusBase = String(defaults.part_time_zus_base);
     }
 
     const kindChip = stageKindClass(stageType) === "stage-realizacja" ? "chip-real" : "chip-accum";
@@ -361,15 +431,16 @@ function updateStageHints(container) {
             const cards = block.querySelectorAll(".account-card");
             cards.forEach((card) => {
                 const acc = card.dataset.account;
+                const baseAcc = baseAccountKey(acc);
                 if (!accumulated.has(acc)) {
                     hints.push({
                         level: "warning",
                         text:
-                            `${ACCOUNT_LABELS[acc] || acc} nie ma etapu akumulacji — ` +
+                            `${accountDisplayLabel(acc, customNameOfAccount(container, acc))} nie ma etapu akumulacji — ` +
                             `nie ma skąd wypłacać kapitału.`
                     });
                 }
-                if (acc === "zus") {
+                if (baseAcc === "zus") {
                     const pensionInput = card.querySelector('[data-key="monthly_pension"]');
                     const pension = parseFloat(pensionInput?.value) || 0;
                     const em = pensionAge(CONFIG);
@@ -383,9 +454,23 @@ function updateStageHints(container) {
                     }
                     return;
                 }
-                const rules = CONFIG.accounts[acc];
+                if (baseAcc === "nieruchomosc") {
+                    const rentM = parseFloat(card.querySelector('[data-key="rental_income_monthly"]')?.value) || 0;
+                    const liqAge = parseInt(card.querySelector('[data-key="liquidation_age"]')?.value, 10) || 0;
+                    if (rentM > 0) {
+                        const grossY = rentM * 12;
+                        const taxY = Math.min(grossY, 100000) * 0.085 + Math.max(0, grossY - 100000) * 0.125;
+                        const netM = Math.round((grossY - taxY) / 12);
+                        hints.push({
+                            level: "info",
+                            text: `Czynsz z najmu po ryczałcie ≈ ${netM.toLocaleString("pl-PL")} zł/mies. netto${liqAge > 0 ? `; sprzedaż w wieku ${liqAge} r.ż. (0% PIT)` : ""}.`
+                        });
+                    }
+                    return;
+                }
+                const rules = CONFIG.accounts[acc] || CONFIG.accounts[baseAcc];
                 if (!rules || !rules.min_withdrawal_age) return;
-                const label = ACCOUNT_LABELS[acc] || acc;
+                const label = accountDisplayLabel(acc, customNameOfAccount(container, acc));
                 if (acc === "ppk" && startAge < rules.min_withdrawal_age) {
                     hints.push({
                         level: "warning",
@@ -429,6 +514,21 @@ function updateStageHints(container) {
         } else if (stageType === "akumulacja") {
             block.querySelectorAll(".account-card").forEach((card) => {
                 const acc = card.dataset.account;
+                const baseAcc = baseAccountKey(acc);
+                if (baseAcc === "nieruchomosc") {
+                    const rentM = parseFloat(card.querySelector('[data-key="rental_income_monthly"]')?.value) || 0;
+                    const liqAge = parseInt(card.querySelector('[data-key="liquidation_age"]')?.value, 10) || 0;
+                    if (rentM > 0) {
+                        const grossY = rentM * 12;
+                        const taxY = Math.min(grossY, 100000) * 0.085 + Math.max(0, grossY - 100000) * 0.125;
+                        const netM = Math.round((grossY - taxY) / 12);
+                        hints.push({
+                            level: "info",
+                            text: `Najem netto po ryczałcie ≈ ${netM.toLocaleString("pl-PL")} zł/mies. zasila płynny portfel${liqAge > 0 ? `; sprzedaż w wieku ${liqAge} r.ż. (0% PIT)` : ""}.`
+                        });
+                    }
+                    return;
+                }
                 if (acc === "zus") {
                     const base = parseFloat(card.querySelector('[data-key="monthly_base"]')?.value) || 0;
                     if (CONFIG.zus && base > 0) {

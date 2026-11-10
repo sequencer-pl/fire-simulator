@@ -33,6 +33,8 @@ function gatherFormData() {
             let val;
             if (input.type === "checkbox") {
                 val = input.checked;
+            } else if (input.type === "text") {
+                val = input.value.trim();
             } else if (input.tagName === "SELECT") {
                 const parsed = parseFloat(input.value);
                 val = Number.isNaN(parsed) ? input.value : parsed;
@@ -57,6 +59,8 @@ function gatherFormData() {
             end_age: parseInt(block.querySelector(".end-age").value) || 0,
             accounts: accounts,
             withdrawal_target_gross_monthly: parseFloat(block.dataset.withdrawalTargetGrossMonthly) || 0,
+            part_time_net_monthly: parseFloat(block.dataset.partTimeNetMonthly) || 0,
+            part_time_zus_base: parseFloat(block.dataset.partTimeZusBase) || 0,
         });
     });
 
@@ -100,13 +104,15 @@ function renderResults(data) {
     const warnings = document.getElementById("warnings");
 
     const accounts = data.accounts || [];
+    const labelsMap = data.account_labels || {};
+    const labelOf = (a) => labelsMap[a] || accountDisplayLabel(a);
 
     thead.innerHTML = "";
     const headerRow = document.createElement("tr");
     headerRow.innerHTML = `
         <th class="col-age">Wiek</th>
         <th class="col-stage">Etap</th>
-        ${accounts.map(a => `<th data-col="${a}">${ACCOUNT_LABELS[a] || a}</th>`).join("")}
+        ${accounts.map(a => `<th data-col="${a}">${escapeHtml(labelOf(a))}</th>`).join("")}
         <th data-col="wealth">Majątek</th>
         <th data-col="annual">Wypłata roczna</th>
         <th data-col="monthly">Wypłata mies.</th>
@@ -244,7 +250,7 @@ function renderStageSummary(data) {
         const kind = isAccum ? "accum" : "withdraw";
 
         const accounts = st.accounts
-            .map((a) => `<span class="chip">${escapeHtml(ACCOUNT_LABELS[a.key] || a.key)}</span>`)
+            .map((a) => `<span class="chip">${escapeHtml(data.account_labels?.[a.key] || accountDisplayLabel(a.key))}</span>`)
             .join("");
 
         let finance = "";
@@ -1308,8 +1314,9 @@ function renderColumnToggles(accounts) {
     const container = document.getElementById("columnToggles");
     container.innerHTML = "";
     const hidden = new Set(JSON.parse(localStorage.getItem(COLUMN_TOGGLES_KEY) || "[]"));
+    const labelsMap = lastResult?.account_labels || {};
 
-    const cols = accounts.map((a) => ({ col: a, label: ACCOUNT_LABELS[a] || a }));
+    const cols = accounts.map((a) => ({ col: a, label: labelsMap[a] || accountDisplayLabel(a) }));
     cols.push(
         { col: "wealth", label: "Majątek" },
         { col: "annual", label: "Wypłata roczna" },
@@ -1467,10 +1474,11 @@ function renderWealthDetail(yr, container) {
     }
 
     const balEntries = Object.entries(yr.balances || {}).filter(([, v]) => v > 0);
+    const labelsMap = lastResult?.account_labels || {};
     const balHtml = balEntries.map(([k, v]) => {
         const match = stageAccounts.has(k);
         const chipKind = match ? (pillClass === "pill-active" ? " chip-real" : " chip-accum") : "";
-        return `<span class="chip${chipKind}">${escapeHtml(ACCOUNT_LABELS[k] || k)}: ${fmt(v)}</span>`;
+        return `<span class="chip${chipKind}">${escapeHtml(labelsMap[k] || accountDisplayLabel(k))}: ${fmt(v)}</span>`;
     }).join("");
 
     container.innerHTML = `
@@ -1588,9 +1596,10 @@ function renderWithdrawalDetail(yr, container) {
     }
 
     const balEntries = Object.entries(yr.balances || {}).filter(([, v]) => v > 0);
+    const labelsMap = lastResult?.account_labels || {};
     const balHtml = balEntries.map(([k, v]) => {
         const isActive = activeAccounts.has(k);
-        return `<span class="chip${isActive ? " chip-real" : ""}">${escapeHtml(ACCOUNT_LABELS[k] || k)}: ${fmt(v)}</span>`;
+        return `<span class="chip${isActive ? " chip-real" : ""}">${escapeHtml(labelsMap[k] || accountDisplayLabel(k))}: ${fmt(v)}</span>`;
     }).join("");
 
     container.innerHTML = `
