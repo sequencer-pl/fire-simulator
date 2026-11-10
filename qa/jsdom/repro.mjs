@@ -21,7 +21,11 @@ const content = tpl
     .replace(/\{\{ stage_types \| tojson \}\}/g, "{}");
 
 const html = `<!DOCTYPE html><html><body>${content}</body></html>`;
-const dom = new JSDOM(html, { runScripts: "dangerously", url: "http://localhost/wizard" });
+const dom = new JSDOM(html, {
+    runScripts: "dangerously",
+    pretendToBeVisual: true,
+    url: "http://localhost/wizard",
+});
 const { window, document } = dom;
 
 window.scrollTo = () => {};
