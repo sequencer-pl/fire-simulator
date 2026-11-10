@@ -3,7 +3,12 @@ from typing import Literal
 from pydantic import BaseModel, Field, model_validator
 
 from app.core.tax import scale_tax
-from app.simulation.config import TaxConfig, default_config, get_builtin_preset
+from app.simulation.config import (
+    TaxConfig,
+    base_account_key,
+    default_config,
+    get_builtin_preset,
+)
 from app.simulation.constants import MONTHS_PER_YEAR, PPE_ZUS_FRACTION
 from app.simulation.engine import (
     _compute_monthly_gross_dochod,
@@ -11,12 +16,19 @@ from app.simulation.engine import (
     _run_year,
     simulate,
 )
-from app.simulation.salary import gross_from_net, net_from_gross
+from app.simulation.salary import (
+    b2b_gross_from_net,
+    b2b_net_from_gross,
+    b2b_zus_base_and_social,
+    gross_from_net,
+    net_from_gross,
+)
 from app.simulation.schemas import (
     AccountConfig,
     SimulationInput,
     SimulationResult,
     StageInput,
+    YearResult,
 )
 
 SAVINGS_ACCOUNTS = ("broker", "lokata", "obligacje", "krypto")
@@ -160,6 +172,31 @@ class WizardAnswers(BaseModel):
     use_lokata: bool = False
     use_obligacje: bool = False
     use_broker: bool = False
+    use_nieruchomosc: bool = False
+
+    # Parametry B2B (Asystent v2):
+    b2b_tax_form: Literal["ryczalt", "liniowy", "skala"] | None = None
+    b2b_lump_rate: float = Field(default=0.12, ge=0.0, le=0.5)
+    b2b_zus_mode: Literal["duzy", "maly", "ulga", "custom"] = "duzy"
+    b2b_custom_zus_base: float = Field(default=5652.0, ge=0.0, le=1e8)
+    b2b_switch_to_full_zus: bool = True
+
+    # Sabbatical / Coast FIRE / Barista FIRE (część etatu przed pełnym FIRE):
+    semi_fire_enabled: bool = False
+    semi_fire_mode: Literal["coast", "barista"] = "coast"
+    semi_fire_age: int | None = Field(default=None, ge=0, le=110)
+    semi_fire_net_monthly: float = Field(default=0.0, ge=0.0, le=1e8)
+    semi_fire_savings_monthly: float = Field(default=0.0, ge=0.0, le=1e8)
+
+    # Kredyt hipoteczny (mieszkanie własne) i Nieruchomość inwestycyjna:
+    mortgage_monthly: float = Field(default=0.0, ge=0.0, le=1e7)
+    mortgage_end_age: int | None = Field(default=None, ge=0, le=120)
+    redirect_mortgage_to_savings: bool = True
+    real_estate_rental_monthly: float = Field(default=0.0, ge=0.0, le=1e7)
+    real_estate_liquidation_age: int | None = Field(default=None, ge=0, le=120)
+
+    # Własne nazwy kont (np. {"lokata": "Lokata mBank", "lokata:2": "Lokata PKO"}):
+    custom_names: dict[str, str] = Field(default_factory=dict)
 
     retire_early_age: int | None = Field(default=None, ge=0, le=110)
     retirement_age: int | None = Field(default=None, ge=0, le=110)
@@ -183,7 +220,7 @@ class WizardAnswers(BaseModel):
     def validate_allocations(self) -> "WizardAnswers":
         share_sum = 0.0
         for name, weight in self.allocations.items():
-            if name not in ALLOCATABLE_ACCOUNTS:
+            if base_account_key(name) not in ALLOCATABLE_ACCOUNTS:
                 raise ValueError(f"Nieznane konto w podziale oszczędności: {name}")
             if weight < 0:
                 raise ValueError(f"Udział {name} nie może być ujemny.")
@@ -211,6 +248,10 @@ class SalaryPreviewRequest(BaseModel):
     employment: Literal["etat", "b2b", "niepracujacy"] = "etat"
     use_ppk: bool = False
     ppk_employee_pct: float = 0.02
+    b2b_tax_form: Literal["ryczalt", "liniowy", "skala"] | None = None
+    b2b_lump_rate: float = Field(default=0.12, ge=0.0, le=0.5)
+    b2b_zus_mode: Literal["duzy", "maly", "ulga", "custom"] = "duzy"
+    b2b_custom_zus_base: float = Field(default=5652.0, ge=0.0, le=1e8)
     # Anonymous wizard sessions send their locally saved config here.
     base_config: TaxConfig | None = None
 
@@ -346,26 +387,47 @@ def _savings_monthly(a: WizardAnswers) -> float:
 
 
 def _answers_net_monthly(a: WizardAnswers) -> float | None:
-    """Net pay for an etat, including employee PPK when enabled."""
-    if a.employment != "etat" or a.gross_monthly <= 0:
+    """Net pay for an etat or B2B (when b2b_tax_form is specified)."""
+    if a.gross_monthly <= 0:
         return None
-    ppk_pct = a.ppk_employee_pct if a.use_ppk else 0.0
-    return net_from_gross(
-        a.gross_monthly, _config_for_answers(a), ppk_pct=ppk_pct
-    )
+    if a.employment == "etat":
+        ppk_pct = a.ppk_employee_pct if a.use_ppk else 0.0
+        return net_from_gross(
+            a.gross_monthly, _config_for_answers(a), ppk_pct=ppk_pct
+        )
+    if a.employment == "b2b" and a.b2b_tax_form in ("ryczalt", "liniowy", "skala"):
+        return b2b_net_from_gross(
+            a.gross_monthly,
+            _config_for_answers(a),
+            tax_form=a.b2b_tax_form,
+            lump_rate=a.b2b_lump_rate,
+            zus_mode=a.b2b_zus_mode,
+            custom_zus_base=a.b2b_custom_zus_base,
+        )
+    return None
 
 
 def _normalize_salary(a: WizardAnswers) -> WizardAnswers:
     """Convert a net declaration to gross once, before planning/solving."""
     if a.salary_mode != "net":
         return a
-    if a.employment != "etat":
-        return a.model_copy(update={"salary_mode": "gross"})
-    ppk_pct = a.ppk_employee_pct if a.use_ppk else 0.0
-    gross = gross_from_net(
-        a.gross_monthly, _config_for_answers(a), ppk_pct=ppk_pct
-    )
-    return a.model_copy(update={"gross_monthly": gross, "salary_mode": "gross"})
+    if a.employment == "etat":
+        ppk_pct = a.ppk_employee_pct if a.use_ppk else 0.0
+        gross = gross_from_net(
+            a.gross_monthly, _config_for_answers(a), ppk_pct=ppk_pct
+        )
+        return a.model_copy(update={"gross_monthly": gross, "salary_mode": "gross"})
+    if a.employment == "b2b" and a.b2b_tax_form in ("ryczalt", "liniowy", "skala"):
+        gross = b2b_gross_from_net(
+            a.gross_monthly,
+            _config_for_answers(a),
+            tax_form=a.b2b_tax_form,
+            lump_rate=a.b2b_lump_rate,
+            zus_mode=a.b2b_zus_mode,
+            custom_zus_base=a.b2b_custom_zus_base,
+        )
+        return a.model_copy(update={"gross_monthly": gross, "salary_mode": "gross"})
+    return a.model_copy(update={"salary_mode": "gross"})
 
 
 def estimate_pool_monthly(
@@ -430,16 +492,21 @@ def resolve_config(a: WizardAnswers) -> TaxConfig:
 
 
 def _roi(a: WizardAnswers, name: str, config: TaxConfig | None = None) -> float:
+    base = base_account_key(name)
     if name in a.roi_overrides:
         return a.roi_overrides[name]
-    if config is not None and name in config.accounts:
-        return config.accounts[name].default_roi
+    if base in a.roi_overrides:
+        return a.roi_overrides[base]
+    if config is not None:
+        rules = config.get_account_rules(name)
+        if rules is not None:
+            return rules.default_roi
     strat_key = "zbilansowana" if a.strategy == "manualna" else a.strategy
-    return STRATEGY_ROI[strat_key].get(name, 0.04)
+    return STRATEGY_ROI[strat_key].get(base, 0.04)
 
 
 def _with_basis(name: str) -> bool:
-    return name in ("broker", "obligacje", "krypto", "ike", "oipe")
+    return base_account_key(name) in ("broker", "obligacje", "krypto", "ike", "oipe")
 
 
 def _shelter_cap(a: WizardAnswers, config, name: str) -> float:
@@ -488,6 +555,10 @@ def _ikze_deduction_rate(a: WizardAnswers, config: TaxConfig) -> float:
     gross = max(0.0, a.gross_monthly)
     if gross <= 0:
         return 0.0
+    if a.employment == "b2b" and a.b2b_tax_form == "liniowy":
+        return 0.19
+    if a.employment == "b2b" and a.b2b_tax_form == "ryczalt":
+        return max(0.0, a.b2b_lump_rate)
     income = _compute_monthly_gross_dochod(gross, config)
     limit = (
         config.limits.ikze_annual_self_employed
@@ -573,6 +644,7 @@ def suggest_allocations(a: WizardAnswers, config, annual_pool: float) -> dict[st
 
 
 def _investment_used(a: WizardAnswers, name: str) -> bool:
+    base = base_account_key(name)
     flag = {
         "broker": "use_broker",
         "lokata": "use_lokata",
@@ -580,9 +652,10 @@ def _investment_used(a: WizardAnswers, name: str) -> bool:
         "krypto": "use_krypto",
         "oki_inw": "use_oki_inw",
         "oki_osk": "use_oki_osk",
-    }.get(name)
+        "nieruchomosc": "use_nieruchomosc",
+    }.get(name if name == base else "")
     if flag is not None:
-        return bool(getattr(a, flag))
+        return bool(getattr(a, flag, False))
     if name in TAX_SHELTER_FLAG:
         return bool(getattr(a, TAX_SHELTER_FLAG[name]))
     return False
@@ -598,14 +671,109 @@ def _account_present(a: WizardAnswers, name: str, alloc: dict[str, float]) -> bo
 
 
 def _base_account(a: WizardAnswers, name: str, starting: float, roi) -> dict:
-    cfg = {
+    cfg: dict = {
         "starting_balance": starting,
         "roi": roi,
     }
+    if name in a.custom_names and a.custom_names[name].strip():
+        cfg["custom_name"] = a.custom_names[name].strip()
     if _with_basis(name):
         cfg["cost_basis_enabled"] = True
         cfg["cost_basis"] = starting
     return cfg
+
+
+def _b2b_zus_base(a: WizardAnswers, config: TaxConfig) -> float:
+    base, _social = b2b_zus_base_and_social(
+        a.b2b_zus_mode, config, a.b2b_custom_zus_base
+    )
+    return base
+
+
+def _ikze_regime_for_answers(a: WizardAnswers) -> tuple[str, float]:
+    if a.employment == "b2b":
+        if a.b2b_tax_form == "liniowy":
+            return "flat_19", 0.19
+        if a.b2b_tax_form == "ryczalt":
+            return "lump_sum", a.b2b_lump_rate
+    return "scale", 0.12
+
+
+def _build_accum_stage_accounts(
+    a: WizardAnswers,
+    config: TaxConfig,
+    inv_names: list[str],
+    alloc: dict[str, float],
+    cash_present: bool,
+    employed: bool,
+    gross: float,
+    zus_base_override: float | None = None,
+    include_starting: bool = True,
+) -> dict[str, AccountConfig]:
+    accum_accounts: dict[str, AccountConfig] = {}
+    regime, lump_rate = _ikze_regime_for_answers(a)
+    for name in inv_names:
+        starting = a.capital.get(name, 0.0) if include_starting else 0.0
+        contrib = alloc.get(name, 0.0)
+        cfg = _base_account(a, name, starting, _roi(a, name, config))
+        cfg["annual_contribution"] = contrib
+        if name == "ikze":
+            cfg["ikze_limit"] = "self_employed" if a.employment == "b2b" else "etat"
+            cfg["monthly_base"] = gross
+            cfg["ikze_tax_regime"] = regime
+            cfg["ikze_lump_sum_rate"] = lump_rate
+        accum_accounts[name] = AccountConfig(**cfg)
+    if a.use_nieruchomosc or a.capital.get("nieruchomosc", 0.0) > 0:
+        re_start = a.capital.get("nieruchomosc", 0.0) if include_starting else 0.0
+        re_cfg = _base_account(a, "nieruchomosc", re_start, _roi(a, "nieruchomosc", config))
+        re_cfg["rental_income_monthly"] = a.real_estate_rental_monthly
+        re_cfg["liquidation_age"] = a.real_estate_liquidation_age
+        accum_accounts["nieruchomosc"] = AccountConfig(**re_cfg)
+    if cash_present or alloc.get("gotowka", 0.0) >= TINY_CASH_ANNUAL:
+        accum_accounts["gotowka"] = AccountConfig(
+            starting_balance=a.capital.get("gotowka", 0.0) if include_starting else 0.0,
+            annual_contribution=alloc.get("gotowka", 0.0),
+            roi=0.0,
+        )
+    if employed and a.use_ppk:
+        accum_accounts["ppk"] = AccountConfig(
+            starting_balance=a.capital.get("ppk", 0.0) if include_starting else 0.0,
+            monthly_base=gross,
+            employee_pct=a.ppk_employee_pct,
+            employer_pct=a.ppk_employer_pct,
+            state_topups=a.ppk_state_topups,
+            roi=_roi(a, "ppk", config),
+        )
+    if employed and a.use_ppe:
+        accum_accounts["ppe"] = AccountConfig(
+            starting_balance=a.capital.get("ppe", 0.0) if include_starting else 0.0,
+            monthly_base=gross,
+            employer_pct=a.ppe_employer_pct,
+            annual_contribution=0.0,
+            roi=_roi(a, "ppe", config),
+        )
+    has_zus_capital = (
+        a.capital.get("zus", 0.0) > 0 or a.capital.get("zus:ofe", 0.0) > 0
+    )
+    if a.use_zus and (employed or has_zus_capital):
+        if zus_base_override is not None:
+            zus_base = zus_base_override
+        elif a.employment == "b2b" and employed:
+            zus_base = (
+                _b2b_zus_base(a, config)
+                if a.b2b_tax_form is not None or a.b2b_zus_mode != "duzy"
+                else min(gross, config.zus.b2b_base_monthly)
+            )
+        else:
+            zus_base = gross if employed else 0.0
+        accum_accounts["zus"] = AccountConfig(
+            starting_balance=a.capital.get("zus", 0.0) if include_starting else 0.0,
+            starting_balance_ofe=a.capital.get("zus:ofe", 0.0) if include_starting else 0.0,
+            ofe_member=a.ofe_member,
+            monthly_base=zus_base,
+            roi=_roi(a, "zus", config),
+        )
+    return accum_accounts
 
 
 def build_stages(a: WizardAnswers) -> SimulationInput:
@@ -626,83 +794,164 @@ def build_stages(a: WizardAnswers) -> SimulationInput:
     )
 
     stages: list[StageInput] = []
-    accum_accounts: dict[str, AccountConfig] = {}
 
-    inv_names = [
-        n
-        for n in SAVINGS_ACCOUNTS + ("ike", "ikze", "oipe", "oki_inw", "oki_osk")
-        if _account_present(a, n, alloc)
+    base_inv = list(SAVINGS_ACCOUNTS + ("ike", "ikze", "oipe", "oki_inw", "oki_osk"))
+    extra_instances = [
+        k
+        for k in list(a.capital.keys()) + list(a.allocations.keys())
+        if ":" in k
+        and k != "zus:ofe"
+        and base_account_key(k) in base_inv
     ]
+    all_candidates = list(dict.fromkeys(base_inv + extra_instances))
+    inv_names = [n for n in all_candidates if _account_present(a, n, alloc)]
 
-    # --- Stage A: accumulation from today until FIRE ---
-    # Workers save out of their salary, but the unemployed may still save from
-    # other sources ("Odkładasz miesięcznie") — both accumulate until FIRE.
-    # Salary-derived vehicles (PPK/PPE/ZUS) need a gross, so they require employment.
-    if a.age_now < re and (employed or annual_pool > 0):
-        for name in inv_names:
-            starting = a.capital.get(name, 0.0)
-            contrib = alloc.get(name, 0.0)
-            cfg = _base_account(a, name, starting, _roi(a, name, config))
-            cfg["annual_contribution"] = contrib
-            if name == "ikze":
-                cfg["ikze_limit"] = "self_employed" if a.employment == "b2b" else "etat"
-                cfg["monthly_base"] = gross
-            accum_accounts[name] = AccountConfig(**cfg)
-        if cash_present:
-            accum_accounts["gotowka"] = AccountConfig(
-                starting_balance=a.capital.get("gotowka", 0.0),
-                annual_contribution=alloc.get("gotowka", 0.0),
-                roi=0.0,
+    semi_active = (
+        a.semi_fire_enabled
+        and a.semi_fire_age is not None
+        and a.age_now < a.semi_fire_age < re
+    )
+    barista_active = semi_active and a.semi_fire_mode == "barista"
+    coast_active = semi_active and a.semi_fire_mode == "coast"
+    accum_end = int(a.semi_fire_age) if barista_active and a.semi_fire_age is not None else re
+
+    has_zus_capital = (
+        a.use_zus
+        and (a.capital.get("zus", 0.0) > 0 or a.capital.get("zus:ofe", 0.0) > 0)
+    )
+    # --- Stage A: accumulation from today until FIRE (or Barista FIRE start) ---
+    if a.age_now < accum_end and (
+        employed
+        or annual_pool > 0
+        or coast_active
+        or bool(inv_names)
+        or cash_present
+        or has_zus_capital
+    ):
+        if coast_active and a.semi_fire_age is not None:
+            # Faza 1: pełna praca do semi_fire_age
+            acc1 = _build_accum_stage_accounts(
+                a, config, inv_names, alloc, cash_present, employed, gross, include_starting=True
             )
-        if employed and a.use_ppk:
-            accum_accounts["ppk"] = AccountConfig(
-                starting_balance=a.capital.get("ppk", 0.0),
-                monthly_base=gross,
-                employee_pct=a.ppk_employee_pct,
-                employer_pct=a.ppk_employer_pct,
-                state_topups=a.ppk_state_topups,
-                roi=_roi(a, "ppk", config),
-            )
-        if employed and a.use_ppe:
-            accum_accounts["ppe"] = AccountConfig(
-                starting_balance=a.capital.get("ppe", 0.0),
-                monthly_base=gross,
-                employer_pct=a.ppe_employer_pct,
-                annual_contribution=0.0,
-                roi=_roi(a, "ppe", config),
-            )
-        if employed and a.use_zus:
-            zus_base = (
-                min(gross, config.zus.b2b_base_monthly)
-                if a.employment == "b2b"
-                else gross
-            )
-            accum_accounts["zus"] = AccountConfig(
-                starting_balance=a.capital.get("zus", 0.0),
-                starting_balance_ofe=a.capital.get("zus:ofe", 0.0),
-                ofe_member=a.ofe_member,
-                monthly_base=zus_base,
-                roi=_roi(a, "zus", config),
-            )
-        if accum_accounts:
-            stages.append(
-                StageInput(
-                    stage_type="akumulacja",
-                    name="Akumulacja do emerytury",
-                    start_age=a.age_now,
-                    end_age=re,
-                    accounts=accum_accounts,
+            if acc1:
+                stages.append(
+                    StageInput(
+                        stage_type="akumulacja",
+                        name="Akumulacja do emerytury",
+                        start_age=a.age_now,
+                        end_age=int(a.semi_fire_age),
+                        accounts=acc1,
+                    )
                 )
+            # Faza 2: Coast FIRE / część etatu od semi_fire_age do re
+            coast_pool = max(0.0, a.semi_fire_savings_monthly) * 12.0
+            coast_alloc = _resolve_allocation(a, config, coast_pool) if coast_pool > 0 else {}
+            coast_gross = (
+                gross_from_net(a.semi_fire_net_monthly, config)
+                if a.employment == "etat" and a.semi_fire_net_monthly > 0
+                else a.semi_fire_net_monthly
             )
+            coast_zus = (
+                _b2b_zus_base(a, config)
+                if a.employment == "b2b"
+                else coast_gross
+            )
+            acc2 = _build_accum_stage_accounts(
+                a,
+                config,
+                inv_names,
+                coast_alloc,
+                cash_present,
+                employed and coast_gross > 0,
+                coast_gross,
+                zus_base_override=coast_zus,
+                include_starting=False,
+            )
+            if acc2:
+                stages.append(
+                    StageInput(
+                        stage_type="akumulacja",
+                        name="Coast FIRE (część etatu)",
+                        start_age=int(a.semi_fire_age),
+                        end_age=re,
+                        accounts=acc2,
+                    )
+                )
+        elif (
+            a.mortgage_monthly > 0
+            and a.mortgage_end_age is not None
+            and a.redirect_mortgage_to_savings
+            and a.age_now < a.mortgage_end_age < accum_end
+        ):
+            # Podział akumulacji w momencie spłaty kredytu hipotecznego:
+            # po spłacie kredytu rata powiększa miesięczne oszczędności.
+            m_end = int(a.mortgage_end_age)
+            acc1 = _build_accum_stage_accounts(
+                a, config, inv_names, alloc, cash_present, employed, gross, include_starting=True
+            )
+            if acc1:
+                stages.append(
+                    StageInput(
+                        stage_type="akumulacja",
+                        name="Akumulacja (z kredytem)",
+                        start_age=a.age_now,
+                        end_age=m_end,
+                        accounts=acc1,
+                    )
+                )
+            boosted_pool = (_savings_monthly(a) + a.mortgage_monthly) * 12.0
+            boosted_alloc = _resolve_allocation(a, config, boosted_pool)
+            acc2 = _build_accum_stage_accounts(
+                a,
+                config,
+                inv_names,
+                boosted_alloc,
+                cash_present,
+                employed,
+                gross,
+                include_starting=False,
+            )
+            if acc2:
+                stages.append(
+                    StageInput(
+                        stage_type="akumulacja",
+                        name="Akumulacja (po spłacie kredytu)",
+                        start_age=m_end,
+                        end_age=accum_end,
+                        accounts=acc2,
+                    )
+                )
+        else:
+            accum_accounts = _build_accum_stage_accounts(
+                a, config, inv_names, alloc, cash_present, employed, gross, include_starting=True
+            )
+            if accum_accounts:
+                stages.append(
+                    StageInput(
+                        stage_type="akumulacja",
+                        name="Akumulacja do emerytury",
+                        start_age=a.age_now,
+                        end_age=accum_end,
+                        accounts=accum_accounts,
+                    )
+                )
 
     # --- Stage B: FIRE bridge & supplement realization ---
     bridge_accounts: dict[str, AccountConfig] = {}
     for name in inv_names:
-        bridge_accounts[name] = AccountConfig(
-            starting_balance=a.capital.get(name, 0.0),
-            roi=_roi(a, name, config),
-            buffer=0.0,
+        b_cfg = _base_account(a, name, a.capital.get(name, 0.0), _roi(a, name, config))
+        b_cfg.pop("cost_basis_enabled", None)
+        b_cfg.pop("cost_basis", None)
+        b_cfg["buffer"] = 0.0
+        bridge_accounts[name] = AccountConfig(**b_cfg)
+    if a.use_nieruchomosc or a.capital.get("nieruchomosc", 0.0) > 0:
+        re_b = _base_account(
+            a, "nieruchomosc", a.capital.get("nieruchomosc", 0.0), _roi(a, "nieruchomosc", config)
         )
+        re_b["rental_income_monthly"] = a.real_estate_rental_monthly
+        re_b["liquidation_age"] = a.real_estate_liquidation_age
+        re_b["buffer"] = 0.0
+        bridge_accounts["nieruchomosc"] = AccountConfig(**re_b)
     if cash_present:
         bridge_accounts["gotowka"] = AccountConfig(
             starting_balance=a.capital.get("gotowka", 0.0),
@@ -722,6 +971,30 @@ def build_stages(a: WizardAnswers) -> SimulationInput:
             buffer=0.0,
         )
     if bridge_accounts:
+        if barista_active and a.semi_fire_age is not None:
+            semi_age = int(a.semi_fire_age)
+            pt_zus = (
+                gross_from_net(a.semi_fire_net_monthly, config)
+                if a.employment == "etat" and a.semi_fire_net_monthly > 0
+                else (
+                    _b2b_zus_base(a, config)
+                    if a.employment == "b2b" and a.semi_fire_net_monthly > 0
+                    else 0.0
+                )
+            )
+            stages.append(
+                StageInput(
+                    stage_type="realizacja",
+                    name="Częściowe FIRE (praca + portfel)",
+                    start_age=semi_age,
+                    end_age=re,
+                    part_time_net_monthly=a.semi_fire_net_monthly,
+                    part_time_zus_base=pt_zus if a.use_zus else 0.0,
+                    accounts={
+                        k: v.model_copy(deep=True) for k, v in bridge_accounts.items()
+                    },
+                )
+            )
         if re < retirement:
             stages.append(
                 StageInput(
@@ -738,7 +1011,11 @@ def build_stages(a: WizardAnswers) -> SimulationInput:
             stages.append(
                 StageInput(
                     stage_type="realizacja",
-                    name="Dopłata do emerytury" if re < retirement else "Brydż do emerytury",
+                    name=(
+                        "Dopłata do emerytury"
+                        if (re < retirement or barista_active)
+                        else "Brydż do emerytury"
+                    ),
                     start_age=retirement,
                     end_age=plan_end,
                     accounts={
@@ -776,6 +1053,8 @@ def build_stages(a: WizardAnswers) -> SimulationInput:
         max_age=plan_end - 1,
         gender=a.gender,
         monthly_gross=gross,
+        mortgage_monthly=a.mortgage_monthly,
+        mortgage_end_age=a.mortgage_end_age,
         config=config,
     )
 
@@ -1132,7 +1411,7 @@ def _account_phases(
     for account in sorted(accounts):
         if account == "zus:ofe":
             continue
-        rules = data.config.accounts.get(account)
+        rules = data.config.get_account_rules(account)
         boundary_ages: set[int] = set()
         if rules and rules.min_withdrawal_age > 0:
             boundary_ages.add(rules.min_withdrawal_age)
@@ -1259,12 +1538,37 @@ def _account_phases(
     return phases
 
 
+def _year_lifestyle_net_monthly(data: SimulationInput, year: YearResult) -> float:
+    """Miesięczny budżet na życie w roku realizacji (uwzględnia Barista FIRE i kredyt)."""
+    extra_income = 0.0
+    for si in data.stages:
+        if (
+            si.stage_type == "realizacja"
+            and "zus" not in si.accounts
+            and si.start_age <= year.age < si.end_age
+            and si.part_time_net_monthly > 0
+        ):
+            extra_income = max(extra_income, si.part_time_net_monthly)
+    mortgage_cost = (
+        data.mortgage_monthly
+        if (
+            data.mortgage_monthly > 0
+            and data.mortgage_end_age is not None
+            and year.age < data.mortgage_end_age
+        )
+        else 0.0
+    )
+    return max(0.0, year.monthly_withdrawal + extra_income - mortgage_cost)
+
+
 def _project(
     data: SimulationInput, result: SimulationResult, target: float | None
 ) -> PlanProjection:
     start, end = _realization_window(data)
     months = [
-        (year.age, year.monthly_withdrawal) for year in result.years if start <= year.age < end
+        (year.age, _year_lifestyle_net_monthly(data, year))
+        for year in result.years
+        if start <= year.age < end
     ]
     values = [m for _, m in months]
     min_m = min(values) if values else 0.0
@@ -1312,7 +1616,9 @@ def _drawn_floor(data: SimulationInput, result: SimulationResult) -> float:
     """
     start, end = _realization_window(data)
     nets = [
-        year.monthly_withdrawal for year in result.years if start <= year.age < end
+        _year_lifestyle_net_monthly(data, year)
+        for year in result.years
+        if start <= year.age < end
     ]
     return min(nets) if nets else 0.0
 
@@ -1494,7 +1800,15 @@ def _bake_realization_targets(data: SimulationInput, target_net: float | None) -
     state = _init_state(data)
     min_age = min((si.start_age for si in data.stages), default=0)
     for age in range(min_age, data.max_age + 1):
-        _run_year(state, age, data.monthly_gross, data.stages, gross_target)
+        _run_year(
+            state,
+            age,
+            data.monthly_gross,
+            data.stages,
+            gross_target,
+            mortgage_monthly=data.mortgage_monthly,
+            mortgage_end_age=data.mortgage_end_age,
+        )
 
     for si in data.stages:
         if si.stage_type == "realizacja" and "zus" not in si.accounts:

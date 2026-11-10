@@ -56,6 +56,7 @@ def _asset_version_uncached() -> str:
             "js/sim-stages.js",
             "js/simulator.js",
             "js/wizard.js",
+            "js/wizard-v2.js",
             "css/wizard.css",
             "js/session.js",
             "js/common.js",
@@ -303,6 +304,18 @@ async def wizard(request: Request):
     )
 
 
+@router.get("/wizard-v2", response_class=HTMLResponse)
+async def wizard_v2(request: Request):
+    return templates.TemplateResponse(
+        request,
+        "wizard_v2.html",
+        {
+            "version": _asset_version(),
+            "stage_types": get_all_stage_types(),
+        },
+    )
+
+
 # --- Simulation API (existing) ---
 
 
@@ -347,6 +360,10 @@ def api_wizard_salary(body: SalaryPreviewRequest, request: Request):
         body.employment,
         config,
         ppk_pct=ppk_pct,
+        b2b_tax_form=body.b2b_tax_form,
+        b2b_lump_rate=body.b2b_lump_rate,
+        b2b_zus_mode=body.b2b_zus_mode,
+        b2b_custom_zus_base=body.b2b_custom_zus_base,
     )
     return {
         "gross_monthly": round(gross, 2),
