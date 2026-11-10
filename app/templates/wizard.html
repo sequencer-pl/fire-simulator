@@ -7,6 +7,15 @@
 {% block content %}
 <div id="stageTypesData" class="hidden" data-stage-types='{{ stage_types | tojson }}'></div>
 <div class="wizard">
+    <div class="wz-version-bar">
+        <span class="wz-version-label">Tryb Asystenta:</span>
+        <div class="wz-version-links">
+            <a href="/wizard" class="btn btn-secondary btn-sm is-current" aria-current="page">Klasyczny (v1)</a>
+            <a href="/wizard-v2" class="btn btn-ghost btn-sm">Krok po kroku (v2)</a>
+        </div>
+        <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">Klasyczny Asystent pokazuje wszystkie pytania na jednej osi z ręcznym podziałem oszczędności. Wersja krok po kroku prowadzi przez drzewo krótkich pytań, obsługuje rozbudowane B2B, kredyt hipoteczny, nieruchomości oraz Coast i Barista FIRE.</span></span>
+    </div>
+
     <div class="wizard-progress" id="wizardProgress">
         <div class="progress wizard-progress-track" id="wizardProgressTrack">
             <div class="progress-bar wizard-progress-bar" id="wizardProgressBar" role="progressbar"

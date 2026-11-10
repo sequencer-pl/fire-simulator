@@ -19,6 +19,7 @@ let lastInput = null;
 let lastResult = null;
 // Polityka wypłat przeniesiona z Asystenta (bez UI w edytorze).
 let loadedWithdrawalPolicy = "defer_tier";
+let loadedDraftSource = "v1";
 
 function gatherFormData() {
     const stages = [];
@@ -335,6 +336,7 @@ function applyWizardDraftIfPresent() {
         const draft = JSON.parse(raw);
         if (!draft || !Array.isArray(draft.stages) || !draft.stages.length) return false;
         loadedWithdrawalPolicy = draft.withdrawal_policy || "defer_tier";
+        loadedDraftSource = draft.source || "v1";
         populateStages(draft);
         showWizardDraftBanner();
         return true;
@@ -348,11 +350,23 @@ function showWizardDraftBanner() {
     const bar = document.getElementById("wizardDraftBar");
     if (bar) bar.classList.remove("hidden");
     const back = document.getElementById("backToWizardBtn");
-    if (back) back.hidden = false;
+    if (back) {
+        back.hidden = false;
+        if (loadedDraftSource === "v2") {
+            back.href = "/wizard-v2";
+            back.title = "Wróć do Asystenta v2, aby zmienić dane";
+            back.setAttribute("aria-label", "Wróć do Asystenta v2");
+        } else {
+            back.href = "/wizard?restore=1";
+            back.title = "Wróć do Asystenta, aby zmienić dane";
+            back.setAttribute("aria-label", "Wróć do Asystenta");
+        }
+    }
 }
 
 function clearWizardDraft() {
     localStorage.removeItem(WIZARD_DRAFT_KEY);
+    loadedDraftSource = "v1";
     const back = document.getElementById("backToWizardBtn");
     if (back) back.hidden = true;
 }
