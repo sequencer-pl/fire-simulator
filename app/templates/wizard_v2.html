@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block title %}FIRE Simulator — Asystent v2{% endblock %}
-{% block subtitle %}Asystent niezależności finansowej (krok po kroku){% endblock %}
+{% block subtitle %}Asystent niezależności finansowej{% endblock %}
 {% block section %}asystent{% endblock %}
 {% block body_class %}has-action-bar{% endblock %}
 {% block head_extra %}<link rel="stylesheet" href="/static/css/wizard.css?v={{ version }}">{% endblock %}
@@ -10,7 +10,7 @@
     <div class="wz-version-bar">
         <span class="wz-version-label">Tryb Asystenta:</span>
         <div class="wz-version-links">
-            <a href="/wizard" class="btn btn-ghost btn-sm">Klasyczny (v1)</a>
+            <a href="/wizard-v1" class="btn btn-ghost btn-sm">Klasyczny (v1)</a>
             <a href="/wizard-v2" class="btn btn-secondary btn-sm is-current" aria-current="page">Krok po kroku (v2)</a>
         </div>
         <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">Asystent v2 prowadzi Cię za rękę przez drzewo krótkich pytań dopasowanych do Twojej sytuacji (etat, rozbudowane B2B, kredyt hipoteczny, nieruchomości oraz stopniowe zejście z etatu: Coast i Barista FIRE).</span></span>
@@ -19,7 +19,7 @@
     <div class="wizard-progress" id="v2Progress">
         <div class="progress wizard-progress-track">
             <div class="progress-bar wizard-progress-bar" id="v2ProgressBar" role="progressbar"
-                 aria-label="Postęp asystenta v2" aria-valuemin="1" aria-valuemax="8" aria-valuenow="1"></div>
+                 aria-label="Postęp asystenta v2" aria-valuemin="1" aria-valuemax="9" aria-valuenow="1"></div>
         </div>
     </div>
 
@@ -31,7 +31,7 @@
                 <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">Wybierz pytanie przewodnie. W kolejnych krokach zadamy Ci tylko te pytania, które są potrzebne do wyliczenia odpowiedzi w Twojej sytuacji życiowej.</span></span>
             </span>
         </h2>
-        <p class="subtitle">Poprowadzimy Cię za rękę krok po kroku — bez zbędnych formularzy.</p>
+        <p class="subtitle">Poprowadzimy Cię za rękę krok po kroku — odpowiedz tylko na kilka pytań.</p>
         <div class="wz-paths" id="v2Paths">
             <label class="wz-path">
                 <input type="radio" name="v2Path" value="1" checked>
@@ -83,10 +83,10 @@
                     <div class="wz-slider">
                         <div class="num-control">
                             <button type="button" class="stepper stepper-down" tabindex="-1" aria-label="Zmniejsz wiek">&minus;</button>
-                            <input type="number" id="v2Age" class="acc-field" value="35" min="16" max="90">
+                            <input type="number" id="v2Age" class="acc-field" value="40" min="16" max="90">
                             <button type="button" class="stepper stepper-up" tabindex="-1" aria-label="Zwiększ wiek">+</button>
                         </div>
-                        <input type="range" id="v2AgeRange" min="16" max="90" step="1" value="35" aria-label="Wiek">
+                        <input type="range" id="v2AgeRange" min="16" max="90" step="1" value="40" aria-label="Wiek">
                     </div>
                 </div>
             </div>
@@ -128,39 +128,39 @@
         <p class="subtitle">Podaj swoje wynagrodzenie oraz sprawdź, czy uczestniczysz w programach emerytalnych w miejscu pracy.</p>
 
         <div class="card-inset wz-panel">
-            <h3 class="eyebrow wz-panel-title">Wynagrodzenie</h3>
-            <div class="wz-grid">
+            <h3 class="eyebrow wz-panel-title">
+                <span class="tip-label-row">
+                    <span class="tip-label-text">Wynagrodzenie</span>
+                    <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">Domyślnie podajesz kwotę brutto rocznie, żeby uwzględnić premie, 13. pensję, nadgodziny i zmienne bonusy kwartalne. Silnik i tak używa średniej miesięcznej. Jeśli podasz netto, brutto wyliczymy z uwzględnieniem PPK i skali PIT. Uwaga: nieregularna premia może zawyżyć podstawę PPK/ZUS w modelu.</span></span>
+                </span>
+            </h3>
+            <div class="wz-grid wz-grid-choice">
                 <div class="field wz-inline-field">
-                    <label class="field-label-lg">
-                        <span class="tip-label-row">
-                            <span class="tip-label-text">Jaką kwotę wolisz podać?</span>
-                            <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">Brutto jest podstawą składek ZUS, PPK i ulgi IKZE. Jeśli podasz kwotę „na rękę” (netto), silnik automatycznie wyliczy odpowiadające jej brutto wg polskiej skali podatkowej.</span></span>
-                        </span>
-                    </label>
+                    <label class="field-label-lg">Jaką kwotę wolisz podać?</label>
                     <div class="wz-choice-row">
                         <div class="segmented is-auto gender-options">
-                            <label class="seg-option gender-option"><input type="radio" name="v2EtatSalaryMode" value="net" checked /> Na rękę (Netto)</label>
-                            <label class="seg-option gender-option"><input type="radio" name="v2EtatSalaryMode" value="gross" /> Brutto</label>
+                            <label class="seg-option gender-option"><input type="radio" name="v2EtatSalaryMode" value="gross" checked /> Brutto</label>
+                            <label class="seg-option gender-option"><input type="radio" name="v2EtatSalaryMode" value="net" /> Netto (na rękę)</label>
                         </div>
                         <div class="segmented is-auto gender-options">
-                            <label class="seg-option gender-option"><input type="radio" name="v2EtatPeriod" value="month" checked /> Miesięcznie</label>
-                            <label class="seg-option gender-option"><input type="radio" name="v2EtatPeriod" value="year" /> Rocznie</label>
+                            <label class="seg-option gender-option"><input type="radio" name="v2EtatPeriod" value="year" checked /> Rocznie</label>
+                            <label class="seg-option gender-option"><input type="radio" name="v2EtatPeriod" value="month" /> Miesięcznie</label>
                         </div>
                     </div>
                 </div>
                 <div class="field wz-field-block">
                     <div class="wz-field-head">
-                        <label class="field-label-lg" id="v2EtatSalaryLabel" for="v2EtatSalary">Twoja pensja netto (zł/mies.)</label>
-                        <p class="field-hint wz-hint" id="v2EtatSalaryHint" aria-live="polite"></p>
+                        <label class="field-label-lg" id="v2EtatSalaryLabel" for="v2EtatSalary">Twoja pensja brutto (zł/rok)</label>
                     </div>
                     <div class="wz-slider">
                         <div class="num-control">
                             <button type="button" class="stepper stepper-down" tabindex="-1" aria-label="Zmniejsz pensję">&minus;</button>
-                            <input type="number" id="v2EtatSalary" class="acc-field" value="7500" min="0" max="100000" step="250">
+                            <input type="number" id="v2EtatSalary" class="acc-field" value="113000" min="0" max="1200000" step="1000">
                             <button type="button" class="stepper stepper-up" tabindex="-1" aria-label="Zwiększ pensję">+</button>
                         </div>
-                        <input type="range" id="v2EtatSalaryRange" min="0" max="100000" step="250" value="7500" aria-label="Pensja na etacie">
+                        <input type="range" id="v2EtatSalaryRange" min="0" max="1200000" step="1000" value="113000" aria-label="Pensja na etacie">
                     </div>
+                    <div class="v2-salary-preview" id="v2EtatSalaryPreview" aria-live="polite" hidden></div>
                 </div>
             </div>
         </div>
@@ -168,56 +168,45 @@
         <div class="card-inset wz-panel">
             <h3 class="eyebrow wz-panel-title">
                 <span class="tip-label-row">
-                    <span class="tip-label-text">Czy jesteś zapisany do PPK lub PPE w pracy?</span>
-                    <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">W PPK odkładasz 2% pensji brutto, pracodawca dokłada 1,5%, a państwo 240 zł rocznie. Wypłata po 60 r.ż. jest zwolniona z podatku Belki (wcześniejszy zwrot oznacza utratę dopłat pracodawcy i państwa).</span></span>
+                    <span class="tip-label-text">Czy obecnie wpłacasz do PPK lub PPE?</span>
+                    <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">PPK i PPE to niezależne programy. Możesz mieć PPK lub PPE także z byłej pracy — kapitał zostaje, a nowe wpłaty zwykle się kończą. Wybierz stan dla każdego programu; salda z obecnej i byłej pracy wpiszesz w kroku „Zgromadzony kapitał”. Stawki pokazujemy z konfiguracji i możesz je zmienić pod ołówkiem. W PPK domyślnie pracownik odkłada 2%, pracodawca 1,5%, a państwo dopłaca 250 zł + 240 zł/rok. W PPE domyślnie przyjmujemy 3,5% od pracodawcy (max 7%).</span></span>
                 </span>
             </h3>
-            <div class="segmented segmented-stack gender-options">
-                <label class="seg-option gender-option"><input type="radio" name="v2WorkplacePlan" value="none" checked /> Nie uczestniczę</label>
-                <label class="seg-option gender-option"><input type="radio" name="v2WorkplacePlan" value="ppk" /> Tak, jestem w PPK</label>
-                <label class="seg-option gender-option"><input type="radio" name="v2WorkplacePlan" value="ppe" /> Tak, mam PPE</label>
+            <div class="v2-payroll-program">
+                <span class="field-label-lg">PPK</span>
+                <div class="segmented segmented-stack gender-options">
+                    <label class="seg-option gender-option"><input type="radio" name="v2PpkState" value="active" /> Obecnie wpłacam</label>
+                    <label class="seg-option gender-option"><input type="radio" name="v2PpkState" value="paused" /> Mam konto, ale obecnie nie wpłacam</label>
+                    <label class="seg-option gender-option"><input type="radio" name="v2PpkState" value="never" checked /> Nigdy nie miałem PPK</label>
+                </div>
+                <details class="v2-payroll-rates" id="v2PpkRates" hidden>
+                    <summary>
+                        <span id="v2PpkRateSummary">2,0% pracownika · 1,5% pracodawcy</span>
+                        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 3a2.83 2.83 0 0 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
+                    </summary>
+                    <div class="v2-payroll-rate-grid">
+                        <div class="field"><span class="v2-field-label">Pracownik (%)</span><div id="v2PpkEmployeePctControl"></div></div>
+                        <div class="field"><span class="v2-field-label">Pracodawca (%)</span><div id="v2PpkEmployerPctControl"></div></div>
+                    </div>
+                </details>
             </div>
 
-            <div id="v2PpkBox" class="v2-subpanel hidden">
-                <div class="wz-grid">
-                    <div class="field wz-field-block">
-                        <label class="field-label-lg" for="v2PpkBalance">
-                            <span class="tip-label-row">
-                                <span class="tip-label-text">Ile udało Ci się już zgromadzić na PPK? (zł)</span>
-                                <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">Wpisz aktualną łączną wartość jednostek na swoim rachunku PPK (sprawdzisz ją w serwisie mojePPK lub u instytucji finansowej). Jeśli dopiero zaczynasz, zostaw 0 zł.</span></span>
-                            </span>
-                        </label>
-                        <div class="wz-slider">
-                            <div class="num-control">
-                                <button type="button" class="stepper stepper-down" tabindex="-1">&minus;</button>
-                                <input type="number" id="v2PpkBalance" class="acc-field" value="0" min="0" step="1000">
-                                <button type="button" class="stepper stepper-up" tabindex="-1">+</button>
-                            </div>
-                            <input type="range" id="v2PpkBalanceRange" min="0" max="150000" step="1000" value="0" aria-label="Zgromadzone PPK">
-                        </div>
-                    </div>
+            <div class="v2-payroll-program">
+                <span class="field-label-lg">PPE</span>
+                <div class="segmented segmented-stack gender-options">
+                    <label class="seg-option gender-option"><input type="radio" name="v2PpeState" value="active" /> Obecnie wpłacam</label>
+                    <label class="seg-option gender-option"><input type="radio" name="v2PpeState" value="paused" /> Mam konto, ale obecnie nie wpłacam</label>
+                    <label class="seg-option gender-option"><input type="radio" name="v2PpeState" value="never" checked /> Nigdy nie miałem PPE</label>
                 </div>
-            </div>
-
-            <div id="v2PpeBox" class="v2-subpanel hidden">
-                <div class="wz-grid">
-                    <div class="field wz-field-block">
-                        <label class="field-label-lg" for="v2PpeBalance">
-                            <span class="tip-label-row">
-                                <span class="tip-label-text">Ile masz już zgromadzone w PPE? (zł)</span>
-                                <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">W PPE składkę podstawową (do 7% pensji brutto) w całości finansuje pracodawca.</span></span>
-                            </span>
-                        </label>
-                        <div class="wz-slider">
-                            <div class="num-control">
-                                <button type="button" class="stepper stepper-down" tabindex="-1">&minus;</button>
-                                <input type="number" id="v2PpeBalance" class="acc-field" value="0" min="0" step="1000">
-                                <button type="button" class="stepper stepper-up" tabindex="-1">+</button>
-                            </div>
-                            <input type="range" id="v2PpeBalanceRange" min="0" max="200000" step="1000" value="0" aria-label="Zgromadzone PPE">
-                        </div>
+                <details class="v2-payroll-rates" id="v2PpeRates" hidden>
+                    <summary>
+                        <span id="v2PpeRateSummary">3,5% pracodawcy</span>
+                        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 3a2.83 2.83 0 0 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
+                    </summary>
+                    <div class="v2-payroll-rate-grid">
+                        <div class="field"><span class="v2-field-label">Pracodawca (%)</span><div id="v2PpeEmployerPctControl"></div></div>
                     </div>
-                </div>
+                </details>
             </div>
         </div>
     </section>
@@ -265,7 +254,7 @@
                 </span>
             </h3>
             <div class="segmented segmented-stack gender-options">
-                <label class="seg-option gender-option"><input type="radio" name="v2B2bZusMode" value="duzy" checked /> Duży ZUS (podstawa 5 652 zł)</label>
+                <label class="seg-option gender-option"><input type="radio" name="v2B2bZusMode" value="duzy" checked /> <span class="v2-b2b-zus-label">Duży ZUS (podstawa 5 652 zł)</span></label>
                 <label class="seg-option gender-option"><input type="radio" name="v2B2bZusMode" value="maly" /> Mały / Preferencyjny ZUS (podstawa 1 442 zł)</label>
                 <label class="seg-option gender-option"><input type="radio" name="v2B2bZusMode" value="ulga" /> Ulga na start (0 zł społecznych)</label>
                 <label class="seg-option gender-option"><input type="radio" name="v2B2bZusMode" value="custom" /> Własna podstawa</label>
@@ -293,7 +282,7 @@
                     <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">Możesz podać swój miesięczny przychód netto na fakturze (po odjęciu kosztów firmowych, takich jak księgowość czy leasing) ALBO kwotę, która zostaje Ci „na czysto” po opłaceniu ZUS i podatku dochodowego.</span></span>
                 </span>
             </h3>
-            <div class="wz-grid">
+            <div class="wz-grid wz-grid-choice">
                 <div class="field wz-inline-field">
                     <label class="field-label-lg">Sposób podania kwoty</label>
                     <div class="segmented is-auto gender-options">
@@ -304,7 +293,6 @@
                 <div class="field wz-field-block">
                     <div class="wz-field-head">
                         <label class="field-label-lg" id="v2B2bSalaryLabel" for="v2B2bSalary">Przychód miesięczny (po kosztach, zł)</label>
-                        <p class="field-hint wz-hint" id="v2B2bSalaryHint" aria-live="polite"></p>
                     </div>
                     <div class="wz-slider">
                         <div class="num-control">
@@ -314,37 +302,32 @@
                         </div>
                         <input type="range" id="v2B2bSalaryRange" min="0" max="150000" step="500" value="18000" aria-label="Dochód B2B">
                     </div>
+                    <div class="v2-salary-preview" id="v2B2bSalaryPreview" aria-live="polite" hidden></div>
                 </div>
             </div>
         </div>
     </section>
 
-    <!-- KROK: ZUS DOTYCHCZASOWY KAPITAŁ -->
+    <!-- KROK: ZUS I OFE — DOTYCHCZASOWY KAPITAŁ -->
     <section class="card v2-step hidden" data-step-id="zus">
-        <h2>Dotychczasowy kapitał w ZUS</h2>
-        <p class="subtitle">Nawet jeśli planujesz wczesne FIRE, po osiągnięciu wieku 60/65 lat do Twojego budżetu dołączy dożywotnia emerytura z ZUS.</p>
+        <h2>Dotychczasowy kapitał w ZUS i OFE</h2>
+        <p class="subtitle">Uwzględnij kapitał, który już masz w ZUS i OFE.</p>
 
         <div class="card-inset wz-panel">
             <h3 class="eyebrow wz-panel-title">
                 <span class="tip-label-row">
-                    <span class="tip-label-text">Czy masz już zgromadzone składki w ZUS?</span>
-                    <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">Swój aktualny stan konta i subkonta w ZUS sprawdzisz w kilka minut na PUE ZUS (zakładka „Informacja o stanie konta”) lub w aplikacji mObywatel. Jeśli nie znasz kwoty, możesz zostawić 0 zł — silnik naliczy składki od dziś do końca Twojej pracy.</span></span>
+                    <span class="tip-label-text">ZUS</span>
+                    <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">Stan konta i subkonta w ZUS sprawdzisz na PUE ZUS („Informacja o stanie konta”) lub w mObywatelu. Jeśli nie znasz kwoty, zostaw 0 zł — silnik naliczy składki od dziś do końca pracy. Kapitał jest waloryzowany i w wieku emerytalnym dzielony przez ŚDTŻ.</span></span>
                 </span>
             </h3>
             <div class="segmented is-auto gender-options">
                 <label class="seg-option gender-option"><input type="radio" name="v2HasZusCap" value="no" checked /> Nie znam kwoty / Zaczynam od zera</label>
-                <label class="seg-option gender-option"><input type="radio" name="v2HasZusCap" value="yes" /> Tak, wpiszę zgromadzony kapitał ZUS</label>
+                <label class="seg-option gender-option"><input type="radio" name="v2HasZusCap" value="yes" /> Tak, wpiszę kapitał ZUS</label>
             </div>
-
             <div id="v2ZusCapBox" class="v2-subpanel hidden">
-                <div class="wz-grid">
+                <div class="wz-grid v2-zus-cap-grid">
                     <div class="field wz-field-block">
-                        <label class="field-label-lg" for="v2ZusBalance">
-                            <span class="tip-label-row">
-                                <span class="tip-label-text">Zgromadzony kapitał w ZUS (konto + subkonto, zł)</span>
-                                <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">Suma zwaloryzowanych składek i kapitału początkowego w ZUS. Kapitał ten jest co roku waloryzowany, a w wieku emerytalnym dzielony przez średnie dalsze trwanie życia (ŚDTŻ).</span></span>
-                            </span>
-                        </label>
+                        <label class="field-label-lg" for="v2ZusBalance">Kapitał w ZUS (konto + subkonto, zł)</label>
                         <div class="wz-slider">
                             <div class="num-control">
                                 <button type="button" class="stepper stepper-down" tabindex="-1">&minus;</button>
@@ -354,13 +337,25 @@
                             <input type="range" id="v2ZusBalanceRange" min="0" max="800000" step="5000" value="0" aria-label="Kapitał w ZUS">
                         </div>
                     </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card-inset wz-panel">
+            <h3 class="eyebrow wz-panel-title">
+                <span class="tip-label-row">
+                    <span class="tip-label-text">OFE</span>
+                    <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">Członkostwo w OFE oznacza, że 2,92 pkt proc. przyszłej składki emerytalnej trafia do OFE, a reszta jest waloryzowana w ZUS. Saldo znajdziesz w serwisie swojego OFE.</span></span>
+                </span>
+            </h3>
+            <div class="segmented is-auto gender-options">
+                <label class="seg-option gender-option"><input type="radio" name="v2HasOfe" value="no" checked /> Nie należę do OFE</label>
+                <label class="seg-option gender-option"><input type="radio" name="v2HasOfe" value="yes" /> Tak, należę do OFE</label>
+            </div>
+            <div id="v2OfeCapBox" class="v2-subpanel hidden">
+                <div class="wz-grid">
                     <div class="field wz-field-block">
-                        <label class="field-label-lg" for="v2OfeBalance">
-                            <span class="tip-label-row">
-                                <span class="tip-label-text">Kapitał w OFE (opcjonalnie, zł)</span>
-                                <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">Wpisz tylko jeśli należysz do Otwartego Funduszu Emerytalnego (OFE). Jeśli wpiszesz kwotę > 0 zł, część przyszłej składki (2,92 pkt proc.) również będzie trafiać do OFE.</span></span>
-                            </span>
-                        </label>
+                        <label class="field-label-lg" for="v2OfeBalance">Kapitał w OFE (zł)</label>
                         <div class="wz-slider">
                             <div class="num-control">
                                 <button type="button" class="stepper stepper-down" tabindex="-1">&minus;</button>
@@ -419,7 +414,7 @@
             </div>
 
             <div id="v2MortgageBox" class="v2-subpanel hidden">
-                <div class="wz-grid">
+                <div class="wz-grid v2-balanced-grid">
                     <div class="field wz-field-block">
                         <label class="field-label-lg" for="v2MortgageMonthly">
                             <span class="tip-label-row">
@@ -470,8 +465,8 @@
         <div class="card-inset wz-panel">
             <h3 class="eyebrow wz-panel-title">
                 <span class="tip-label-row">
-                    <span class="tip-label-text">1. Konta emerytalne z ulgą podatkową (IKE, IKZE, OIPE)</span>
-                    <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">Każde z tych kont możesz mieć tylko jedno (limit ustawowy). IKE i OIPE dają 0% podatku Belki po 60. r.ż., a IKZE pozwala odliczać wpłaty od podatku już dziś (zwrot PIT) i płacić tylko 10% ryczałtu po 65. r.ż.</span></span>
+                    <span class="tip-label-text">1. Konta emerytalne z ulgą podatkową</span>
+                    <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">Każde z tych kont możesz mieć tylko jedno (limit ustawowy). IKE i OIPE dają 0% podatku Belki po 60. r.ż., a IKZE pozwala odliczać wpłaty od podatku już dziś (zwrot PIT) i płacić tylko 10% ryczałtu po 65. r.ż. ROI jest wstępnie wypełnione wartością z Konfiguracji — możesz je zmienić tylko dla tego planu.</span></span>
                 </span>
             </h3>
             <div class="pill-grid" id="v2SheltersPicker"></div>
@@ -482,14 +477,14 @@
         <div class="card-inset wz-panel">
             <h3 class="eyebrow wz-panel-title">
                 <span class="tip-label-row">
-                    <span class="tip-label-text">2. Bezpieczne oszczędności (Lokaty, Obligacje skarbowe, Gotówka)</span>
-                    <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">Masz kilka lokat w różnych bankach albo kilka serii obligacji (np. EDO i TOS) o różnym oprocentowaniu? Kliknij przycisk wielokrotnie, aby dodać osobne pozycje z własną nazwą i własnym realnym ROI!</span></span>
+                    <span class="tip-label-text">2. Bezpieczne oszczędności</span>
+                    <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">Masz kilka lokat w różnych bankach albo kilka serii obligacji (np. EDO i TOS) o różnym oprocentowaniu? Kliknij przycisk wielokrotnie, aby dodać osobne pozycje z własną nazwą i własnym realnym ROI. ROI jest wstępnie wypełnione wartością z Konfiguracji — możesz je zmienić tylko dla tego planu.</span></span>
                 </span>
             </h3>
             <div class="btn-row v2-add-buttons">
-                <button type="button" class="btn btn-secondary btn-sm v2-add-multi" data-base="lokata">+ Dodaj lokatę</button>
-                <button type="button" class="btn btn-secondary btn-sm v2-add-multi" data-base="obligacje">+ Dodaj obligacje</button>
-                <button type="button" class="btn btn-secondary btn-sm v2-add-multi" data-base="gotowka">+ Dodaj gotówkę</button>
+                <button type="button" class="pill-toggle v2-add-multi" data-base="lokata" data-label="Lokata" aria-label="Dodaj kolejną lokatę">Lokata</button>
+                <button type="button" class="pill-toggle v2-add-multi" data-base="obligacje" data-label="Obligacje" aria-label="Dodaj kolejne obligacje">Obligacje</button>
+                <button type="button" class="pill-toggle v2-add-multi" data-base="gotowka" data-label="Gotówka" aria-label="Dodaj kolejne konto gotówkowe">Gotówka</button>
             </div>
             <div class="wz-capital-grid v2-cap-list" id="v2SafeList"></div>
         </div>
@@ -498,15 +493,15 @@
         <div class="card-inset wz-panel">
             <h3 class="eyebrow wz-panel-title">
                 <span class="tip-label-row">
-                    <span class="tip-label-text">3. Inwestycje rynkowe (Broker / ETF / Akcje, OKI, Krypto)</span>
-                    <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">Konto maklerskie („Broker”) to opakowanie podatkowe (19% podatku Belki od zysku przy wypłacie). Możesz dodać osobno np. „XTB — ETF Świat” z ROI 5% oraz „IBKR — Akcje spółek” z ROI 7%!</span></span>
+                    <span class="tip-label-text">3. Inwestycje rynkowe</span>
+                    <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">Konto maklerskie („Broker”) to opakowanie podatkowe (19% podatku Belki od zysku przy wypłacie). Możesz dodać osobno np. „XTB — ETF Świat” z ROI 5% oraz „IBKR — Akcje spółek” z ROI 7%. ROI jest wstępnie wypełnione wartością z Konfiguracji — możesz je zmienić tylko dla tego planu.</span></span>
                 </span>
             </h3>
             <div class="btn-row v2-add-buttons">
-                <button type="button" class="btn btn-secondary btn-sm v2-add-multi" data-base="broker">+ Dodaj brokera (ETF / Akcje)</button>
-                <button type="button" class="btn btn-secondary btn-sm v2-add-multi" data-base="krypto">+ Dodaj krypto</button>
-                <button type="button" class="btn btn-secondary btn-sm v2-add-single" data-account="oki_inw">+ OKI inwestycyjne</button>
-                <button type="button" class="btn btn-secondary btn-sm v2-add-single" data-account="oki_osk">+ OKI oszczędnościowe</button>
+                <button type="button" class="pill-toggle v2-add-multi" data-base="broker" data-label="Broker (ETF / akcje)" aria-label="Dodaj kolejnego brokera (ETF / akcje)">Broker (ETF / akcje)</button>
+                <button type="button" class="pill-toggle v2-add-multi" data-base="krypto" data-label="Krypto" aria-label="Dodaj kolejne konto krypto">Krypto</button>
+                <button type="button" class="pill-toggle v2-add-single" data-account="oki_inw" data-label="OKI inwestycyjne" aria-label="Dodaj OKI inwestycyjne">OKI inwestycyjne</button>
+                <button type="button" class="pill-toggle v2-add-single" data-account="oki_osk" data-label="OKI oszczędnościowe" aria-label="Dodaj OKI oszczędnościowe">OKI oszczędnościowe</button>
             </div>
             <div class="wz-capital-grid v2-cap-list" id="v2MarketList"></div>
         </div>
@@ -515,7 +510,7 @@
         <div class="card-inset wz-panel">
             <h3 class="eyebrow wz-panel-title">
                 <span class="tip-label-row">
-                    <span class="tip-label-text">4. Czy masz nieruchomość inwestycyjną (np. mieszkanie na wynajem)?</span>
+                    <span class="tip-label-text">4. Nieruchomość inwestycyjna</span>
                     <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">Uwzględnij wyłącznie nieruchomość „nadmiarową” (inwestycyjną). Mieszkanie, w którym sam mieszkasz, obniża Twoje koszty życia, ale nie wypłaca co miesiąc gotówki. Nieruchomość na wynajem generuje czynsz (opodatkowany ryczałtem 8,5%/12,5%), a opcjonalnie może zostać sprzedana w wybranym wieku z 0% PIT!</span></span>
                 </span>
             </h3>
@@ -525,7 +520,7 @@
             </div>
 
             <div id="v2RealEstateBox" class="v2-subpanel hidden">
-                <div class="wz-grid">
+                <div class="wz-grid v2-real-estate-grid">
                     <div class="field wz-field-block">
                         <label class="field-label-lg" for="v2ReValue">
                             <span class="tip-label-row">
@@ -577,6 +572,40 @@
                 </div>
             </div>
         </div>
+
+        <!-- 5. PPK / PPE z obecnej lub byłej pracy -->
+        <div class="card-inset wz-panel" id="v2PayrollCapitalPanel">
+            <h3 class="eyebrow wz-panel-title">
+                <span class="tip-label-row">
+                    <span class="tip-label-text">5. PPK / PPE</span>
+                    <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">Wpisz salda z obecnej i byłej pracy. Saldo z byłego PPE nadal rośnie z ROI, nawet jeśli nie trafiają do niego nowe składki. Bieżące wpłaty i stawki ustawiasz w kroku zatrudnienia, jeśli dotyczy.</span></span>
+                </span>
+            </h3>
+            <div class="wz-grid">
+                <div class="field wz-field-block" id="v2PpkBalanceField">
+                    <label class="field-label-lg" for="v2PpkBalance">Saldo PPK (z obecnej lub byłej pracy, zł)</label>
+                    <div class="wz-slider">
+                        <div class="num-control">
+                            <button type="button" class="stepper stepper-down" tabindex="-1" aria-label="Zmniejsz saldo PPK">&minus;</button>
+                            <input type="number" id="v2PpkBalance" class="acc-field" value="0" min="0" step="1000">
+                            <button type="button" class="stepper stepper-up" tabindex="-1" aria-label="Zwiększ saldo PPK">+</button>
+                        </div>
+                        <input type="range" id="v2PpkBalanceRange" min="0" max="150000" step="1000" value="0" aria-label="Zgromadzone PPK">
+                    </div>
+                </div>
+                <div class="field wz-field-block" id="v2PpeBalanceField">
+                    <label class="field-label-lg" for="v2PpeBalance">Saldo PPE (z obecnej lub byłej pracy, zł)</label>
+                    <div class="wz-slider">
+                        <div class="num-control">
+                            <button type="button" class="stepper stepper-down" tabindex="-1" aria-label="Zmniejsz saldo PPE">&minus;</button>
+                            <input type="number" id="v2PpeBalance" class="acc-field" value="0" min="0" step="1000">
+                            <button type="button" class="stepper stepper-up" tabindex="-1" aria-label="Zwiększ saldo PPE">+</button>
+                        </div>
+                        <input type="range" id="v2PpeBalanceRange" min="0" max="200000" step="1000" value="0" aria-label="Zgromadzone PPE">
+                    </div>
+                </div>
+            </div>
+        </div>
     </section>
 
     <!-- KROK: SABBATICAL / COAST FIRE / BARISTA FIRE I CEL WYPŁATY -->
@@ -604,12 +633,6 @@
         </div>
 
         <div class="card-inset wz-panel">
-            <h3 class="eyebrow wz-panel-title">
-                <span class="tip-label-row">
-                    <span class="tip-label-text">Wybierz styl zakończenia kariery zawodowej</span>
-                    <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">Coast FIRE oznacza, że w pewnym wieku przechodzisz na lżejszą pracę pokrywającą tylko bieżące rachunki, a portfel sam rośnie do emerytury. Barista FIRE oznacza, że zarabiasz na część etatu mniej niż wydajesz, a różnicę dopłacasz już z portfela inwestycyjnego.</span></span>
-                </span>
-            </h3>
             <div class="wz-paths v2-choice-cards">
                 <label class="wz-path">
                     <input type="radio" name="v2FireStyle" value="full" checked>
@@ -632,7 +655,7 @@
             </div>
 
             <div id="v2SemiFireBox" class="v2-subpanel hidden">
-                <div class="wz-grid">
+                <div class="wz-rows">
                     <div class="field wz-field-block">
                         <label class="field-label-lg" for="v2SemiAge">
                             <span class="tip-label-row">
@@ -686,7 +709,6 @@
         </div>
 
         <div class="card-inset wz-panel">
-            <h3 class="eyebrow wz-panel-title">Wiek całkowitego końca pracy i horyzont planu</h3>
             <div class="wz-rows">
                 <div class="field wz-field-block" id="v2ReGroup">
                     <label class="field-label-lg" for="v2Re">
@@ -740,34 +762,61 @@
         </div>
     </section>
 
-    <!-- KROK: STRATEGIA INWESTOWANIA NOWYCH WPŁAT -->
+    <!-- KROK: STRATEGIA DZIELENIA WPŁAT -->
     <section class="card v2-step hidden" data-step-id="strategia">
-        <h2>Strategia dla przyszłych oszczędności</h2>
-        <p class="subtitle" id="v2AllocHeader">Wybierz, jak chcesz lokować bieżące miesięczne oszczędności. Najpierw automatycznie wykorzystamy najkorzystniejsze ulgi podatkowe (IKE / IKZE).</p>
+        <h2>Strategia dzielenia wpłat</h2>
 
         <div class="card-inset wz-alloc-panel">
-            <h3 class="eyebrow wz-panel-title">
-                <span class="tip-label-row">
-                    <span class="tip-label-text">Wybierz profil strategii inwestycyjnej</span>
-                    <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">Strategia określa, w jakiej kolejności wypełniamy limity IKE/IKZE (z uwzględnieniem Twojego podatku na etacie lub B2B!) oraz jak dzielimy nadwyżkę pomiędzy obligacje, lokaty, konto maklerskie (ETF/akcje), OKI i krypto.</span></span>
-                </span>
-            </h3>
-            <div class="segmented segmented-stack gender-options wz-alloc-strategy-options">
-                <label class="seg-option gender-option"><input type="radio" name="v2Strategy" value="konserwatywna" /><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 4 6v6c0 5 3.4 8.4 8 9 4.6-.6 8-4 8-9V6z"/></svg> Konserwatywna (Obligacje + Lokaty + IKE/IKZE)</label>
-                <label class="seg-option gender-option"><input type="radio" name="v2Strategy" value="zbilansowana" checked /><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v18M4 21h16M6 7l-3 7a3 3 0 0 0 6 0zM18 7l-3 7a3 3 0 0 0 6 0zM5 7h14"/></svg> Zrównoważona (IKE/IKZE + Broker ETF + Obligacje)</label>
-                <label class="seg-option gender-option"><input type="radio" name="v2Strategy" value="agresywna" /><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 15c-1.5 1.5-2 5-2 5s3.5-.5 5-2M14 4c3 .5 5.5 3 6 6-2 3-5 6-9 8l-5-5c2-4 5-7 8-9z"/><circle cx="14.5" cy="9.5" r="1.5"/></svg> Agresywna (IKE/IKZE/OIPE + Broker Akcje + Krypto)</label>
+            <div class="wz-alloc-panel-head">
+                <h3 class="eyebrow wz-panel-title">
+                    <span class="tip-label-row">
+                        <span class="tip-label-text">Wybierz strategię</span>
+                        <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">Strategia decyduje o kolejności zapełniania kont i o tym, jak dzielimy kwotę ponad limity IKE/IKZE/OIPE. Nie zmienia ROI — założenia rynkowe wybierasz w scenariuszach wyniku. IKE/IKZE to opakowania podatkowe; ich ROI zależy od tego, co w nich trzymasz.</span></span>
+                    </span>
+                </h3>
+                <button type="button" class="btn btn-secondary btn-sm hidden" id="v2StrategyShowAll">Pokaż inne strategie</button>
             </div>
+            <div class="wz-paths v2-strategy-cards" id="v2StrategyCards">
+                <label class="wz-path v2-strategy-card" data-strategy-card="konserwatywna">
+                    <input type="radio" name="v2Strategy" value="konserwatywna" />
+                    <span class="wz-path-check" aria-hidden="true"></span>
+                    <svg class="v2-strategy-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 4 6v6c0 5 3.4 8.4 8 9 4.6-.6 8-4 8-9V6z"/></svg>
+                    <span class="wz-path-title">Konserwatywna</span>
+                    <span class="v2-strategy-rank" data-strategy-rank="konserwatywna"></span>
+                </label>
+                <label class="wz-path v2-strategy-card" data-strategy-card="zbilansowana">
+                    <input type="radio" name="v2Strategy" value="zbilansowana" checked />
+                    <span class="wz-path-check" aria-hidden="true"></span>
+                    <svg class="v2-strategy-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v18M4 21h16M6 7l-3 7a3 3 0 0 0 6 0zM18 7l-3 7a3 3 0 0 0 6 0zM5 7h14"/></svg>
+                    <span class="wz-path-title">Zrównoważona</span>
+                    <span class="v2-strategy-rank" data-strategy-rank="zbilansowana"></span>
+                </label>
+                <label class="wz-path v2-strategy-card" data-strategy-card="agresywna">
+                    <input type="radio" name="v2Strategy" value="agresywna" />
+                    <span class="wz-path-check" aria-hidden="true"></span>
+                    <svg class="v2-strategy-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 15c-1.5 1.5-2 5-2 5s3.5-.5 5-2M14 4c3 .5 5.5 3 6 6-2 3-5 6-9 8l-5-5c2-4 5-7 8-9z"/><circle cx="14.5" cy="9.5" r="1.5"/></svg>
+                    <span class="wz-path-title">Agresywna</span>
+                    <span class="v2-strategy-rank" data-strategy-rank="agresywna"></span>
+                </label>
+            </div>
+            <div id="v2StrategyHint" class="v2-strategy-hint hidden" aria-live="polite"></div>
         </div>
 
         <div class="card-inset wz-alloc-panel" id="v2SuggestPreviewPanel">
             <h3 class="eyebrow wz-panel-title">
                 <span class="tip-label-row">
-                    <span class="tip-label-text">Proponowany podział rocznych wpłat</span>
-                    <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">Podział wyliczony automatycznie dla Twojej puli oszczędności i limitów rocznych 2026. Po wyliczeniu planu będziesz mógł jednym kliknięciem otworzyć go w pełnym Symulatorze i dowolnie zmienić każdą kwotę.</span></span>
+                    <span class="tip-label-text" id="v2SuggestTitle">Proponowany podział oszczędności</span>
+                    <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">Możesz użyć podziału automatycznego albo ustawić własne udziały. Limity roczne IKE, IKZE i OIPE nadal obowiązują, a nadwyżki oraz nieprzydzielona kwota trafiają do gotówki.</span></span>
                 </span>
             </h3>
+            <div class="segmented is-auto v2-allocation-mode" role="group" aria-label="Sposób podziału oszczędności">
+                <label class="seg-option"><input type="radio" name="v2AllocationMode" value="auto" checked> Automatyczny</label>
+                <label class="seg-option"><input type="radio" name="v2AllocationMode" value="manual"> Ręczny</label>
+            </div>
+            <p class="v2-suggest-note" id="v2TaxTipNote"></p>
+            <div id="v2ManualSum" class="v2-manual-sum hidden" aria-live="polite"></div>
             <div id="v2SuggestList" class="v2-suggest-list"></div>
-            <p class="field-hint" id="v2TaxTipNote"></p>
+            <div class="v2-refund-note hidden" id="v2IkzeRefundNote"></div>
         </div>
     </section>
 
@@ -780,7 +829,10 @@
             <span class="spinner"></span>
             <div class="loader-body">
                 <strong>Wyliczam Twój plan niezależności finansowej…</strong>
-                <span class="loader-sub">Uwzględniam podatki, limity IKE/IKZE, ZUS i optymalną kolejność wypłat…</span>
+                <span class="loader-sub v2-loader-tip" id="v2LoaderTip"></span>
+                <div class="progress v2-loader-progress" role="progressbar" aria-label="Trwa obliczanie planu" aria-valuetext="Obliczanie">
+                    <div class="progress-bar"></div>
+                </div>
             </div>
         </div>
 
@@ -789,6 +841,7 @@
             <div id="v2HeroAnswer" class="wz-hero-answer"></div>
             <div id="v2ScenariosBox" class="wz-scenarios-box"></div>
             <div class="wz-metric-line" id="v2Metrics"></div>
+            <div id="v2Facts" class="wz-fact-row"></div>
             <div id="v2Warnings" class="wz-warnings" aria-live="polite"></div>
 
             <div class="wz-timeline-wrap">
@@ -799,8 +852,39 @@
                     </span>
                 </h3>
                 <div class="wz-timeline" id="v2Timeline"></div>
-                <div class="wz-stage-summary-list" id="v2StageSummaryList"></div>
+                <div class="wz-phase-table" id="v2PhaseTable"></div>
+                <details class="wz-stage-details">
+                    <summary>Rozbicie planu na etapy</summary>
+                    <div class="wz-stage-summary-list" id="v2StageSummaryList"></div>
+                </details>
             </div>
+
+            <details class="wz-method-details v2-result-details">
+                <summary>Szczegółowe wypłaty i założenia planu</summary>
+                <div class="wz-method-body">
+                    <h3 class="eyebrow wz-panel-title">Przepływy z poszczególnych kont</h3>
+                    <div class="wz-flows-wrap" id="v2FlowsWrap">
+                        <div class="wz-flows-gantt-scroll">
+                            <div class="wz-flows-gantt" id="v2FlowsGantt"></div>
+                        </div>
+                        <div class="wz-gantt-tip hidden" id="v2GanttTip" role="tooltip">
+                            <button type="button" class="wz-gantt-tip-close" id="v2GanttTipClose" aria-label="Zamknij podpowiedź">×</button>
+                            <div id="v2GanttTipBody"></div>
+                        </div>
+                        <p class="field-hint wz-flows-scroll-hint">Przewiń w poziomie, aby zobaczyć cały horyzont.</p>
+                        <p class="wz-flows-total-note" id="v2FlowsTotal"></p>
+                    </div>
+                    <div id="v2AccountFlows"></div>
+                    <h3 class="eyebrow wz-panel-title">Jak liczymy ten plan?</h3>
+                    <ul>
+                        <li>Kwoty są netto i wyrażone w dzisiejszej sile nabywczej.</li>
+                        <li>Scenariusze różnią się założeniami dotyczącymi stóp zwrotu, inflacji i waloryzacji ZUS.</li>
+                        <li>Podatki, limity i zasady kont wynikają z aktualnej konfiguracji symulatora.</li>
+                        <li>Symulacja jest modelem edukacyjnym, a nie prognozą ani rekomendacją inwestycyjną.</li>
+                    </ul>
+                    <p class="wz-method-policy" id="v2PolicyNote"></p>
+                </div>
+            </details>
         </div>
     </section>
 
@@ -808,7 +892,7 @@
         <div class="action-bar-left wz-footer-left">
             <button type="button" class="btn btn-ghost" id="v2BackBtn">Wstecz</button>
         </div>
-        <span class="action-bar-center wz-step-count" id="v2StepCount">Krok 1 / 7</span>
+        <span class="action-bar-center wz-step-count" id="v2StepCount">Krok 1 / 9</span>
         <div class="action-bar-right wz-footer-right">
             <button type="button" class="btn btn-primary" id="v2NextBtn">Dalej</button>
         </div>

@@ -813,7 +813,7 @@ const harness = `
             strategy: "manualna",
             assumptions: "realne",
         }));
-        window.history.replaceState({}, "", "/wizard?restore=1");
+        window.history.replaceState({}, "", "/wizard-v1?restore=1");
         const ok = restoreWizardStateIfRequested();
         return ok
             && Math.round(wzAmounts["broker"]) === 6000
@@ -838,7 +838,7 @@ const harness = `
             },
             salaryPeriod: "year",
         }));
-        window.history.replaceState({}, "", "/wizard?restore=1");
+        window.history.replaceState({}, "", "/wizard-v1?restore=1");
         const ok = restoreWizardStateIfRequested();
         const input = document.getElementById("wzGross");
         return ok

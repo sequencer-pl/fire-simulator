@@ -12,6 +12,7 @@ from app.simulation.planner import (
     WizardAnswers,
     _resolve_allocation,
     suggest_allocations,
+    suggest_priority,
 )
 from app.simulation.planner import (
     plan as _plan,
@@ -565,6 +566,48 @@ def test_phase_metrics_split_retirement_and_zus_beyond_horizon():
     assert zus.portfolio_monthly == 0
     assert zus.monthly == pytest.approx(zus.zus_monthly)
     assert zus.monthly > 0
+
+
+@pytest.mark.slow
+def test_phase_metrics_keep_all_accumulation_stages_before_bridge():
+    r = plan(
+        1,
+        answers(
+            age_now=40,
+            retire_early_age=55,
+            retirement_age=65,
+            plan_end_age=95,
+            mortgage_monthly=3000,
+            mortgage_end_age=50,
+            redirect_mortgage_to_savings=True,
+        ),
+    )
+    phases = r.projection.phase_metrics
+    accumulations = [phase for phase in phases if phase.key == "accumulation"]
+    bridge = next(phase for phase in phases if phase.key == "bridge")
+
+    assert [(phase.start_age, phase.end_age) for phase in accumulations] == [
+        (40, 50),
+        (50, 55),
+    ]
+    assert [phase.name for phase in accumulations] == [
+        "Akumulacja (z kredytem)",
+        "Akumulacja (po spłacie kredytu)",
+    ]
+    assert all(phase.monthly > 0 for phase in accumulations)
+    assert bridge.start_age == 55
+    assert bridge.end_age == 65
+
+    simulation = simulate(r.input)
+    accumulation_years = [year for year in simulation.years if 50 <= year.age < 55]
+    payout_years = [year for year in simulation.years if 55 <= year.age < 65]
+    assert accumulation_years
+    assert all(year.monthly_withdrawal == 0 for year in accumulation_years)
+    assert payout_years
+    expected_bridge = round(
+        sum(year.monthly_withdrawal for year in payout_years) / len(payout_years), 2
+    )
+    assert bridge.monthly == pytest.approx(expected_bridge)
 
 
 @pytest.mark.slow
@@ -1123,7 +1166,44 @@ def test_suggest_endpoint(client):
     assert resp.status_code == 200, resp.text
     body = resp.json()
     assert "allocations" in body
+    assert set(body["strategy_previews"]) == {
+        "konserwatywna",
+        "zbilansowana",
+        "agresywna",
+    }
+    assert all(
+        sum(preview.values()) <= 100 + 1e-6
+        for preview in body["strategy_previews"].values()
+    )
+    assert set(body["strategy_priorities"]) == {
+        "konserwatywna",
+        "zbilansowana",
+        "agresywna",
+    }
+    for priority in body["strategy_priorities"].values():
+        assert priority
+        assert len(priority) == len(set(priority))
     assert sum(body["allocations"].values()) <= 100 + 1e-6
+
+
+def test_suggest_priority_lists_shelters_then_strategy_mix():
+    conservative = suggest_priority(
+        answers(allocations={}, strategy="konserwatywna"), default_config()
+    )
+    assert conservative[:2] == ["ikze", "ike"]
+    assert "obligacje" in conservative
+    assert "broker" not in conservative
+
+    aggressive = suggest_priority(
+        answers(allocations={}, strategy="agresywna"), default_config()
+    )
+    assert aggressive[:3] == ["ikze", "ike", "oipe"]
+    assert aggressive.index("broker") < aggressive.index("obligacje")
+
+    low_tax = suggest_priority(
+        answers(allocations={}, gross_monthly=0), default_config()
+    )
+    assert low_tax[:2] == ["ike", "ikze"]
 
 
 @pytest.mark.slow

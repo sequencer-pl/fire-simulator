@@ -21,7 +21,7 @@ export default defineConfig({
     },
   },
   use: {
-    baseURL: "http://localhost:8000",
+    baseURL: process.env.PLAYWRIGHT_BASE_URL || "http://localhost:8000",
     viewport: { width: 1280, height: 900 },
   },
   projects: [

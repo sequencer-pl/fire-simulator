@@ -44,7 +44,7 @@ visual-setup:
 	npm --prefix $(QA) install
 	cd $(QA) && npx playwright install chromium
 
-## Porównanie zrzutów ekranu z baseline'ami (14 widoków, desktop + mobile)
+## Porównanie zrzutów ekranu z baseline'ami (9 stron, desktop + mobile)
 visual:
 	npm --prefix $(QA) run check
 

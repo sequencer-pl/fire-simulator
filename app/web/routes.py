@@ -29,6 +29,7 @@ from app.simulation.planner import (
     plan,
     resolve_config,
     suggest_allocations,
+    suggest_priority,
 )
 from app.simulation.salary import salary_preview
 from app.simulation.schemas import SimulationInput, SimulationResult
@@ -294,6 +295,20 @@ async def compare(request: Request):
 
 @router.get("/wizard", response_class=HTMLResponse)
 async def wizard(request: Request):
+    """Domyślny Asystent: wersja v2 (krok po kroku)."""
+    return templates.TemplateResponse(
+        request,
+        "wizard_v2.html",
+        {
+            "version": _asset_version(),
+            "stage_types": get_all_stage_types(),
+        },
+    )
+
+
+@router.get("/wizard-v1", response_class=HTMLResponse)
+async def wizard_v1(request: Request):
+    """Klasyczny Asystent v1 — zachowany pod osobnym adresem."""
     return templates.TemplateResponse(
         request,
         "wizard.html",
@@ -306,6 +321,7 @@ async def wizard(request: Request):
 
 @router.get("/wizard-v2", response_class=HTMLResponse)
 async def wizard_v2(request: Request):
+    """Kompatybilny alias domyślnego Asystenta v2."""
     return templates.TemplateResponse(
         request,
         "wizard_v2.html",
@@ -338,9 +354,24 @@ def api_wizard_suggest(body: WizardSuggestRequest, request: Request):
             answers, body.path, body.target_monthly
         )
         pool = pool_monthly * 12.0
+        config = resolve_config(answers)
+        strategy_previews = {
+            strategy: suggest_allocations(
+                answers.model_copy(update={"strategy": strategy}), config, pool
+            )
+            for strategy in ("konserwatywna", "zbilansowana", "agresywna")
+        }
+        strategy_priorities = {
+            strategy: suggest_priority(
+                answers.model_copy(update={"strategy": strategy}), config
+            )
+            for strategy in ("konserwatywna", "zbilansowana", "agresywna")
+        }
         return {
-            "allocations": suggest_allocations(answers, resolve_config(answers), pool),
+            "allocations": suggest_allocations(answers, config, pool),
             "pool_monthly": round(pool_monthly, 2),
+            "strategy_previews": strategy_previews,
+            "strategy_priorities": strategy_priorities,
         }
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e

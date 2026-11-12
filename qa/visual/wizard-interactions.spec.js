@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 
 async function goToStep3(page) {
-    await page.goto("/wizard", { waitUntil: "networkidle" });
+    await page.goto("/wizard-v1", { waitUntil: "networkidle" });
     await page.locator("#wzNextBtn").click();
     await page.locator("#wzNextBtn").click();
     await expect(page.locator('.wz-step[data-step="3"]')).toBeVisible();
@@ -48,7 +48,7 @@ test("krok 5: nota sugeruje IKE jako cel zwrotu IKZE", async ({ page }) => {
     page.on("request", (req) => {
         if (req.url().includes("/api/wizard/plan")) planCalls += 1;
     });
-    await page.goto("/wizard", { waitUntil: "networkidle" });
+    await page.goto("/wizard-v1", { waitUntil: "networkidle" });
     for (let i = 0; i < 4; i += 1) await page.locator("#wzNextBtn").click();
     await expect(page.locator('.wz-step[data-step="5"]')).toBeVisible();
 
@@ -123,7 +123,7 @@ test("krok 5: nota sugeruje IKE jako cel zwrotu IKZE", async ({ page }) => {
     await expect(page.locator("#backToWizardBtn")).toBeVisible();
     await expect(page.locator("#backToWizardBtn")).toHaveAttribute(
         "href",
-        "/wizard?restore=1"
+        "/wizard-v1?restore=1"
     );
     await expect(page.locator("#results")).toContainText("Broker");
     // Pasek wyników: eksport/zapis po lewej, powrót/edycja po prawej.
@@ -144,7 +144,7 @@ test("krok 5: nota sugeruje IKE jako cel zwrotu IKZE", async ({ page }) => {
     // Powrót ma odtworzyć krok 6 z gotowym wynikiem, bez nowego planu.
     const planCallsBeforeReturn = planCalls;
     await page.locator("#backToWizardBtn").click();
-    await page.waitForURL("**/wizard?restore=1");
+    await page.waitForURL("**/wizard-v1?restore=1");
     await expect(page.locator('.wz-step[data-step="6"]')).toBeVisible();
     await expect(page.locator("#wzResult")).toBeVisible();
     await expect(page.locator("#wzStepCount")).toHaveText("Krok 6 / 6");

@@ -108,6 +108,11 @@ bez TypeScript), SQLite, pytest. Odpowiadaj i pisz UI po polsku.
   strony. `qa/visual/tokens.spec.js` pilnuje: zero hex/rgba poza `tokens.css`, zero
   emoji w JS, font-size ≥ 12 px, kontrast tekstu ≥ 4,5:1 na `--surface-2`.
   Przezroczystości przez `color-mix()`.
+- **Widoczny tekst jest krótki**: etykiety, krótkie instrukcje, statusy i
+  ostrzeżenia. Mechanika, przykłady, listy składników, uzasadnienia i wyliczenia
+  idą do `.tip` przy nagłówku panelu. Nie powtarzaj listy opcji w nagłówku
+  sekcji, jeśli kontrolki są pod spodem. Dotyczy całego projektu, nie tylko
+  Asystenta.
 - **Kolor znaczy jedno**: fiolet `--primary` = interakcja (akcja, zaznaczenie,
   fokus, aktywna zakładka); `--stage-accum` (pomarańcz) = akumulacja;
   `--stage-real` (turkus) = realizacja; `--success|--warning|--danger` = stan.
@@ -148,15 +153,17 @@ bez TypeScript), SQLite, pytest. Odpowiadaj i pisz UI po polsku.
   Zalogowani zawsze używają configu z serwera (klient nie nadpisuje). Zapis
   zalogowanych jest flushowany na `pagehide`/`visibilitychange` z `keepalive`.
 - Nowe pola liczbowe przez `numControlsHtml`/`initNumControls` (controls.js), nie
-  surowe inputy. Pola kwotowe: `tabular-nums`, w asystencie `.wz-slider .num-control`
-  ma stałe 150 px i stoi PRZED `input[type="range"]` (na mobile liczba nad suwakiem).
+  surowe inputy. Pola kwotowe używają `tabular-nums`. W suwakach pole liczbowe musi
+  mieścić najdłuższą dopuszczalną kwotę razem z przyciskami krokowymi — nie ustalaj
+  jego szerokości na 150 px bez sprawdzenia wartości granicznej. Na mobile liczba
+  zajmuje pełną szerokość nad suwakiem.
 - Daty bez sekund (`fmtDateTime` w helpers.js); `fmtMoney` normalizuje `-0`.
 - Aktywa wersjonowane przez `?v={{ version }}` (`_asset_version`, routes.py) —
   dodaj do każdego nowego pliku JS/CSS w template.
 - Po zmianie wyglądu: `make visual-baseline` (serwer na :8000), a przed oddaniem
   `make visual` i `make harness-jsdom`.
 
-### Asystent — zachowanie kroków (fakty produktowe, nie układ)
+### Asystent v1 — zachowanie kroków (fakty produktowe, nie układ)
 
 - Krok 2 „Twoje dane": 3 panele `.wz-panel` w kolejności „Ty" | „Praca i dochód" |
   „Odkładasz miesięcznie" (tytuły w `.wz-panel-title`). Pensja ma segment
@@ -247,7 +254,7 @@ bez TypeScript), SQLite, pytest. Odpowiadaj i pisz UI po polsku.
   „Dostosuj w symulatorze”; `finishWizard` zapisuje draft i przechodzi do
   `/sim?wizard=1`. Symulator **automatycznie uruchamia** `/api/simulate`
   i pokazuje wynik (bez drugiego kliknięcia „Symuluj”). W widoku wyników pasek
-  akcji ma eksport/zapis po lewej, a `#backToWizardBtn` (`/wizard?restore=1`)
+  akcji ma eksport/zapis po lewej, a `#backToWizardBtn` (`/wizard-v1?restore=1`)
   i „Edytuj etapy” po prawej; w trybie edycji powrót jest w banerze, bo pasek
   jest zbyt wąski na dodatkowy przycisk. Gotowy plan jest cache'owany w
   `fire.wizardPlan`; `restore=1` wraca na krok 6 bez ponownego `/api/wizard/plan`,
@@ -269,8 +276,96 @@ bez TypeScript), SQLite, pytest. Odpowiadaj i pisz UI po polsku.
   „Łącznie wypłacono netto”, a na mobile jest przewijany w poziomie ze sticky
   etykietami kont. Klik karty scenariusza ustawia `wzSelectedScenario` i
   przerenderowuje cały wynik (`renderScenarioResult`). Wybór scenariusza zapisywany
-  w `localStorage`, odtwarzany przez `/wizard?restore=1`. Wejście z kroku 5 od razu
+  w `localStorage`, odtwarzany przez `/wizard-v1?restore=1`. Wejście z kroku 5 od razu
   uruchamia `runPlan()`.
+
+### Asystent v2 — zachowanie kroków i spójność UI
+
+- V2 jest domyślnym asystentem pod `/wizard`; klasyczny v1 pozostaje dostępny pod
+  `/wizard-v1`, a `/wizard-v2` jest aliasem zgodności. Link powrotu z symulatora
+  musi zachować źródło draftu i odtworzyć właściwą wersję oraz wynik.
+- V2 zapisuje pełny stan formularza (`fire.wizardV2State`) i cache planu
+  (`fire.wizardV2Plan`) razem z body odpowiedzi. `?restore=1` odtwarza pola,
+  dynamiczne wiersze kapitału, sugestię podziału i krok; plan pokazujemy tylko
+  wtedy, gdy jego body nadal odpowiada bieżącym odpowiedziom. Samo `?restore=1`
+  bez stanu może odtworzyć starszy cache planu (fallback kompatybilności).
+- V2 ma drzewo kroków zależne od zatrudnienia (etat / B2B / brak pracy); liczba
+  kroków i `aria-valuemax` muszą wynikać z aktualnej ścieżki, nie być stałą.
+  Domyślny wiek w formularzu to 40 lat; wiek emerytury ZUS dostosowuje się do
+  płci, a domyślny horyzont to tablica GUS 2024 + `longevity.growth_months_per_year`
+  z konfiguracji. Ręczna zmiana horyzontu (`v2PlanEndTouched`) wyłącza
+  przeliczanie domyślnej wartości.
+- Wynagrodzenie etatu domyślnie podajemy jako brutto rocznie. Wartość startowa
+  wynika z limitów: `limits.oipe_annual / 3 * 12` (2026 → 113 000 zł/rok), bez
+  osobnego pola w konfiguracji. Przełączniki Brutto/Netto i Rocznie/Miesięcznie
+  przeliczają kwotę; `v2SalaryTouched` blokuje nadpisanie ręcznej wartości.
+  Pod polem jest karta brutto ↔ netto z kwotą roczną i miesięczną.
+- PPK i PPE są niezależne: w kroku etatu zaznaczamy tylko bieżące wpłaty, a salda
+  (także z byłej pracy) wpisujemy w kroku kapitału. `ppk_contributions` /
+  `ppe_contributions` decydują o nowych składkach; konto z samym saldem rośnie
+  tylko z ROI. OFE ma osobne, niezależne od kapitału ZUS segmented
+  `v2HasOfe` (Nie / Tak) i pole salda.
+- Każdy krok v2 używa wspólnych komponentów z `components.css`. Na desktopie
+  opisy kroków mają wykorzystywać dostępną szerokość; na mobile teksty segmentów,
+  przyciski i suwaki nie mogą powodować poziomego przewijania całej strony.
+  Porównywalne pola w `.wz-grid` mają równe kolumny; tylko układy „wybór po lewej,
+  kontrolka po prawej” używają wariantu `.wz-grid-choice`. Pojedyncze pole wypełnia
+  wiersz. Karty kont w kroku kapitału mają maksymalnie 3 kolumny (tablet 2,
+  mobile 1), żeby nie rozciągały się i nie „skakały” przy dodawaniu kont.
+  W kroku „Jak chcesz przejść na FIRE?” wszystkie pola idą jedno pod drugim;
+  nie dodawaj nagłówka sekcji, jeśli pytania pod spodem są już jednoznaczne.
+- PPK/PPE w kroku etatu to niezależne trzystanowe segmenty: „obecnie wpłacam”,
+  „mam konto, ale nie wpłacam”, „nigdy nie miałem”. Domyślnie „nigdy”, więc
+  salda są ukryte; dla B2B/niepracujących panel sald pozostaje dostępny.
+  Stawki PPK (pracownik/pracodawca) i PPE (pracodawca) są widoczne pod
+  ołówkiem, domyślnie z konfiguracji: PPK 2,0%/1,5%, PPE 3,5%. ZUS i OFE to
+  dwie osobne sekcje, a OFE używa segmentu `v2HasOfe`. Kontrolka kwotowa
+  w suwaku mieści maksymalną dozwoloną wartość — nie wystarczy, że nie
+  powoduje poziomego scrolla strony.
+- Krok strategii wpłat oferuje tryb automatyczny i ręczny. Udziały ręczne są
+  procentami miesięcznej puli; każdy wiersz ma pole i suwak, a maksimum udziału
+  to `100% - suma pozostałych`, więc suma nie przekroczy 100%. Reszta i
+  nadwyżki ponad limity trafiają do osobnego wiersza „Gotówka (reszta)”.
+  Suma udziałów jest osobnym statusem: zielony `chip-success` przy 100%.
+  Przy ścieżce 2 wymaganą pulę oszczędności przeliczamy z uwzględnieniem
+  udziałów ręcznych.
+- Strategia = sposób dzielenia wpłat, nie profil ryzyka. `STRATEGY_ROI`
+  jest usunięty; ROI pochodzi z konfiguracji i scenariuszy. `/api/wizard/suggest`
+  zwraca `strategy_previews` (kwoty) i `strategy_priorities` (kolejność kont).
+  Karta pokazuje 5 pierwszych priorytetów + „…i N dalsze” z pełną kolejnością
+  w tooltipie, bez procentów i kwot — te zostają w „Proponowanym podziale”.
+  Jeśli wszystkie strategie dają identyczny podział, UI pokazuje jedną kartę
+  i „Pokaż inne strategie”. Decyzja i przyszły model dwuwarstwowy:
+  `docs/adr/0001-strategy-vs-scenario.md`.
+- Przy podziale z IKZE pod listą pojawia się nota, że ulga wraca co roku
+  i jest reinwestowana; tooltip podaje kolejność IKE → OIPE → Broker → …
+  i zastrzeżenie, że bez konta docelowego zwrot tylko obniża podatek.
+  Nota zbiorcza „Pula: … / Wpłaty na IKZE…” siedzi bezpośrednio pod
+  przełącznikiem Automatyczny/Ręczny w ramce `.v2-suggest-note`, nie pod listą.
+- Przy dodawaniu aktywów tekst „Dodaj” nie jest widoczny. Pastylki kont
+  wielokrotnych (`Lokata`, `Obligacje`, `Gotówka`, `Broker`, `Krypto`) są
+  neutralne i pokazują ikonę „+” dopiero po nazwie, gdy istnieje już co najmniej
+  jedna pozycja (przy dwóch i więcej dodatkowo licznik w badge'u). Usunięcie
+  ostatniej pozycji chowa „+”. Konta pojedyncze (IKE, IKZE, OIPE, OKI) zaznaczają
+  się na fioletowo, bez „+”. Nazwa początkowa wynika z etykiety konta, a jej
+  edycja odbywa się w miejscu. Domyślne ROI pochodzi z efektywnej konfiguracji;
+  w wierszu nie ma powtarzanej notatki „Domyślna wartość z Konfiguracji” —
+  wyjaśnienie jest w tooltipie panelu, a po ręcznej zmianie pojawia się ikona
+  przywracania domyślnego ROI. Do `roi_overrides` wysyłamy tylko wartość różną
+  od domyślnej.
+- Wynik v2 zaczyna się od odpowiedzi na pytanie użytkownika, następnie pokazuje
+  najważniejsze metryki i scenariusze. Szczegółowe przepływy per konto (Gantt +
+  tabela), tabela faz, chipy ulgi IKZE i metodologia są niżej, najlepiej w
+  sekcjach zwijanych. Loader pokazuje „Wyliczam Twój plan…”, animowany pasek
+  aktywności i rotujące teksty z v1 (losowanie bez powtórzeń); nie dodajemy
+  banera „Czy wiesz, że…” ani nowych ciekawostek. Loader nie może sugerować,
+  że symulacja jest prognozą ani rekomendacją.
+- `PlanProjection.phase_metrics` zachowuje wszystkie kolejne etapy akumulacji;
+  średnia wypłata dla fazy obejmuje wyłącznie lata tej fazy, nigdy lata dalszego
+  oszczędzania z zerową wypłatą. Przywrócony wynik musi odkryć `#v2Result` bez
+  ponownego wywołania `/api/wizard/plan`.
+- Testy przeglądarkowe obejmują v2 osobno od v1: mobile, tablet i desktop oraz
+  kluczowe warianty zatrudnienia, kapitału, częściowego FIRE i odtwarzania wyniku.
 
 ## Współpraca z użytkownikiem
 

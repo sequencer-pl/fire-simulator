@@ -22,7 +22,7 @@ Zamiast jednej magicznej liczby ("potrzebujesz 2 mln zł") pokazuje **rozpisane 
 
 ## Od czego zacząć
 
-- **Asystent** — sześć pytań i gotowy plan w trzech scenariuszach rynkowych. Pensję możesz podać miesięcznie albo rocznie. Plan pokazuje też wypłaty z każdego konta (w tym ZUS) w podziale na okresy — Gantt z sumą i tabela/karty. Najlepszy pierwszy krok.
+- **Asystent** — krok po kroku dopasowuje pytania do Twojej sytuacji i tworzy plan w trzech scenariuszach rynkowych. Pensję podajesz domyślnie brutto rocznie (z premiami i nadgodzinami), a możesz przełączyć na netto i miesięcznie; szczegóły obejmują oś czasu, etapy oraz wypłaty z poszczególnych kont. PPK i PPE traktujemy niezależnie — możesz mieć PPE od byłego pracodawcy i PPK u obecnego. Klasyczna wersja jest dostępna pod `/wizard-v1`.
 - **Symulator** — pełna kontrola: etapy, konta, wpłaty, wypłaty i tabela rok po roku.
 - **Moje symulacje** — zapisane scenariusze i porównanie do czterech naraz.
 

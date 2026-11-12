@@ -28,9 +28,10 @@ nie dopisuje własnych kolorów, rozmiarów ani promieni.
    10 px dla kontrolek i wkładów, `--r-lg` 14 px dla kart. Pigułki
    `--r-pill`.
 6. **Jedna kontrolka liczbowa.** `.num-control` (minus / pole / plus)
-   wszędzie: edytor, konfiguracja, asystent. Suwak jest dodatkiem w asystencie
-   dla zakresów, nigdy zamiennikiem. Konfiguracja edytuje w miejscu, bez trybu
-   podglądu.
+    wszędzie: edytor, konfiguracja, asystent. Suwak jest dodatkiem w asystencie
+    dla zakresów, nigdy zamiennikiem. Pole zawsze mieści najdłuższą prawidłową
+    wartość wraz z przyciskami krokowymi; nie obcinamy kwot przez stałą szerokość.
+    Konfiguracja edytuje w miejscu, bez trybu podglądu.
 7. **Jeden język ikon.** Liniowe SVG, 24 × 24, `stroke-width` 1.8,
    `currentColor`. Zestaw w `static/js/icons.js` (`ICONS`, `iconSvg(name)`).
    Emoji nie są ikonami.
@@ -44,7 +45,14 @@ nie dopisuje własnych kolorów, rozmiarów ani promieni.
 10. **Mobile to ten sam produkt.** Poniżej 640 px nawigacja staje się dolnym
     paskiem zakładek z etykietami, siatki schodzą do jednej kolumny, tabele
     danych zamieniają się w karty wierszy. Między 641 a 1024 px nawigacja
-    pokazuje same ikony. Punkty łamania: 640, 900, 1024 (nawigacja), 1200.
+    pokazuje same ikony. Segmenty formularzy i przyciski zawijają etykiety,
+    zamiast powodować poziome przewijanie całej strony. Punkty łamania: 640,
+    900, 1024 (nawigacja), 1200.
+11. **Widoczny tekst jest krótki.** Na stronie zostają etykiety, krótkie
+    instrukcje, statusy i ostrzeżenia. Mechanika, przykłady, listy składników,
+    uzasadnienia i wyliczenia idą do `.tip` przy nagłówku panelu. Nie
+    powtarzamy listy opcji w nagłówku sekcji, jeśli kontrolki są pod spodem.
+    Dotyczy całego projektu, nie tylko Asystenta.
 
 ## 2. Tokeny
 
@@ -94,6 +102,9 @@ służy do wypełnień, obramowań i fokusu — jako kolor tekstu jest za ciemny
 - `.chip` (mała etykieta konta), `.chip-accum | .chip-real` dla etapów.
 - `.num-control` (`.stepper` + `.acc-field`), `.range` dla suwaków.
 - `.field` (etykieta `.field-label` nad kontrolką), `.field-hint`.
+- **Siatki pól:** porównywalne pola mają równe kolumny; układ asymetryczny stosuj
+  tylko dla celowego zestawu wyboru i powiązanej kontrolki. Każda kontrolka
+  liczbowa musi mieścić największą dozwoloną wartość.
 - `.action-bar` (+ `.action-bar-left | -center | -right`).
 - `.table-wrap` + `table` (nagłówki `--fs-xs` wersalikami, `--text-3`).
 - `.tip` + `.tooltip` (dymek, jedyny element z cieniem poza paskiem akcji).

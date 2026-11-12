@@ -36,10 +36,13 @@ SAVINGS_ACCOUNTS = ("broker", "lokata", "obligacje", "krypto")
 # Curated preference order used to open NEW accounts the user lacks. Capacity
 # logic (suggest_allocations) absorbs the annual pool account by account in this
 # order and only opens the next one when the previous hits its annual limit.
-STRATEGY_SUGGEST: dict[str, tuple[str, ...]] = {
-    "konserwatywna": ("obligacje", "ikze", "ike", "oki_osk", "oki_inw"),
-    "zbilansowana": ("ikze", "ike", "oki_inw", "obligacje", "broker"),
-    "agresywna": ("ikze", "ike", "oipe", "broker", "krypto"),
+# Kolejność zapełniania kont z ulgami. Strategia decyduje, które ulgi bierzemy
+# pod uwagę (OIPE tylko w agresywnej, chyba że użytkownik już je ma), a podział
+# kwoty ponad limity określa wyłącznie STRATEGY_MIX.
+STRATEGY_SHELTER_ORDER: dict[str, tuple[str, ...]] = {
+    "konserwatywna": ("ikze", "ike"),
+    "zbilansowana": ("ikze", "ike"),
+    "agresywna": ("ikze", "ike", "oipe"),
 }
 
 # Miks nadwyżki PO wypełnieniu ulg (procenty nadwyżki, nie całej puli).
@@ -69,48 +72,6 @@ IKZE_BREAKEVEN_RATE = 0.105
 
 # Accounts with statutory annual contribution caps (limits in config.limits).
 TAX_SHELTER_ACCOUNTS = ("ike", "ikze", "oipe")
-
-STRATEGY_ROI: dict[str, dict[str, float]] = {
-    "konserwatywna": {
-        "broker": 0.035,
-        "lokata": 0.014,
-        "obligacje": 0.015,
-        "krypto": 0.03,
-        "ike": 0.035,
-        "ikze": 0.035,
-        "oipe": 0.035,
-        "ppk": 0.03,
-        "ppe": 0.03,
-        "oki_inw": 0.03,
-        "oki_osk": 0.01,
-    },
-    "zbilansowana": {
-        "broker": 0.05,
-        "lokata": 0.018,
-        "obligacje": 0.02,
-        "krypto": 0.06,
-        "ike": 0.05,
-        "ikze": 0.05,
-        "oipe": 0.05,
-        "ppk": 0.04,
-        "ppe": 0.04,
-        "oki_inw": 0.045,
-        "oki_osk": 0.02,
-    },
-    "agresywna": {
-        "broker": 0.065,
-        "lokata": 0.022,
-        "obligacje": 0.025,
-        "krypto": 0.08,
-        "ike": 0.065,
-        "ikze": 0.065,
-        "oipe": 0.065,
-        "ppk": 0.055,
-        "ppe": 0.055,
-        "oki_inw": 0.06,
-        "oki_osk": 0.025,
-    },
-}
 
 ASSUMPTIONS_PRESET_MAP: dict[str, str] = {
     "konserwatywne": "Konserwatywne",
@@ -158,6 +119,10 @@ class WizardAnswers(BaseModel):
     use_zus: bool = True
     ofe_member: bool = False
     use_ppk: bool = False
+    # Saldo PPK/PPE może istnieć bez bieżących wpłat (np. PPE byłego
+    # pracodawcy). ``use_*`` oznacza samo konto, a ``*_contributions`` —
+    # czy w obecnej pracy nadal trafiają do niego składki.
+    ppk_contributions: bool = True
     ppk_employee_pct: float = 0.02
     ppk_employer_pct: float = 0.015
     ppk_state_topups: bool = True
@@ -165,7 +130,8 @@ class WizardAnswers(BaseModel):
     use_ike: bool = False
     use_oipe: bool = False
     use_ppe: bool = False
-    ppe_employer_pct: float = 0.07
+    ppe_contributions: bool = True
+    ppe_employer_pct: float = 0.035
     use_oki_inw: bool = False
     use_oki_osk: bool = False
     use_krypto: bool = False
@@ -391,7 +357,7 @@ def _answers_net_monthly(a: WizardAnswers) -> float | None:
     if a.gross_monthly <= 0:
         return None
     if a.employment == "etat":
-        ppk_pct = a.ppk_employee_pct if a.use_ppk else 0.0
+        ppk_pct = a.ppk_employee_pct if (a.use_ppk and a.ppk_contributions) else 0.0
         return net_from_gross(
             a.gross_monthly, _config_for_answers(a), ppk_pct=ppk_pct
         )
@@ -412,7 +378,7 @@ def _normalize_salary(a: WizardAnswers) -> WizardAnswers:
     if a.salary_mode != "net":
         return a
     if a.employment == "etat":
-        ppk_pct = a.ppk_employee_pct if a.use_ppk else 0.0
+        ppk_pct = a.ppk_employee_pct if (a.use_ppk and a.ppk_contributions) else 0.0
         gross = gross_from_net(
             a.gross_monthly, _config_for_answers(a), ppk_pct=ppk_pct
         )
@@ -501,8 +467,7 @@ def _roi(a: WizardAnswers, name: str, config: TaxConfig | None = None) -> float:
         rules = config.get_account_rules(name)
         if rules is not None:
             return rules.default_roi
-    strat_key = "zbilansowana" if a.strategy == "manualna" else a.strategy
-    return STRATEGY_ROI[strat_key].get(base, 0.04)
+    return 0.04
 
 
 def _with_basis(name: str) -> bool:
@@ -592,24 +557,40 @@ def _prefer_ikze(a: WizardAnswers, config: TaxConfig) -> bool:
     return _ikze_deduction_rate(a, config) > IKZE_BREAKEVEN_RATE
 
 
-def _suggest_order(
+def _shelter_order(
     a: WizardAnswers, active: set[str], config: TaxConfig
 ) -> list[str]:
-    """Priority order for absorbing the annual pool: first the tax-sheltered
-    accounts the user already holds (in the strategy preference order, then any
-    remaining shelters), then curated "magic" accounts the user lacks, and only
-    then the user's other active accounts. The pool walks this order up to the
-    accounts' annual caps, so few accounts are opened when the pool is small."""
+    """Priority order for filling the annual pool into tax-sheltered accounts.
+
+    Shelters are opened even when the user does not hold them yet — that is the
+    point of the suggestion. The strategy decides which shelters are considered
+    (OIPE only in the aggressive one unless already held); the IKZE/IKE order
+    depends on whether the IKZE deduction beats the 10% exit lump sum. The
+    amount above the limits is split by STRATEGY_MIX."""
     strat_key = "zbilansowana" if a.strategy == "manualna" else a.strategy
-    pref = list(STRATEGY_SUGGEST[strat_key])
-    if not _prefer_ikze(a, config) and "ike" in pref and "ikze" in pref:
-        pref.remove("ike")
-        pref.insert(pref.index("ikze"), "ike")
-    preferred = [n for n in pref if n in TAX_SHELTER_ACCOUNTS and n in active]
-    preferred += [n for n in TAX_SHELTER_ACCOUNTS if n in active and n not in preferred]
-    curated = [n for n in pref if n not in active]
-    rest = [n for n in ALLOCATABLE_ACCOUNTS if n in active and n not in preferred]
-    return preferred + curated + rest
+    order = list(STRATEGY_SHELTER_ORDER[strat_key])
+    if not _prefer_ikze(a, config) and "ike" in order and "ikze" in order:
+        order.remove("ike")
+        order.insert(order.index("ikze"), "ike")
+    order += [n for n in TAX_SHELTER_ACCOUNTS if n in active and n not in order]
+    return order
+
+
+def suggest_priority(a: WizardAnswers, config) -> list[str]:
+    """Ordered list of accounts the strategy funds — without amounts or shares.
+
+    Used by the wizard to show the priority path on strategy cards, so the card
+    does not repeat the proposed split. The list includes shelters even when the
+    user does not hold them yet (the suggestion opens them) and the strategy's
+    overflow accounts in STRATEGY_MIX order."""
+    a = _normalize_salary(a)
+    strat_key = "zbilansowana" if a.strategy == "manualna" else a.strategy
+    active = {n for n in ALLOCATABLE_ACCOUNTS if _account_present(a, n, {})}
+    order = _shelter_order(a, active, config)
+    for name in STRATEGY_MIX.get(strat_key, {}):
+        if name not in order:
+            order.append(name)
+    return order
 
 
 def suggest_allocations(a: WizardAnswers, config, annual_pool: float) -> dict[str, float]:
@@ -626,9 +607,7 @@ def suggest_allocations(a: WizardAnswers, config, annual_pool: float) -> dict[st
     active = {n for n in ALLOCATABLE_ACCOUNTS if _account_present(a, n, {})}
     remaining = annual_pool
     amounts: dict[str, float] = {}
-    for name in _suggest_order(a, active, config):
-        if name not in TAX_SHELTER_ACCOUNTS:
-            continue
+    for name in _shelter_order(a, active, config):
         if remaining <= 0:
             break
         cap = _shelter_cap(a, config, name)
@@ -750,20 +729,28 @@ def _build_accum_stage_accounts(
             annual_contribution=alloc.get("gotowka", 0.0),
             roi=0.0,
         )
-    if employed and a.use_ppk:
+    ppk_active = employed and a.use_ppk and a.ppk_contributions
+    ppk_present = a.use_ppk or a.capital.get("ppk", 0.0) > 0
+    if ppk_present and (
+        ppk_active or (include_starting and a.capital.get("ppk", 0.0) > 0)
+    ):
         accum_accounts["ppk"] = AccountConfig(
             starting_balance=a.capital.get("ppk", 0.0) if include_starting else 0.0,
-            monthly_base=gross,
-            employee_pct=a.ppk_employee_pct,
-            employer_pct=a.ppk_employer_pct,
-            state_topups=a.ppk_state_topups,
+            monthly_base=gross if ppk_active else 0.0,
+            employee_pct=a.ppk_employee_pct if ppk_active else 0.0,
+            employer_pct=a.ppk_employer_pct if ppk_active else 0.0,
+            state_topups=a.ppk_state_topups if ppk_active else False,
             roi=_roi(a, "ppk", config),
         )
-    if employed and a.use_ppe:
+    ppe_active = employed and a.use_ppe and a.ppe_contributions
+    ppe_present = a.use_ppe or a.capital.get("ppe", 0.0) > 0
+    if ppe_present and (
+        ppe_active or (include_starting and a.capital.get("ppe", 0.0) > 0)
+    ):
         accum_accounts["ppe"] = AccountConfig(
             starting_balance=a.capital.get("ppe", 0.0) if include_starting else 0.0,
-            monthly_base=gross,
-            employer_pct=a.ppe_employer_pct,
+            monthly_base=gross if ppe_active else 0.0,
+            employer_pct=a.ppe_employer_pct if ppe_active else 0.0,
             annual_contribution=0.0,
             roi=_roi(a, "ppe", config),
         )
@@ -834,6 +821,9 @@ def build_stages(a: WizardAnswers) -> SimulationInput:
         a.use_zus
         and (a.capital.get("zus", 0.0) > 0 or a.capital.get("zus:ofe", 0.0) > 0)
     )
+    has_payroll_capital = (
+        a.capital.get("ppk", 0.0) > 0 or a.capital.get("ppe", 0.0) > 0
+    )
     # --- Stage A: accumulation from today until FIRE (or Barista FIRE start) ---
     if a.age_now < accum_end and (
         employed
@@ -842,6 +832,7 @@ def build_stages(a: WizardAnswers) -> SimulationInput:
         or bool(inv_names)
         or cash_present
         or has_zus_capital
+        or has_payroll_capital
     ):
         if coast_active and a.semi_fire_age is not None:
             semi_age = int(a.semi_fire_age)
@@ -861,7 +852,14 @@ def build_stages(a: WizardAnswers) -> SimulationInput:
             phase1_alloc = _resolve_allocation(a, config, phase1_pool_monthly * 12.0)
             if redirect and m_end is not None and a.age_now < m_end < semi_age:
                 acc1 = _build_accum_stage_accounts(
-                    a, config, inv_names, alloc, cash_present, employed, gross, include_starting=True
+                    a,
+                    config,
+                    inv_names,
+                    alloc,
+                    cash_present,
+                    employed,
+                    gross,
+                    include_starting=True,
                 )
                 if acc1:
                     stages.append(
@@ -876,7 +874,14 @@ def build_stages(a: WizardAnswers) -> SimulationInput:
                 boosted_pool = (_savings_monthly(a) + a.mortgage_monthly) * 12.0
                 boosted_alloc = _resolve_allocation(a, config, boosted_pool)
                 acc1b = _build_accum_stage_accounts(
-                    a, config, inv_names, boosted_alloc, cash_present, employed, gross, include_starting=False
+                    a,
+                    config,
+                    inv_names,
+                    boosted_alloc,
+                    cash_present,
+                    employed,
+                    gross,
+                    include_starting=False,
                 )
                 if acc1b:
                     stages.append(
@@ -890,7 +895,14 @@ def build_stages(a: WizardAnswers) -> SimulationInput:
                     )
             else:
                 acc1 = _build_accum_stage_accounts(
-                    a, config, inv_names, phase1_alloc, cash_present, employed, gross, include_starting=True
+                    a,
+                    config,
+                    inv_names,
+                    phase1_alloc,
+                    cash_present,
+                    employed,
+                    gross,
+                    include_starting=True,
                 )
                 if acc1:
                     stages.append(
@@ -1196,14 +1208,13 @@ def _monthly_contribution(
     """
     if name == "zus":
         return 0.0
-    base = cfg.monthly_base if cfg.monthly_base > 0 else monthly_gross
     if name == "ppk":
-        total = base * (cfg.employee_pct + cfg.employer_pct)
+        total = cfg.monthly_base * (cfg.employee_pct + cfg.employer_pct)
         if cfg.state_topups:
             total += config.ppk.state_annual / MONTHS_PER_YEAR
         return total
     if name == "ppe":
-        total = base * cfg.employer_pct * (1.0 - PPE_ZUS_FRACTION)
+        total = cfg.monthly_base * cfg.employer_pct * (1.0 - PPE_ZUS_FRACTION)
         total += cfg.annual_contribution / MONTHS_PER_YEAR
         return total
     return cfg.annual_contribution / MONTHS_PER_YEAR
@@ -1319,9 +1330,9 @@ def _phase_metrics(
     if not data.stages:
         return []
 
-    accumulation = next(
+    accumulation_stages = sorted(
         (stage for stage in data.stages if stage.stage_type == "akumulacja"),
-        None,
+        key=lambda stage: (stage.start_age, stage.end_age),
     )
     realizations = [
         stage for stage in data.stages if stage.stage_type == "realizacja"
@@ -1336,22 +1347,28 @@ def _phase_metrics(
     plan_end = data.max_age + 1
     phases: list[PhaseMetric] = []
 
-    if accumulation is not None:
-        contribution = sum(
-            _monthly_contribution(name, cfg, data.monthly_gross, data.config)
-            for name, cfg in accumulation.accounts.items()
-        )
-        phases.append(
-            PhaseMetric(
-                key="accumulation",
-                name="Akumulacja do emerytury",
-                cashflow="contribution",
-                start_age=accumulation.start_age,
-                end_age=accumulation.end_age,
-                monthly=round(contribution, 2),
+    if accumulation_stages:
+        for index, stage in enumerate(accumulation_stages):
+            contribution = sum(
+                _monthly_contribution(name, cfg, data.monthly_gross, data.config)
+                for name, cfg in stage.accounts.items()
             )
-        )
-        re = accumulation.end_age
+            name = stage.name or (
+                "Akumulacja do emerytury"
+                if len(accumulation_stages) == 1
+                else f"Akumulacja {index + 1}"
+            )
+            phases.append(
+                PhaseMetric(
+                    key="accumulation",
+                    name=name,
+                    cashflow="contribution",
+                    start_age=stage.start_age,
+                    end_age=stage.end_age,
+                    monthly=round(contribution, 2),
+                )
+            )
+        re = accumulation_stages[-1].end_age
     else:
         re = min(stage.start_age for stage in data.stages)
 

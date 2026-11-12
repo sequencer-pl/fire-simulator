@@ -207,6 +207,7 @@ class PpeConfig(BaseModel):
     Participant's additional contribution capped at Limits.ppe_additional_annual.
     """
 
+    employer_pct: float = Field(default=0.035, ge=0.0, le=0.07)
     max_employer_pct: float = 0.07
 
 

@@ -346,18 +346,24 @@ function applyWizardDraftIfPresent() {
     }
 }
 
+function wizardRestoreHref(source) {
+    return source === "v2" ? "/wizard?restore=1" : "/wizard-v1?restore=1";
+}
+
 function showWizardDraftBanner() {
     const bar = document.getElementById("wizardDraftBar");
     if (bar) bar.classList.remove("hidden");
+    const restoreHref = wizardRestoreHref(loadedDraftSource);
+    const draftBack = document.getElementById("wizardDraftBackLink");
+    if (draftBack) draftBack.href = restoreHref;
     const back = document.getElementById("backToWizardBtn");
     if (back) {
         back.hidden = false;
+        back.href = restoreHref;
         if (loadedDraftSource === "v2") {
-            back.href = "/wizard-v2";
             back.title = "Wróć do Asystenta v2, aby zmienić dane";
             back.setAttribute("aria-label", "Wróć do Asystenta v2");
         } else {
-            back.href = "/wizard?restore=1";
             back.title = "Wróć do Asystenta, aby zmienić dane";
             back.setAttribute("aria-label", "Wróć do Asystenta");
         }
@@ -598,6 +604,7 @@ function renderConfigView() {
     ]));
 
     root.appendChild(configSection("PPE — parametry", [
+        configPercentField("ppe.employer_pct", "Wpłata pracodawcy", USER_CONFIG.ppe.employer_pct, "Realistyczna składka podstawowa pracodawcy (domyślnie 3,5%; max 7%)."),
         configPercentField("ppe.max_employer_pct", "Limit składki podstawowej", USER_CONFIG.ppe.max_employer_pct, "Ustawowy limit składki podstawowej pracodawcy (7% wynagrodzenia)."),
     ]));
 

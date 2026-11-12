@@ -151,7 +151,7 @@
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: var(--sp-4);
-    margin: var(--sp-6) 0 var(--sp-10);
+    margin: 0 0 var(--sp-10);
 }
 
 .landing-grid .card + .card { margin-top: 0; }
@@ -257,7 +257,7 @@
 
 /* --- Czy wiesz, że / Pamiętaj, że --- */
 
-.landing-about { margin-bottom: var(--sp-10); }
+.landing-about { margin: var(--sp-6) 0 var(--sp-10); }
 
 .about-grid {
     display: grid;
