@@ -24,11 +24,6 @@ dev = [
     "pytest-xdist>=3.8.0",
 ]
 
-[tool.uv]
-# anyio 4.15 deprecuje alias anyio.abc.BlockingPortal, z którym jeszcze nie
-# zgrało się starlette 1.6 (warning przy każdym teście przez TestClient).
-constraint-dependencies = ["anyio<4.15,>=4.14"]
-
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]

@@ -4,13 +4,14 @@ annotated-doc==0.0.5
     # via fastapi
 annotated-types==0.8.0
     # via pydantic
-anyio==4.14.2
+anyio==4.16.0
     # via
+    #   fastapi
     #   starlette
     #   watchfiles
 click==8.5.0
     # via uvicorn
-fastapi==0.141.1
+fastapi==0.162.6
     # via fire-simulator
 gunicorn==26.2.0
     # via fire-simulator
@@ -24,22 +25,25 @@ jinja2==3.1.6
     # via fire-simulator
 markupsafe==3.0.3
     # via jinja2
-pydantic==2.13.5
+opentelemetry-api==1.45.2
+    # via fastapi
+pydantic==2.14.3
     # via
     #   fastapi
     #   fire-simulator
-pydantic-core==2.46.5
+pydantic-core==2.50.4
     # via pydantic
 python-dotenv==1.2.3
     # via uvicorn
 pyyaml==6.0.3
     # via uvicorn
-starlette==1.6.0
+starlette==1.10.0
     # via fastapi
 typing-extensions==4.16.0
     # via
     #   anyio
     #   fastapi
+    #   opentelemetry-api
     #   pydantic
     #   pydantic-core
     #   starlette
@@ -48,7 +52,7 @@ typing-inspection==0.4.4
     # via
     #   fastapi
     #   pydantic
-uvicorn==0.53.0
+uvicorn==0.54.0
     # via fire-simulator
 uvloop==0.22.1 ; platform_python_implementation != 'PyPy' and sys_platform != 'cygwin' and sys_platform != 'win32'
     # via uvicorn
