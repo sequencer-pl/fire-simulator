@@ -25,12 +25,19 @@ test("salary defaults to annual gross from limits and converts modes", async ({ 
     await page.locator("#wzNextBtn").click();
     await page.locator("#wzNextBtn").click();
     await expect(page.locator("#wzEtatSalaryPreview")).toBeVisible({ timeout: 10_000 });
-    await expect(page.locator("#wzEtatSalaryPreview .wz-salary-preview-item.is-result")).toHaveCount(1);
+    const resultValues = page.locator("#wzEtatSalaryPreview .wz-salary-preview-value.is-result");
+    await expect(resultValues).toHaveCount(2);
+    await expect(resultValues.first()).toContainText("/mies.");
+    await expect(resultValues.first()).toHaveCSS("font-weight", "700");
+    await expect(page.locator("#wzEtatSalaryPreview .wz-salary-preview-sub").first())
+        .toHaveCSS("font-weight", "500");
 
     await page.locator('label:has(input[name="wzEtatPeriod"][value="month"])').click();
     await expect(salary).toHaveValue("9417");
+    await expect(resultValues.first()).toContainText("/rok");
     await page.locator('label:has(input[name="wzEtatPeriod"][value="year"])').click();
     await expect(salary).toHaveValue("113000");
+    await expect(resultValues.first()).toContainText("/mies.");
 
     await page.locator('label:has(input[name="wzEtatSalaryMode"][value="net"])').click();
     await expect(page.locator("#wzEtatSalaryLabel")).toContainText("netto (zł/rok)");
@@ -193,6 +200,8 @@ test("step 8 allows a manual product split and submits the edited shares", async
     const exported = JSON.parse(fs.readFileSync(await download.path(), "utf8"));
     expect(exported.schema).toBe("fire-simulation/v1");
     expect(exported.source).toBe("wizard");
+    expect(exported.meta.allocation_mode).toBe("manual");
+    expect(exported.meta.allocations.broker).toBe(70);
     expect(exported.input.stages.length).toBeGreaterThan(0);
 });
 
@@ -302,6 +311,30 @@ test("manual split seeded from many accounts never exceeds 100%", async ({ page 
     );
     expect(total).toBeCloseTo(100, 5);
     await expect(page.locator("#wzManualSum")).toContainText("Suma udziałów: 100%");
+    await expectNoHorizontalOverflow(page);
+});
+
+test("manual split absorbs tiny cap overflow instead of showing cash warning", async ({ page }) => {
+    await page.goto("/wizard", { waitUntil: "networkidle" });
+    for (let step = 1; step < 8; step += 1) await page.locator("#wzNextBtn").click();
+    await expect(page.locator('.wz-step[data-step-id="strategia"]')).toBeVisible();
+    await page.waitForFunction(() => {
+        const list = document.getElementById("wzSuggestList");
+        return list
+            && !list.querySelector(".spinner")
+            && Boolean(list.querySelector(".wz-suggest-row, .wz-suggest-empty, .banner"));
+    });
+    await page.evaluate(() => {
+        wzSuggested.allocations = { ike: 51.2, ikze: 20.5, broker: 28.3 };
+        wzSuggested.pool_monthly = 4600;
+        wzManualAllocations = null;
+    });
+    await page.locator('label:has(input[name="wzAllocationMode"][value="manual"])').click();
+    await expect(page.locator("#wzManualSum")).toContainText("Suma udziałów: 100%");
+    await expect(page.locator("#wzManualSum")).not.toContainText("nadwyżka");
+    await expect(page.locator(".wz-manual-cash-row")).not.toHaveClass(/is-warning/);
+    await expect(page.locator(".wz-manual-cash-row")).toContainText("0 zł/rok");
+    await expect(page.locator('.wz-manual-alloc-row[data-account="broker"] .wz-manual-annual')).toContainText(/15\s*636/);
     await expectNoHorizontalOverflow(page);
 });
 

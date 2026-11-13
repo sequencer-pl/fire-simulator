@@ -7,6 +7,7 @@ const WZ_CONFIG_KEY = "fire.config";
 const WZ_LEGACY_CONFIG_KEY = "fire.config.anonymous";
 const WZ_LEGACY_STATE_KEY = "fire.wizardV2State";
 const WZ_LEGACY_PLAN_KEY = "fire.wizardV2Plan";
+const WZ_TINY_CASH_ANNUAL = 120;
 const WZ_STATE_SAVE_MS = 150;
 
 const WZ_RETIREMENT_DEFAULT = { k: 60, m: 65 };
@@ -999,13 +1000,22 @@ function wzSalaryLabel(mode, employment) {
     return mode === "gross" ? "Brutto" : "Netto";
 }
 
-function wzSalaryPreviewBlock(monthly, label, active, approximate) {
+function wzSalaryInputPeriod() {
+    return wzEmployment() === "etat" ? wzEtatPeriod() : "month";
+}
+
+function wzSalaryPreviewBlock(monthly, label, approximate, inputPeriod) {
     const annual = Math.round((Number(monthly) || 0) * 12);
+    const showAnnual = inputPeriod === "month";
+    const mainValue = showAnnual ? annual : monthly;
+    const mainUnit = showAnnual ? "rok" : "mies.";
+    const subValue = showAnnual ? monthly : annual;
+    const subUnit = showAnnual ? "mies." : "rok";
     return `
-        <div class="wz-salary-preview-item${active ? "" : " is-result"}">
+        <div class="wz-salary-preview-item">
             <span class="wz-salary-preview-label">${approximate ? "≈ " : ""}${escapeHtml(label)}</span>
-            <span class="wz-salary-preview-value">${fmtMoney(annual)} <span class="wz-suggest-unit">/rok</span></span>
-            <span class="wz-salary-preview-sub">${fmtMoney(monthly)}/mies.</span>
+            <span class="wz-salary-preview-value is-result">${fmtMoney(mainValue)} <span class="wz-suggest-unit">/${mainUnit}</span></span>
+            <span class="wz-salary-preview-sub">${fmtMoney(subValue)}/${subUnit}</span>
         </div>`;
 }
 
@@ -1031,10 +1041,11 @@ function wzRenderSalaryHint() {
     const otherMode = mode === "gross" ? "net" : "gross";
     const activeMonthly = mode === "gross" ? gross : net;
     const otherMonthly = mode === "gross" ? net : gross;
+    const inputPeriod = wzSalaryInputPeriod();
     box.innerHTML = `
-        ${wzSalaryPreviewBlock(activeMonthly, wzSalaryLabel(mode, employment), true, false)}
+        ${wzSalaryPreviewBlock(activeMonthly, wzSalaryLabel(mode, employment), false, inputPeriod)}
         <span class="wz-salary-preview-arrow" aria-hidden="true">↔</span>
-        ${wzSalaryPreviewBlock(otherMonthly, wzSalaryLabel(otherMode, employment), false, true)}`;
+        ${wzSalaryPreviewBlock(otherMonthly, wzSalaryLabel(otherMode, employment), true, inputPeriod)}`;
     box.hidden = false;
 }
 
@@ -1833,11 +1844,12 @@ function wzUpdateManualAllocationAmounts() {
     wzManualAllocations = { ...shares };
     const pool = wzManualAllocationPoolMonthly();
     const poolAnnual = pool * 12;
-    let totalShare = Object.values(shares).reduce((sum, share) => sum + (Number(share) || 0), 0);
-    let allocatedAnnual = 0;
-    let overCapAny = false;
+    const totalShare = Object.values(shares).reduce(
+        (sum, share) => sum + (Number(share) || 0),
+        0
+    );
 
-    WZ_ALLOCATABLE_ACCOUNTS.forEach((account) => {
+    const allocations = WZ_ALLOCATABLE_ACCOUNTS.map((account) => {
         const share = Math.max(0, Number(shares[account]) || 0);
         const others = Math.max(0, totalShare - share);
         const max = Math.max(0, 100 - others);
@@ -1851,19 +1863,49 @@ function wzUpdateManualAllocationAmounts() {
         const requestedAnnual = poolAnnual * share / 100;
         const cap = wzManualAllocationCap(account);
         const allocated = cap > 0 ? Math.min(requestedAnnual, cap) : requestedAnnual;
-        allocatedAnnual += allocated;
+        return {
+            account,
+            requestedAnnual,
+            cap,
+            allocated,
+            overCap: cap > 0 && requestedAnnual > cap + 0.01,
+        };
+    });
+
+    let allocatedAnnual = allocations.reduce((sum, item) => sum + item.allocated, 0);
+    let cashAnnual = Math.max(0, poolAnnual - allocatedAnnual);
+    const overCapAny = allocations.some((item) => item.overCap);
+
+    // Ten sam próg co backend (_resolve_allocation): drobna reszta po
+    // zaokrągleniach/limitach nie ma udawać gotówki.
+    if (cashAnnual > 0 && cashAnnual <= WZ_TINY_CASH_ANNUAL) {
+        const uncapped = allocations.filter((item) => item.cap <= 0 && item.allocated > 0);
+        if (uncapped.length) {
+            const biggest = uncapped.reduce(
+                (best, item) => (item.allocated > best.allocated ? item : best)
+            );
+            biggest.allocated += cashAnnual;
+            allocatedAnnual += cashAnnual;
+            cashAnnual = 0;
+        }
+    }
+
+    allocations.forEach(({ account, cap, allocated, overCap }) => {
         const row = document.querySelector(`.wz-manual-alloc-row[data-account="${account}"]`);
         if (!row) return;
         row.querySelector(".wz-manual-monthly").textContent = `${fmtMoney(allocated / 12)}/mies.`;
         row.querySelector(".wz-manual-annual").textContent = `${fmtMoney(allocated)}/rok`;
         const capNote = row.querySelector(".wz-manual-cap-note");
-        const overCap = cap > 0 && requestedAnnual > cap + 0.01;
-        overCapAny = overCapAny || overCap;
         capNote.hidden = !overCap;
-        capNote.textContent = overCap ? `Limit roczny ${fmtMoney(cap)} — nadwyżka w gotówce` : "";
+        if (overCap) {
+            capNote.textContent = cashAnnual > 0.5
+                ? `Limit roczny ${fmtMoney(cap)} — nadwyżka w gotówce`
+                : `Limit roczny ${fmtMoney(cap)} — reszta doliczona do innego konta`;
+        } else {
+            capNote.textContent = "";
+        }
     });
 
-    const cashAnnual = Math.max(0, poolAnnual - allocatedAnnual);
     const cashMonthly = cashAnnual / 12;
     const cashShare = poolAnnual > 0 ? (cashAnnual / poolAnnual) * 100 : 0;
     const cashPositive = cashAnnual > 0.5;
@@ -3110,6 +3152,14 @@ function wzExportPlan() {
         exported_at: new Date().toISOString(),
         source: "wizard",
         scenario: wzSelectedScenario,
+        meta: {
+            path: wzCurrentPath(),
+            target_monthly: wzCurrentPath() !== 1 ? wzNum("wzTarget", 0) : null,
+            strategy: wzRadio("wzStrategy", "zbilansowana"),
+            allocation_mode: wzAllocationMode,
+            allocations: wzCurrentAllocations(),
+            pool_monthly: Number(wzSuggested?.pool_monthly) || 0,
+        },
         input: activeInput,
     };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });

@@ -152,21 +152,14 @@ function chartDefaults() {
 /* ── Wczytywanie i obsługa JSON ──────────────────────────────── */
 
 function extractJsonItems(parsed, fallbackName) {
-    if (parsed?.schema === "fire-config/v1" || (parsed?.config && !parsed?.input && !parsed?.stages)) {
+    if (parsed?.schema === "fire-config/v1") {
         throw new Error("To plik konfiguracji (.config.json) — wczytaj go w Konfiguracji.");
     }
-    const list = Array.isArray(parsed) ? parsed : [parsed];
-    const out = [];
-    list.forEach((entry, idx) => {
-        if (!entry || typeof entry !== "object") return;
-        const input = entry.input && Array.isArray(entry.input.stages) ? entry.input : entry;
-        if (!input || !Array.isArray(input.stages)) return;
-        const baseName =
-            (typeof entry.name === "string" && entry.name.trim()) ||
-            (list.length > 1 ? `${fallbackName} #${idx + 1}` : fallbackName);
-        out.push({ name: baseName.slice(0, 200), input });
-    });
-    return out;
+    if (parsed?.schema !== "fire-simulation/v1" || !Array.isArray(parsed?.input?.stages)) {
+        throw new Error("Oczekiwano pliku .sim.json (schema fire-simulation/v1).");
+    }
+    const name = (parsed.name || fallbackName || "Plan z pliku").slice(0, 200);
+    return [{ name, input: parsed.input }];
 }
 
 async function evaluateJsonItems(rawItems) {
@@ -194,7 +187,7 @@ async function handleJsonFiles(fileList) {
         try {
             const text = await file.text();
             const parsed = JSON.parse(text);
-            const cleanName = file.name.replace(/\.json$/i, "") || "Symulacja z JSON";
+            const cleanName = file.name.replace(/\.sim\.json$|\.json$/i, "") || "Symulacja z JSON";
             const extracted = extractJsonItems(parsed, cleanName);
             if (!extracted.length) {
                 throw new Error(`Plik „${file.name}” nie zawiera poprawnych etapów symulacji.`);

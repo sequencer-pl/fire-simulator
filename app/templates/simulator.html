@@ -86,15 +86,15 @@
                         <button type="button" id="addAccumulationBtn" class="btn btn-accum btn-sm" aria-label="Dodaj etap akumulacji" title="Dodaj etap akumulacji"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span class="btn-label-long">Etap akumulacji</span><span class="btn-label-short">Akumulacja</span></button>
                         <button type="button" id="addRealizationBtn" class="btn btn-real btn-sm" aria-label="Dodaj etap realizacji" title="Dodaj etap realizacji"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span class="btn-label-long">Etap realizacji</span><span class="btn-label-short">Realizacja</span></button>
                     </div>
-                    <button type="button" id="exportSimBtn" class="btn btn-secondary" hidden>Eksportuj .sim.json</button>
+                    <button type="button" id="exportSimBtn" class="btn btn-secondary" hidden title="Eksportuj plan jako .sim.json">Eksportuj JSON</button>
                 </div>
                 <div class="action-bar-center" id="formActionsStatus"></div>
                 <div class="action-bar-right form-actions-right">
-                    <label for="importSimInput" id="importSimBtn" class="btn btn-ghost btn-sm" title="Wczytaj symulację z pliku .sim.json" aria-label="Importuj symulację z pliku .sim.json">
+                    <label for="importSimInput" id="importSimBtn" class="btn btn-ghost btn-sm" title="Wczytaj plan z pliku .sim.json" aria-label="Wczytaj plan z pliku JSON">
                         <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3M7 8l5-5 5 5M4 21h16"/></svg>
-                        <span class="import-label">Importuj</span>
+                        <span class="import-label">Wczytaj JSON</span>
                     </label>
-                    <input type="file" id="importSimInput" accept=".sim.json,.json" hidden />
+                    <input type="file" id="importSimInput" accept=".sim.json" hidden />
                     <button type="button" id="simulateBtn" class="btn btn-primary">Symuluj</button>
                     <a href="/wizard?restore=1" id="backToWizardBtn" class="btn btn-ghost btn-sm" title="Wróć do Asystenta, aby zmienić dane" aria-label="Wróć do Asystenta" hidden>
                         <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7v6h6"/><path d="M5.1 13a8 8 0 1 0 2.3-5.7L3 10"/></svg>
@@ -119,9 +119,9 @@
                 <div class="toolbar-right preset-actions" aria-label="Akcje konfiguracji">
                     <button type="button" id="configExpandBtn" class="btn btn-ghost btn-sm" aria-pressed="false">Rozwiń sekcje</button>
                     <button type="button" id="presetSaveBtn" class="btn btn-secondary btn-sm">Zapisz jako</button>
-                    <button type="button" id="presetExportBtn" class="btn btn-ghost btn-sm">Eksportuj .config.json</button>
-                    <label for="presetImportInput" class="btn btn-ghost btn-sm">Importuj .config.json</label>
-                    <input type="file" id="presetImportInput" accept=".config.json,.json" hidden />
+                    <button type="button" id="presetExportBtn" class="btn btn-ghost btn-sm" title="Eksportuj konfigurację jako .config.json">Eksportuj JSON</button>
+                    <label for="presetImportInput" class="btn btn-ghost btn-sm" title="Wczytaj konfigurację z pliku .config.json">Wczytaj JSON</label>
+                    <input type="file" id="presetImportInput" accept=".config.json" hidden />
                     <button type="button" id="configResetBtn" class="btn btn-ghost btn-sm btn-icon" title="Przywróć domyślne (Domyślne 2026)" aria-label="Przywróć domyślne">
                         <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7v6h6"/><path d="M5.1 13a8 8 0 1 0 2.3-5.7L3 10"/></svg>
                     </button>

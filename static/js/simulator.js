@@ -972,12 +972,13 @@ function initPresetBar() {
             if (parsed?.schema === "fire-simulation/v1" || parsed?.input?.stages) {
                 throw new Error("To plik symulacji (.sim.json) — wczytaj go w Porównywarce.");
             }
-            const config = parsed?.config && typeof parsed.config === "object"
-                ? parsed.config
-                : parsed;
-            if (!config || typeof config !== "object" || Array.isArray(config)) {
-                throw new Error("Plik nie zawiera konfiguracji.");
+            if (parsed?.schema !== "fire-config/v1"
+                || !parsed.config
+                || typeof parsed.config !== "object"
+                || Array.isArray(parsed.config)) {
+                throw new Error("Oczekiwano pliku .config.json (schema fire-config/v1).");
             }
+            const config = parsed.config;
             const fallback = file.name.replace(/\.config\.json$|\.json$/i, "") || "Konfiguracja z pliku";
             const name = prompt("Nazwa dla zaimportowanego presetu:", parsed?.name || fallback);
             if (!name || !name.trim()) return;
@@ -1182,15 +1183,13 @@ function simulationFileName(name) {
 }
 
 function parseSimulationInput(parsed) {
-    if (parsed?.schema === "fire-config/v1" || (parsed?.config && !parsed?.stages && !parsed?.input)) {
+    if (parsed?.schema === "fire-config/v1") {
         throw new Error("To plik konfiguracji (.config.json) — wczytaj go w Konfiguracji.");
     }
-    const item = Array.isArray(parsed) ? parsed[0] : parsed;
-    const input = item?.input && Array.isArray(item.input.stages) ? item.input : item;
-    if (!input || !Array.isArray(input.stages)) {
-        throw new Error("Brak listy etapów (.sim.json).");
+    if (parsed?.schema !== "fire-simulation/v1" || !Array.isArray(parsed?.input?.stages)) {
+        throw new Error("Oczekiwano pliku .sim.json (schema fire-simulation/v1).");
     }
-    return input;
+    return parsed.input;
 }
 
 function initSimulationIO() {

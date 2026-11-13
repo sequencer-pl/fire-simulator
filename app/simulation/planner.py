@@ -485,14 +485,14 @@ def _shelter_cap(a: WizardAnswers, config, name: str) -> float:
     return 0.0
 
 
-TINY_CASH_ANNUAL = 12.0
+TINY_CASH_ANNUAL = 120.0
 
 
 def _resolve_allocation(a: WizardAnswers, config, annual_pool: float) -> dict[str, float]:
     """Split the discretionary pool by user weights; shelters cap at annual
     limits; whatever is not assigned stays in "gotowka" (the visible sink).
 
-    Resztki zaokrągleń poniżej 1 zł/mies. nie tworzą konta gotówki — dokładamy
+    Resztki zaokrągleń poniżej 10 zł/mies. nie tworzą konta gotówki — dokładamy
     je do największego konta bez limitu, żeby nie straszyć użytkownika
     „2 zł/rok w gotówce”.
     """

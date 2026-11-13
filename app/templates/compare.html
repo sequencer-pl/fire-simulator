@@ -12,10 +12,10 @@
             <div class="btn-row cmp-head-actions">
                 <label class="btn btn-secondary btn-sm" for="cmpJsonInput">
                     <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3M7 8l5-5 5 5M4 21h16"/></svg>
-                    <span>Wczytaj .sim.json</span>
+                    <span>Wczytaj JSON</span>
                 </label>
-                <input type="file" id="cmpJsonInput" accept=".sim.json,.json,application/json" multiple hidden>
-                <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">Pliki .sim.json eksportujesz z Asystenta albo Symulatora. Możesz wczytać pojedynczy plan, kilka plików albo tablicę planów. Pliki .config.json należą do Konfiguracji.</span></span>
+                <input type="file" id="cmpJsonInput" accept=".sim.json" multiple hidden>
+                <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">Pliki .sim.json eksportujesz z Asystenta albo Symulatora. Możesz wczytać pojedynczy plan albo kilka plików. Pliki .config.json należą do Konfiguracji.</span></span>
                 <button type="button" id="cmpClearBtn" class="btn btn-ghost btn-sm hidden">Wyczyść</button>
             </div>
         </div>
@@ -25,7 +25,7 @@
             <h3>Dodaj plany do porównania</h3>
             <p>Przeciągnij tutaj od 1 do 4 plików <strong>.sim.json</strong> albo wybierz je z dysku.</p>
             <div class="btn-row">
-                <label class="btn btn-primary" for="cmpJsonInput">Wczytaj pliki .sim.json</label>
+                <label class="btn btn-primary" for="cmpJsonInput">Wczytaj JSON</label>
             </div>
             <p class="field-hint">Pliki konfiguracji (.config.json) wczytujesz w Konfiguracji.</p>
         </div>

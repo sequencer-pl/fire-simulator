@@ -91,6 +91,10 @@ bez TypeScript), pytest. Odpowiadaj i pisz UI po polsku.
   stateless `/api/compare/evaluate`; `/moje-symulacje` i `/login` przekierowują
   na `/compare`. Asystent na ekranie wyniku eksportuje aktywny scenariusz jako
   `.sim.json`; symulator robi to samo, a konfiguracja eksportuje `.config.json`.
+- **Pliki**: przyciski mówią „Wczytaj JSON” / „Eksportuj JSON”, a tooltip
+  wskazuje format. Filtry `accept` są ostre: `.sim.json` dla planów,
+  `.config.json` dla konfiguracji. Import wymaga schema
+  `fire-simulation/v1` / `fire-config/v1`; stare gołe JSON-y są odrzucane.
 - Python: pełne adnotacje typów, pydantic BaseModel dla DTO, bez zbędnych komentarzy.
 - JS: bez frameworków, funkcje nazwane, współdzielone helpery przez `window.*`
   (helpers.js: `$`, `show`, `escapeHtml`, `fmtMoney`, `fmtDateTime`, `api`; icons.js: `iconSvg`; controls.js:
@@ -305,7 +309,9 @@ bez TypeScript), pytest. Odpowiadaj i pisz UI po polsku.
   wynika z limitów: `limits.oipe_annual / 3 * 12` (2026 → 113 000 zł/rok), bez
   osobnego pola w konfiguracji. Przełączniki Brutto/Netto i Rocznie/Miesięcznie
   przeliczają kwotę; `wzSalaryTouched` blokuje nadpisanie ręcznej wartości.
-  Pod polem jest karta brutto ↔ netto z kwotą roczną i miesięczną.
+  Pod polem jest karta brutto ↔ netto. Wyróżniona (bold + akcent) jest kwota
+  w przeciwnym okresie: przy „Rocznie” — miesięczna, przy „Miesięcznie” —
+  roczna. Wpisana kwota zostaje normalną wagą i kolorem `--text-2`.
 - PPK i PPE są niezależne: w kroku etatu zaznaczamy tylko bieżące wpłaty, a salda
   (także z byłej pracy) wpisujemy w kroku kapitału. `ppk_contributions` /
   `ppe_contributions` decydują o nowych składkach; konto z samym saldem rośnie
@@ -333,6 +339,9 @@ bez TypeScript), pytest. Odpowiadaj i pisz UI po polsku.
   to `100% - suma pozostałych`, więc suma nie przekroczy 100%. Reszta i
   nadwyżki ponad limity trafiają do osobnego wiersza „Gotówka (reszta)”.
   Suma udziałów jest osobnym statusem: zielony `chip-success` przy 100%.
+  Drobna reszta po limitach/zaokrągleniach (≤ `WZ_TINY_CASH_ANNUAL`, 120 zł/rok)
+  jest doliczana do największego konta bez limitu, tak samo jak w backendowym
+  `_resolve_allocation`; dopiero większa nadwyżka pokazuje żółty wiersz gotówki.
   Przy ścieżce 2 wymaganą pulę oszczędności przeliczamy z uwzględnieniem
   udziałów ręcznych.
 - Strategia = sposób dzielenia wpłat, nie profil ryzyka. `STRATEGY_ROI`

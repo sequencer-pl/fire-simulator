@@ -26,6 +26,8 @@ Zamiast jednej magicznej liczby ("potrzebujesz 2 mln zł") pokazuje **rozpisane 
 - **Symulator** — pełna kontrola: etapy, konta, wpłaty, wypłaty i tabela rok po roku. Możesz importować i eksportować plany `.sim.json`.
 - **Porównywarka** — wczytaj od 1 do 4 plików `.sim.json` i porównaj werdykt, wypłaty, podatki, majątek i strukturę etapów. Nic nie zapisujemy na serwerze.
 
+Przyciski plików są celowo ogólne — **„Wczytaj JSON”** i **„Eksportuj JSON”**. Tooltip mówi, że plany to `.sim.json`, a konfiguracje `.config.json`; filtry plików pilnują właściwego formatu.
+
 ## Dlaczego powstał
 
 Narzędzia do planowania FIRE są zwykle oparte na rynkach amerykańskich (401k, Roth IRA, stopa wycofania 4%). W Polsce układ jest inny i nieco szerszy: cztery filary (ZUS, PPK, IKE, IKZE) plus nowe konta OKI, inny system podatkowy (skala PIT, Belka, ryczałt od IKZE) i inne progi wiekowe. Chcieliśmy narzędzie, które:

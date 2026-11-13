@@ -851,6 +851,33 @@ def test_api_invalid_path_422(client):
 # --- Allocation model (cash-sink) ---------------------------------------------
 
 
+def test_tiny_cap_overflow_is_absorbed_into_uncapped_account():
+    a = answers(
+        savings=4600,
+        allocations={"ike": 51.2, "ikze": 20.5, "broker": 28.3},
+        use_ike=True,
+        use_ikze=True,
+        use_broker=True,
+    )
+    alloc = _resolve_allocation(a, default_config(), 55_200)
+    assert alloc.get("gotowka", 0) == 0
+    assert alloc["ike"] == pytest.approx(28_260, abs=0.01)
+    assert alloc["ikze"] == pytest.approx(11_304, abs=0.01)
+    assert alloc["broker"] == pytest.approx(15_636, abs=0.01)
+
+
+def test_large_cap_overflow_still_goes_to_cash():
+    a = answers(
+        savings=5000,
+        allocations={"ike": 51.2, "ikze": 20.5, "broker": 28.3},
+        use_ike=True,
+        use_ikze=True,
+        use_broker=True,
+    )
+    alloc = _resolve_allocation(a, default_config(), 60_000)
+    assert alloc.get("gotowka", 0) > 0
+
+
 def test_allocation_split():
     alloc = _resolve_allocation(answers(allocations={"broker": 100}), default_config(), 12_000)
     assert alloc.get("broker") == 12_000

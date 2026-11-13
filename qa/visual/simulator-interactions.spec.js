@@ -18,7 +18,7 @@ test("import symulacji jest widoczny i nie rozpycha paska akcji", async ({ page 
     await page.goto("/sim", { waitUntil: "networkidle" });
     const btn = page.locator("#importSimBtn");
     await expect(btn).toBeVisible();
-    await expect(btn).toHaveAttribute("aria-label", "Importuj symulację z pliku .sim.json");
+    await expect(btn).toHaveAttribute("aria-label", "Wczytaj plan z pliku JSON");
 
     const bar = page.locator("#formActions");
     const barBox = await bar.boundingBox();
@@ -104,6 +104,7 @@ test("nazwa etapu z importu jest escapowana", async ({ page }) => {
     await page.goto("/sim", { waitUntil: "networkidle" });
     const evil = '"><img src=x onerror=alert(1)>';
     const payload = {
+        schema: "fire-simulation/v1",
         name: "xss",
         input: {
             stages: [
@@ -129,7 +130,7 @@ test("nazwa etapu z importu jest escapowana", async ({ page }) => {
     });
 
     await page.setInputFiles("#importSimInput", {
-        name: "xss.json",
+        name: "xss.sim.json",
         mimeType: "application/json",
         buffer: Buffer.from(JSON.stringify(payload)),
     });

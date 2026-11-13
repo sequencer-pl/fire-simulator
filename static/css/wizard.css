@@ -1304,20 +1304,22 @@
 }
 
 .wz-salary-preview-value {
-    font-weight: 700;
+    font-weight: 500;
+    color: var(--text-2);
     font-variant-numeric: tabular-nums;
     overflow-wrap: anywhere;
 }
 
-.wz-salary-preview-sub {
-    font-size: var(--fs-xs);
-    color: var(--text-2);
-    font-variant-numeric: tabular-nums;
-}
-
-.wz-salary-preview-item.is-result .wz-salary-preview-value {
+.wz-salary-preview-value.is-result {
     color: var(--primary-text);
     font-weight: 700;
+}
+
+.wz-salary-preview-sub {
+    font-size: var(--fs-xs);
+    font-weight: 500;
+    color: var(--text-3);
+    font-variant-numeric: tabular-nums;
 }
 
 .wz-salary-preview-arrow {
