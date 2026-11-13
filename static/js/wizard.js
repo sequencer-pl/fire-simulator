@@ -565,10 +565,9 @@ function wzUpdateActions() {
     next.classList.toggle("btn-primary", !(planReady && !wzPlanLoading));
     const exportBtn = wzEl("wzExportBtn");
     if (exportBtn) {
-        exportBtn.classList.toggle(
-            "hidden",
-            !(wzCurrentStep === "wynik" && planReady && !wzPlanLoading)
-        );
+        const exportVisible = wzCurrentStep === "wynik" && planReady && !wzPlanLoading;
+        exportBtn.classList.toggle("hidden", !exportVisible);
+        wzEl("wzFooter")?.classList.toggle("has-export", exportVisible);
     }
 }
 
@@ -1789,6 +1788,48 @@ function wzNormalizeManualShares(shares, { exact = false } = {}) {
     return normalized;
 }
 
+function wzManualAllocationMaxShare(account, poolAnnual) {
+    const cap = wzManualAllocationCap(account);
+    if (cap <= 0 || poolAnnual <= 0) return 100;
+    const share = (cap / poolAnnual) * 100;
+    return Math.max(0, Math.min(100, Math.ceil((share - 1e-9) * 10) / 10));
+}
+
+function wzRebalanceManualShares(movedAccount, shares) {
+    const units = Object.fromEntries(
+        WZ_ALLOCATABLE_ACCOUNTS.map((account) => [
+            account,
+            Math.max(0, Math.round((Number(shares[account]) || 0) * 10)),
+        ])
+    );
+    let excess = Object.values(units).reduce((sum, value) => sum + value, 0) - 1000;
+    if (excess <= 0) return shares;
+
+    const candidates = WZ_ALLOCATABLE_ACCOUNTS
+        .filter((account) => account !== movedAccount && units[account] > 0)
+        .sort((a, b) => {
+            const cappedA = wzManualAllocationCap(a) > 0 ? 1 : 0;
+            const cappedB = wzManualAllocationCap(b) > 0 ? 1 : 0;
+            if (cappedA !== cappedB) return cappedA - cappedB;
+            return units[b] - units[a];
+        });
+
+    for (const account of candidates) {
+        if (excess <= 0) break;
+        const take = Math.min(units[account], excess);
+        units[account] -= take;
+        excess -= take;
+    }
+
+    const next = Object.fromEntries(
+        WZ_ALLOCATABLE_ACCOUNTS.map((account) => [account, units[account] / 10])
+    );
+    WZ_ALLOCATABLE_ACCOUNTS.forEach((account) => {
+        wzSetManualShare(account, next[account]);
+    });
+    return next;
+}
+
 function wzRenderManualAllocation() {
     const box = wzEl("wzSuggestList");
     if (!box || !wzSuggested) return;
@@ -1851,8 +1892,7 @@ function wzUpdateManualAllocationAmounts() {
 
     const allocations = WZ_ALLOCATABLE_ACCOUNTS.map((account) => {
         const share = Math.max(0, Number(shares[account]) || 0);
-        const others = Math.max(0, totalShare - share);
-        const max = Math.max(0, 100 - others);
+        const max = wzManualAllocationMaxShare(account, poolAnnual);
         const input = wzManualShareInput(account);
         const range = wzManualShareRange(account);
         if (input) input.max = wzManualShareAttr(max);
@@ -1868,13 +1908,15 @@ function wzUpdateManualAllocationAmounts() {
             requestedAnnual,
             cap,
             allocated,
-            overCap: cap > 0 && requestedAnnual > cap + 0.01,
+            atMax: cap > 0 && share >= max - 0.05,
+            overCap: cap > 0 && share > max + 0.05,
+            maxShare: max,
         };
     });
 
     let allocatedAnnual = allocations.reduce((sum, item) => sum + item.allocated, 0);
     let cashAnnual = Math.max(0, poolAnnual - allocatedAnnual);
-    const overCapAny = allocations.some((item) => item.overCap);
+    const overCapAny = allocations.some((item) => item.atMax);
 
     // Ten sam próg co backend (_resolve_allocation): drobna reszta po
     // zaokrągleniach/limitach nie ma udawać gotówki.
@@ -1890,17 +1932,19 @@ function wzUpdateManualAllocationAmounts() {
         }
     }
 
-    allocations.forEach(({ account, cap, allocated, overCap }) => {
+    allocations.forEach(({ account, cap, allocated, atMax, overCap }) => {
         const row = document.querySelector(`.wz-manual-alloc-row[data-account="${account}"]`);
         if (!row) return;
         row.querySelector(".wz-manual-monthly").textContent = `${fmtMoney(allocated / 12)}/mies.`;
         row.querySelector(".wz-manual-annual").textContent = `${fmtMoney(allocated)}/rok`;
         const capNote = row.querySelector(".wz-manual-cap-note");
-        capNote.hidden = !overCap;
-        if (overCap) {
-            capNote.textContent = cashAnnual > 0.5
-                ? `Limit roczny ${fmtMoney(cap)} — nadwyżka w gotówce`
-                : `Limit roczny ${fmtMoney(cap)} — reszta doliczona do innego konta`;
+        capNote.hidden = cap <= 0;
+        capNote.classList.toggle("is-warning", overCap || (atMax && cashAnnual > 0.5));
+        if (cap > 0) {
+            capNote.textContent = `Limit roczny: ${fmtMoney(cap)}`;
+            if (overCap || (atMax && cashAnnual > 0.5)) {
+                capNote.textContent += " — nadwyżka w gotówce";
+            }
         } else {
             capNote.textContent = "";
         }
@@ -1945,17 +1989,21 @@ function wzUpdateManualAllocationInput(target) {
         : (target?.matches?.(".wz-manual-share") ? target : null);
     if (input && range) input.value = range.value;
     if (input && account) {
-        const shares = wzManualAllocationShares();
-        const others = Object.entries(shares)
-            .filter(([key]) => key !== account)
-            .reduce((sum, [, value]) => sum + (Number(value) || 0), 0);
-        const max = Math.max(0, 100 - others);
+        const max = wzManualAllocationMaxShare(
+            account,
+            wzManualAllocationPoolMonthly() * 12
+        );
         const current = Math.max(0, Math.min(max, parseFloat(input.value) || 0));
         input.value = wzManualShareAttr(current);
         const pairedRange = wzManualShareRange(account);
         if (pairedRange) pairedRange.value = input.value;
+        wzManualAllocations = wzRebalanceManualShares(
+            account,
+            wzManualAllocationShares()
+        );
+    } else {
+        wzManualAllocations = wzManualAllocationShares();
     }
-    wzManualAllocations = wzManualAllocationShares();
     wzFormVersion += 1;
     wzPlan = null;
     wzPlanSignature = "";

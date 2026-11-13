@@ -262,9 +262,12 @@ bez TypeScript), pytest. Odpowiadaj i pisz UI po polsku.
   przycisk rozszerzenia + poziomy zoom/slider.
   Po gotowym planie przycisk kroku 6 zmienia się na `btn-real`
   „Dostosuj w symulatorze”; `finishWizard` zapisuje draft i przechodzi do
-  `/sim?wizard=1`. Symulator **automatycznie uruchamia** `/api/simulate`
-  i pokazuje wynik (bez drugiego kliknięcia „Symuluj”). W widoku wyników pasek
-  akcji ma eksport/zapis po lewej, a `#backToWizardBtn` (`/wizard?restore=1`)
+  `/sim?wizard=1`. Na ekranie wyniku w lewej części belki jest też
+  „Eksportuj JSON” (na mobile sama ikona; licznik kroku jest wtedy ukryty,
+  żeby przyciski się nie nachodziły). Symulator **automatycznie uruchamia**
+  `/api/simulate` i pokazuje wynik (bez drugiego kliknięcia „Symuluj”).
+  W widoku wyników pasek
+  akcji ma eksport po lewej, a `#backToWizardBtn` (`/wizard?restore=1`)
   i „Edytuj etapy” po prawej; w trybie edycji powrót jest w banerze, bo pasek
   jest zbyt wąski na dodatkowy przycisk. Gotowy plan jest cache'owany w
   `fire.wizardPlan`; `restore=1` wraca na krok 6 bez ponownego `/api/wizard/plan`,
@@ -335,9 +338,12 @@ bez TypeScript), pytest. Odpowiadaj i pisz UI po polsku.
   w suwaku mieści maksymalną dozwoloną wartość — nie wystarczy, że nie
   powoduje poziomego scrolla strony.
 - Krok strategii wpłat oferuje tryb automatyczny i ręczny. Udziały ręczne są
-  procentami miesięcznej puli; każdy wiersz ma pole i suwak, a maksimum udziału
-  to `100% - suma pozostałych`, więc suma nie przekroczy 100%. Reszta i
-  nadwyżki ponad limity trafiają do osobnego wiersza „Gotówka (reszta)”.
+  procentami miesięcznej puli; każdy wiersz ma pole i suwak. Maksimum suwaka
+  wynika z limitu konta (IKE/IKZE/OIPE), a nie tylko z sumy 100%: np. IKZE
+  11 304 zł przy puli 4 600 zł/mies. kończy się na 20,5% i 11 304 zł/rok.
+  Zwiększanie jednego suwaka zdejmuje nadwyżkę z innych kont (najpierw
+  największe bez limitu), więc można dojść do maksimum konta bez ręcznego
+  zmniejszania sąsiadów. Suma nadal nie przekracza 100%.
   Suma udziałów jest osobnym statusem: zielony `chip-success` przy 100%.
   Drobna reszta po limitach/zaokrągleniach (≤ `WZ_TINY_CASH_ANNUAL`, 120 zł/rok)
   jest doliczana do największego konta bez limitu, tak samo jak w backendowym

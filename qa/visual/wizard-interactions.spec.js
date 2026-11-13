@@ -191,7 +191,14 @@ test("step 8 allows a manual product split and submits the edited shares", async
     await expect(page.locator("#wzResult")).toBeVisible({ timeout: 30_000 });
     expect(submittedAllocations).toEqual({ broker: 70, lokata: 30 });
 
-    await expect(page.locator("#wzExportBtn")).toBeVisible();
+    await expect(page.locator("#wzFooter #wzExportBtn")).toBeVisible();
+    if (page.viewportSize().width <= 640) {
+        await expect(page.locator("#wzStepCount")).toBeHidden();
+        const footer = page.locator("#wzFooter");
+        expect(await footer.evaluate((el) => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(1);
+        const exportBox = await page.locator("#wzExportBtn").boundingBox();
+        expect(Math.round(exportBox.width)).toBe(34);
+    }
     const [download] = await Promise.all([
         page.waitForEvent("download"),
         page.locator("#wzExportBtn").click(),
@@ -225,13 +232,14 @@ test("manual split prevents totals above 100% and exposes sliders and cash row",
     await page.locator('.wz-manual-share[data-account="broker"]').fill("80");
     await page.locator('.wz-manual-share[data-account="lokata"]').fill("50");
 
-    await expect(page.locator('.wz-manual-share[data-account="lokata"]')).toHaveValue("20");
+    await expect(page.locator('.wz-manual-share[data-account="lokata"]')).toHaveValue("50");
+    await expect(page.locator('.wz-manual-share[data-account="broker"]')).toHaveValue("50");
     await expect(page.locator("#wzManualSum")).toContainText("Suma udziałów: 100%");
     await expect(page.locator(".wz-manual-cash-row")).toContainText("0 zł/mies.");
     await expect(page.locator(".wz-manual-cash-row")).toHaveClass(/is-clear/);
 
     await page.locator('.wz-manual-share[data-account="lokata"]').fill("10");
-    await expect(page.locator("#wzManualSum")).toContainText("Suma udziałów: 90%");
+    await expect(page.locator("#wzManualSum")).toContainText("Suma udziałów: 60%");
     await expect(page.locator(".wz-manual-cash-row")).toHaveClass(/is-warning/);
     await expectNoHorizontalOverflow(page);
 });
@@ -335,6 +343,48 @@ test("manual split absorbs tiny cap overflow instead of showing cash warning", a
     await expect(page.locator(".wz-manual-cash-row")).not.toHaveClass(/is-warning/);
     await expect(page.locator(".wz-manual-cash-row")).toContainText("0 zł/rok");
     await expect(page.locator('.wz-manual-alloc-row[data-account="broker"] .wz-manual-annual')).toContainText(/15\s*636/);
+    await expectNoHorizontalOverflow(page);
+});
+
+test("manual sliders stop exactly at annual account limits", async ({ page }) => {
+    await page.goto("/wizard", { waitUntil: "networkidle" });
+    for (let step = 1; step < 8; step += 1) await page.locator("#wzNextBtn").click();
+    await expect(page.locator('.wz-step[data-step-id="strategia"]')).toBeVisible();
+    await page.waitForFunction(() => {
+        const list = document.getElementById("wzSuggestList");
+        return list
+            && !list.querySelector(".spinner")
+            && Boolean(list.querySelector(".wz-suggest-row, .wz-suggest-empty, .banner"));
+    });
+    await page.evaluate(() => {
+        wzSuggested.allocations = { ike: 40, ikze: 10, broker: 50 };
+        wzSuggested.pool_monthly = 4600;
+        wzManualAllocations = null;
+    });
+    await page.locator('label:has(input[name="wzAllocationMode"][value="manual"])').click();
+
+    const ike = page.locator('.wz-manual-share[data-account="ike"]');
+    const ikze = page.locator('.wz-manual-share[data-account="ikze"]');
+    await expect(ike).toHaveAttribute("max", "51.2");
+    await expect(ikze).toHaveAttribute("max", "20.5");
+
+    await ike.fill("100");
+    await expect(ike).toHaveValue("51.2");
+    await expect(page.locator('.wz-manual-alloc-row[data-account="ike"] .wz-manual-annual'))
+        .toContainText(/28\s*260/);
+    await expect(page.locator('.wz-manual-alloc-row[data-account="ike"] .wz-manual-monthly'))
+        .toContainText(/2\s*355/);
+
+    await ikze.fill("100");
+    await expect(ikze).toHaveValue("20.5");
+    await expect(page.locator('.wz-manual-alloc-row[data-account="ikze"] .wz-manual-annual'))
+        .toContainText(/11\s*304/);
+    await expect(page.locator('.wz-manual-alloc-row[data-account="ikze"] .wz-manual-monthly'))
+        .toContainText(/942/);
+
+    await expect(page.locator("#wzManualSum")).toContainText("Suma udziałów: 100%");
+    await expect(page.locator("#wzManualSum")).not.toContainText("nadwyżka");
+    await expect(page.locator(".wz-manual-cash-row")).not.toHaveClass(/is-warning/);
     await expectNoHorizontalOverflow(page);
 });
 

@@ -830,9 +830,6 @@
         <div id="wzResult" class="wz-result hidden">
             <div id="wzResultError" class="banner banner-danger hidden"></div>
             <div id="wzHeroAnswer" class="wz-hero-answer"></div>
-            <div class="wz-result-actions">
-                <button type="button" class="btn btn-secondary hidden" id="wzExportBtn">Eksportuj JSON</button>
-            </div>
             <div id="wzScenariosBox" class="wz-scenarios-box"></div>
             <div class="wz-metric-line" id="wzMetrics"></div>
             <div id="wzFacts" class="wz-fact-row"></div>
@@ -885,6 +882,10 @@
     <nav class="action-bar wz-footer" id="wzFooter" aria-label="Nawigacja asystenta">
         <div class="action-bar-left wz-footer-left">
             <button type="button" class="btn btn-ghost" id="wzBackBtn">Wstecz</button>
+            <button type="button" class="btn btn-secondary hidden" id="wzExportBtn" title="Eksportuj plan jako .sim.json">
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M4 21h16"/></svg>
+                <span class="btn-label-long">Eksportuj JSON</span>
+            </button>
         </div>
         <span class="action-bar-center wz-step-count" id="wzStepCount">Krok 1 / 9</span>
         <div class="action-bar-right wz-footer-right">
