@@ -78,6 +78,14 @@ nie dopisuje własnych kolorów, rozmiarów ani promieni.
 | | `--danger` | `#f26d6d` | |
 | Marka | `--brand-flame-*`, `--brand-tile-*` | gradient płomienia i ramki | tylko logo |
 
+Serie kont na wykresach Asystenta mają stałe tokeny `--acct-*`
+(`--acct-zus`, `--acct-ike`, `--acct-broker` itd.). Kolor identyfikuje konto
+w obu wykresach, a nie stan ani interakcję; legenda i tooltip są jedynym
+miejscem, gdzie ta tożsamość jest opisana. Wypełnienie area to pionowy
+gradient od 64% do 12% krycia z cienką krawędzią w kolorze konta — bez
+płaskich, w pełni kryjących plam. Próbki legendy używają mocniejszego
+gradientu 82% → 32%, żeby pozostały czytelne w małym rozmiarze.
+
 Przezroczyste warianty robimy przez `color-mix(in srgb, var(--x) 12%,
 transparent)`; nie wpisujemy `rgba()` z liczbami.
 

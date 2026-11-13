@@ -257,6 +257,18 @@ const harness = `
                     total_health: 0,
                     lump_tax: 0,
                 }],
+                chart: (() => {
+                    const ages = Array.from({ length: 31 }, (_, index) => 35 + index);
+                    return {
+                        ages,
+                        withdrawals_net: {
+                            broker: ages.map((age) => (age >= 55 ? 50000 : 0)),
+                        },
+                        balances: {
+                            broker: ages.map((age) => Math.max(0, 1000000 - Math.max(0, age - 55) * 100000)),
+                        },
+                    };
+                })(),
                 warnings: [],
             },
             solved: { feasible: true, retire_early_age: 55 },
@@ -274,6 +286,12 @@ const harness = `
             && document.querySelectorAll("#wzWealthDetails .wz-wealth-row").length === 3
             && document.querySelectorAll("#wzFacts .wz-fact").length >= 1
             && document.getElementById("wzPolicyNote").textContent.includes("Najpierw");
+    });
+    check("wynik: wykresy wypłat i kapitału renderują się", () => {
+        return Boolean(document.querySelector("#wzWithdrawalsChart svg"))
+            && Boolean(document.querySelector("#wzCapitalChart svg"))
+            && document.querySelectorAll("#wzWithdrawalsLegend .wz-chart-legend-item").length > 0
+            && document.querySelectorAll("#wzCapitalLegend .wz-chart-legend-item").length > 0;
     });
     check("restore: ?restore=1 odtwarza krok wyniku z zapisanego planu", () => {
         localStorage.removeItem("fire.wizardState");

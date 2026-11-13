@@ -251,10 +251,13 @@ bez TypeScript), pytest. Odpowiadaj i pisz UI po polsku.
   „Warto wiedzieć”; przed nowym planem `resetPlanResult()` czyści stary wynik
   i `wzPlan`. Hierarchia wyniku:
   1. `#wzHeroAnswer` — odpowiedź na pytanie użytkownika + krótki kontekst,
-  2. `#wzScenariosBox` — 3 klikalne karty z widocznym hintem,
+  2. `#wzScenariosBox` + `#wzWarnings` — 3 klikalne karty, a bezpośrednio
+     pod nimi ostrzeżenia zależne od scenariusza (bez dodatkowego nagłówka),
   3. `#wzMetrics` — 3 metryki zależne od ścieżki,
   4. **`#wzTimeline` + `#wzFlowsWrap`/`#wzFlowsGantt`** — etapy życia i konta
-     w jednym bloku „Twój plan w czasie”, zawsze widoczne,
+     w jednym bloku „Twój plan w czasie”, zawsze widoczne; nagłówek
+     „Etapy życia” jest tylko dla czytników ekranu, a sekcja wypłat nosi tytuł
+     „Z czego żyjesz w kolejnych latach”,
   5. `#wzDetails` — zwijane „Dane szczegółowe”: majątek, ulgi/podatki,
      tabela przepływów i „Jak czytać ten plan?”.
   **Nie ma `#wzPhaseTable` ani `#wzStageSummaryList`** — ich rolę przejmuje
@@ -291,10 +294,17 @@ bez TypeScript), pytest. Odpowiadaj i pisz UI po polsku.
   obok kwoty (`.wz-flow-tax-cell .tip`), a główna kwota pozostaje widoczna. „Razem netto” jest już po obu obciążeniach.
   Tooltip Gantta na hover pojawia się po ~0,9 s (`GANTT_TIP_HOVER_DELAY`),
   żeby nie wyskakiwał podczas przejeżdżania myszą; klik/tap pokazuje od razu.
-  Gantt ma wiersz „Razem” z sumą wypłat po okresach, podpis
-  „Łącznie wypłacono netto”, a na mobile jest przewijany w poziomie ze sticky
-  etykietami kont. Klik karty scenariusza ustawia `wzSelectedScenario` i
-  przerenderowuje cały wynik (`renderScenarioResult`). Wybór scenariusza zapisywany
+  Gantt ma wiersz „Razem” z sumą wypłat po okresach, a pod nim osobne kwoty
+  „Z portfela prywatnego FIRE: … zł netto” i „Z ZUS: … zł netto” (linia ZUS
+  znika, gdy ZUS nic nie wypłaca). Na mobile jest przewijany w poziomie ze
+  sticky etykietami kont. Pod Ganttem są dwa wykresy: „Wypłaty netto w czasie”
+  (stack rocznych wypłat netto per konto, z ZUS) i „Kapitał prywatny FIRE”
+  (stack sald na koniec roku, bez ZUS/OFE). Serie liczy planner w
+  `PlanProjection.chart` (`ages`, `withdrawals_net`, `balances`); kolory kont
+  to stałe tokeny `--acct-*`, a szczegóły pokazuje wspólny tooltip
+  `#wzChartTip` (kwota, udział, rozbicie kont wielokrotnych). Klik karty
+  scenariusza ustawia `wzSelectedScenario` i przerenderowuje cały wynik
+  (`renderScenarioResult`). Wybór scenariusza zapisywany
   w `localStorage`, odtwarzany przez `/wizard?restore=1`. Wejście z kroku 5 od razu
   uruchamia `runPlan()`.
 

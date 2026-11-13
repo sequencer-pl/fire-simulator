@@ -762,6 +762,9 @@ def test_api_path1(client):
     assert body["input"]["stages"]
     assert body["projection"]["stage_metrics"]
     assert body["projection"]["phase_metrics"]
+    assert body["projection"]["chart"]["ages"]
+    assert body["projection"]["chart"]["withdrawals_net"]
+    assert body["projection"]["chart"]["balances"]
     assert list(body["scenarios"]) == ["konserwatywne", "realne", "optymistyczne"]
     assert list(body["scenario_projections"]) == ["konserwatywne", "realne", "optymistyczne"]
     assert list(body["scenario_solved"]) == ["konserwatywne", "realne", "optymistyczne"]
@@ -1360,3 +1363,30 @@ def test_account_phases_split_by_tax_windows_and_amount():
     assert zus[0].total_net == pytest.approx(
         zus[0].total_gross - zus[0].total_tax - zus[0].total_health, abs=0.02
     )
+
+
+def test_projection_chart_is_net_and_excludes_zus_capital():
+    r = plan(1, answers(use_zus=True, capital={"broker": 200_000}))
+    chart = r.projection.chart
+    simulation = simulate(r.input)
+
+    assert chart.ages == [year.age for year in simulation.years]
+    assert "zus" in chart.withdrawals_net
+    assert "broker" in chart.withdrawals_net
+    assert "broker" in chart.balances
+    assert "zus" not in chart.balances
+    assert "zus:ofe" not in chart.balances
+    assert all(len(values) == len(chart.ages) for values in chart.withdrawals_net.values())
+    assert all(len(values) == len(chart.ages) for values in chart.balances.values())
+
+    payout = next(
+        year for year in simulation.years if year.withdrawals.get("broker", 0) > 0
+    )
+    index = chart.ages.index(payout.age)
+    expected = (
+        payout.withdrawals["broker"]
+        - max(0.0, payout.taxes.get("broker", 0.0))
+        - max(0.0, payout.health.get("broker", 0.0))
+    )
+    assert chart.withdrawals_net["broker"][index] == pytest.approx(expected, abs=0.1)
+    assert any(value > 0 for value in chart.withdrawals_net["zus"])

@@ -831,11 +831,11 @@
 
             <section class="wz-answer-block">
                 <div id="wzHeroAnswer" class="wz-hero-answer"></div>
-                <div id="wzWarnings" class="wz-warnings" aria-live="polite"></div>
             </section>
 
             <section class="wz-scenarios-section" id="wzScenariosSection">
                 <div id="wzScenariosBox" class="wz-scenarios-box"></div>
+                <div id="wzWarnings" class="wz-warnings" aria-live="polite"></div>
             </section>
 
             <div id="wzMetrics" class="metric-grid wz-summary"></div>
@@ -848,16 +848,15 @@
                             <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">Górna oś pokazuje etapy życia. Pasek kont pokazuje, z których kont pochodzą wpłaty i wypłaty w danym wieku. Kliknij etap albo pasek, aby zobaczyć szczegóły.</span></span>
                         </span>
                     </h3>
-                    <span class="wz-section-hint">Kliknij etap lub pasek konta, aby zobaczyć szczegóły.</span>
                 </div>
 
                 <div class="wz-plan-block">
-                    <h4 class="wz-plan-subhead">Etapy życia</h4>
+                    <h4 class="wz-plan-subhead visually-hidden">Etapy życia</h4>
                     <div class="wz-timeline" id="wzTimeline"></div>
                 </div>
 
                 <div class="wz-flows-wrap" id="wzFlowsWrap">
-                    <h4 class="wz-plan-subhead">Skąd pochodzą wypłaty</h4>
+                    <h4 class="wz-plan-subhead">Z czego żyjesz w kolejnych latach</h4>
                     <div class="wz-flows-gantt-scroll">
                         <div class="wz-flows-gantt" id="wzFlowsGantt"></div>
                     </div>
@@ -867,6 +866,28 @@
                         <div id="wzGanttTipBody"></div>
                     </div>
                     <p class="wz-flows-total-note" id="wzFlowsTotal"></p>
+                </div>
+
+                <div class="wz-charts-wrap hidden" id="wzChartsWrap">
+                    <section class="wz-chart-card" aria-labelledby="wzWithdrawalsTitle">
+                        <div class="wz-chart-head">
+                            <h4 class="wz-plan-subhead" id="wzWithdrawalsTitle">Wypłaty netto w czasie</h4>
+                            <div class="wz-chart-legend" id="wzWithdrawalsLegend"></div>
+                        </div>
+                        <div class="wz-chart" id="wzWithdrawalsChart"></div>
+                    </section>
+                    <section class="wz-chart-card" aria-labelledby="wzCapitalTitle">
+                        <div class="wz-chart-head">
+                            <h4 class="wz-plan-subhead" id="wzCapitalTitle">Kapitał prywatny FIRE</h4>
+                            <div class="wz-chart-legend" id="wzCapitalLegend"></div>
+                        </div>
+                        <div class="wz-chart" id="wzCapitalChart"></div>
+                    </section>
+                </div>
+
+                <div class="wz-gantt-tip hidden" id="wzChartTip" role="tooltip">
+                    <button type="button" class="wz-gantt-tip-close" id="wzChartTipClose" aria-label="Zamknij podpowiedź">×</button>
+                    <div id="wzChartTipBody"></div>
                 </div>
             </section>
 

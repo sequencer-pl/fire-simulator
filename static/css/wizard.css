@@ -25,7 +25,11 @@
     pointer-events: none;
 }
 
-.wz-step { container-type: inline-size; min-width: 0; }
+.wz-step { min-width: 0; }
+
+/* Container query potrzebny tylko w kroku strategii. Containment na całym
+   kroku wyniku tworzył stacking context i chował tooltipy pod paskiem akcji. */
+.wz-step[data-step-id="strategia"] { container-type: inline-size; }
 
 .wz-step > h2 { margin-bottom: var(--sp-2); }
 
@@ -452,13 +456,20 @@
 
 .wz-section-head .wz-panel-title { margin-bottom: 0; }
 
-.wz-section-hint {
-    margin: 0;
-    color: var(--text-3);
-    font-size: var(--fs-sm);
+.wz-summary {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    overflow: visible;
 }
 
-.wz-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.wz-summary .metric:first-child {
+    border-top-left-radius: calc(var(--r-md) - 1px);
+    border-bottom-left-radius: calc(var(--r-md) - 1px);
+}
+
+.wz-summary .metric:last-child {
+    border-top-right-radius: calc(var(--r-md) - 1px);
+    border-bottom-right-radius: calc(var(--r-md) - 1px);
+}
 
 .wz-summary .metric-label {
     white-space: normal;
@@ -506,10 +517,20 @@
 .wz-wealth {
     display: grid;
     gap: 1px;
-    overflow: hidden;
+    overflow: visible;
     border: 1px solid var(--border);
     border-radius: var(--r-md);
     background: var(--border);
+}
+
+.wz-wealth-row:first-child {
+    border-top-left-radius: calc(var(--r-md) - 1px);
+    border-top-right-radius: calc(var(--r-md) - 1px);
+}
+
+.wz-wealth-row:last-child {
+    border-bottom-left-radius: calc(var(--r-md) - 1px);
+    border-bottom-right-radius: calc(var(--r-md) - 1px);
 }
 
 .wz-wealth-row {
@@ -743,6 +764,15 @@
 
 @media (max-width: 640px) {
     .wz-summary { grid-template-columns: 1fr; }
+
+    .wz-summary .metric:first-child {
+        border-radius: calc(var(--r-md) - 1px) calc(var(--r-md) - 1px) 0 0;
+    }
+
+    .wz-summary .metric:last-child {
+        border-radius: 0 0 calc(var(--r-md) - 1px) calc(var(--r-md) - 1px);
+    }
+
     .wz-step { padding: var(--sp-4); }
 
     .wz-salary-title { width: 100%; justify-content: space-between; }
@@ -1095,6 +1125,10 @@
     font-size: var(--fs-sm);
     font-weight: 600;
 }
+
+.wz-flows-total-line { display: block; }
+
+.wz-flows-total-line + .wz-flows-total-line { margin-top: 2px; }
 
 .wz-flows-scroll-hint { display: none; }
 
@@ -1913,4 +1947,281 @@
     }
 
     #wzExportBtn .btn-label-long { display: none; }
+}
+
+/* --- Krok 9: wykresy wypłat i kapitału ------------------------------------ */
+
+.wz-charts-wrap {
+    display: grid;
+    gap: var(--sp-3);
+    min-width: 0;
+}
+
+.wz-chart-card {
+    min-width: 0;
+    padding: var(--sp-3);
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+    background: var(--surface);
+}
+
+.wz-chart-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--sp-1) var(--sp-4);
+    margin-bottom: var(--sp-2);
+}
+
+.wz-chart-legend {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 3px var(--sp-3);
+    min-width: 0;
+}
+
+.wz-chart-legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    color: var(--text-2);
+    font-size: var(--fs-xs);
+    line-height: 1.3;
+    white-space: nowrap;
+}
+
+.wz-chart-swatch {
+    width: 11px;
+    height: 11px;
+    flex: 0 0 auto;
+    border-radius: 3px;
+    background: linear-gradient(
+        180deg,
+        color-mix(in srgb, var(--chart-color, var(--text-3)) 82%, transparent),
+        color-mix(in srgb, var(--chart-color, var(--text-3)) 32%, transparent)
+    );
+}
+
+.wz-chart {
+    position: relative;
+    min-width: 0;
+}
+
+.wz-chart-svg {
+    display: block;
+    width: 100%;
+    height: auto;
+    max-width: 100%;
+    touch-action: pan-y;
+    cursor: crosshair;
+    animation: wz-chart-reveal 320ms ease-out both;
+}
+
+.wz-chart-svg:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+    border-radius: var(--r-sm);
+}
+
+.wz-chart-plot-bg { fill: var(--surface-2); }
+
+.wz-chart-grid {
+    stroke: var(--border);
+    stroke-width: 1;
+    opacity: 0.55;
+    vector-effect: non-scaling-stroke;
+}
+
+.wz-chart-grid-v {
+    stroke: var(--border);
+    stroke-width: 1;
+    opacity: 0.3;
+    vector-effect: non-scaling-stroke;
+}
+
+.wz-chart-axis-text,
+.wz-chart-unit {
+    fill: var(--text-3);
+    font-family: var(--font);
+    font-size: var(--fs-xs);
+    font-variant-numeric: tabular-nums;
+}
+
+.wz-chart-axis-text {
+    dominant-baseline: middle;
+}
+
+.wz-chart-area { stroke: none; }
+
+.wz-chart-stop-top {
+    stop-color: var(--chart-color, var(--acct-other));
+    stop-opacity: 0.64;
+}
+
+.wz-chart-stop-bottom {
+    stop-color: var(--chart-color, var(--acct-other));
+    stop-opacity: 0.12;
+}
+
+.wz-chart-edge {
+    fill: none;
+    stroke: var(--chart-color, var(--acct-other));
+    stroke-width: 1.1;
+    stroke-opacity: 0.85;
+    vector-effect: non-scaling-stroke;
+}
+
+.wz-chart-total {
+    fill: none;
+    stroke: var(--text-2);
+    stroke-width: 1.6;
+    stroke-opacity: 0.9;
+    stroke-linejoin: round;
+    stroke-linecap: round;
+    vector-effect: non-scaling-stroke;
+}
+
+.wz-chart-hover-band {
+    fill: var(--surface-hover);
+    opacity: 0;
+    pointer-events: none;
+}
+
+.wz-chart-hover-line {
+    stroke: var(--text-3);
+    stroke-width: 1;
+    stroke-dasharray: 3 3;
+    opacity: 0;
+    pointer-events: none;
+    vector-effect: non-scaling-stroke;
+}
+
+.wz-chart-hover-dot {
+    fill: var(--text);
+    stroke: var(--surface);
+    stroke-width: 2;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.wz-chart-hover.is-visible .wz-chart-hover-band { opacity: 0.5; }
+.wz-chart-hover.is-visible .wz-chart-hover-line,
+.wz-chart-hover.is-visible .wz-chart-hover-dot { opacity: 1; }
+
+.wz-chart-hit {
+    fill: transparent;
+    pointer-events: all;
+    cursor: crosshair;
+}
+
+.wz-chart-empty {
+    display: grid;
+    place-items: center;
+    min-height: 160px;
+    padding: var(--sp-4);
+    border: 1px dashed var(--border);
+    border-radius: var(--r-md);
+    color: var(--text-3);
+    font-size: var(--fs-sm);
+    text-align: center;
+}
+
+.wz-chart-tip-list {
+    display: grid;
+    gap: 4px;
+    margin-top: var(--sp-2);
+}
+
+.wz-chart-tip-group {
+    display: grid;
+    gap: 1px;
+}
+
+.wz-chart-tip-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: baseline;
+    gap: var(--sp-3);
+}
+
+.wz-chart-tip-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    min-width: 0;
+    color: var(--text-2);
+}
+
+.wz-chart-tip-label > span:last-child {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.wz-chart-tip-value {
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.wz-chart-tip-share {
+    margin-left: 4px;
+    color: var(--text-3);
+    font-size: var(--fs-xs);
+    font-weight: 400;
+}
+
+.wz-chart-tip-subrows {
+    display: grid;
+    gap: 2px;
+    margin: 1px 0 3px 15px;
+    padding-left: var(--sp-2);
+    border-left: 1px solid var(--border);
+}
+
+.wz-chart-tip-subrow {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--sp-3);
+    color: var(--text-3);
+    font-size: var(--fs-xs);
+    font-variant-numeric: tabular-nums;
+}
+
+.wz-chart-c-ike { --chart-color: var(--acct-ike); }
+.wz-chart-c-ikze { --chart-color: var(--acct-ikze); }
+.wz-chart-c-oipe { --chart-color: var(--acct-oipe); }
+.wz-chart-c-ppk { --chart-color: var(--acct-ppk); }
+.wz-chart-c-ppe { --chart-color: var(--acct-ppe); }
+.wz-chart-c-broker { --chart-color: var(--acct-broker); }
+.wz-chart-c-obligacje { --chart-color: var(--acct-obligacje); }
+.wz-chart-c-lokata { --chart-color: var(--acct-lokata); }
+.wz-chart-c-oki_inw { --chart-color: var(--acct-oki-inw); }
+.wz-chart-c-oki_osk { --chart-color: var(--acct-oki-osk); }
+.wz-chart-c-gotowka { --chart-color: var(--acct-gotowka); }
+.wz-chart-c-krypto { --chart-color: var(--acct-krypto); }
+.wz-chart-c-nieruchomosc { --chart-color: var(--acct-nieruchomosc); }
+.wz-chart-c-zus { --chart-color: var(--acct-zus); }
+.wz-chart-c-other { --chart-color: var(--acct-other); }
+
+@keyframes wz-chart-reveal {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .wz-chart-svg { animation: none; }
+}
+
+@media (max-width: 640px) {
+    .wz-chart-card { padding: var(--sp-2); }
+
+    .wz-chart-head { gap: var(--sp-1); }
+
+    .wz-chart-legend { gap: 2px var(--sp-2); }
+
+    .wz-chart-legend-item { white-space: normal; }
 }

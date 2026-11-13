@@ -96,6 +96,16 @@ test("mobile layout stays within the screen throughout the employment path", asy
     await expect(page.locator("#wzScenariosBox .wz-scenario-card")).toHaveCount(3);
     await expect(page.locator("#wzMetrics .metric")).toHaveCount(3);
     await expect(page.locator("#wzFlowsGantt .wz-gantt-row").first()).toBeVisible();
+    await expect(page.locator("#wzChartsWrap")).toBeVisible();
+    await expect(page.locator("#wzWithdrawalsChart svg")).toBeVisible();
+    await expect(page.locator("#wzCapitalChart svg")).toBeVisible();
+    await expect(page.locator("#wzWithdrawalsLegend .wz-chart-legend-item").first()).toBeVisible();
+    await page.locator("#wzChartsWrap").scrollIntoViewIfNeeded();
+    await page.waitForTimeout(200);
+    await page.locator("#wzWithdrawalsChart svg").click();
+    await expect(page.locator("#wzChartTip")).toBeVisible();
+    await expect(page.locator("#wzChartTip")).toContainText(/Wiek \d+/);
+    await page.locator("#wzChartTipClose").click();
 
     await page.locator("#wzTimeline .wz-timeline-segment").first().click();
     await expect(page.locator("#wzGanttTip")).toBeVisible();
@@ -123,6 +133,8 @@ test("mobile layout stays within the screen throughout the employment path", asy
     await page.locator("#backToWizardBtn").click();
     await page.waitForURL("**/wizard?restore=1");
     await expect(page.locator("#wzResult")).toBeVisible();
+    await expect(page.locator("#wzWithdrawalsChart svg")).toBeVisible();
+    await expect(page.locator("#wzCapitalChart svg")).toBeVisible();
     const answerAfterReturn = await page.locator("#wzHeroAnswer").evaluate((el) =>
         el.textContent.replace(/\s+/g, " ").trim()
     );

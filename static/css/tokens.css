@@ -78,6 +78,23 @@
     --series-4: var(--success);
     --series-5: var(--warning);
 
+    /* --- Kolory kont na wykresach Asystenta (stałe przypisanie) --- */
+    --acct-ike: #37bfb2;
+    --acct-ikze: #5b8fe0;
+    --acct-oipe: #56c59b;
+    --acct-ppk: #9a7cf0;
+    --acct-ppe: #c07ad9;
+    --acct-broker: #ef8a5f;
+    --acct-obligacje: #7f9fe8;
+    --acct-lokata: #4cc98a;
+    --acct-oki-inw: #a8b84f;
+    --acct-oki-osk: #5fb3c9;
+    --acct-gotowka: #9aa3b8;
+    --acct-krypto: #e07aa6;
+    --acct-nieruchomosc: #b08a6e;
+    --acct-zus: #e0b45a;
+    --acct-other: #6f7890;
+
     /* --- Typografia --- */
     --font: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
     --fs-xs: 0.75rem;

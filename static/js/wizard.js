@@ -2339,6 +2339,7 @@ function wzRenderResult(data) {
     wzRenderWarnings(active.projection?.warnings || []);
     wzRenderTimeline(active.input, active.projection);
     wzRenderAccountFlows(active.input, active.projection);
+    wzRenderCharts(active.input, active.projection);
     wzRenderWealthDetails(active.projection);
     wzRenderFacts(active.projection);
     wzRenderPolicy(active.projection);
@@ -2428,7 +2429,6 @@ function wzRenderScenarios(data) {
     const path = data.path || wzCurrentPath();
 
     let html = `<h3 class="eyebrow wz-panel-title">${tipLabelHtml("Scenariusze rynkowe", "Konserwatywne: wyższa inflacja, niższe ROI i słabsza waloryzacja ZUS. Realne: Twoja konfiguracja bazowa. Optymistyczne: niższa inflacja, wyższe ROI i mocniejsza waloryzacja. Kliknij kartę, aby ustawić scenariusz główny.")}</h3>
-        <p class="wz-section-hint" id="wzScenariosHint">Kliknij scenariusz, aby zobaczyć jego szczegóły.</p>
         <div class="wz-scenarios-grid">`;
     keys.forEach((key) => {
         const scenario = scenarios[key];
@@ -2448,7 +2448,7 @@ function wzRenderScenarios(data) {
                 : "Po wieku emerytalnym";
         }
         html += `
-            <button type="button" class="wz-scenario-card${selected ? " is-selected" : ""}" data-scenario="${key}" aria-pressed="${selected}" aria-describedby="wzScenariosHint" title="Kliknij, aby wybrać scenariusz ${escapeHtml(scenario.label)}">
+            <button type="button" class="wz-scenario-card${selected ? " is-selected" : ""}" data-scenario="${key}" aria-pressed="${selected}" title="Kliknij, aby wybrać scenariusz ${escapeHtml(scenario.label)}">
                 <span class="wz-scenario-title">
                     <span class="wz-scenario-name">${icons[key] || ""}<span>${escapeHtml(scenario.label)}</span></span>
                     ${selected ? `<span class="chip chip-primary">${iconSvg("check")}Wybrany</span>` : ""}
@@ -2851,6 +2851,7 @@ function wzDetailShow(anchor, html, pin = false) {
     const tip = wzEl("wzGanttTip");
     const body = wzEl("wzGanttTipBody");
     if (!html || !tip || !body) return;
+    wzChartTipHide(true);
     wzGanttTipCancelShow();
     body.innerHTML = html;
     tip.classList.remove("hidden");
@@ -3169,9 +3170,23 @@ function wzRenderAccountFlows(input, projection) {
 
     const totalNote = wzEl("wzFlowsTotal");
     if (totalNote) {
-        const total = projection.total_withdrawn || 0;
-        totalNote.textContent = total > 0 ? `Łącznie wypłacono netto: ${wzFmtZloty(total)} zł.` : "";
-        totalNote.hidden = !(total > 0);
+        const netSum = (list) => list.reduce(
+            (sum, phase) => sum + Number(phase.total_net || 0),
+            0
+        );
+        const portfolioNet = netSum(phases.filter((phase) => phase.account !== "zus"));
+        const zusNet = netSum(phases.filter((phase) => phase.account === "zus"));
+        const lines = [];
+        if (portfolioNet > 0.5) {
+            lines.push(`Z portfela prywatnego FIRE: ${wzFmtZloty(portfolioNet)} zł netto.`);
+        }
+        if (zusNet > 0.5) {
+            lines.push(`Z ZUS: ${wzFmtZloty(zusNet)} zł netto.`);
+        }
+        totalNote.innerHTML = lines
+            .map((line) => `<span class="wz-flows-total-line">${line}</span>`)
+            .join("");
+        totalNote.hidden = !lines.length;
     }
 
     const rows = phases.map((phase) => {
@@ -3209,6 +3224,597 @@ function wzRenderAccountFlows(input, projection) {
                 <tbody>${rows}</tbody>
             </table>
         </div>`;
+}
+
+/* ── Wykresy wyniku: wypłaty i kapitał prywatny ─────────────────────────── */
+
+const WZ_CHART_ORDER = [
+    "ike", "ikze", "oipe", "ppk", "ppe", "broker", "obligacje", "lokata",
+    "oki_inw", "oki_osk", "gotowka", "krypto", "nieruchomosc", "zus",
+];
+const WZ_CHART_LABELS = {
+    ike: "IKE",
+    ikze: "IKZE",
+    oipe: "OIPE",
+    ppk: "PPK",
+    ppe: "PPE",
+    broker: "Broker",
+    obligacje: "Obligacje",
+    lokata: "Lokata",
+    oki_inw: "OKI inw.",
+    oki_osk: "OKI oszcz.",
+    gotowka: "Gotówka",
+    krypto: "Krypto",
+    nieruchomosc: "Nieruchomość",
+    zus: "ZUS",
+    other: "Pozostałe",
+};
+const WZ_CHART_MAX_SERIES = 10;
+
+let wzChartData = null;
+let wzChartModels = {};
+let wzChartGeom = {};
+let wzChartPinned = false;
+let wzChartPinnedAt = 0;
+let wzChartActive = null;
+let wzChartHideTimer = null;
+let wzChartResizeTimer = null;
+let wzChartBound = false;
+let wzChartFocusIndex = {};
+
+function wzChartColorKey(key) {
+    return WZ_CHART_ORDER.includes(key) || key === "other" ? key : "other";
+}
+
+function wzChartOrder(key) {
+    const index = WZ_CHART_ORDER.indexOf(key);
+    return index === -1 ? WZ_CHART_ORDER.length : index;
+}
+
+function wzChartCustomNames(input) {
+    const names = new Map();
+    (input?.stages || []).forEach((stage) => {
+        Object.entries(stage.accounts || {}).forEach(([account, config]) => {
+            if (config?.custom_name) names.set(account, config.custom_name);
+        });
+    });
+    return names;
+}
+
+function wzChartGroups(raw, input, kind, count) {
+    const customNames = wzChartCustomNames(input);
+    const groups = new Map();
+    Object.entries(raw || {}).forEach(([account, values]) => {
+        if (account === "zus:ofe") return;
+        const base = baseAccountKey(account);
+        if (kind === "capital" && base === "zus") return;
+        let group = groups.get(base);
+        if (!group) {
+            group = {
+                key: base,
+                label: "",
+                values: new Array(count).fill(0),
+                accounts: [],
+                total: 0,
+            };
+            groups.set(base, group);
+        }
+        const clean = Array.from({ length: count }, (_, index) => Number(values?.[index]) || 0);
+        clean.forEach((value, index) => { group.values[index] += value; });
+        group.accounts.push({
+            key: account,
+            name: accountDisplayLabel(account, customNames.get(account) || ""),
+            values: clean,
+        });
+    });
+
+    const list = [...groups.values()].filter((group) => {
+        group.total = group.values.reduce((sum, value) => sum + value, 0);
+        return group.total > 0.5;
+    });
+    list.forEach((group) => {
+        const single = group.accounts.length === 1 ? group.accounts[0] : null;
+        const custom = single ? customNames.get(single.key) : "";
+        group.label = custom || WZ_CHART_LABELS[group.key] || (single ? single.name : group.key);
+    });
+    list.sort((a, b) => wzChartOrder(a.key) - wzChartOrder(b.key));
+    return list;
+}
+
+function wzLimitChartGroups(groups) {
+    if (groups.length <= WZ_CHART_MAX_SERIES) return groups;
+    const ordered = [...groups].sort((a, b) => b.total - a.total);
+    const keep = new Set(ordered.slice(0, WZ_CHART_MAX_SERIES - 1).map((group) => group.key));
+    const rest = groups.filter((group) => !keep.has(group.key));
+    if (!rest.length) return groups;
+
+    const other = {
+        key: "other",
+        label: WZ_CHART_LABELS.other,
+        values: new Array(groups[0].values.length).fill(0),
+        accounts: [],
+        total: 0,
+    };
+    rest.forEach((group) => {
+        group.values.forEach((value, index) => { other.values[index] += value; });
+        other.accounts.push(...group.accounts);
+        other.total += group.total;
+    });
+    const kept = groups.filter((group) => keep.has(group.key));
+    kept.sort((a, b) => wzChartOrder(a.key) - wzChartOrder(b.key));
+    kept.push(other);
+    return kept;
+}
+
+function wzChartTotals(groups, count) {
+    return Array.from({ length: count }, (_, index) => (
+        groups.reduce((sum, group) => sum + (group.values[index] || 0), 0)
+    ));
+}
+
+function wzChartCompact(value) {
+    const rounded = Math.abs(value) >= 1_000_000
+        ? `${(value / 1_000_000).toLocaleString("pl-PL", { maximumFractionDigits: 1 })} mln`
+        : Math.abs(value) >= 1_000
+            ? `${Math.round(value / 1_000).toLocaleString("pl-PL")} tys.`
+            : Math.round(value).toLocaleString("pl-PL");
+    return rounded;
+}
+
+function wzNiceStep(value, targetTicks) {
+    if (!(value > 0)) return 1;
+    const raw = value / Math.max(1, targetTicks);
+    const power = 10 ** Math.floor(Math.log10(raw));
+    const normalized = raw / power;
+    const factor = normalized <= 1 ? 1 : normalized <= 2 ? 2 : normalized <= 2.5 ? 2.5 : normalized <= 5 ? 5 : 10;
+    return factor * power;
+}
+
+function wzChartAreaPath(x, y, lower, upper, start = 0, end = lower.length - 1) {
+    let path = `M ${x(start).toFixed(2)} ${y(lower[start]).toFixed(2)}`;
+    for (let index = start + 1; index <= end; index += 1) {
+        path += ` L ${x(index).toFixed(2)} ${y(lower[index]).toFixed(2)}`;
+    }
+    for (let index = end; index >= start; index -= 1) {
+        path += ` L ${x(index).toFixed(2)} ${y(upper[index]).toFixed(2)}`;
+    }
+    return `${path} Z`;
+}
+
+function wzChartLinePath(x, y, values, start = 0, end = values.length - 1) {
+    let path = `M ${x(start).toFixed(2)} ${y(values[start]).toFixed(2)}`;
+    for (let index = start + 1; index <= end; index += 1) {
+        path += ` L ${x(index).toFixed(2)} ${y(values[index]).toFixed(2)}`;
+    }
+    return path;
+}
+
+function wzChartVisibleRange(values) {
+    let first = -1;
+    let last = -1;
+    values.forEach((value, index) => {
+        if (value <= 0.005) return;
+        if (first === -1) first = index;
+        last = index;
+    });
+    return { first, last };
+}
+
+function wzChartLegendHtml(groups) {
+    return groups.map((group) => {
+        const colorKey = wzChartColorKey(group.key);
+        return `<span class="wz-chart-legend-item wz-chart-c-${colorKey}"><span class="wz-chart-swatch"></span>${escapeHtml(group.label)}</span>`;
+    }).join("");
+}
+
+function wzChartGradientId(kind, index) {
+    return `wz-chart-grad-${kind}-${index}`;
+}
+
+function wzChartSummary(model) {
+    const first = model.ages[0];
+    const last = model.ages[model.ages.length - 1];
+    const peak = Math.max(...model.totals);
+    if (model.kind === "withdrawals") {
+        const total = model.totals.reduce((sum, value) => sum + value, 0);
+        return `Wykres wypłat netto według kont, wiek ${first}–${last}. Łącznie ${wzFmtZloty(total)} zł. Użyj strzałek, aby czytać szczegóły.`;
+    }
+    return `Wykres kapitału prywatnego według kont, wiek ${first}–${last}. Kapitał szczytowy ${wzFmtZloty(peak)} zł. Użyj strzałek, aby czytać szczegóły.`;
+}
+
+function wzChartIndexFromEvent(svg, event) {
+    const geom = wzChartGeom[svg?.dataset.chart];
+    if (!geom) return 0;
+    const rect = svg.getBoundingClientRect();
+    const scale = rect.width ? geom.width / rect.width : 1;
+    const x = (event.clientX - rect.left) * scale;
+    const ratio = (x - geom.left) / geom.plotW;
+    return Math.max(0, Math.min(geom.n - 1, Math.round(ratio * (geom.n - 1))));
+}
+
+function wzChartFirstActiveIndex(model) {
+    const index = model.totals.findIndex((value) => value > 0.5);
+    return index === -1 ? 0 : index;
+}
+
+function wzChartSetHover(key, index) {
+    const geom = wzChartGeom[key];
+    if (!geom) return;
+    Object.entries(wzChartGeom).forEach(([otherKey, other]) => {
+        if (otherKey !== key) other.hover?.classList.remove("is-visible");
+    });
+    const band = geom.band(index);
+    const x = geom.x(index);
+    geom.hoverBand.setAttribute("x", band.x.toFixed(2));
+    geom.hoverBand.setAttribute("width", band.width.toFixed(2));
+    geom.hoverLine.setAttribute("x1", x.toFixed(2));
+    geom.hoverLine.setAttribute("x2", x.toFixed(2));
+    geom.hoverDot.setAttribute("cx", x.toFixed(2));
+    geom.hoverDot.setAttribute("cy", geom.totalY[index].toFixed(2));
+    geom.hover?.classList.add("is-visible");
+}
+
+function wzChartClearHover() {
+    Object.values(wzChartGeom).forEach((geom) => {
+        geom.hover?.classList.remove("is-visible");
+    });
+}
+
+function wzChartTooltipHtml(model, index) {
+    const total = model.totals[index] || 0;
+    const entries = model.groups
+        .map((group) => ({ group, value: group.values[index] || 0 }))
+        .filter((entry) => entry.value > 0.5)
+        .sort((a, b) => b.value - a.value);
+
+    let subtitle;
+    if (model.kind === "withdrawals") {
+        subtitle = total > 0.5
+            ? `Wypłaty netto w roku: ${wzFmtZloty(total)} zł · ≈ ${wzFmtZloty(total / 12)} zł/mies.`
+            : "Brak wypłat w tym roku";
+    } else {
+        subtitle = total > 0.5
+            ? `Kapitał na koniec roku: ${wzFmtZloty(total)} zł brutto`
+            : "Brak kapitału prywatnego";
+    }
+
+    const rows = entries.map(({ group, value }) => {
+        const percent = total > 0 ? (value / total) * 100 : 0;
+        const percentLabel = percent > 0 && percent < 1 ? "<1%" : `${Math.round(percent)}%`;
+        const colorKey = wzChartColorKey(group.key);
+        const row = `<div class="wz-chart-tip-row wz-chart-c-${colorKey}">
+            <span class="wz-chart-tip-label"><span class="wz-chart-swatch"></span><span>${escapeHtml(group.label)}</span></span>
+            <span class="wz-chart-tip-value">${wzFmtZloty(value)} zł <span class="wz-chart-tip-share">${percentLabel}</span></span>
+        </div>`;
+        if (group.accounts.length <= 1) return `<div class="wz-chart-tip-group">${row}</div>`;
+        const subs = group.accounts
+            .map((account) => ({ name: account.name, value: account.values[index] || 0 }))
+            .filter((account) => account.value > 0.5)
+            .sort((a, b) => b.value - a.value)
+            .map((account) => `<div class="wz-chart-tip-subrow"><span>${escapeHtml(account.name)}</span><span>${wzFmtZloty(account.value)} zł</span></div>`)
+            .join("");
+        return `<div class="wz-chart-tip-group">${row}${subs ? `<div class="wz-chart-tip-subrows">${subs}</div>` : ""}</div>`;
+    }).join("");
+
+    return `<div class="wz-gantt-tip-title">Wiek ${model.ages[index]}</div>
+        <div class="wz-gantt-tip-sub">${escapeHtml(subtitle)}</div>
+        ${rows ? `<div class="wz-chart-tip-list">${rows}</div>` : ""}`;
+}
+
+function wzChartTipPlace(event, key, index) {
+    const tip = wzEl("wzChartTip");
+    const geom = wzChartGeom[key];
+    if (!tip || !geom) return;
+    const width = tip.offsetWidth;
+    const height = tip.offsetHeight;
+    let clientX;
+    let clientY;
+    if (event && Number.isFinite(event.clientX)) {
+        clientX = event.clientX;
+        clientY = event.clientY;
+    } else {
+        const rect = geom.svg.getBoundingClientRect();
+        clientX = rect.left + (geom.x(index) / geom.width) * rect.width;
+        clientY = rect.top + (geom.top / geom.height) * rect.height + 12;
+    }
+    let left = clientX + 14;
+    let top = clientY - height - 12;
+    if (left + width > window.innerWidth - 8) left = clientX - width - 14;
+    left = Math.max(8, Math.min(left, window.innerWidth - width - 8));
+    if (top < 8) top = clientY + 16;
+    if (top + height > window.innerHeight - 8) top = Math.max(8, window.innerHeight - height - 8);
+    tip.style.left = `${left}px`;
+    tip.style.top = `${top}px`;
+}
+
+function wzChartTipShow(key, index, event, pin = false) {
+    const model = wzChartModels[key];
+    const tip = wzEl("wzChartTip");
+    const body = wzEl("wzChartTipBody");
+    if (!model || !tip || !body) return;
+    wzGanttTipHide(true);
+    body.innerHTML = wzChartTooltipHtml(model, index);
+    tip.classList.remove("hidden");
+    wzChartActive = { key, index };
+    wzChartPinned = Boolean(pin);
+    if (wzChartPinned) wzChartPinnedAt = Date.now();
+    wzChartSetHover(key, index);
+    requestAnimationFrame(() => wzChartTipPlace(event, key, index));
+}
+
+function wzChartTipHide(force = false) {
+    if (wzChartPinned && !force) return;
+    clearTimeout(wzChartHideTimer);
+    wzChartPinned = false;
+    wzChartActive = null;
+    wzEl("wzChartTip")?.classList.add("hidden");
+    wzChartClearHover();
+}
+
+function wzChartTipScheduleHide() {
+    clearTimeout(wzChartHideTimer);
+    wzChartHideTimer = setTimeout(() => {
+        if (!wzChartPinned) wzChartTipHide();
+    }, 140);
+}
+
+function wzBindChartGlobalEvents() {
+    if (wzChartBound) return;
+    wzChartBound = true;
+    const tip = wzEl("wzChartTip");
+    const close = wzEl("wzChartTipClose");
+    if (tip) {
+        tip.addEventListener("mouseenter", () => clearTimeout(wzChartHideTimer));
+        tip.addEventListener("mouseleave", wzChartTipScheduleHide);
+    }
+    if (close) close.addEventListener("click", () => wzChartTipHide(true));
+    document.addEventListener("pointerdown", (event) => {
+        if (!wzChartActive) return;
+        if (event.target.closest?.(".wz-chart-svg, #wzChartTip")) return;
+        wzChartTipHide(true);
+    });
+    document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") wzChartTipHide(true);
+    });
+    window.addEventListener("scroll", () => {
+        // Auto-scroll tuż po kliknięciu nie może od razu zamykać przypiętego dymku.
+        if (wzChartPinned && Date.now() - wzChartPinnedAt < 500) return;
+        wzChartTipHide(true);
+    }, true);
+    window.addEventListener("resize", () => {
+        wzChartTipHide(true);
+        clearTimeout(wzChartResizeTimer);
+        wzChartResizeTimer = setTimeout(() => {
+            if (wzChartData) wzRenderCharts(wzChartData.input, wzChartData.projection);
+        }, 180);
+    });
+}
+
+function wzRenderChartSvg(container, model) {
+    const width = Math.max(280, Math.round(container.clientWidth || container.parentElement?.clientWidth || 640));
+    const compact = width < 560;
+    const height = compact ? 210 : 260;
+    const margin = { top: 18, right: 12, bottom: 28, left: compact ? 64 : 60 };
+    const plotW = Math.max(40, width - margin.left - margin.right);
+    const plotH = height - margin.top - margin.bottom;
+    const count = model.ages.length;
+    const maxTotal = Math.max(0, ...model.totals);
+    const step = wzNiceStep(Math.max(1, maxTotal * 1.08), 5);
+    const yMax = Math.max(step, Math.ceil((maxTotal * 1.08) / step) * step);
+    const x = (index) => margin.left + (count <= 1 ? plotW / 2 : (index / (count - 1)) * plotW);
+    const y = (value) => margin.top + plotH - (Math.max(0, value) / yMax) * plotH;
+    const upperBounds = [];
+    let running = new Array(count).fill(0);
+    model.groups.forEach((group) => {
+        running = running.map((value, index) => value + (group.values[index] || 0));
+        upperBounds.push(running);
+    });
+
+    let svg = `<svg class="wz-chart-svg" data-chart="${model.kind}" viewBox="0 0 ${width} ${height}" width="100%" height="${height}" role="img" tabindex="0" aria-label="${escapeHtml(wzChartSummary(model))}">`;
+    svg += `<defs>`;
+    model.groups.forEach((group, index) => {
+        const colorKey = wzChartColorKey(group.key);
+        const { first, last } = wzChartVisibleRange(group.values);
+        const upper = upperBounds[index];
+        const lower = index === 0 ? new Array(count).fill(0) : upperBounds[index - 1];
+        let bandTop = margin.top;
+        let bandBottom = margin.top + 1;
+        if (first !== -1 && last >= first) {
+            bandTop = Math.min(...upper.slice(first, last + 1).map((value) => y(value)));
+            bandBottom = Math.max(...lower.slice(first, last + 1).map((value) => y(value)));
+        }
+        if (bandBottom - bandTop < 1) bandBottom = bandTop + 1;
+        svg += `<linearGradient id="${wzChartGradientId(model.kind, index)}" class="wz-chart-c-${colorKey}" gradientUnits="userSpaceOnUse" x1="0" y1="${bandTop.toFixed(2)}" x2="0" y2="${bandBottom.toFixed(2)}">
+            <stop offset="0%" class="wz-chart-stop-top"/>
+            <stop offset="100%" class="wz-chart-stop-bottom"/>
+        </linearGradient>`;
+    });
+    svg += `</defs>`;
+    svg += `<rect class="wz-chart-plot-bg" x="${margin.left}" y="${margin.top}" width="${plotW}" height="${plotH}" rx="8"/>`;
+
+    for (let tick = 0; tick * step <= yMax + 0.0001; tick += 1) {
+        const value = tick * step;
+        const yPos = y(value);
+        svg += `<line class="wz-chart-grid" x1="${margin.left}" y1="${yPos.toFixed(2)}" x2="${margin.left + plotW}" y2="${yPos.toFixed(2)}"/>`;
+        svg += `<text class="wz-chart-axis-text" x="${margin.left - 8}" y="${yPos.toFixed(2)}" text-anchor="end">${wzChartCompact(value)}</text>`;
+    }
+
+    const span = count > 1 ? model.ages[count - 1] - model.ages[0] : 1;
+    let ageStep = span <= 12 ? 1 : span <= 24 ? 2 : 5;
+    if (compact) ageStep = span <= 12 ? 2 : 10;
+    const firstTick = Math.ceil(model.ages[0] / ageStep) * ageStep;
+    for (let age = firstTick; age <= model.ages[count - 1]; age += ageStep) {
+        const index = model.ages.indexOf(age);
+        if (index === -1) continue;
+        const xPos = x(index);
+        svg += `<line class="wz-chart-grid-v" x1="${xPos.toFixed(2)}" y1="${margin.top}" x2="${xPos.toFixed(2)}" y2="${margin.top + plotH}"/>`;
+        const anchor = xPos < margin.left + 20 ? "start" : xPos > margin.left + plotW - 20 ? "end" : "middle";
+        svg += `<text class="wz-chart-axis-text" x="${xPos.toFixed(2)}" y="${height - 8}" text-anchor="${anchor}">${age}</text>`;
+    }
+
+    svg += `<text class="wz-chart-unit" x="${margin.left}" y="11">${model.kind === "withdrawals" ? "zł/rok" : "zł"}</text>`;
+
+    model.groups.forEach((group, index) => {
+        const upper = upperBounds[index];
+        const lower = index === 0 ? new Array(count).fill(0) : upperBounds[index - 1];
+        const colorKey = wzChartColorKey(group.key);
+        const { first, last } = wzChartVisibleRange(group.values);
+        if (first !== -1 && last >= first) {
+            const start = Math.max(0, first - 1);
+            const end = Math.min(count - 1, last + 1);
+            svg += `<path class="wz-chart-area wz-chart-c-${colorKey}" fill="url(#${wzChartGradientId(model.kind, index)})" d="${wzChartAreaPath(x, y, lower, upper, start, end)}"/>`;
+            svg += `<path class="wz-chart-edge wz-chart-c-${colorKey}" d="${wzChartLinePath(x, y, upper, start, end)}"/>`;
+        }
+    });
+    svg += `<path class="wz-chart-total" d="${wzChartLinePath(x, y, model.totals)}"/>`;
+
+    svg += `<g class="wz-chart-hover" aria-hidden="true">`;
+    svg += `<rect class="wz-chart-hover-band" x="${margin.left}" y="${margin.top}" width="0" height="${plotH}" rx="4"/>`;
+    svg += `<line class="wz-chart-hover-line" x1="0" y1="${margin.top}" x2="0" y2="${margin.top + plotH}"/>`;
+    svg += `<circle class="wz-chart-hover-dot" cx="0" cy="0" r="4"/>`;
+    svg += `</g>`;
+    svg += `<rect class="wz-chart-hit" x="${margin.left}" y="${margin.top}" width="${plotW}" height="${plotH}"/>`;
+    svg += `</svg>`;
+
+    container.innerHTML = svg;
+    const svgEl = container.querySelector(".wz-chart-svg");
+    if (!svgEl) return;
+
+    const geom = {
+        key: model.kind,
+        width,
+        height,
+        left: margin.left,
+        top: margin.top,
+        plotW,
+        plotH,
+        n: count,
+        svg: svgEl,
+        x,
+        totalY: model.totals.map((value) => y(value)),
+        hover: svgEl.querySelector(".wz-chart-hover"),
+        hoverBand: svgEl.querySelector(".wz-chart-hover-band"),
+        hoverLine: svgEl.querySelector(".wz-chart-hover-line"),
+        hoverDot: svgEl.querySelector(".wz-chart-hover-dot"),
+        band: (index) => {
+            const left = index <= 0 ? margin.left : (x(index - 1) + x(index)) / 2;
+            const right = index >= count - 1 ? margin.left + plotW : (x(index) + x(index + 1)) / 2;
+            return { x: left, width: Math.max(1, right - left) };
+        },
+    };
+    wzChartGeom[model.kind] = geom;
+
+    svgEl.addEventListener("pointermove", (event) => {
+        if (wzChartPinned || event.pointerType === "touch") return;
+        wzChartTipShow(model.kind, wzChartIndexFromEvent(svgEl, event), event, false);
+    });
+    svgEl.addEventListener("pointerleave", () => {
+        if (!wzChartPinned) wzChartTipScheduleHide();
+    });
+    svgEl.addEventListener("click", (event) => {
+        const index = wzChartIndexFromEvent(svgEl, event);
+        if (wzChartActive && wzChartActive.key === model.kind && wzChartActive.index === index && wzChartPinned) {
+            wzChartTipHide(true);
+        } else {
+            wzChartTipShow(model.kind, index, event, true);
+        }
+    });
+    svgEl.addEventListener("focus", () => {
+        const index = wzChartFocusIndex[model.kind] ?? wzChartFirstActiveIndex(model);
+        wzChartFocusIndex[model.kind] = index;
+        wzChartTipShow(model.kind, index, null, false);
+    });
+    svgEl.addEventListener("blur", () => {
+        if (!wzChartPinned) wzChartTipHide(true);
+    });
+    svgEl.addEventListener("keydown", (event) => {
+        let next = null;
+        const current = wzChartFocusIndex[model.kind] ?? 0;
+        if (event.key === "ArrowRight") next = Math.min(count - 1, current + 1);
+        else if (event.key === "ArrowLeft") next = Math.max(0, current - 1);
+        else if (event.key === "Home") next = 0;
+        else if (event.key === "End") next = count - 1;
+        else if (event.key === "Escape") {
+            wzChartTipHide(true);
+            return;
+        } else {
+            return;
+        }
+        event.preventDefault();
+        wzChartFocusIndex[model.kind] = next;
+        wzChartTipShow(model.kind, next, null, false);
+    });
+}
+
+function wzRenderCharts(input, projection) {
+    const wrap = wzEl("wzChartsWrap");
+    if (!wrap) return;
+    const chart = projection?.chart;
+    const ages = Array.isArray(chart?.ages) ? chart.ages.map(Number) : [];
+    if (!ages.length) {
+        wrap.classList.add("hidden");
+        wzChartData = null;
+        wzChartTipHide(true);
+        return;
+    }
+
+    const withdrawalGroups = wzLimitChartGroups(
+        wzChartGroups(chart.withdrawals_net, input, "withdrawals", ages.length)
+    );
+    const capitalGroups = wzLimitChartGroups(
+        wzChartGroups(chart.balances, input, "capital", ages.length)
+    );
+    if (!withdrawalGroups.length && !capitalGroups.length) {
+        wrap.classList.add("hidden");
+        wzChartData = null;
+        wzChartTipHide(true);
+        return;
+    }
+
+    wrap.classList.remove("hidden");
+    wzChartData = { input, projection };
+    wzChartModels = {
+        withdrawals: {
+            kind: "withdrawals",
+            ages,
+            groups: withdrawalGroups,
+            totals: wzChartTotals(withdrawalGroups, ages.length),
+        },
+        capital: {
+            kind: "capital",
+            ages,
+            groups: capitalGroups,
+            totals: wzChartTotals(capitalGroups, ages.length),
+        },
+    };
+    wzChartTipHide(true);
+
+    const withdrawalLegend = wzEl("wzWithdrawalsLegend");
+    const capitalLegend = wzEl("wzCapitalLegend");
+    if (withdrawalLegend) withdrawalLegend.innerHTML = wzChartLegendHtml(withdrawalGroups);
+    if (capitalLegend) capitalLegend.innerHTML = wzChartLegendHtml(capitalGroups);
+
+    const withdrawalChart = wzEl("wzWithdrawalsChart");
+    if (withdrawalChart) {
+        if (withdrawalGroups.length) {
+            wzRenderChartSvg(withdrawalChart, wzChartModels.withdrawals);
+        } else {
+            delete wzChartGeom.withdrawals;
+            withdrawalChart.innerHTML = `<div class="wz-chart-empty">Brak wypłat w tym planie.</div>`;
+        }
+    }
+
+    const capitalChart = wzEl("wzCapitalChart");
+    if (capitalChart) {
+        if (capitalGroups.length) {
+            wzRenderChartSvg(capitalChart, wzChartModels.capital);
+        } else {
+            delete wzChartGeom.capital;
+            capitalChart.innerHTML = `<div class="wz-chart-empty">Brak kapitału prywatnego w tym planie.</div>`;
+        }
+    }
+
+    wzBindChartGlobalEvents();
 }
 
 function wzRenderPolicy(projection) {
@@ -3738,6 +4344,8 @@ function wzReadCachedPlan(allowLegacy = true) {
         return null;
     }
     if (!stored || !stored.plan) return null;
+    // Starsze cache'e nie mają serii do wykresów — wymuś świeże wyliczenie.
+    if (!stored.plan?.projection?.chart?.ages?.length) return null;
 
     const body = wzPlanBody();
     const signature = wzCanonicalJson(body);

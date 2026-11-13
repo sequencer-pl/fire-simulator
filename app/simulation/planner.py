@@ -284,6 +284,19 @@ class AccountPhase(BaseModel):
     max_monthly_net: float = 0.0
 
 
+class ProjectionChart(BaseModel):
+    """Compact yearly series for the result charts.
+
+    ``withdrawals_net`` holds net payouts per account (after PIT and health
+    contribution, including ZUS). ``balances`` holds private end-of-year
+    balances without ZUS/OFE, which is the capital the user actually controls.
+    """
+
+    ages: list[int] = Field(default_factory=list)
+    withdrawals_net: dict[str, list[float]] = Field(default_factory=dict)
+    balances: dict[str, list[float]] = Field(default_factory=dict)
+
+
 class PlanProjection(BaseModel):
     met: bool = False
     target_monthly: float | None = None
@@ -305,6 +318,7 @@ class PlanProjection(BaseModel):
     stage_metrics: list[StageMetric] = Field(default_factory=list)
     phase_metrics: list[PhaseMetric] = Field(default_factory=list)
     account_phases: list[AccountPhase] = Field(default_factory=list)
+    chart: ProjectionChart = Field(default_factory=ProjectionChart)
 
 
 class PlanSolved(BaseModel):
@@ -1654,6 +1668,47 @@ def _account_phases(
     return phases
 
 
+def _projection_chart(result: SimulationResult) -> ProjectionChart:
+    """Build compact yearly series for the two result charts.
+
+    Withdrawals are net of PIT and the health contribution. An early IKZE
+    return is excluded: the tax is deducted from capital and the net amount is
+    reinvested, so it is not money spent in that year. Private balances skip
+    ZUS and OFE because they are pension capital, not the FIRE portfolio.
+    """
+    ages = [year.age for year in result.years]
+    count = len(ages)
+    withdrawals: dict[str, dict[int, float]] = {}
+    balances: dict[str, dict[int, float]] = {}
+
+    for index, year in enumerate(result.years):
+        for account, gross in year.withdrawals.items():
+            if account == "zus:ofe" or gross <= 0.005:
+                continue
+            tax = max(0.0, year.taxes.get(account, 0.0))
+            health = max(0.0, year.health.get(account, 0.0))
+            net = max(0.0, gross - tax - health)
+            if net > 0.005:
+                withdrawals.setdefault(account, {})[index] = round(net, 2)
+
+        for account, balance in year.ending_balances.items():
+            if account in ("zus", "zus:ofe") or balance <= 0.005:
+                continue
+            balances.setdefault(account, {})[index] = round(balance, 2)
+
+    return ProjectionChart(
+        ages=ages,
+        withdrawals_net={
+            account: [values.get(index, 0.0) for index in range(count)]
+            for account, values in withdrawals.items()
+        },
+        balances={
+            account: [values.get(index, 0.0) for index in range(count)]
+            for account, values in balances.items()
+        },
+    )
+
+
 def _year_lifestyle_net_monthly(data: SimulationInput, year: YearResult) -> float:
     """Miesięczny budżet na życie w roku realizacji (uwzględnia Barista FIRE i kredyt)."""
     extra_income = 0.0
@@ -1719,6 +1774,7 @@ def _project(
         stage_metrics=_stage_metrics(data, result),
         phase_metrics=_phase_metrics(data, result),
         account_phases=_account_phases(data, result),
+        chart=_projection_chart(result),
     )
 
 
@@ -2050,7 +2106,7 @@ def _plan_single(
 
 SCENARIO_LABELS: dict[str, str] = {
     "konserwatywne": "Kryzys / ostrożne",
-    "realne": "Realne (bazowe)",
+    "realne": "Realne / bazowe",
     "optymistyczne": "Hossa / optymistyczne",
 }
 
