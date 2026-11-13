@@ -203,7 +203,7 @@ const harness = `
             && !row.querySelector(".wz-cap-roi-note")
             && Boolean(row.querySelector(".wz-cap-roi-reset"));
     });
-    check("wynik: scenariusz i podsumowanie etapów renderują się", () => {
+    check("wynik: odpowiedź, plan i szczegóły renderują się", () => {
         wzPlan = {
             path: 1,
             input: {
@@ -268,11 +268,12 @@ const harness = `
         wzSelectedScenario = "realne";
         wzRenderResult(wzPlan);
         return document.getElementById("wzHeroAnswer").textContent.includes("5")
-            && document.querySelectorAll("#wzStageSummaryList .stage-line").length === 2
-            && document.querySelectorAll("#wzPhaseTable tbody tr").length === 2
+            && document.querySelectorAll("#wzMetrics .metric").length === 3
+            && document.querySelectorAll("#wzTimeline .wz-timeline-segment").length === 2
             && document.querySelectorAll("#wzFlowsGantt .wz-gantt-row").length >= 1
+            && document.querySelectorAll("#wzWealthDetails .wz-wealth-row").length === 3
             && document.querySelectorAll("#wzFacts .wz-fact").length >= 1
-            && document.getElementById("wzPolicyNote").textContent.includes("Kolejność wypłat");
+            && document.getElementById("wzPolicyNote").textContent.includes("Najpierw");
     });
     check("restore: ?restore=1 odtwarza krok wyniku z zapisanego planu", () => {
         localStorage.removeItem("fire.wizardState");

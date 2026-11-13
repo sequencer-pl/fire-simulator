@@ -246,25 +246,26 @@ bez TypeScript), pytest. Odpowiadaj i pisz UI po polsku.
   Usunięcie instrumentu czyści kwotę i wagę (`deactivateAllocAccount`/`togglePill`),
   `collectAllocations` pomija nieaktywne konta.
 - Krok 6 „Twój plan FIRE": loader `#wzPlanLoader` jest indeterministyczny
-  (losowe teksty o cierpliwości, wpłatach i ryzyku, zmieniane co 6 s, bez cyklu 1/3–3/3); przed
-  nowym planem `resetPlanResult()` czyści stary wynik i `wzPlan`. Potem `#wzHeroAnswer`,
-  3 karty `#wzScenariosBox`, metryki `#wzMetrics` (`.metric-grid`), `#wzSolved`
-  (baner info), `#wzWarnings` (baner warn z listą), oś czasu `#wzTimeline`,
-  tabela faz `#wzPhaseTable` (na mobile ukryta, bo karty osi czasu niosą te same
-  dane), `#wzStageSummaryList` w `<details>`, sekcja **`#wzFlowsWrap`** („Wypłaty
-  z poszczególnych kont”: Gantt `#wzFlowsGantt` + tabela/karty `#wzFlowsTable`)
-  i zwijany blok **„Jak liczymy ten plan?”** (metodologia netto/siła nabywcza,
-  a w `#wzPolicyNote` opis kolejności wypłat/progów podatkowych).
-  Teksty „jak czytać” są schowane w tooltipach `.tip` przy tytułach sekcji oraz
-  w chipach `Ulga IKZE` / `Wcześniejszy zwrot IKZE` (`tipHtml`); nie ma już
-  akapitów-legend ani notek pod tabelą faz. **Nie ma `#wzStagePreview`.**
-  Gantt pokazuje kwoty na szerokich paskach (ze „zł”, gdy się mieści), a na
-  wąskich **litery faz (A, B, …)** — legenda w tooltipie przy tytule wyjaśnia,
-  że litera to faza z tabeli. Badge fazy i tabeli są w kolorze stage-real, nie
-  primary. Paski mają własny panel `#wzGanttTip`: hover/focus na desktopie,
-  tap na mobile; pokazuje start/wpłaty/koniec/wzrost akumulacji oraz salda,
-  podatki i kwoty netto realizacji (wszystko ze „zł”). Przyszłość: opcjonalny
-  przycisk rozszerzenia + poziomy zoom/slider.
+  (losowe teksty o cierpliwości, wpłatach i ryzyku, zmieniane co 6 s, bez cyklu 1/3–3/3).
+  Tip loadera jest kartą `#wzLoaderTip` z gradientem, ikoną i etykietą
+  „Warto wiedzieć”; przed nowym planem `resetPlanResult()` czyści stary wynik
+  i `wzPlan`. Hierarchia wyniku:
+  1. `#wzHeroAnswer` — odpowiedź na pytanie użytkownika + krótki kontekst,
+  2. `#wzScenariosBox` — 3 klikalne karty z widocznym hintem,
+  3. `#wzMetrics` — 3 metryki zależne od ścieżki,
+  4. **`#wzTimeline` + `#wzFlowsWrap`/`#wzFlowsGantt`** — etapy życia i konta
+     w jednym bloku „Twój plan w czasie”, zawsze widoczne,
+  5. `#wzDetails` — zwijane „Dane szczegółowe”: majątek, ulgi/podatki,
+     tabela przepływów i „Jak czytać ten plan?”.
+  **Nie ma `#wzPhaseTable` ani `#wzStageSummaryList`** — ich rolę przejmuje
+  oś czasu i panel szczegółów etapu. Gantt jest widokiem głównym, nie schowanym
+  w `<details>`. Klik segmentu osi czasu lub paska konta otwiera wspólny panel
+  `#wzGanttTip`; pokazuje okres, wypłatę netto, portfel/ZUS, PIT, składkę
+  zdrowotną i podatek jednorazowy IKZE w osobnych wierszach. Na mobile Gantt
+  przewija się w poziomie, a hint jest widoczny tylko tam. Tabela przepływów
+  i chipy `Ulga IKZE` / `Wcześniejszy zwrot IKZE` są w „Danych szczegółowych”.
+  Stary blok „Jak liczymy ten plan?” zastępuje „Jak czytać ten plan?” —
+  wyjaśnia znaczenie kwot na ekranie, a nie założenia modelu.
   Po gotowym planie przycisk kroku 6 zmienia się na `btn-real`
   „Dostosuj w symulatorze”; `finishWizard` zapisuje draft i przechodzi do
   `/sim?wizard=1`. Na ekranie wyniku w lewej części belki jest też
@@ -379,13 +380,12 @@ bez TypeScript), pytest. Odpowiadaj i pisz UI po polsku.
   wyjaśnienie jest w tooltipie panelu, a po ręcznej zmianie pojawia się ikona
   przywracania domyślnego ROI. Do `roi_overrides` wysyłamy tylko wartość różną
   od domyślnej.
-- Wynik Asystenta zaczyna się od odpowiedzi na pytanie użytkownika, następnie pokazuje
-  najważniejsze metryki i scenariusze. Szczegółowe przepływy per konto (Gantt +
-  tabela), tabela faz, chipy ulgi IKZE i metodologia są niżej, najlepiej w
-  sekcjach zwijanych. Loader pokazuje „Wyliczam Twój plan…”, animowany pasek
-  aktywności i rotujące teksty z v1 (losowanie bez powtórzeń); nie dodajemy
-  banera „Czy wiesz, że…” ani nowych ciekawostek. Loader nie może sugerować,
-  że symulacja jest prognozą ani rekomendacją.
+- Wynik Asystenta eksponuje odpowiedź, scenariusze, 3 metryki i plan w czasie
+  (oś etapów + Gantt). Tabela przepływów, majątek, ulgi i „Jak czytać ten plan?”
+  są w zwijanych „Danych szczegółowych”. Loader pokazuje „Wyliczam Twój plan…”,
+  animowany pasek aktywności i rotujące teksty z v1 w karcie z gradientem;
+  nie dodajemy banera „Czy wiesz, że…” ani nowych ciekawostek. Loader nie może
+  sugerować, że symulacja jest prognozą ani rekomendacją.
 - `PlanProjection.phase_metrics` zachowuje wszystkie kolejne etapy akumulacji;
   średnia wypłata dla fazy obejmuje wyłącznie lata tej fazy, nigdy lata dalszego
   oszczędzania z zerową wypłatą. Przywrócony wynik musi odkryć `#wzResult` bez

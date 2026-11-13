@@ -17,6 +17,19 @@ test("/wizard opens by default with the agreed age", async ({ page }) => {
     await expect(page.locator("#wzStepCount")).toHaveText("Krok 1 / 9");
 });
 
+test("loader tip is a highlighted gradient card", async ({ page }) => {
+    await page.goto("/wizard", { waitUntil: "networkidle" });
+    await page.evaluate(() => {
+        wzShowLoader(true);
+        wzUpdateLoaderText();
+    });
+    const tip = page.locator("#wzLoaderTip");
+    await expect(tip).toContainText("Warto wiedzieć");
+    const background = await tip.evaluate((el) => getComputedStyle(el).backgroundImage);
+    expect(background).toContain("gradient");
+    await page.evaluate(() => wzShowLoader(false));
+});
+
 test("salary defaults to annual gross from limits and converts modes", async ({ page }) => {
     await page.goto("/wizard", { waitUntil: "networkidle" });
     const salary = page.locator("#wzEtatSalary");
@@ -81,11 +94,24 @@ test("mobile layout stays within the screen throughout the employment path", asy
     await expect(page.locator("#wzResult")).toBeVisible({ timeout: 30_000 });
     await expect(page.locator("#wzHeroAnswer")).not.toBeEmpty();
     await expect(page.locator("#wzScenariosBox .wz-scenario-card")).toHaveCount(3);
-    await page.locator(".wz-result-details summary").click();
+    await expect(page.locator("#wzMetrics .metric")).toHaveCount(3);
+    await expect(page.locator("#wzFlowsGantt .wz-gantt-row").first()).toBeVisible();
+
+    await page.locator("#wzTimeline .wz-timeline-segment").first().click();
+    await expect(page.locator("#wzGanttTip")).toBeVisible();
+    await expect(page.locator("#wzGanttTip")).toContainText(/wpłaty|wypłata netto/i);
+    await page.locator("#wzGanttTipClose").click();
+
+    await page.locator("#wzFlowsGantt .wz-gantt-phase").first().click();
+    await expect(page.locator("#wzGanttTip")).toBeVisible();
+    await expect(page.locator("#wzGanttTip")).toContainText(/PIT|Składka zdrowotna|Podatek jednorazowy IKZE/);
+    await page.locator("#wzGanttTipClose").click();
+
+    await page.locator("#wzDetails summary").click();
     await expect(page.locator("#wzAccountFlows .wz-flows-table")).toBeVisible();
     await expect(page.locator("#wzAccountFlows tbody tr").first()).toBeVisible();
-    await expect(page.locator("#wzFlowsGantt .wz-gantt-row").first()).toBeAttached();
-    await expect(page.locator("#wzPolicyNote")).toContainText("Kolejność wypłat");
+    await expect(page.locator("#wzWealthDetails .wz-wealth-row")).toHaveCount(3);
+    await expect(page.locator("#wzPolicyNote")).toContainText("Najpierw");
     await expectNoHorizontalOverflow(page);
 
     const answerBeforeReturn = await page.locator("#wzHeroAnswer").evaluate((el) =>

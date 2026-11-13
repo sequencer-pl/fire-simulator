@@ -814,13 +814,12 @@
     <!-- KROK: WYNIK -->
     <section class="card wz-step hidden" data-step-id="wynik">
         <h2>Twój plan niezależności finansowej</h2>
-        <p class="subtitle">Sprawdź swój plan w trzech scenariuszach rynkowych. Kliknij dowolny scenariusz, aby przejrzeć szczegóły osi czasu i wypłat z kont.</p>
 
         <div class="loader card-inset hidden" id="wzPlanLoader" role="status" aria-live="polite">
             <span class="spinner"></span>
             <div class="loader-body">
                 <strong>Wyliczam Twój plan niezależności finansowej…</strong>
-                <span class="loader-sub wz-loader-tip" id="wzLoaderTip"></span>
+                <div class="wz-loader-tip" id="wzLoaderTip" aria-live="polite"></div>
                 <div class="progress wz-loader-progress" role="progressbar" aria-label="Trwa obliczanie planu" aria-valuetext="Obliczanie">
                     <div class="progress-bar"></div>
                 </div>
@@ -829,51 +828,76 @@
 
         <div id="wzResult" class="wz-result hidden">
             <div id="wzResultError" class="banner banner-danger hidden"></div>
-            <div id="wzHeroAnswer" class="wz-hero-answer"></div>
-            <div id="wzScenariosBox" class="wz-scenarios-box"></div>
-            <div class="wz-metric-line" id="wzMetrics"></div>
-            <div id="wzFacts" class="wz-fact-row"></div>
-            <div id="wzWarnings" class="wz-warnings" aria-live="polite"></div>
 
-            <div class="wz-timeline-wrap">
-                <h3 class="eyebrow wz-panel-title">
-                    <span class="tip-label-row">
-                        <span class="tip-label-text">Oś czasu etapów planu</span>
-                        <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">Pokazuje kolejne fazy Twojego życia: pełną pracę, ewentualny okres przejściowy (Coast lub Barista FIRE), brydż przed emeryturą oraz docelową emeryturę (portfel + ZUS).</span></span>
-                    </span>
-                </h3>
-                <div class="wz-timeline" id="wzTimeline"></div>
-                <div class="wz-phase-table" id="wzPhaseTable"></div>
-                <details class="wz-stage-details">
-                    <summary>Rozbicie planu na etapy</summary>
-                    <div class="wz-stage-summary-list" id="wzStageSummaryList"></div>
-                </details>
-            </div>
+            <section class="wz-answer-block">
+                <div id="wzHeroAnswer" class="wz-hero-answer"></div>
+                <div id="wzWarnings" class="wz-warnings" aria-live="polite"></div>
+            </section>
 
-            <details class="wz-method-details wz-result-details">
-                <summary>Szczegółowe wypłaty i założenia planu</summary>
-                <div class="wz-method-body">
-                    <h3 class="eyebrow wz-panel-title">Przepływy z poszczególnych kont</h3>
-                    <div class="wz-flows-wrap" id="wzFlowsWrap">
-                        <div class="wz-flows-gantt-scroll">
-                            <div class="wz-flows-gantt" id="wzFlowsGantt"></div>
-                        </div>
-                        <div class="wz-gantt-tip hidden" id="wzGanttTip" role="tooltip">
-                            <button type="button" class="wz-gantt-tip-close" id="wzGanttTipClose" aria-label="Zamknij podpowiedź">×</button>
-                            <div id="wzGanttTipBody"></div>
-                        </div>
-                        <p class="field-hint wz-flows-scroll-hint">Przewiń w poziomie, aby zobaczyć cały horyzont.</p>
-                        <p class="wz-flows-total-note" id="wzFlowsTotal"></p>
+            <section class="wz-scenarios-section" id="wzScenariosSection">
+                <div id="wzScenariosBox" class="wz-scenarios-box"></div>
+            </section>
+
+            <div id="wzMetrics" class="metric-grid wz-summary"></div>
+
+            <section class="wz-plan-section">
+                <div class="wz-section-head">
+                    <h3 class="eyebrow wz-panel-title">
+                        <span class="tip-label-row">
+                            <span class="tip-label-text">Twój plan w czasie</span>
+                            <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">Górna oś pokazuje etapy życia. Pasek kont pokazuje, z których kont pochodzą wpłaty i wypłaty w danym wieku. Kliknij etap albo pasek, aby zobaczyć szczegóły.</span></span>
+                        </span>
+                    </h3>
+                    <span class="wz-section-hint">Kliknij etap lub pasek konta, aby zobaczyć szczegóły.</span>
+                </div>
+
+                <div class="wz-plan-block">
+                    <h4 class="wz-plan-subhead">Etapy życia</h4>
+                    <div class="wz-timeline" id="wzTimeline"></div>
+                </div>
+
+                <div class="wz-flows-wrap" id="wzFlowsWrap">
+                    <h4 class="wz-plan-subhead">Skąd pochodzą wypłaty</h4>
+                    <div class="wz-flows-gantt-scroll">
+                        <div class="wz-flows-gantt" id="wzFlowsGantt"></div>
                     </div>
-                    <div id="wzAccountFlows"></div>
-                    <h3 class="eyebrow wz-panel-title">Jak liczymy ten plan?</h3>
-                    <ul>
-                        <li>Kwoty są netto i wyrażone w dzisiejszej sile nabywczej.</li>
-                        <li>Scenariusze różnią się założeniami dotyczącymi stóp zwrotu, inflacji i waloryzacji ZUS.</li>
-                        <li>Podatki, limity i zasady kont wynikają z aktualnej konfiguracji symulatora.</li>
-                        <li>Symulacja jest modelem edukacyjnym, a nie prognozą ani rekomendacją inwestycyjną.</li>
-                    </ul>
-                    <p class="wz-method-policy" id="wzPolicyNote"></p>
+                    <p class="field-hint wz-flows-scroll-hint">Przewiń w poziomie, aby zobaczyć cały horyzont.</p>
+                    <div class="wz-gantt-tip hidden" id="wzGanttTip" role="tooltip">
+                        <button type="button" class="wz-gantt-tip-close" id="wzGanttTipClose" aria-label="Zamknij podpowiedź">×</button>
+                        <div id="wzGanttTipBody"></div>
+                    </div>
+                    <p class="wz-flows-total-note" id="wzFlowsTotal"></p>
+                </div>
+            </section>
+
+            <details class="wz-details" id="wzDetails">
+                <summary>Dane szczegółowe</summary>
+                <div class="wz-details-body">
+                    <section class="wz-details-block">
+                        <h4 class="wz-details-title">Majątek</h4>
+                        <div class="wz-wealth" id="wzWealthDetails"></div>
+                    </section>
+                    <section class="wz-details-block">
+                        <h4 class="wz-details-title">Podatki i ulgi</h4>
+                        <div id="wzFacts" class="wz-fact-row"></div>
+                        <p class="wz-policy-label">Kolejność wypłat</p>
+                        <p class="wz-method-policy" id="wzPolicyNote"></p>
+                    </section>
+                    <section class="wz-details-block">
+                        <h4 class="wz-details-title">Tabela przepływów</h4>
+                        <div id="wzAccountFlows"></div>
+                    </section>
+                    <section class="wz-details-block">
+                        <h4 class="wz-details-title">Jak czytać ten plan?</h4>
+                        <ul class="wz-read-list">
+                            <li><strong>Wypłata netto</strong> — kwota na rękę po PIT, składce zdrowotnej i ewentualnym podatku jednorazowym IKZE.</li>
+                            <li><strong>Portfel i ZUS</strong> — wypłata może pochodzić z obu źródeł; ich podział widać po kliknięciu etapu lub paska konta.</li>
+                            <li><strong>Majątek brutto / netto</strong> — stan kont przed podatkiem od likwidacji i po nim, na koniec horyzontu.</li>
+                            <li><strong>Scenariusze</strong> — zmieniają założenia rynkowe, nie Twoje wpłaty ani cel.</li>
+                            <li><strong>Kwoty realne</strong> — wszystkie wartości są w dzisiejszej sile nabywczej.</li>
+                        </ul>
+                        <p class="wz-disclaimer">Model edukacyjny — nie prognoza ani rekomendacja inwestycyjna.</p>
+                    </section>
                 </div>
             </details>
         </div>
