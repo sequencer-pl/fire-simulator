@@ -285,19 +285,12 @@ h4 { font-size: var(--fs-md); }
     height: 18px;
 }
 
-body[data-section="symulacje"] .nav-item[data-nav="symulacje"],
+body[data-section="porownywarka"] .nav-item[data-nav="porownywarka"],
 body[data-section="edytor"] .nav-item[data-nav="edytor"],
 body[data-section="asystent"] .nav-item[data-nav="asystent"],
 body[data-section="konfiguracja"] .nav-item[data-nav="konfiguracja"] {
     color: var(--text);
     background: var(--primary-soft);
-}
-
-.nav-sep {
-    width: 1px;
-    height: 22px;
-    background: var(--border);
-    margin: 0 var(--sp-2);
 }
 
 /* Średnie ekrany: etykiety znikają, zostają ikony z podpowiedzią w title/aria-label. */
@@ -310,46 +303,6 @@ body[data-section="konfiguracja"] .nav-item[data-nav="konfiguracja"] {
 
     .nav-item span { display: none; }
 
-    .account-email { display: none; }
-}
-
-/* --- Widget konta ------------------------------------------------------- */
-
-.account-widget {
-    display: flex;
-    align-items: center;
-    gap: var(--sp-2);
-}
-
-.account-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--sp-2);
-    height: 38px;
-    padding: 0 var(--sp-2) 0 var(--sp-1);
-    border-radius: var(--r-pill);
-    color: var(--text-2);
-    font-size: var(--fs-sm);
-}
-
-.account-avatar {
-    width: 30px;
-    height: 30px;
-    border-radius: 50%;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    background: var(--primary);
-    color: var(--on-primary);
-    font-size: var(--fs-sm);
-    font-weight: 700;
-}
-
-.account-email {
-    max-width: 18ch;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
 }
 
 /* --- Dolny pasek zakładek (mobile) --------------------------------------- */
@@ -381,8 +334,6 @@ body[data-section="konfiguracja"] .nav-item[data-nav="konfiguracja"] {
     .brand h1 { font-size: 1.05rem; }
 
     .topnav .nav-item { display: none; }
-    .topnav .nav-sep { display: none; }
-    .account-email { display: none; }
 
     .tabbar {
         position: fixed;
@@ -412,17 +363,12 @@ body[data-section="konfiguracja"] .nav-item[data-nav="konfiguracja"] {
 
     .tabbar a .icon { width: 22px; height: 22px; }
 
-    body[data-section="symulacje"] .tabbar a[data-nav="symulacje"],
+    body[data-section="porownywarka"] .tabbar a[data-nav="porownywarka"],
     body[data-section="edytor"] .tabbar a[data-nav="edytor"],
     body[data-section="asystent"] .tabbar a[data-nav="asystent"],
     body[data-section="konfiguracja"] .tabbar a[data-nav="konfiguracja"] {
         color: var(--primary-text);
     }
-}
-
-@media (max-width: 480px) {
-    .account-widget .btn > span { display: none; }
-    .account-widget .btn { width: var(--control-h-sm); padding: 0; }
 }
 
 @media (max-width: 359px) {

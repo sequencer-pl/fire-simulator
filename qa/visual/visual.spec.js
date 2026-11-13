@@ -3,14 +3,10 @@ import { test, expect } from "@playwright/test";
 // Strony publiczne (routes.py) — wszystkie bez logowania.
 const PAGES = [
     "/",
-    "/login",
     "/sim",
     "/sim?view=config",
     "/wizard",
-    "/wizard-v1",
-    "/wizard-v2",
     "/compare",
-    "/moje-symulacje",
 ];
 
 for (const path of PAGES) {

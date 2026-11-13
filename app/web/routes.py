@@ -1,20 +1,16 @@
-import json
 import os
-import sqlite3
-from datetime import UTC, datetime
 from functools import lru_cache
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
-from pydantic import ValidationError
+from pydantic import BaseModel, Field
 
 from app.core.base import resolve_base
 from app.simulation.config import (
     ACCOUNT_LABELS,
     BUILTIN_PRESETS,
-    TaxConfig,
     account_display_label,
     base_account_key,
     default_config,
@@ -22,7 +18,6 @@ from app.simulation.config import (
 from app.simulation.engine import simulate
 from app.simulation.planner import (
     SalaryPreviewRequest,
-    WizardAnswers,
     WizardPlanRequest,
     WizardSuggestRequest,
     estimate_pool_monthly,
@@ -35,7 +30,6 @@ from app.simulation.salary import salary_preview
 from app.simulation.schemas import SimulationInput, SimulationResult
 from app.stages.metadata import STAGE_META
 from app.stages.registry import get_all_stage_types
-from app.storage import db
 from app.web.limits import check_limit
 
 router = APIRouter()
@@ -50,19 +44,17 @@ def _asset_version_uncached() -> str:
     mtimes = [
         os.path.getmtime(STATIC_DIR / rel)
         for rel in (
-            "css/style.css",
+            "css/base.css",
+            "css/components.css",
+            "css/wizard.css",
+            "css/library.css",
+            "css/sim.css",
             "js/sim-utils.js",
             "js/sim-metadata.js",
             "js/sim-cards.js",
             "js/sim-stages.js",
             "js/simulator.js",
             "js/wizard.js",
-            "js/wizard-v2.js",
-            "css/wizard.css",
-            "js/session.js",
-            "js/common.js",
-            "js/simulations.js",
-            "js/landing.js",
             "js/compare.js",
         )
         if (STATIC_DIR / rel).exists()
@@ -73,45 +65,6 @@ def _asset_version_uncached() -> str:
 @lru_cache(maxsize=1)
 def _asset_version() -> str:
     return _asset_version_uncached()
-
-
-def _now() -> str:
-    return datetime.now(UTC).isoformat(timespec="seconds")
-
-
-def _current_user_id(request: Request) -> int | None:
-    return request.session.get("user_id")
-
-
-def _require_user(request: Request) -> int:
-    user_id = _current_user_id(request)
-    if not user_id:
-        raise HTTPException(status_code=401, detail="Zaloguj się, aby kontynuować.")
-    return user_id
-
-
-def _user_tax_config(request: Request) -> TaxConfig | None:
-    """Saved config for the current user, or None for anonymous/legacy users."""
-    user_id = _current_user_id(request)
-    if not user_id:
-        return None
-    saved = db.get_user_config(user_id)
-    if not saved:
-        return None
-    try:
-        payload = json.loads(saved)
-        if isinstance(payload, dict) and "config" in payload:
-            payload = payload["config"]
-        return TaxConfig.model_validate(payload)
-    except (json.JSONDecodeError, TypeError, ValidationError):
-        return None
-
-
-def _wizard_answers(request: Request, answers: WizardAnswers) -> WizardAnswers:
-    """Server config wins for logged-in users; anonymous clients may send theirs."""
-    if _current_user_id(request):
-        return answers.model_copy(update={"base_config": _user_tax_config(request)})
-    return answers
 
 
 def _summary_from_result(result: SimulationResult) -> dict:
@@ -223,17 +176,6 @@ def _stages_summary(
     return stages
 
 
-def _simulation_response(row: sqlite3.Row) -> dict:
-    return {
-        "id": row["id"],
-        "name": row["name"],
-        "created_at": row["created_at"],
-        "updated_at": row["updated_at"],
-        "model_version": row["model_version"],
-        "summary": json.loads(row["summary_json"]),
-    }
-
-
 # --- Views ---
 
 
@@ -248,26 +190,11 @@ async def landing(request: Request):
     )
 
 
-@router.get("/moje-symulacje", response_class=HTMLResponse)
-async def simulations(request: Request):
-    return templates.TemplateResponse(
-        request,
-        "simulations.html",
-        {
-            "version": _asset_version(),
-        },
-    )
-
-
-@router.get("/login", response_class=HTMLResponse)
-async def login(request: Request):
-    return templates.TemplateResponse(
-        request,
-        "login.html",
-        {
-            "version": _asset_version(),
-        },
-    )
+@router.get("/moje-symulacje")
+@router.get("/login")
+async def legacy_library_routes():
+    """Stare wejścia do biblioteki/logowania prowadzą do Porównywarki."""
+    return RedirectResponse("/compare", status_code=308)
 
 
 @router.get("/sim", response_class=HTMLResponse)
@@ -295,20 +222,7 @@ async def compare(request: Request):
 
 @router.get("/wizard", response_class=HTMLResponse)
 async def wizard(request: Request):
-    """Domyślny Asystent: wersja v2 (krok po kroku)."""
-    return templates.TemplateResponse(
-        request,
-        "wizard_v2.html",
-        {
-            "version": _asset_version(),
-            "stage_types": get_all_stage_types(),
-        },
-    )
-
-
-@router.get("/wizard-v1", response_class=HTMLResponse)
-async def wizard_v1(request: Request):
-    """Klasyczny Asystent v1 — zachowany pod osobnym adresem."""
+    """Jedyny Asystent FIRE — prowadzi przez drzewo krótkich pytań."""
     return templates.TemplateResponse(
         request,
         "wizard.html",
@@ -319,17 +233,11 @@ async def wizard_v1(request: Request):
     )
 
 
-@router.get("/wizard-v2", response_class=HTMLResponse)
-async def wizard_v2(request: Request):
-    """Kompatybilny alias domyślnego Asystenta v2."""
-    return templates.TemplateResponse(
-        request,
-        "wizard_v2.html",
-        {
-            "version": _asset_version(),
-            "stage_types": get_all_stage_types(),
-        },
-    )
+@router.get("/wizard-v1")
+@router.get("/wizard-v2")
+async def wizard_legacy():
+    """Stare adresy Asystenta prowadzą do jedynej wersji."""
+    return RedirectResponse("/wizard", status_code=308)
 
 
 # --- Simulation API (existing) ---
@@ -339,8 +247,7 @@ async def wizard_v2(request: Request):
 def api_wizard_plan(body: WizardPlanRequest, request: Request):
     check_limit("wizard_plan", request)
     try:
-        answers = _wizard_answers(request, body.answers)
-        return plan(body.path, answers, body.target_monthly)
+        return plan(body.path, body.answers, body.target_monthly)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
 
@@ -349,7 +256,7 @@ def api_wizard_plan(body: WizardPlanRequest, request: Request):
 def api_wizard_suggest(body: WizardSuggestRequest, request: Request):
     check_limit("wizard_suggest", request)
     try:
-        answers = _wizard_answers(request, body.answers)
+        answers = body.answers
         pool_monthly = estimate_pool_monthly(
             answers, body.path, body.target_monthly
         )
@@ -381,10 +288,7 @@ def api_wizard_suggest(body: WizardSuggestRequest, request: Request):
 def api_wizard_salary(body: SalaryPreviewRequest, request: Request):
     check_limit("wizard_salary", request)
     ppk_pct = body.ppk_employee_pct if body.use_ppk else 0.0
-    if _current_user_id(request):
-        config = _user_tax_config(request) or default_config()
-    else:
-        config = body.base_config or default_config()
+    config = body.base_config or default_config()
     gross, net = salary_preview(
         body.amount,
         body.salary_mode,
@@ -427,148 +331,45 @@ async def api_config():
     return default_config().model_dump()
 
 
-@router.get("/api/config/user")
-async def api_user_config(request: Request):
-    user_id = _current_user_id(request)
-    if not user_id:
-        return {"config": None}
-    saved = db.get_user_config(user_id)
-    if not saved:
-        return {"config": None}
-    payload = json.loads(saved)
-    if isinstance(payload, dict) and "config" in payload and "baseline" in payload:
-        return payload
-    return {
-        "config": payload,
-        "baseline": None,
-        "preset_id": None,
-        "preset_name": "Własna konfiguracja",
-        "overrides": [],
-    }
 
 
-def _validate_tax_config(body: dict) -> TaxConfig:
-    try:
-        cfg = TaxConfig.model_validate(body)
-    except ValidationError:
-        raise HTTPException(status_code=422, detail="Nieprawidłowa konfiguracja.") from None
-    if cfg.prog2 is not None:
-        if cfg.rate_middle is None:
+# --- Porównywarka JSON (stateless) ---
+
+
+class CompareEvaluateItem(BaseModel):
+    name: str = Field(default="Symulacja z pliku", min_length=1, max_length=200)
+    input: SimulationInput
+
+
+class CompareEvaluatePayload(BaseModel):
+    items: list[CompareEvaluateItem] = Field(min_length=1, max_length=4)
+
+
+@router.post("/api/compare/evaluate")
+def api_compare_evaluate(payload: CompareEvaluatePayload, request: Request):
+    check_limit("simulate", request)
+    items = []
+    for idx, item in enumerate(payload.items, start=1):
+        try:
+            result = simulate(item.input)
+        except ValueError as e:
             raise HTTPException(
-                status_code=422, detail="rate_middle wymagane gdy prog2 jest ustawione"
-            )
-        if cfg.prog2 <= cfg.prog:
-            raise HTTPException(status_code=422, detail="prog2 musi być większe od prog")
-        if not 0 <= cfg.rate_middle <= 1:
-            raise HTTPException(status_code=422, detail="rate_middle musi być w [0, 1]")
-    return cfg
-
-
-@router.put("/api/config/user")
-async def api_save_user_config(request: Request):
-    user_id = _require_user(request)
-    body = await request.json()
-    if isinstance(body, dict) and "config" in body and "baseline" in body:
-        config = body["config"]
-        baseline = body["baseline"]
-        _validate_tax_config(config)
-        _validate_tax_config(baseline)
-        overrides = body.get("overrides", [])
-        preset_id = body.get("preset_id")
-        preset_name = body.get("preset_name", "Własna konfiguracja")
-        if not isinstance(overrides, list) or not all(isinstance(path, str) for path in overrides):
-            raise HTTPException(
-                status_code=422,
-                detail="overrides musi być listą ścieżek konfiguracji",
-            )
-        if preset_id is not None and not isinstance(preset_id, int):
-            raise HTTPException(status_code=422, detail="preset_id musi być liczbą lub null")
-        if not isinstance(preset_name, str):
-            raise HTTPException(status_code=422, detail="preset_name musi być tekstem")
-        payload = {
-            "config": config,
-            "baseline": baseline,
-            "preset_id": preset_id,
-            "preset_name": preset_name[:100],
-            "overrides": overrides,
-        }
-    else:
-        _validate_tax_config(body)
-        payload = body
-    db.save_user_config(user_id, json.dumps(payload, separators=(",", ":")), _now())
-    return {"ok": True}
-
-
-@router.delete("/api/config/user")
-async def api_delete_user_config(request: Request):
-    user_id = _require_user(request)
-    db.delete_user_config(user_id)
-    return {"ok": True}
-
-
-# --- Presets ---
-
-
-@router.get("/api/presets")
-async def api_list_presets(request: Request):
-    user_id = _current_user_id(request)
-    result: list[dict] = []
-
-    for name in BUILTIN_PRESETS:
-        result.append({"id": None, "name": name, "is_builtin": True})
-
-    if user_id is not None:
-        for row in db.list_user_presets(user_id):
-            result.append(
-                {
-                    "id": row["id"],
-                    "name": row["name"],
-                    "is_builtin": False,
-                }
-            )
-
-    return {"presets": result}
-
-
-@router.get("/api/presets/{preset_id}")
-async def api_get_preset(preset_id: int, request: Request):
-    user_id = _require_user(request)
-    row = db.get_preset(preset_id, user_id)
-    if row is None:
-        raise HTTPException(status_code=404, detail="Preset not found")
-    return {"config": json.loads(row["config_json"])}
-
-
-@router.post("/api/presets")
-async def api_create_preset(request: Request):
-    user_id = _require_user(request)
-    data = await request.json()
-    name = data.get("name", "").strip()
-    if not name:
-        raise HTTPException(status_code=400, detail="Name required")
-    if len(name) > 100:
-        raise HTTPException(status_code=400, detail="Name too long (max 100)")
-    if name in BUILTIN_PRESETS:
-        raise HTTPException(status_code=400, detail="Cannot overwrite builtin preset")
-    config = data.get("config")
-    if config is None:
-        raise HTTPException(status_code=400, detail="Config required")
-    _validate_tax_config(config)
-    now = datetime.now(UTC).isoformat()
-    try:
-        preset_id = db.save_preset(user_id, name, json.dumps(config), now)
-    except sqlite3.IntegrityError as e:
-        if "UNIQUE" in str(e):
-            raise HTTPException(
-                status_code=409, detail="Preset with this name already exists"
+                status_code=400, detail=f"{item.name}: {e}"
             ) from e
-        raise
-    return {"id": preset_id, "name": name, "is_builtin": False}
-
-
-@router.delete("/api/presets/{preset_id}")
-async def api_delete_preset(preset_id: int, request: Request):
-    user_id = _require_user(request)
-    if not db.delete_preset(preset_id, user_id):
-        raise HTTPException(status_code=404, detail="Preset not found")
-    return {"ok": True}
+        summary = _summary_from_result(result)
+        summary["stages"] = _stages_summary(item.input, result)
+        summary["total_user_contributions"] = _total_user_contributions(item.input)
+        summary["initial_capital"] = _initial_capital(item.input)
+        items.append(
+            {
+                "id": None,
+                "name": item.name.strip() or f"Plik JSON #{idx}",
+                "created_at": None,
+                "updated_at": None,
+                "from_json": True,
+                "input": item.input.model_dump(mode="json"),
+                "result": result.model_dump(mode="json"),
+                "summary": summary,
+            }
+        )
+    return items

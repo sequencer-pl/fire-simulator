@@ -1,7 +1,3 @@
-import os
-
-os.environ.setdefault("FIRE_SECRET_KEY", "test-secret-key")
-
 import pytest
 
 from app.simulation.config import default_config
@@ -42,11 +38,7 @@ def no_tax_config():
 
 
 @pytest.fixture()
-def client(tmp_path):
-    from app.storage import db
-
-    db.set_db_path(str(tmp_path / "test.db"))
-
+def client():
     from fastapi.testclient import TestClient
 
     from app.main import app

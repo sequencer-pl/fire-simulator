@@ -45,7 +45,7 @@ test("brak kolorów poza tokens.css i brak emoji w JS", async ({ request }) => {
         expect(stripped, `${f}: kolor hex poza tokens.css`).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
         expect(stripped, `${f}: rgba() poza tokens.css`).not.toMatch(/rgba?\(/);
     }
-    for (const f of ["sim-metadata.js", "sim-stages.js", "sim-cards.js", "wizard.js", "simulator.js", "simulations.js", "compare.js"]) {
+    for (const f of ["sim-metadata.js", "sim-stages.js", "sim-cards.js", "wizard.js", "simulator.js", "compare.js"]) {
         const js = await (await request.get(`/static/js/${f}`)).text();
         expect(js, `${f}: emoji w kodzie UI`).not.toMatch(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/u);
     }

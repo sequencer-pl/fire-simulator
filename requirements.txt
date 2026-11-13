@@ -20,8 +20,6 @@ httptools==0.8.0
     # via uvicorn
 idna==3.20
     # via anyio
-itsdangerous==2.2.0
-    # via fire-simulator
 jinja2==3.1.6
     # via fire-simulator
 markupsafe==3.0.3

@@ -200,7 +200,6 @@
 .form-actions.config-collapsed #simulateBtn { display: none; }
 
 .form-actions.config-collapsed #exportSimBtn,
-.form-actions.config-collapsed #saveSimBtn,
 .form-actions.config-collapsed #editConfigBtn { display: inline-flex; }
 
 /* Powrót do Asystenta jest dostępny w widoku wyników; w edytorze ten sam

@@ -6,7 +6,7 @@ import { JSDOM } from "jsdom";
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const readRel = (p) => fs.readFileSync(path.join(ROOT, p), "utf8");
 
-const tpl = readRel("app/templates/wizard_v2.html");
+const tpl = readRel("app/templates/wizard.html");
 const bodyStart = tpl.indexOf("{% block content %}") + "{% block content %}".length;
 const bodyEnd = tpl.indexOf("{% endblock %}", bodyStart);
 const content = tpl
@@ -17,7 +17,7 @@ const content = tpl
 const dom = new JSDOM(`<!DOCTYPE html><html><body>${content}</body></html>`, {
     runScripts: "dangerously",
     pretendToBeVisual: true,
-    url: "http://localhost/wizard-v2",
+    url: "http://localhost/wizard",
 });
 const { window } = dom;
 window.scrollTo = () => {};
@@ -50,7 +50,7 @@ const scripts = [
     "static/js/sim-metadata.js",
     "static/js/sim-utils.js",
     "static/js/controls.js",
-    "static/js/wizard-v2.js",
+    "static/js/wizard.js",
 ]
     .map(readRel)
     .join("\n;\n");
@@ -66,58 +66,58 @@ const harness = `
         }
     };
 
-    v2Init();
+    wzInit();
 
     check("start: krok cel, 9 kroków, wstecz ukryty", () => {
-        const cel = document.querySelector('.v2-step[data-step-id="cel"]');
+        const cel = document.querySelector('.wz-step[data-step-id="cel"]');
         return !cel.classList.contains("hidden")
-            && document.getElementById("v2StepCount").textContent === "Krok 1 / 9"
-            && document.getElementById("v2BackBtn").classList.contains("hidden");
+            && document.getElementById("wzStepCount").textContent === "Krok 1 / 9"
+            && document.getElementById("wzBackBtn").classList.contains("hidden");
     });
     check("wynagrodzenie: domyślnie brutto rocznie z limitów", () => {
-        return document.getElementById("v2EtatSalary").value === "113000"
-            && v2Radio("v2EtatPeriod", "year") === "year"
-            && v2Radio("v2EtatSalaryMode", "gross") === "gross";
+        return document.getElementById("wzEtatSalary").value === "113000"
+            && wzRadio("wzEtatPeriod", "year") === "year"
+            && wzRadio("wzEtatSalaryMode", "gross") === "gross";
     });
     check("nawigacja: cel -> profil", () => {
-        document.getElementById("v2NextBtn").click();
-        return !document.querySelector('.v2-step[data-step-id="profil"]').classList.contains("hidden");
+        document.getElementById("wzNextBtn").click();
+        return !document.querySelector('.wz-step[data-step-id="profil"]').classList.contains("hidden");
     });
     check("B2B: krok etat znika, pojawia się b2b", () => {
-        const radio = document.querySelector('input[name="v2Employment"][value="b2b"]');
+        const radio = document.querySelector('input[name="wzEmployment"][value="b2b"]');
         radio.checked = true;
         radio.dispatchEvent(new Event("change", { bubbles: true }));
-        document.getElementById("v2NextBtn").click();
-        const b2b = document.querySelector('.v2-step[data-step-id="b2b"]');
+        document.getElementById("wzNextBtn").click();
+        const b2b = document.querySelector('.wz-step[data-step-id="b2b"]');
         return !b2b.classList.contains("hidden")
-            && document.querySelector('.v2-step[data-step-id="etat"]').classList.contains("hidden");
+            && document.querySelector('.wz-step[data-step-id="etat"]').classList.contains("hidden");
     });
     check("B2B: ryczałt pokazuje stawkę, liniowy chowa", () => {
-        const linear = document.querySelector('input[name="v2B2bTaxForm"][value="liniowy"]');
+        const linear = document.querySelector('input[name="wzB2bTaxForm"][value="liniowy"]');
         linear.checked = true;
         linear.dispatchEvent(new Event("change", { bubbles: true }));
-        return document.getElementById("v2B2bLumpRow").classList.contains("hidden");
+        return document.getElementById("wzB2bLumpRow").classList.contains("hidden");
     });
     check("B2B: mały ZUS chowa pole własnej podstawy", () => {
-        const maly = document.querySelector('input[name="v2B2bZusMode"][value="maly"]');
+        const maly = document.querySelector('input[name="wzB2bZusMode"][value="maly"]');
         maly.checked = true;
         maly.dispatchEvent(new Event("change", { bubbles: true }));
-        return document.getElementById("v2B2bCustomZusRow").classList.contains("hidden");
+        return document.getElementById("wzB2bCustomZusRow").classList.contains("hidden");
     });
     check("PPK/PPE: etat pozwala zaznaczyć oba i wpisać salda", () => {
-        const etat = document.querySelector('input[name="v2Employment"][value="etat"]');
+        const etat = document.querySelector('input[name="wzEmployment"][value="etat"]');
         etat.checked = true;
         etat.dispatchEvent(new Event("change", { bubbles: true }));
-        v2ShowStep("etat");
-        const ppkActive = document.querySelector('input[name="v2PpkState"][value="active"]');
-        const ppeActive = document.querySelector('input[name="v2PpeState"][value="active"]');
+        wzShowStep("etat");
+        const ppkActive = document.querySelector('input[name="wzPpkState"][value="active"]');
+        const ppeActive = document.querySelector('input[name="wzPpeState"][value="active"]');
         ppkActive.checked = true;
         ppeActive.checked = true;
         ppkActive.dispatchEvent(new Event("change", { bubbles: true }));
         ppeActive.dispatchEvent(new Event("change", { bubbles: true }));
-        document.getElementById("v2PpkBalance").value = "10000";
-        document.getElementById("v2PpeBalance").value = "20000";
-        const answers = v2CollectAnswers({ withAllocations: false });
+        document.getElementById("wzPpkBalance").value = "10000";
+        document.getElementById("wzPpeBalance").value = "20000";
+        const answers = wzCollectAnswers({ withAllocations: false });
         return answers.use_ppk === true
             && answers.use_ppe === true
             && answers.ppk_contributions === true
@@ -128,68 +128,83 @@ const harness = `
             && answers.capital.ppe === 20000;
     });
     check("PPK/PPE: stan 'nigdy' chowa pole salda", () => {
-        const ppkNever = document.querySelector('input[name="v2PpkState"][value="never"]');
+        const ppkNever = document.querySelector('input[name="wzPpkState"][value="never"]');
         ppkNever.checked = true;
         ppkNever.dispatchEvent(new Event("change", { bubbles: true }));
-        v2ShowStep("kapital");
-        return document.getElementById("v2PpkBalanceField").classList.contains("hidden");
+        wzShowStep("kapital");
+        return document.getElementById("wzPpkBalanceField").classList.contains("hidden");
     });
     check("OFE: członkostwo niezależne od kapitału ZUS", () => {
-        v2ShowStep("zus");
-        const noZus = document.querySelector('input[name="v2HasZusCap"][value="no"]');
+        wzShowStep("zus");
+        const noZus = document.querySelector('input[name="wzHasZusCap"][value="no"]');
         noZus.checked = true;
         noZus.dispatchEvent(new Event("change", { bubbles: true }));
-        const hasOfe = document.querySelector('input[name="v2HasOfe"][value="yes"]');
+        const hasOfe = document.querySelector('input[name="wzHasOfe"][value="yes"]');
         hasOfe.checked = true;
         hasOfe.dispatchEvent(new Event("change", { bubbles: true }));
-        document.getElementById("v2OfeBalance").value = "30000";
-        const answers = v2CollectAnswers({ withAllocations: false });
-        return !document.getElementById("v2OfeCapBox").classList.contains("hidden")
+        document.getElementById("wzOfeBalance").value = "30000";
+        const answers = wzCollectAnswers({ withAllocations: false });
+        return !document.getElementById("wzOfeCapBox").classList.contains("hidden")
             && answers.ofe_member === true
             && answers.capital["zus:ofe"] === 30000;
     });
     check("horyzont: domyślny plan end wynika z płci i wieku", () => {
-        return document.getElementById("v2PlanEnd").value === "81";
+        return document.getElementById("wzPlanEnd").value === "81";
     });
     check("stan: zapis i odtworzenie wieku po ?restore=1", () => {
-        localStorage.removeItem("fire.wizardV2Plan");
-        const age = document.getElementById("v2Age");
+        localStorage.removeItem("fire.wizardPlan");
+        const age = document.getElementById("wzAge");
         age.value = "47";
         age.dispatchEvent(new Event("input", { bubbles: true }));
-        v2SaveState();
+        wzSaveState();
         age.value = "40";
         window.history.replaceState({}, "", "/wizard?restore=1");
-        const restored = v2RestoreIfRequested();
-        return restored && document.getElementById("v2Age").value === "47";
+        const restored = wzRestoreIfRequested();
+        return restored && document.getElementById("wzAge").value === "47";
     });
     check("kapitał: pastylki IKE/IKZE/OIPE i wiersz z saldem", () => {
-        document.querySelector('.v2-step[data-step-id="kapital"]');
-        v2ShowStep("kapital");
-        const pill = document.querySelector('#v2SheltersPicker .wz-pill[data-account="ikze"]');
+        document.querySelector('.wz-step[data-step-id="kapital"]');
+        wzShowStep("kapital");
+        const pill = document.querySelector('#wzSheltersPicker .wz-pill[data-account="ikze"]');
         pill.click();
-        const row = document.querySelector('#v2SheltersList .v2-cap-row[data-account="ikze"]');
-        row.querySelector(".v2-cap-amount").value = "20000";
-        const answers = v2CollectAnswers({ withAllocations: false });
+        const row = document.querySelector('#wzSheltersList .wz-cap-row[data-account="ikze"]');
+        row.querySelector(".wz-cap-amount").value = "20000";
+        const answers = wzCollectAnswers({ withAllocations: false });
         return !!row && answers.capital.ikze === 20000 && answers.use_ikze === true;
     });
     check("kapitał: wiele lokat dostaje numerowane instancje", () => {
-        const add = document.querySelector('.v2-add-multi[data-base="lokata"]');
+        const add = document.querySelector('.wz-add-multi[data-base="lokata"]');
         add.click();
         add.click();
-        const rows = [...document.querySelectorAll('#v2SafeList .v2-cap-row')];
+        const rows = [...document.querySelectorAll('#wzSafeList .wz-cap-row')];
         return rows.length === 2
             && rows[0].dataset.account === "lokata"
             && rows[1].dataset.account === "lokata:2";
     });
+    check("podział ręczny: zaokrąglenia sumują się dokładnie do 100", () => {
+        const out = wzNormalizeManualShares({
+            ikze: 9.42, ike: 23.55, oipe: 23.55, broker: 19.57,
+            obligacje: 10.87, oki_inw: 6.52, lokata: 4.35, krypto: 2.17,
+        }, { exact: true });
+        const sum = Object.values(out).reduce((a, b) => a + b, 0);
+        return Math.abs(sum - 100) < 1e-9;
+    });
+    check("podział ręczny: suma powyżej 100 jest normalizowana", () => {
+        const out = wzNormalizeManualShares({
+            broker: 80, lokata: 50, obligacje: 10,
+        });
+        const sum = Object.values(out).reduce((a, b) => a + b, 0);
+        return Math.abs(sum - 100) < 1e-9;
+    });
     check("ROI: brak powtarzanej notatki o domyślnej wartości", () => {
-        v2ShowStep("kapital");
-        const row = document.querySelector('#v2SafeList .v2-cap-row[data-account="lokata"]');
+        wzShowStep("kapital");
+        const row = document.querySelector('#wzSafeList .wz-cap-row[data-account="lokata"]');
         return Boolean(row)
-            && !row.querySelector(".v2-cap-roi-note")
-            && Boolean(row.querySelector(".v2-cap-roi-reset"));
+            && !row.querySelector(".wz-cap-roi-note")
+            && Boolean(row.querySelector(".wz-cap-roi-reset"));
     });
     check("wynik: scenariusz i podsumowanie etapów renderują się", () => {
-        v2Plan = {
+        wzPlan = {
             path: 1,
             input: {
                 gender: "m",
@@ -250,33 +265,33 @@ const harness = `
             scenario_projections: {},
             scenario_solved: {},
         };
-        v2SelectedScenario = "realne";
-        v2RenderResult(v2Plan);
-        return document.getElementById("v2HeroAnswer").textContent.includes("5")
-            && document.querySelectorAll("#v2StageSummaryList .stage-line").length === 2
-            && document.querySelectorAll("#v2PhaseTable tbody tr").length === 2
-            && document.querySelectorAll("#v2FlowsGantt .wz-gantt-row").length >= 1
-            && document.querySelectorAll("#v2Facts .wz-fact").length >= 1
-            && document.getElementById("v2PolicyNote").textContent.includes("Kolejność wypłat");
+        wzSelectedScenario = "realne";
+        wzRenderResult(wzPlan);
+        return document.getElementById("wzHeroAnswer").textContent.includes("5")
+            && document.querySelectorAll("#wzStageSummaryList .stage-line").length === 2
+            && document.querySelectorAll("#wzPhaseTable tbody tr").length === 2
+            && document.querySelectorAll("#wzFlowsGantt .wz-gantt-row").length >= 1
+            && document.querySelectorAll("#wzFacts .wz-fact").length >= 1
+            && document.getElementById("wzPolicyNote").textContent.includes("Kolejność wypłat");
     });
     check("restore: ?restore=1 odtwarza krok wyniku z zapisanego planu", () => {
-        localStorage.removeItem("fire.wizardV2State");
-        localStorage.setItem("fire.wizardV2Plan", JSON.stringify({
-            plan: v2Plan,
+        localStorage.removeItem("fire.wizardState");
+        localStorage.setItem("fire.wizardPlan", JSON.stringify({
+            plan: wzPlan,
             path: 1,
             selectedScenario: "realne",
         }));
         window.history.replaceState({}, "", "/wizard?restore=1");
-        const restored = v2RestoreIfRequested();
+        const restored = wzRestoreIfRequested();
         return restored
-            && !document.querySelector('.v2-step[data-step-id="wynik"]').classList.contains("hidden")
-            && !document.getElementById("v2Result").classList.contains("hidden")
-            && document.getElementById("v2HeroAnswer").textContent.length > 0;
+            && !document.querySelector('.wz-step[data-step-id="wynik"]').classList.contains("hidden")
+            && !document.getElementById("wzResult").classList.contains("hidden")
+            && document.getElementById("wzHeroAnswer").textContent.length > 0;
     });
 
     const failed = results.filter((r) => !r.ok);
     const NL = String.fromCharCode(10);
-    console.log(NL + "=== FIRE wizard-v2.js — harness jsdom ===");
+    console.log(NL + "=== FIRE wizard.js — harness jsdom ===");
     for (const r of results) {
         console.log((r.ok ? "PASS" : "FAIL") + "  " + r.name + (r.err ? "  (" + r.err + ")" : ""));
     }

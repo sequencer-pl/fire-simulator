@@ -11,15 +11,15 @@ let _currentPresetName = "Domyślne 2026";
 let CONFIG_BASELINE = null;
 let CONFIG_BASELINE_NAME = "Domyślne 2026";
 let CONFIG_IS_CUSTOM = false;
-let CONFIG_AUTHENTICATED = false;
 let CONFIG_OVERRIDE_PATHS = new Set();
-const ANON_CONFIG_KEY = "fire.config.anonymous";
+const CONFIG_KEY = "fire.config";
+const LEGACY_CONFIG_KEY = "fire.config.anonymous";
+const LOCAL_PRESETS_KEY = "fire.presets";
 
 let lastInput = null;
 let lastResult = null;
 // Polityka wypłat przeniesiona z Asystenta (bez UI w edytorze).
 let loadedWithdrawalPolicy = "defer_tier";
-let loadedDraftSource = "v1";
 
 function gatherFormData() {
     const stages = [];
@@ -277,12 +277,10 @@ function renderStageSummary(data) {
 document.addEventListener("DOMContentLoaded", () => {
     const container = document.getElementById("stages-container");
     const params = new URLSearchParams(location.search);
-    const simId = params.get("id");
 
     if (params.get("view") === "config") switchMode("config");
     initConfig();
-    refreshSessionBar();
-    initSaveButton();
+    initSimulationIO();
     initResultsControls();
     initStageEventHandlers(container);
     initTipAnchoring();
@@ -299,19 +297,27 @@ document.addEventListener("DOMContentLoaded", () => {
         initNumControls(configContent, guardedNumberInputStep);
     }
 
-    if (simId) {
-        loadSimulation(simId, container);
-    } else {
-        const draftApplied = applyWizardDraftIfPresent();
-        updateStageButtons(container);
-        updateStageHints(container);
-        refreshRealizationToggles(container);
-        if (draftApplied) {
-            // Plan z Asystenta jest już policzony — pokaż wynik od razu,
-            // zamiast zmuszać użytkownika do drugiego kliknięcia „Symuluj”.
-            document.getElementById("simForm")?.requestSubmit();
-        }
+    const draftApplied = applyWizardDraftIfPresent();
+    updateStageButtons(container);
+    updateStageHints(container);
+    refreshRealizationToggles(container);
+    if (draftApplied) {
+        // Plan z Asystenta jest już policzony — pokaż wynik od razu,
+        // zamiast zmuszać użytkownika do drugiego kliknięcia „Symuluj”.
+        document.getElementById("simForm")?.requestSubmit();
     }
+
+    document.querySelectorAll(".topnav a[data-nav], .tabbar a[data-nav]").forEach((a) => {
+        a.addEventListener("click", (e) => {
+            const section = document.body.dataset.section;
+            const nav = a.dataset.nav;
+            const switchable = nav === "edytor" || nav === "konfiguracja";
+            if ((section === "edytor" || section === "konfiguracja") && switchable) {
+                window.setNavSection(nav);
+                e.preventDefault();
+            }
+        });
+    });
 
     updateEmptyState();
     new MutationObserver(updateEmptyState).observe(container, { childList: true });
@@ -336,7 +342,6 @@ function applyWizardDraftIfPresent() {
         const draft = JSON.parse(raw);
         if (!draft || !Array.isArray(draft.stages) || !draft.stages.length) return false;
         loadedWithdrawalPolicy = draft.withdrawal_policy || "defer_tier";
-        loadedDraftSource = draft.source || "v1";
         populateStages(draft);
         showWizardDraftBanner();
         return true;
@@ -346,33 +351,23 @@ function applyWizardDraftIfPresent() {
     }
 }
 
-function wizardRestoreHref(source) {
-    return source === "v2" ? "/wizard?restore=1" : "/wizard-v1?restore=1";
-}
-
 function showWizardDraftBanner() {
     const bar = document.getElementById("wizardDraftBar");
     if (bar) bar.classList.remove("hidden");
-    const restoreHref = wizardRestoreHref(loadedDraftSource);
+    const restoreHref = "/wizard?restore=1";
     const draftBack = document.getElementById("wizardDraftBackLink");
     if (draftBack) draftBack.href = restoreHref;
     const back = document.getElementById("backToWizardBtn");
     if (back) {
         back.hidden = false;
         back.href = restoreHref;
-        if (loadedDraftSource === "v2") {
-            back.title = "Wróć do Asystenta v2, aby zmienić dane";
-            back.setAttribute("aria-label", "Wróć do Asystenta v2");
-        } else {
-            back.title = "Wróć do Asystenta, aby zmienić dane";
-            back.setAttribute("aria-label", "Wróć do Asystenta");
-        }
+        back.title = "Wróć do Asystenta, aby zmienić dane";
+        back.setAttribute("aria-label", "Wróć do Asystenta");
     }
 }
 
 function clearWizardDraft() {
     localStorage.removeItem(WIZARD_DRAFT_KEY);
-    loadedDraftSource = "v1";
     const back = document.getElementById("backToWizardBtn");
     if (back) back.hidden = true;
 }
@@ -405,37 +400,11 @@ window.setNavSection = function (section) {
 
 async function initConfig() {
     try {
-        const [defaultsRes, userRes, presetsRes, sessionRes] = await Promise.all([
-            fetch("/api/config"),
-            fetch("/api/config/user"),
-            fetch("/api/presets"),
-            fetch("/api/session").catch(() => null),
-        ]);
+        const defaultsRes = await fetch("/api/config");
         DEFAULT_CONFIG = await defaultsRes.json();
-        const userData = await userRes.json();
-        const session = sessionRes && sessionRes.ok ? await sessionRes.json() : null;
-        CONFIG_AUTHENTICATED = Boolean(session?.email);
-        const localData = CONFIG_AUTHENTICATED ? null : loadLocalConfig();
+        const localData = loadLocalConfig();
 
-        if (userData.config) {
-            USER_CONFIG = backfillConfig(userData.config);
-            if (userData.baseline) {
-                CONFIG_BASELINE = backfillConfig(userData.baseline);
-                CONFIG_BASELINE_NAME = userData.preset_name || "Własna konfiguracja";
-                _currentPresetId = userData.preset_id ?? null;
-                _currentPresetName = CONFIG_BASELINE_NAME === "Własna konfiguracja" ? null : CONFIG_BASELINE_NAME;
-                CONFIG_OVERRIDE_PATHS = new Set(userData.overrides || []);
-                CONFIG_IS_CUSTOM = CONFIG_OVERRIDE_PATHS.size > 0
-                    || CONFIG_BASELINE_NAME === "Własna konfiguracja";
-            } else {
-                CONFIG_BASELINE = structuredClone(USER_CONFIG);
-                CONFIG_BASELINE_NAME = "Własna konfiguracja";
-                _currentPresetId = null;
-                _currentPresetName = null;
-                CONFIG_OVERRIDE_PATHS = new Set();
-                CONFIG_IS_CUSTOM = true;
-            }
-        } else if (localData) {
+        if (localData) {
             USER_CONFIG = backfillConfig(localData.config);
             CONFIG_BASELINE = backfillConfig(localData.baseline || localData.config);
             CONFIG_BASELINE_NAME = localData.preset_name || "Własna konfiguracja";
@@ -453,8 +422,7 @@ async function initConfig() {
             CONFIG_OVERRIDE_PATHS = new Set();
             CONFIG_IS_CUSTOM = false;
         }
-        const presetsData = await presetsRes.json();
-        PRESETS = presetsData.presets || [];
+        PRESETS = loadPresetList();
         if (!CONFIG) CONFIG = structuredClone(USER_CONFIG);
         applyZusWaloryzacjaDefaults();
         renderConfigView();
@@ -504,10 +472,16 @@ function configSavePayload() {
 
 function loadLocalConfig() {
     try {
-        const raw = localStorage.getItem(ANON_CONFIG_KEY);
+        const raw = localStorage.getItem(CONFIG_KEY)
+            || localStorage.getItem(LEGACY_CONFIG_KEY);
         if (!raw) return null;
         const payload = JSON.parse(raw);
-        return payload && typeof payload === "object" && payload.config ? payload : null;
+        if (!payload || typeof payload !== "object" || !payload.config) return null;
+        if (!localStorage.getItem(CONFIG_KEY)) {
+            localStorage.setItem(CONFIG_KEY, raw);
+            localStorage.removeItem(LEGACY_CONFIG_KEY);
+        }
+        return payload;
     } catch {
         return null;
     }
@@ -515,7 +489,7 @@ function loadLocalConfig() {
 
 function persistConfigLocal() {
     try {
-        localStorage.setItem(ANON_CONFIG_KEY, JSON.stringify(configSavePayload()));
+        localStorage.setItem(CONFIG_KEY, JSON.stringify(configSavePayload()));
         return true;
     } catch (err) {
         console.error("Błąd lokalnego zapisu konfiguracji:", err);
@@ -523,34 +497,17 @@ function persistConfigLocal() {
     }
 }
 
-function saveConfigNow({ keepalive = false } = {}) {
+function saveConfigNow() {
     clearTimeout(_configSaveTimeout);
     _configSaveTimeout = null;
     if (!_configSaveDirty) return;
     _configSaveDirty = false;
-    if (!CONFIG_AUTHENTICATED && !window.getCurrentUserEmail?.()) {
-        _configSaveDirty = !persistConfigLocal();
-        return;
-    }
-    fetch("/api/config/user", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(configSavePayload()),
-        keepalive,
-    }).catch((err) => {
-        _configSaveDirty = true;
-        console.error("Błąd zapisu konfiguracji:", err);
-    });
+    _configSaveDirty = !persistConfigLocal();
 }
 
 function scheduleConfigSave() {
     _configSaveDirty = true;
-    if (!CONFIG_AUTHENTICATED && !window.getCurrentUserEmail?.()) {
-        _configSaveDirty = !persistConfigLocal();
-        return;
-    }
-    clearTimeout(_configSaveTimeout);
-    _configSaveTimeout = setTimeout(() => saveConfigNow(), 500);
+    _configSaveDirty = !persistConfigLocal();
 }
 
 function flushConfigSave() {
@@ -880,15 +837,49 @@ async function resetConfig() {
     initTipAnchoring();
     updateStageHints(document.getElementById("stages-container"));
     refreshPresetBar();
-    if (!CONFIG_AUTHENTICATED) {
-        localStorage.removeItem(ANON_CONFIG_KEY);
-    }
-    if (CONFIG_AUTHENTICATED || window.getCurrentUserEmail?.()) {
-        fetch("/api/config/user", { method: "DELETE" }).catch(() => {});
-    }
+    localStorage.removeItem(CONFIG_KEY);
+    localStorage.removeItem(LEGACY_CONFIG_KEY);
 }
 
 // --- Presety ---
+
+function readLocalPresets() {
+    try {
+        const raw = localStorage.getItem(LOCAL_PRESETS_KEY);
+        const list = raw ? JSON.parse(raw) : [];
+        return Array.isArray(list)
+            ? list.filter((p) => p && p.id && p.name && p.config)
+            : [];
+    } catch {
+        return [];
+    }
+}
+
+function writeLocalPresets(list) {
+    localStorage.setItem(LOCAL_PRESETS_KEY, JSON.stringify(list));
+}
+
+function loadPresetList() {
+    const builtins = Object.keys(BUILTIN_PRESETS_CLIENT).map((name) => ({
+        id: null,
+        name,
+        is_builtin: true,
+    }));
+    const local = readLocalPresets().map((p) => ({
+        id: p.id,
+        name: p.name,
+        is_builtin: false,
+    }));
+    return [...builtins, ...local];
+}
+
+function configFileName(name) {
+    const slug = String(name || "konfiguracja")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "") || "konfiguracja";
+    return `${slug}.config.json`;
+}
 
 function initPresetBar() {
     const select = document.getElementById("presetSelect");
@@ -908,7 +899,7 @@ function initPresetBar() {
         const isBuiltin = opt.dataset.isBuiltin === "true";
         const samePreset = !CONFIG_IS_CUSTOM && (isBuiltin
             ? presetName === CONFIG_BASELINE_NAME
-            : Number(presetId) === _currentPresetId);
+            : String(presetId) === String(_currentPresetId));
         if (samePreset) return;
         if (CONFIG_OVERRIDE_PATHS.size && !confirm("Zmiana presetu zastąpi bieżące wartości i usunie ich nadpisania. Kontynuować?")) {
             refreshPresetBar();
@@ -917,61 +908,57 @@ function initPresetBar() {
         if (isBuiltin) {
             await applyPresetByName(presetName);
         } else if (presetId) {
-            await applyPresetById(parseInt(presetId, 10));
+            await applyPresetById(presetId);
         }
     });
 
     saveBtn.addEventListener("click", async () => {
         const name = prompt("Nazwa nowego presetu:");
-        if (!name) return;
-        try {
-            const res = await fetch("/api/presets", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ name: name.trim(), config: USER_CONFIG }),
-            });
-            if (!res.ok) {
-                const err = await res.json();
-                alert(err.detail || "Błąd zapisu presetu");
-                return;
-            }
-            const saved = await res.json();
-            _currentPresetId = saved.id;
-            _currentPresetName = null;
-            CONFIG_BASELINE = structuredClone(USER_CONFIG);
-            CONFIG_BASELINE_NAME = saved.name;
-            CONFIG_IS_CUSTOM = false;
-            CONFIG_OVERRIDE_PATHS.clear();
-            await refreshPresets();
-            renderConfigView();
-            initTipAnchoring();
-            refreshPresetBar();
-            scheduleConfigSave();
-        } catch (err) {
-            console.error("Błąd zapisu presetu:", err);
-        }
+        if (!name || !name.trim()) return;
+        const local = readLocalPresets();
+        const saved = {
+            id: "local-" + Date.now(),
+            name: name.trim().slice(0, 100),
+            config: structuredClone(USER_CONFIG),
+        };
+        local.push(saved);
+        writeLocalPresets(local);
+        _currentPresetId = saved.id;
+        _currentPresetName = null;
+        CONFIG_BASELINE = structuredClone(USER_CONFIG);
+        CONFIG_BASELINE_NAME = saved.name;
+        CONFIG_IS_CUSTOM = false;
+        CONFIG_OVERRIDE_PATHS.clear();
+        await refreshPresets();
+        renderConfigView();
+        initTipAnchoring();
+        refreshPresetBar();
+        scheduleConfigSave();
     });
 
     deleteBtn.addEventListener("click", async () => {
         if (_currentPresetId === null || !confirm("Na pewno usunąć ten preset? Po usunięciu zostanie wczytana konfiguracja Domyślne 2026.")) return;
-        try {
-            const response = await fetch(`/api/presets/${_currentPresetId}`, { method: "DELETE" });
-            if (!response.ok) throw new Error("Nie udało się usunąć presetu.");
-            await refreshPresets();
-            await applyPresetByName("Domyślne 2026");
-        } catch (err) {
-            console.error("Błąd usuwania presetu:", err);
-        }
+        writeLocalPresets(readLocalPresets().filter(
+            (p) => String(p.id) !== String(_currentPresetId)
+        ));
+        await refreshPresets();
+        await applyPresetByName("Domyślne 2026");
     });
 
     exportBtn.addEventListener("click", () => {
         const name = _currentPresetId !== null
-            ? (PRESETS.find(p => p.id === _currentPresetId)?.name || "preset")
+            ? (PRESETS.find((p) => String(p.id) === String(_currentPresetId))?.name || "preset")
             : (CONFIG_BASELINE_NAME || "preset");
-        const blob = new Blob([JSON.stringify(USER_CONFIG, null, 2)], { type: "application/json" });
+        const payload = {
+            schema: "fire-config/v1",
+            name,
+            exported_at: new Date().toISOString(),
+            config: USER_CONFIG,
+        };
+        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
         const a = document.createElement("a");
         a.href = URL.createObjectURL(blob);
-        a.download = `${name}.json`;
+        a.download = configFileName(name);
         a.click();
         URL.revokeObjectURL(a.href);
     });
@@ -981,25 +968,32 @@ function initPresetBar() {
         if (!file) return;
         try {
             const text = await file.text();
-            const config = JSON.parse(text);
-            const name = prompt("Nazwa dla zaimportowanego presetu:", file.name.replace(/\.json$/, ""));
-            if (!name) return;
-            if (CONFIG_OVERRIDE_PATHS.size && !confirm("Importowany preset zastąpi bieżące wartości i usunie ich nadpisania. Kontynuować?")) return;
-            const res = await fetch("/api/presets", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ name: name.trim(), config }),
-            });
-            if (!res.ok) {
-                const err = await res.json();
-                alert(err.detail || "Błąd importu presetu");
-                return;
+            const parsed = JSON.parse(text);
+            if (parsed?.schema === "fire-simulation/v1" || parsed?.input?.stages) {
+                throw new Error("To plik symulacji (.sim.json) — wczytaj go w Porównywarce.");
             }
-            const saved = await res.json();
+            const config = parsed?.config && typeof parsed.config === "object"
+                ? parsed.config
+                : parsed;
+            if (!config || typeof config !== "object" || Array.isArray(config)) {
+                throw new Error("Plik nie zawiera konfiguracji.");
+            }
+            const fallback = file.name.replace(/\.config\.json$|\.json$/i, "") || "Konfiguracja z pliku";
+            const name = prompt("Nazwa dla zaimportowanego presetu:", parsed?.name || fallback);
+            if (!name || !name.trim()) return;
+            if (CONFIG_OVERRIDE_PATHS.size && !confirm("Importowany preset zastąpi bieżące wartości i usunie ich nadpisania. Kontynuować?")) return;
+            const local = readLocalPresets();
+            const saved = {
+                id: "local-" + Date.now(),
+                name: name.trim().slice(0, 100),
+                config,
+            };
+            local.push(saved);
+            writeLocalPresets(local);
             await refreshPresets();
             await applyPresetById(saved.id);
         } catch (err) {
-            alert("Nieprawidłowy plik JSON: " + err.message);
+            alert("Nieprawidłowy plik konfiguracji: " + err.message);
         } finally {
             importInput.value = "";
         }
@@ -1032,7 +1026,7 @@ function refreshPresetBar() {
         else if (
             !showCustom
             && _currentPresetId !== null
-            && p.id === _currentPresetId
+            && String(p.id) === String(_currentPresetId)
         ) opt.selected = true;
         select.appendChild(opt);
     }
@@ -1053,37 +1047,25 @@ function refreshPresetBar() {
 }
 
 async function refreshPresets() {
-    try {
-        const res = await fetch("/api/presets");
-        const data = await res.json();
-        PRESETS = data.presets || [];
-    } catch (err) {
-        console.error("Błąd odświeżania presetów:", err);
-    }
+    PRESETS = loadPresetList();
 }
 
 async function applyPresetByName(name) {
-    try {
-        const res = await fetch("/api/config");
-        const defaults = await res.json();
-        const overrides = BUILTIN_PRESETS_CLIENT[name];
-        USER_CONFIG = overrides
-            ? deepMerge(structuredClone(defaults), overrides)
-            : backfillConfig(defaults);
-        CONFIG_BASELINE = structuredClone(USER_CONFIG);
-        CONFIG_BASELINE_NAME = name;
-        CONFIG_IS_CUSTOM = false;
-        CONFIG_OVERRIDE_PATHS.clear();
-        _currentPresetId = null;
-        _currentPresetName = name;
-        renderConfigView();
-        initTipAnchoring();
-        updateStageHints(document.getElementById("stages-container"));
-        scheduleConfigSave();
-        refreshPresetBar();
-    } catch (err) {
-        console.error("Błąd wczytywania presetu:", err);
-    }
+    const overrides = BUILTIN_PRESETS_CLIENT[name];
+    USER_CONFIG = overrides
+        ? deepMerge(structuredClone(DEFAULT_CONFIG), overrides)
+        : backfillConfig(structuredClone(DEFAULT_CONFIG));
+    CONFIG_BASELINE = structuredClone(USER_CONFIG);
+    CONFIG_BASELINE_NAME = name;
+    CONFIG_IS_CUSTOM = false;
+    CONFIG_OVERRIDE_PATHS.clear();
+    _currentPresetId = null;
+    _currentPresetName = name;
+    renderConfigView();
+    initTipAnchoring();
+    updateStageHints(document.getElementById("stages-container"));
+    scheduleConfigSave();
+    refreshPresetBar();
 }
 
 const BUILTIN_PRESETS_CLIENT = {
@@ -1167,49 +1149,69 @@ function deepMerge(base, overrides) {
 }
 
 async function applyPresetById(presetId) {
-    try {
-        const res = await fetch(`/api/presets/${presetId}`);
-        const data = await res.json();
-        USER_CONFIG = backfillConfig(data.config);
-        CONFIG_BASELINE = structuredClone(USER_CONFIG);
-        CONFIG_BASELINE_NAME = PRESETS.find(preset => preset.id === presetId)?.name || "Własna konfiguracja";
-        CONFIG_IS_CUSTOM = CONFIG_BASELINE_NAME === "Własna konfiguracja";
-        CONFIG_OVERRIDE_PATHS.clear();
-        _currentPresetId = presetId;
-        _currentPresetName = null;
-        renderConfigView();
-        initTipAnchoring();
-        updateStageHints(document.getElementById("stages-container"));
-        scheduleConfigSave();
-        refreshPresetBar();
-    } catch (err) {
-        console.error("Błąd wczytywania presetu:", err);
-    }
+    const preset = readLocalPresets().find(
+        (p) => String(p.id) === String(presetId)
+    );
+    if (!preset) return;
+    USER_CONFIG = backfillConfig(preset.config);
+    CONFIG_BASELINE = structuredClone(USER_CONFIG);
+    CONFIG_BASELINE_NAME = preset.name;
+    CONFIG_IS_CUSTOM = false;
+    CONFIG_OVERRIDE_PATHS.clear();
+    _currentPresetId = preset.id;
+    _currentPresetName = null;
+    renderConfigView();
+    initTipAnchoring();
+    updateStageHints(document.getElementById("stages-container"));
+    scheduleConfigSave();
+    refreshPresetBar();
 }
 
-// --- Sesja i zapis symulacji ---
+// --- Eksport i import symulacji ---
 
 function defaultSimName() {
-    return "Symulacja " + new Date().toLocaleDateString("pl-PL");
+    return "Plan FIRE " + new Date().toISOString().slice(0, 10);
 }
 
-function initSaveButton() {
-    const btn = document.getElementById("saveSimBtn");
+function simulationFileName(name) {
+    const slug = String(name || "plan-fire")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "") || "plan-fire";
+    return `${slug}.sim.json`;
+}
+
+function parseSimulationInput(parsed) {
+    if (parsed?.schema === "fire-config/v1" || (parsed?.config && !parsed?.stages && !parsed?.input)) {
+        throw new Error("To plik konfiguracji (.config.json) — wczytaj go w Konfiguracji.");
+    }
+    const item = Array.isArray(parsed) ? parsed[0] : parsed;
+    const input = item?.input && Array.isArray(item.input.stages) ? item.input : item;
+    if (!input || !Array.isArray(input.stages)) {
+        throw new Error("Brak listy etapów (.sim.json).");
+    }
+    return input;
+}
+
+function initSimulationIO() {
     const exportBtn = document.getElementById("exportSimBtn");
     const importInput = document.getElementById("importSimInput");
 
     if (exportBtn) {
         exportBtn.addEventListener("click", () => {
             const data = lastInput || gatherFormData();
+            const name = defaultSimName();
             const payload = {
-                name: defaultSimName(),
+                schema: "fire-simulation/v1",
+                name,
                 exported_at: new Date().toISOString(),
+                source: "simulator",
                 input: data,
             };
             const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
             const a = document.createElement("a");
             a.href = URL.createObjectURL(blob);
-            a.download = "symulacja_fire_" + new Date().toISOString().slice(0, 10) + ".json";
+            a.download = simulationFileName(name);
             a.click();
             URL.revokeObjectURL(a.href);
         });
@@ -1222,55 +1224,15 @@ function initSaveButton() {
             try {
                 const text = await file.text();
                 const parsed = JSON.parse(text);
-                const item = Array.isArray(parsed) ? parsed[0] : parsed;
-                const inputData = item?.input && Array.isArray(item.input.stages) ? item.input : item;
-                if (!inputData || !Array.isArray(inputData.stages)) {
-                    throw new Error("Brak listy etapów (stages) w pliku JSON.");
-                }
-                populateStages(inputData);
+                populateStages(parseSimulationInput(parsed));
                 switchToConfig();
             } catch (err) {
-                alert("Nieprawidłowy plik symulacji JSON: " + err.message);
+                alert("Nieprawidłowy plik symulacji: " + err.message);
             }
             importInput.value = "";
         });
     }
-
-    btn.addEventListener("click", async () => {
-        if (!lastInput) return;
-        const session = await fetch("/api/session").then((r) => r.json()).catch(() => ({ email: null }));
-        if (!session.email) {
-            alert("Aby zapisać symulację, zaloguj się lub zarejestruj.");
-            window.location.href = "/";
-            return;
-        }
-        const name = prompt("Nazwa symulacji:", defaultSimName());
-        if (name === null || !name.trim()) return;
-        btn.disabled = true;
-        try {
-            const res = await fetch("/api/simulations", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ name: name.trim(), input: lastInput }),
-            });
-            const result = await res.json();
-            if (!res.ok) {
-                alert("Błąd zapisu: " + (result.detail || result.error || "nieznany"));
-            } else {
-                alert(`Zapisano symulację „${result.name}".`);
-                clearWizardDraft();
-                const bar = document.getElementById("wizardDraftBar");
-                if (bar) bar.classList.add("hidden");
-            }
-        } catch (err) {
-            alert("Błąd zapisu: " + err.message);
-        } finally {
-            btn.disabled = false;
-        }
-    });
 }
-
-// --- Wczytywanie zapisanej symulacji (/sim?id=N) ---
 
 function migrateLegacyAccounts(stage) {
     // Stare zapisy miały jedno konto "oki" z wyborem typu aktywów
@@ -1298,22 +1260,6 @@ function populateStages(inputData) {
     updateStageButtons(container);
     updateStageHints(container);
     refreshRealizationToggles(container);
-}
-
-async function loadSimulation(simId, container) {
-    try {
-        const res = await fetch("/api/simulations/" + simId);
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.detail || "Nie można wczytać symulacji");
-        loadedWithdrawalPolicy = data.input?.withdrawal_policy || "defer_tier";
-        populateStages(data.input);
-        if (data.name) document.title = "FIRE Simulator — " + data.name;
-    } catch (err) {
-        alert("Błąd: " + err.message);
-        updateStageButtons(container);
-        updateStageHints(container);
-        refreshRealizationToggles(container);
-    }
 }
 
 // --- Czytelność wyników: kolumny, gęstość, wykres ---

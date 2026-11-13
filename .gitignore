@@ -223,14 +223,12 @@ __marimo__/
 # Aplikacja FIRE
 # Lokalna konfiguracja narzędzi AI (agenty, plany, ustawienia sesji)
 .claude/
-# Baza SQLite generowana przy starcie (dane użytkowników i symulacji)
+# Artefakty starej wersji z SQLite (nieużywane, ignorowane dla bezpieczeństwa)
 fire.db
 fire.db-journal
 fire.db-wal
 fire.db-shm
-# Sekret sesji generowany przy starcie
 .secret_key
-# Kopie zapasowe bazy
 backups/
 qa/jsdom/node_modules
 qa/visual/node_modules

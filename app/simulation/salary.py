@@ -194,7 +194,7 @@ def salary_preview(
     """Return ``(gross_monthly, net_monthly)`` for the wizard preview.
 
     For ``etat`` converts gross↔net using employee ZUS, health, PIT and PPK.
-    For ``b2b`` when ``b2b_tax_form`` is provided (Wizard v2), converts between
+    For ``b2b`` when ``b2b_tax_form`` is provided (Asystent), converts between
     monthly invoice revenue (after business costs) and take-home net. Legacy
     calls without ``b2b_tax_form`` return ``(value, None)``.
     """

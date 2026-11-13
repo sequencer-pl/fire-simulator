@@ -1,7 +1,7 @@
 # AGENTS.md — FIRE Simulator
 
 Polski symulator niezależności finansowej. FastAPI + Jinja2 + vanilla JS (bez npm,
-bez TypeScript), SQLite, pytest. Odpowiadaj i pisz UI po polsku.
+bez TypeScript), pytest. Odpowiadaj i pisz UI po polsku.
 
 ## Pewniki modelu FIRE (aktualne, nie do zmiany bez uzgodnienia)
 
@@ -76,21 +76,26 @@ bez TypeScript), SQLite, pytest. Odpowiadaj i pisz UI po polsku.
   `app/simulation/constants.py` — stałe liczbowe (DEFAULT_ROI, MONTHS_PER_YEAR,
   PPE_ZUS_FRACTION, ENGINE_VERSION); `app/simulation/planner.py` — wizard (plan, build_stages,
   solvery); `app/stages/*.py` — implementacje etapów; `app/web/` — FastAPI
-  (routes.py, auth.py, simulations.py, limits.py); `app/core/` — helpery (tax, pmt, roi,
-  inflation); `static/js/` + `static/css/` + `app/templates/` — front (system wizualny: `DESIGN.md`).
+  (routes.py, limits.py); `app/core/` — helpery (tax, pmt, roi, inflation);
+  `static/js/` + `static/css/` + `app/templates/` — front (system wizualny: `DESIGN.md`).
 - **Walidacja wejścia**: `app/simulation/schemas.py` ma twarde granice (wiek etapów
   0–120, `end_age > start_age`, max 20 etapów, limity kwot/ROI). Symulacja kończy się
   na ostatnim etapie (`end_age - 1`); `max_age` jest tylko pomocniczym horyzontem.
-- **Limity API**: ciężkie endpointy (`/api/simulate`, `/api/wizard/*`, rejestracja)
+- **Limity API**: ciężkie endpointy (`/api/simulate`, `/api/wizard/*`)
   przechodzą przez `app/web/limits.py` (sliding window per IP). Nie dodawaj nowego
   kosztownego endpointu bez `check_limit`.
-- **Baza**: migracje przez `PRAGMA user_version` w `app/storage/db.py`; zapis symulacji
-  zawiera `model_version` (`ENGINE_VERSION`).
+- **Bezstanowość**: brak bazy, logowania i sesji. Konfiguracja i presety żyją
+  w `localStorage` (`fire.config`, `fire.presets`), a plany są wymieniane jako
+  `.sim.json` / `.config.json`. `FIRE_DB` i `FIRE_SECRET_KEY` nie istnieją.
+- **Porównywarka**: `/compare` wczytuje 1–4 pliki `.sim.json` i liczy je przez
+  stateless `/api/compare/evaluate`; `/moje-symulacje` i `/login` przekierowują
+  na `/compare`. Asystent na ekranie wyniku eksportuje aktywny scenariusz jako
+  `.sim.json`; symulator robi to samo, a konfiguracja eksportuje `.config.json`.
 - Python: pełne adnotacje typów, pydantic BaseModel dla DTO, bez zbędnych komentarzy.
 - JS: bez frameworków, funkcje nazwane, współdzielone helpery przez `window.*`
   (helpers.js: `$`, `show`, `escapeHtml`, `fmtMoney`, `fmtDateTime`, `api`; icons.js: `iconSvg`; controls.js:
-  `numControlsHtml`, `initNumControls`; session.js: `refreshSessionBar`). helpers.js
-  i icons.js ładowane z base.html przed `{% block scripts %}`, controls.js — w wizard.html
+  `numControlsHtml`, `initNumControls`). helpers.js, icons.js i sim-utils.js są
+  ładowane z base.html przed `{% block scripts %}`, controls.js — w wizard.html
   i simulator.html.
 
 ## Konwencje UI — system wizualny opisuje `DESIGN.md`
@@ -129,10 +134,10 @@ bez TypeScript), SQLite, pytest. Odpowiadaj i pisz UI po polsku.
   `body.has-action-bar` (block `body_class` w szablonie, albo JS jak w liście
   symulacji, gdzie pasek pojawia się dopiero po zaznaczeniu). Nigdy osobnych
   pływających pasków per strona.
-- **Nawigacja**: topbar z czterema sekcjami + `#accountWidget`; między 641 a
-  1024 px sekcje pokazują same ikony (pełna nazwa w `title` i `aria-label`);
-  poniżej 640 px przenoszą się do `.tabbar` (base.html), w topbarze zostaje
-  marka i konto. `data-section` w body steruje stanem aktywnym; przełączanie
+- **Nawigacja**: topbar z czterema sekcjami (Porównywarka, Asystent, Symulator,
+  Konfiguracja); między 641 a 1024 px sekcje pokazują same ikony (pełna nazwa
+  w `title` i `aria-label`); poniżej 640 px przenoszą się do `.tabbar`
+  (base.html). `data-section` w body steruje stanem aktywnym; przełączanie
   edytor/konfiguracja bez przeładowania przez `setNavSection` (simulator.js).
 - **Konfiguracja edytuje w miejscu**: `configFieldShell` renderuje kontrolkę od
   razu (bez przycisku „Zmień”); kropka `.config-override-indicator` i aktywny
@@ -143,15 +148,16 @@ bez TypeScript), SQLite, pytest. Odpowiadaj i pisz UI po polsku.
   ręczna zmiana ustawia `CONFIG_IS_CUSTOM` i pokazuje w `#presetSelect`
   „Własna konfiguracja”; `CONFIG_BASELINE_NAME` nadal wskazuje preset bazowy
   do przywracania.
-- **Asystent a zapisana konfiguracja**: endpointy `/api/wizard/plan`,
-  `/api/wizard/suggest` i `/api/wizard/salary` wstrzykują zapisany config jako
-  `WizardAnswers.base_config`. `realne` używa go w całości, a
-  `konserwatywne`/`optymistyczne` nakładają tylko inflację, `default_roi` kont
-  i waloryzację ZUS; podatki, limity i zasady kont zostają z configu.
-- **Niezalogowani**: config jest zapisywany w `localStorage` pod
-  `fire.config.anonymous`; Asystent dostaje go w `WizardAnswers.base_config`.
-  Zalogowani zawsze używają configu z serwera (klient nie nadpisuje). Zapis
-  zalogowanych jest flushowany na `pagehide`/`visibilitychange` z `keepalive`.
+- **Asystent a konfiguracja**: endpointy `/api/wizard/plan`,
+  `/api/wizard/suggest` i `/api/wizard/salary` używają configu przekazanego przez
+  klienta jako `WizardAnswers.base_config` / `SalaryPreviewRequest.base_config`.
+  `realne` używa go w całości, a `konserwatywne`/`optymistyczne` nakładają tylko
+  inflację, `default_roi` kont i waloryzację ZUS; podatki, limity i zasady kont
+  zostają z configu.
+- **Konfiguracja lokalna**: `fire.config` przechowuje aktywny config i baseline,
+  a `fire.presets` — własne presety. Jeśli kluczy nie ma, wczytujemy defaulty
+  z `/api/config`, a lista presetów pokazuje same wbudowane. Zapis jest
+  natychmiastowy (bez serwera); `fire.config.anonymous` jest tylko legacy fallbackiem.
 - Nowe pola liczbowe przez `numControlsHtml`/`initNumControls` (controls.js), nie
   surowe inputy. Pola kwotowe używają `tabular-nums`. W suwakach pole liczbowe musi
   mieścić najdłuższą dopuszczalną kwotę razem z przyciskami krokowymi — nie ustalaj
@@ -254,7 +260,7 @@ bez TypeScript), SQLite, pytest. Odpowiadaj i pisz UI po polsku.
   „Dostosuj w symulatorze”; `finishWizard` zapisuje draft i przechodzi do
   `/sim?wizard=1`. Symulator **automatycznie uruchamia** `/api/simulate`
   i pokazuje wynik (bez drugiego kliknięcia „Symuluj”). W widoku wyników pasek
-  akcji ma eksport/zapis po lewej, a `#backToWizardBtn` (`/wizard-v1?restore=1`)
+  akcji ma eksport/zapis po lewej, a `#backToWizardBtn` (`/wizard?restore=1`)
   i „Edytuj etapy” po prawej; w trybie edycji powrót jest w banerze, bo pasek
   jest zbyt wąski na dodatkowy przycisk. Gotowy plan jest cache'owany w
   `fire.wizardPlan`; `restore=1` wraca na krok 6 bez ponownego `/api/wizard/plan`,
@@ -276,36 +282,36 @@ bez TypeScript), SQLite, pytest. Odpowiadaj i pisz UI po polsku.
   „Łącznie wypłacono netto”, a na mobile jest przewijany w poziomie ze sticky
   etykietami kont. Klik karty scenariusza ustawia `wzSelectedScenario` i
   przerenderowuje cały wynik (`renderScenarioResult`). Wybór scenariusza zapisywany
-  w `localStorage`, odtwarzany przez `/wizard-v1?restore=1`. Wejście z kroku 5 od razu
+  w `localStorage`, odtwarzany przez `/wizard?restore=1`. Wejście z kroku 5 od razu
   uruchamia `runPlan()`.
 
-### Asystent v2 — zachowanie kroków i spójność UI
+### Asystent — zachowanie kroków i spójność UI
 
-- V2 jest domyślnym asystentem pod `/wizard`; klasyczny v1 pozostaje dostępny pod
-  `/wizard-v1`, a `/wizard-v2` jest aliasem zgodności. Link powrotu z symulatora
-  musi zachować źródło draftu i odtworzyć właściwą wersję oraz wynik.
-- V2 zapisuje pełny stan formularza (`fire.wizardV2State`) i cache planu
-  (`fire.wizardV2Plan`) razem z body odpowiedzi. `?restore=1` odtwarza pola,
+- Jest jeden Asystent pod `/wizard`; `/wizard-v1` i `/wizard-v2` przekierowują
+  na `/wizard`. Link powrotu z symulatora zawsze prowadzi do `/wizard?restore=1`.
+- Asystent zapisuje pełny stan formularza (`fire.wizardState`) i cache planu
+  (`fire.wizardPlan`) razem z body odpowiedzi; stare klucze `fire.wizardV2*`
+  są odczytywane jako fallback migracyjny. `?restore=1` odtwarza pola,
   dynamiczne wiersze kapitału, sugestię podziału i krok; plan pokazujemy tylko
   wtedy, gdy jego body nadal odpowiada bieżącym odpowiedziom. Samo `?restore=1`
   bez stanu może odtworzyć starszy cache planu (fallback kompatybilności).
-- V2 ma drzewo kroków zależne od zatrudnienia (etat / B2B / brak pracy); liczba
+- Asystent ma drzewo kroków zależne od zatrudnienia (etat / B2B / brak pracy); liczba
   kroków i `aria-valuemax` muszą wynikać z aktualnej ścieżki, nie być stałą.
   Domyślny wiek w formularzu to 40 lat; wiek emerytury ZUS dostosowuje się do
   płci, a domyślny horyzont to tablica GUS 2024 + `longevity.growth_months_per_year`
-  z konfiguracji. Ręczna zmiana horyzontu (`v2PlanEndTouched`) wyłącza
+  z konfiguracji. Ręczna zmiana horyzontu (`wzPlanEndTouched`) wyłącza
   przeliczanie domyślnej wartości.
 - Wynagrodzenie etatu domyślnie podajemy jako brutto rocznie. Wartość startowa
   wynika z limitów: `limits.oipe_annual / 3 * 12` (2026 → 113 000 zł/rok), bez
   osobnego pola w konfiguracji. Przełączniki Brutto/Netto i Rocznie/Miesięcznie
-  przeliczają kwotę; `v2SalaryTouched` blokuje nadpisanie ręcznej wartości.
+  przeliczają kwotę; `wzSalaryTouched` blokuje nadpisanie ręcznej wartości.
   Pod polem jest karta brutto ↔ netto z kwotą roczną i miesięczną.
 - PPK i PPE są niezależne: w kroku etatu zaznaczamy tylko bieżące wpłaty, a salda
   (także z byłej pracy) wpisujemy w kroku kapitału. `ppk_contributions` /
   `ppe_contributions` decydują o nowych składkach; konto z samym saldem rośnie
   tylko z ROI. OFE ma osobne, niezależne od kapitału ZUS segmented
-  `v2HasOfe` (Nie / Tak) i pole salda.
-- Każdy krok v2 używa wspólnych komponentów z `components.css`. Na desktopie
+  `wzHasOfe` (Nie / Tak) i pole salda.
+- Każdy krok używa wspólnych komponentów z `components.css`. Na desktopie
   opisy kroków mają wykorzystywać dostępną szerokość; na mobile teksty segmentów,
   przyciski i suwaki nie mogą powodować poziomego przewijania całej strony.
   Porównywalne pola w `.wz-grid` mają równe kolumny; tylko układy „wybór po lewej,
@@ -319,7 +325,7 @@ bez TypeScript), SQLite, pytest. Odpowiadaj i pisz UI po polsku.
   salda są ukryte; dla B2B/niepracujących panel sald pozostaje dostępny.
   Stawki PPK (pracownik/pracodawca) i PPE (pracodawca) są widoczne pod
   ołówkiem, domyślnie z konfiguracji: PPK 2,0%/1,5%, PPE 3,5%. ZUS i OFE to
-  dwie osobne sekcje, a OFE używa segmentu `v2HasOfe`. Kontrolka kwotowa
+  dwie osobne sekcje, a OFE używa segmentu `wzHasOfe`. Kontrolka kwotowa
   w suwaku mieści maksymalną dozwoloną wartość — nie wystarczy, że nie
   powoduje poziomego scrolla strony.
 - Krok strategii wpłat oferuje tryb automatyczny i ręczny. Udziały ręczne są
@@ -341,7 +347,7 @@ bez TypeScript), SQLite, pytest. Odpowiadaj i pisz UI po polsku.
   i jest reinwestowana; tooltip podaje kolejność IKE → OIPE → Broker → …
   i zastrzeżenie, że bez konta docelowego zwrot tylko obniża podatek.
   Nota zbiorcza „Pula: … / Wpłaty na IKZE…” siedzi bezpośrednio pod
-  przełącznikiem Automatyczny/Ręczny w ramce `.v2-suggest-note`, nie pod listą.
+  przełącznikiem Automatyczny/Ręczny w ramce `.wz-suggest-note`, nie pod listą.
 - Przy dodawaniu aktywów tekst „Dodaj” nie jest widoczny. Pastylki kont
   wielokrotnych (`Lokata`, `Obligacje`, `Gotówka`, `Broker`, `Krypto`) są
   neutralne i pokazują ikonę „+” dopiero po nazwie, gdy istnieje już co najmniej
@@ -353,7 +359,7 @@ bez TypeScript), SQLite, pytest. Odpowiadaj i pisz UI po polsku.
   wyjaśnienie jest w tooltipie panelu, a po ręcznej zmianie pojawia się ikona
   przywracania domyślnego ROI. Do `roi_overrides` wysyłamy tylko wartość różną
   od domyślnej.
-- Wynik v2 zaczyna się od odpowiedzi na pytanie użytkownika, następnie pokazuje
+- Wynik Asystenta zaczyna się od odpowiedzi na pytanie użytkownika, następnie pokazuje
   najważniejsze metryki i scenariusze. Szczegółowe przepływy per konto (Gantt +
   tabela), tabela faz, chipy ulgi IKZE i metodologia są niżej, najlepiej w
   sekcjach zwijanych. Loader pokazuje „Wyliczam Twój plan…”, animowany pasek
@@ -362,10 +368,10 @@ bez TypeScript), SQLite, pytest. Odpowiadaj i pisz UI po polsku.
   że symulacja jest prognozą ani rekomendacją.
 - `PlanProjection.phase_metrics` zachowuje wszystkie kolejne etapy akumulacji;
   średnia wypłata dla fazy obejmuje wyłącznie lata tej fazy, nigdy lata dalszego
-  oszczędzania z zerową wypłatą. Przywrócony wynik musi odkryć `#v2Result` bez
+  oszczędzania z zerową wypłatą. Przywrócony wynik musi odkryć `#wzResult` bez
   ponownego wywołania `/api/wizard/plan`.
-- Testy przeglądarkowe obejmują v2 osobno od v1: mobile, tablet i desktop oraz
-  kluczowe warianty zatrudnienia, kapitału, częściowego FIRE i odtwarzania wyniku.
+- Testy przeglądarkowe obejmują mobile, tablet i desktop oraz kluczowe warianty
+  zatrudnienia, kapitału, częściowego FIRE i odtwarzania wyniku.
 
 ## Współpraca z użytkownikiem
 

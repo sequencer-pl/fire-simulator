@@ -780,43 +780,7 @@ def test_api_path1(client):
 
 
 @pytest.mark.slow
-def test_api_wizard_plan_uses_saved_config(client):
-    assert client.post(
-        "/api/register",
-        json={"email": "wizard-config@example.com", "password": "haslo12345"},
-    ).status_code == 200
-    payload = {"path": 1, "answers": dict(BASE, capital={"broker": 50_000})}
-    before = client.post("/api/wizard/plan", json=payload).json()
-
-    config = client.get("/api/config").json()
-    config["inflation"] = 0.10
-    config["zus"]["waloryzacja_skladek"] = 0.0
-    config["accounts"]["broker"]["default_roi"] = 0.01
-    assert client.put("/api/config/user", json=config).status_code == 200
-
-    after = client.post("/api/wizard/plan", json=payload).json()
-    assert after["projection"]["min_monthly"] != pytest.approx(
-        before["projection"]["min_monthly"]
-    )
-
-    forged = default_config()
-    forged.inflation = 0.50
-    hijack = client.post(
-        "/api/wizard/plan",
-        json={
-            "path": 1,
-            "answers": dict(
-                BASE,
-                capital={"broker": 50_000},
-                base_config=forged.model_dump(),
-            ),
-        },
-    ).json()
-    assert hijack["projection"] == after["projection"]
-
-
-@pytest.mark.slow
-def test_api_wizard_plan_uses_anonymous_base_config(client):
+def test_api_wizard_plan_uses_client_base_config(client):
     payload = {"path": 1, "answers": dict(BASE, capital={"broker": 50_000})}
     before = client.post("/api/wizard/plan", json=payload).json()
 
@@ -837,7 +801,7 @@ def test_api_wizard_plan_uses_anonymous_base_config(client):
     )
 
 
-def test_api_wizard_salary_uses_anonymous_base_config(client):
+def test_api_wizard_salary_uses_client_base_config(client):
     payload = {"amount": 10_000, "salary_mode": "gross", "employment": "etat"}
     before = client.post("/api/wizard/salary", json=payload).json()
 
@@ -849,22 +813,6 @@ def test_api_wizard_salary_uses_anonymous_base_config(client):
         "/api/wizard/salary",
         json={**payload, "base_config": base.model_dump()},
     ).json()
-    assert after["net_monthly"] < before["net_monthly"]
-
-
-def test_api_wizard_salary_uses_saved_config(client):
-    assert client.post(
-        "/api/register",
-        json={"email": "wizard-salary-config@example.com", "password": "haslo12345"},
-    ).status_code == 200
-    payload = {"amount": 10_000, "salary_mode": "gross", "employment": "etat"}
-    before = client.post("/api/wizard/salary", json=payload).json()
-    config = client.get("/api/config").json()
-    config["kwota_wolna"] = 0.0
-    config["rate_lower"] = 0.30
-    config["rate_upper"] = 0.30
-    assert client.put("/api/config/user", json=config).status_code == 200
-    after = client.post("/api/wizard/salary", json=payload).json()
     assert after["net_monthly"] < before["net_monthly"]
 
 

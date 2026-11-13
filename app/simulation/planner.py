@@ -140,7 +140,7 @@ class WizardAnswers(BaseModel):
     use_broker: bool = False
     use_nieruchomosc: bool = False
 
-    # Parametry B2B (Asystent v2):
+    # Parametry B2B (Asystent):
     b2b_tax_form: Literal["ryczalt", "liniowy", "skala"] | None = None
     b2b_lump_rate: float = Field(default=0.12, ge=0.0, le=0.5)
     b2b_zus_mode: Literal["duzy", "maly", "ulga", "custom"] = "duzy"

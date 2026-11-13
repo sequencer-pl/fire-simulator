@@ -6,13 +6,8 @@ services:
     buildCommand: pip install -r requirements.txt
     startCommand: gunicorn app.main:app -k uvicorn.workers.UvicornWorker -w 1 --bind 0.0.0.0:$PORT
     healthCheckPath: /healthz
-    # UWAGA: free tier Render nie wspiera persistent disk — dane SQLite są
-    # trzymane na dysku ephemerycznym i giną przy każdym spin-down/redeploy.
-    # To wstępny deploy "demo"; trwała baza planowana w kolejnych krokach.
+    # Aplikacja jest bezstanowa: nie ma bazy ani logowania. Konfiguracja i plany
+    # zostają w przeglądarce użytkownika, a wynik można wyeksportować do .sim.json.
     envVars:
       - key: FIRE_ENV
         value: production
-      - key: FIRE_DB
-        value: /tmp/fire.db
-      - key: FIRE_SECRET_KEY
-        sync: false

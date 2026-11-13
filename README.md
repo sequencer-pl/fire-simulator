@@ -22,9 +22,9 @@ Zamiast jednej magicznej liczby ("potrzebujesz 2 mln zł") pokazuje **rozpisane 
 
 ## Od czego zacząć
 
-- **Asystent** — krok po kroku dopasowuje pytania do Twojej sytuacji i tworzy plan w trzech scenariuszach rynkowych. Pensję podajesz domyślnie brutto rocznie (z premiami i nadgodzinami), a możesz przełączyć na netto i miesięcznie; szczegóły obejmują oś czasu, etapy oraz wypłaty z poszczególnych kont. PPK i PPE traktujemy niezależnie — możesz mieć PPE od byłego pracodawcy i PPK u obecnego. Klasyczna wersja jest dostępna pod `/wizard-v1`.
-- **Symulator** — pełna kontrola: etapy, konta, wpłaty, wypłaty i tabela rok po roku.
-- **Moje symulacje** — zapisane scenariusze i porównanie do czterech naraz.
+- **Asystent** — krok po kroku dopasowuje pytania do Twojej sytuacji i tworzy plan w trzech scenariuszach rynkowych. Pensję podajesz domyślnie brutto rocznie (z premiami i nadgodzinami), a możesz przełączyć na netto i miesięcznie; szczegóły obejmują oś czasu, etapy oraz wypłaty z poszczególnych kont. PPK i PPE traktujemy niezależnie — możesz mieć PPE od byłego pracodawcy i PPK u obecnego. Gotowy plan eksportujesz do pliku `.sim.json`.
+- **Symulator** — pełna kontrola: etapy, konta, wpłaty, wypłaty i tabela rok po roku. Możesz importować i eksportować plany `.sim.json`.
+- **Porównywarka** — wczytaj od 1 do 4 plików `.sim.json` i porównaj werdykt, wypłaty, podatki, majątek i strukturę etapów. Nic nie zapisujemy na serwerze.
 
 ## Dlaczego powstał
 
@@ -147,28 +147,26 @@ Typowy cykl: edytujesz kod → serwer sam się przeładuje → odświeżasz stro
 | `make format` | Formatowanie kodu (ruff format + fix) |
 | `make clean` | Usuwa cache i artefakty |
 
-Zapisane symulacje trzymane są lokalnie w SQLite (konto e-mail + hasło wystarczą). Z poziomu strony głównej można je porównywać (do 4 naraz).
+Aplikacja jest **bezstanowa**. Nie ma kont, logowania ani bazy danych: konfiguracja i presety siedzą w `localStorage` przeglądarki, a gotowe plany zapisujesz na dysku jako `.sim.json`. Dzięki temu możesz trzymać dane u siebie i wczytywać je w Porównywarce.
 
 ## Uruchamianie produkcyjne
 
-Produkcja to FastAPI + gunicorn/uvicorn + SQLite. Wymagane zmienne środowiskowe:
+Produkcja to FastAPI + gunicorn/uvicorn. Aplikacja nie wymaga bazy ani sekretu sesji.
 
 | Zmienna | Obowiązkowa | Opis |
 |---------|-------------|------|
-| `FIRE_ENV` | w produkcji | `production` — wyłącza `/docs`, wymusza `https_only`, wymaga `FIRE_SECRET_KEY` z env |
-| `FIRE_SECRET_KEY` | w produkcji | klucz sesji. W `production` **musi** pochodzić z env (nie jest zapisywany na dysk) |
-| `FIRE_DB` | nie | ścieżka do pliku SQLite (domyślnie `fire.db` w repo). **Na free tier Render dysk jest ephemeryczny — dane giną przy spin-down/redeploy** |
+| `FIRE_ENV` | nie | `production` wyłącza `/docs` i `/openapi.json`. Bez niej działa tryb deweloperski. |
 
 Dwa sposoby startu:
 
-- **gunicorn** (rekomendowane, używane na hostingu): `gunicorn app.main:app -k uvicorn.workers.UvicornWorker -w 1 --bind 0.0.0.0:$PORT`. Jeden worker — SQLite plikowe jest single-writer.
+- **gunicorn** (rekomendowane, używane na hostingu): `gunicorn app.main:app -k uvicorn.workers.UvicornWorker -w 1 --bind 0.0.0.0:$PORT`.
 - **uvicorn**: `make prod` albo `make prod-port` (port z `PORT`).
 
-Endpoint `GET /healthz` zwraca status + dostępność bazy (probe dla hostingu). Backup bazy — `scripts/backup_db.sh` (online backup `sqlite3 .backup`, zachowuje `BACKUP_KEEP` ostatnich snapshotów).
+Endpoint `GET /healthz` zwraca `{"status": "ok"}` — używany jako probe hostingu.
 
-**Deploy na Render** — repo zawiera `render.yaml` (Blueprint: web service + env, build przez `pip install -r requirements.txt`, start przez gunicorn, `/healthz`). CI/CD leci z GitHub Actions: `ci.yml` przy pushu/PR, a `deploy.yml` po każdym pushu do `main` (Render buduje linkowany branch).
+**Deploy na Render** — repo zawiera `render.yaml` (Blueprint: web service, build przez `pip install -r requirements.txt`, start przez gunicorn, `/healthz`). CI/CD leci z GitHub Actions: `ci.yml` przy pushu/PR, a `deploy.yml` po każdym pushu do `main` (Render buduje linkowany branch).
 
-> **Uwaga o free tier Render.** Free web service NIE wspiera persistent disk — filesystem jest ephemeryczny, więc lokalne dane (konta, symulacje) giną przy każdym *spin-down* (po ~15 min bezczynności) i przy każdym redeployu. To celowy wybór na **wstępne "demo"** — nie trzymamy tu trwałych kont. Plan na trwałość (w kolejnych krokach): baza zewnętrzna (np. Render Postgres / Turso libSQL) wraz z **export/import symulacji do JSON**.
+> **Dlaczego bez bazy?** Free tier Render nie wspiera persistent disk, a projekt nie ma ambicji trzymać prawdziwych danych finansowych użytkowników. Pliki `.sim.json` i `.config.json` są źródłem prawdy i zostają na dysku użytkownika.
 
 ## Struktura
 
@@ -177,9 +175,8 @@ app/
 ├── core/          # PMT (annuitet) i podatki (skala PIT, ryczałt)
 ├── stages/        # etapy akumulacji i realizacji + metadane formularza
 ├── simulation/    # silnik symulacji, schematy, tablica ŚDTŻ, parametry (2026)
-├── web/           # trasy FastAPI i autoryzacja
-├── storage/       # SQLite
-├── templates/     # szablony (symulator, lista symulacji, porównanie)
+├── web/           # trasy FastAPI (stateless)
+├── templates/     # szablony (asystent, symulator, porównywarka)
 └── main.py        # aplikacja FastAPI
 static/js/         # frontend (vanilla JS)
 tests/             # testy pytest (silnik, podatki, ZUS, OKI, ...)

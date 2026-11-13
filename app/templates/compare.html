@@ -1,34 +1,33 @@
 {% extends "base.html" %}
-{% block title %}FIRE Simulator — Porównanie{% endblock %}
-{% block subtitle %}Porównanie scenariuszy{% endblock %}
-{% block section %}symulacje{% endblock %}
+{% block title %}FIRE Simulator — Porównywarka{% endblock %}
+{% block subtitle %}Porównywarka planów FIRE{% endblock %}
+{% block section %}porownywarka{% endblock %}
 {% block head_extra %}<link rel="stylesheet" href="/static/css/library.css?v={{ version }}"><script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>{% endblock %}
 {% block content %}
         <div class="page-head cmp-head">
             <div>
-                <a href="/moje-symulacje" class="btn btn-ghost btn-sm cmp-back"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M11 18l-6-6 6-6"/></svg>Moje symulacje</a>
-                <h2 class="page-title">Porównanie scenariuszy</h2>
-                <p class="page-lead">Sprawdź od razu, który wariant przynosi najwyższą korzyść netto. Możesz porównać zapisane symulacje oraz dograć pliki JSON z dysku (do 4 naraz).</p>
+                <h2 class="page-title">Porównywarka planów</h2>
+                <p class="page-lead">Wczytaj zapisane pliki <strong>.sim.json</strong> i zestaw do czterech planów. Obliczenia wykonuje silnik, ale nic nie zapisujemy na serwerze — pliki zostają u Ciebie.</p>
             </div>
             <div class="btn-row cmp-head-actions">
                 <label class="btn btn-secondary btn-sm" for="cmpJsonInput">
                     <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3M7 8l5-5 5 5M4 21h16"/></svg>
-                    <span>Wczytaj z JSON</span>
+                    <span>Wczytaj .sim.json</span>
                 </label>
-                <input type="file" id="cmpJsonInput" accept=".json,application/json" multiple hidden>
-                <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">Możesz wczytać pojedyncze pliki JSON wyeksportowane z Symulatora lub paczkę wyeksportowaną z „Moich symulacji”. Jeśli plik zawiera same dane wejściowe, silnik przeliczy go w locie.</span></span>
+                <input type="file" id="cmpJsonInput" accept=".sim.json,.json,application/json" multiple hidden>
+                <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">Pliki .sim.json eksportujesz z Asystenta albo Symulatora. Możesz wczytać pojedynczy plan, kilka plików albo tablicę planów. Pliki .config.json należą do Konfiguracji.</span></span>
                 <button type="button" id="cmpClearBtn" class="btn btn-ghost btn-sm hidden">Wyczyść</button>
             </div>
         </div>
         <div id="errorMsg" class="banner banner-danger hidden"></div>
 
-        <div id="cmpEmptyState" class="empty-state hidden">
-            <h3>Dodaj symulacje do porównania</h3>
-            <p>Wczytaj od 1 do 4 plików JSON z dysku albo wybierz zapisane scenariusze na liście „Moje symulacje”.</p>
+        <div id="cmpEmptyState" class="empty-state cmp-dropzone hidden">
+            <h3>Dodaj plany do porównania</h3>
+            <p>Przeciągnij tutaj od 1 do 4 plików <strong>.sim.json</strong> albo wybierz je z dysku.</p>
             <div class="btn-row">
-                <label class="btn btn-primary" for="cmpJsonInput">Wczytaj pliki JSON</label>
-                <a href="/moje-symulacje" class="btn btn-secondary">Moje symulacje</a>
+                <label class="btn btn-primary" for="cmpJsonInput">Wczytaj pliki .sim.json</label>
             </div>
+            <p class="field-hint">Pliki konfiguracji (.config.json) wczytujesz w Konfiguracji.</p>
         </div>
 
         <section id="verdictSection" class="cmp-verdict-wrap hidden" aria-label="Werdykt porównania"></section>
@@ -77,7 +76,5 @@
         </section>
 {% endblock %}
 {% block scripts %}
-    <script src="/static/js/session.js?v={{ version }}"></script>
-    <script src="/static/js/sim-utils.js?v={{ version }}"></script>
     <script src="/static/js/compare.js?v={{ version }}"></script>
 {% endblock %}

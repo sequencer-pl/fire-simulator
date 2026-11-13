@@ -147,11 +147,11 @@
                     <span class="landing-card-desc">Zbuduj scenariusz etap po etapie, konto po koncie, i zobacz prognozę majątku rok po roku.</span>
                 </span>
             </a>
-            <a class="card card-link landing-card" href="/moje-symulacje">
-                <span class="landing-icon" aria-hidden="true"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"/></svg></span>
+            <a class="card card-link landing-card" href="/compare">
+                <span class="landing-icon" aria-hidden="true"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M4 21h16M6 7l-3 7a3 3 0 0 0 6 0zM18 7l-3 7a3 3 0 0 0 6 0zM5 7h14"/></svg></span>
                 <span class="landing-card-text">
-                    <span class="landing-card-title">Moje symulacje</span>
-                    <span class="landing-card-desc">Zapisane scenariusze, porównanie do czterech naraz, eksport do JSON.</span>
+                    <span class="landing-card-title">Porównywarka</span>
+                    <span class="landing-card-desc">Wczytaj zapisane pliki .sim.json i zestaw do czterech planów. Twoje dane zostają na dysku.</span>
                 </span>
             </a>
             <a class="card card-link landing-card" href="/sim?view=config">
@@ -163,25 +163,4 @@
             </a>
         </section>
 
-        <section id="recentSection" class="recent hidden" aria-label="Ostatnie symulacje">
-            <div class="recent-head">
-                <div>
-                    <h3 class="section-title">Ostatnie symulacje</h3>
-                    <p id="greetingText" class="muted"></p>
-                </div>
-                <a href="/moje-symulacje" class="btn btn-ghost btn-sm">Wszystkie<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
-            </div>
-            <div id="recentList" class="recent-list"></div>
-            <div id="recentEmpty" class="empty-state hidden">
-                <h3>Nie masz jeszcze zapisanych symulacji</h3>
-                <p>Przejdź przez Asystenta albo zbuduj scenariusz w symulatorze, a potem zapisz go tutaj.</p>
-            </div>
-        </section>
-
-{% endblock %}
-{% block scripts %}
-    <script src="/static/js/session.js?v={{ version }}"></script>
-    <script src="/static/js/sim-utils.js?v={{ version }}"></script>
-    <script src="/static/js/common.js?v={{ version }}"></script>
-    <script src="/static/js/landing.js?v={{ version }}"></script>
 {% endblock %}

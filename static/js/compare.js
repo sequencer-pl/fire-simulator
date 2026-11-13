@@ -2,7 +2,6 @@
 // werdykt, karty legendy, tabela z deltami, wykresy, gantt, kamienie milowe.
 // $, show, escapeHtml, fmtMoney, iconSvg — wspólne helpery z base.html.
 
-const COMPARE_JSON_STORAGE_KEY = "fire.compareJsonItems";
 const WIZARD_DRAFT_KEY = "fire.wizardDraft";
 let currentSims = [];
 
@@ -153,6 +152,9 @@ function chartDefaults() {
 /* ── Wczytywanie i obsługa JSON ──────────────────────────────── */
 
 function extractJsonItems(parsed, fallbackName) {
+    if (parsed?.schema === "fire-config/v1" || (parsed?.config && !parsed?.input && !parsed?.stages)) {
+        throw new Error("To plik konfiguracji (.config.json) — wczytaj go w Konfiguracji.");
+    }
     const list = Array.isArray(parsed) ? parsed : [parsed];
     const out = [];
     list.forEach((entry, idx) => {
@@ -211,40 +213,6 @@ async function handleJsonFiles(fileList) {
     } catch (err) {
         showError(err.message);
     }
-}
-
-async function loadCompare() {
-    const ids = new URLSearchParams(location.search).get("ids");
-    const storedJson = sessionStorage.getItem(COMPARE_JSON_STORAGE_KEY);
-    const loaded = [];
-
-    if (ids) {
-        try {
-            const res = await fetch("/api/compare?ids=" + encodeURIComponent(ids));
-            const data = await res.json();
-            if (!res.ok) throw new Error(data.detail || "Błąd serwera");
-            loaded.push(...data);
-        } catch (e) {
-            showError(e.message);
-        }
-    }
-
-    if (storedJson) {
-        sessionStorage.removeItem(COMPARE_JSON_STORAGE_KEY);
-        try {
-            const rawItems = JSON.parse(storedJson);
-            const slots = Math.max(0, 4 - loaded.length);
-            if (slots > 0 && Array.isArray(rawItems) && rawItems.length) {
-                const evaluated = await evaluateJsonItems(rawItems.slice(0, slots));
-                loaded.push(...evaluated);
-            }
-        } catch (e) {
-            showError(e.message);
-        }
-    }
-
-    currentSims = loaded.slice(0, 4);
-    render(currentSims);
 }
 
 function showError(msg) {
@@ -974,11 +942,21 @@ document.addEventListener("DOMContentLoaded", () => {
         clearBtn.addEventListener("click", () => {
             currentSims = [];
             show("errorMsg", false);
-            if (location.search) {
-                window.history.replaceState({}, "", "/compare");
-            }
             render(currentSims);
         });
     }
-    loadCompare();
+    const dropZone = $("cmpEmptyState");
+    if (dropZone) {
+        dropZone.addEventListener("dragover", (e) => {
+            e.preventDefault();
+            dropZone.classList.add("is-dragover");
+        });
+        dropZone.addEventListener("dragleave", () => dropZone.classList.remove("is-dragover"));
+        dropZone.addEventListener("drop", async (e) => {
+            e.preventDefault();
+            dropZone.classList.remove("is-dragover");
+            await handleJsonFiles(e.dataTransfer?.files);
+        });
+    }
+    render([]);
 });

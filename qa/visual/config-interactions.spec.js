@@ -112,3 +112,40 @@ test("„Przywróć domyślne” wymaga potwierdzenia", async ({ page }) => {
     await page.locator("#configResetBtn").click();
     await expect(input).toHaveValue("2.5");
 });
+
+test("eksport i import konfiguracji używają .config.json", async ({ page }) => {
+    await page.goto("/sim?view=config", { waitUntil: "networkidle" });
+    const [download] = await Promise.all([
+        page.waitForEvent("download"),
+        page.locator("#presetExportBtn").click(),
+    ]);
+    expect(download.suggestedFilename()).toMatch(/\.config\.json$/);
+    const filePath = await download.path();
+    expect(filePath).toBeTruthy();
+
+    page.once("dialog", (dialog) => dialog.accept("Import test"));
+    await page.setInputFiles("#presetImportInput", filePath);
+    await expect(page.locator("#presetSelect option:checked")).toHaveText("Import test");
+    await expect(page.locator("#presetDeleteBtn")).toBeVisible();
+});
+
+test("konfiguracja i presety zapisują się lokalnie między odświeżeniami", async ({ page }) => {
+    await page.goto("/sim?view=config", { waitUntil: "networkidle" });
+    await openSection(page, "Skala podatkowa");
+    const f = field(page, "Inflacja roczna");
+    await f.locator(".config-inline-editor input").fill("3.7");
+    await page.waitForFunction(() => {
+        const raw = localStorage.getItem("fire.config");
+        return raw && Math.abs(JSON.parse(raw).config?.inflation - 0.037) < 1e-9;
+    });
+
+    page.once("dialog", (dialog) => dialog.accept("Lokalny preset"));
+    await page.locator("#presetSaveBtn").click();
+    await expect(page.locator("#presetSelect option:checked")).toHaveText("Lokalny preset");
+
+    await page.reload({ waitUntil: "networkidle" });
+    await openSection(page, "Skala podatkowa");
+    await expect(field(page, "Inflacja roczna").locator(".config-inline-editor input")).toHaveValue("3.7");
+    await expect(page.locator("#presetSelect option:checked")).toHaveText("Lokalny preset");
+    await expect(page.locator("#presetDeleteBtn")).toBeVisible();
+});

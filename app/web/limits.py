@@ -1,7 +1,7 @@
 """Lekkie limity żądań dla endpointów kosztownych lub podatnych na nadużycia.
 
-Aplikacja działa na jednym workerze (SQLite single-writer), więc licznik
-in-memory jest wystarczający. W razie skalowania trzeba go zastąpić
+Aplikacja jest bezstanowa (dane użytkownika zostają w przeglądarce), więc
+licznik in-memory wystarcza. W razie skalowania trzeba go zastąpić
 współdzielonym store'em (Redis itp.).
 """
 
@@ -54,10 +54,7 @@ class SlidingWindowLimiter:
 
 
 LIMITS: dict[str, SlidingWindowLimiter] = {
-    "login": SlidingWindowLimiter(limit=10, window_seconds=60),
-    "register": SlidingWindowLimiter(limit=5, window_seconds=60),
     "simulate": SlidingWindowLimiter(limit=30, window_seconds=60),
-    "save": SlidingWindowLimiter(limit=20, window_seconds=60),
     "wizard_plan": SlidingWindowLimiter(limit=6, window_seconds=60),
     "wizard_suggest": SlidingWindowLimiter(limit=20, window_seconds=60),
     "wizard_salary": SlidingWindowLimiter(limit=60, window_seconds=60),

@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import { test, expect } from "@playwright/test";
 
 test("wiek końca musi być większy niż wiek start", async ({ page }) => {
@@ -17,7 +18,7 @@ test("import symulacji jest widoczny i nie rozpycha paska akcji", async ({ page 
     await page.goto("/sim", { waitUntil: "networkidle" });
     const btn = page.locator("#importSimBtn");
     await expect(btn).toBeVisible();
-    await expect(btn).toHaveAttribute("aria-label", "Importuj symulację z pliku JSON");
+    await expect(btn).toHaveAttribute("aria-label", "Importuj symulację z pliku .sim.json");
 
     const bar = page.locator("#formActions");
     const barBox = await bar.boundingBox();
@@ -138,4 +139,13 @@ test("nazwa etapu z importu jest escapowana", async ({ page }) => {
     await expect(page.locator(".stage-block .stage-name").first()).toHaveValue(evil);
     await expect(page.locator("#resultsTable td.col-stage").first()).toContainText("<img");
     expect(dialogSeen).toBe(false);
+
+    const [download] = await Promise.all([
+        page.waitForEvent("download"),
+        page.locator("#exportSimBtn").click(),
+    ]);
+    expect(download.suggestedFilename()).toMatch(/\.sim\.json$/);
+    const exported = JSON.parse(fs.readFileSync(await download.path(), "utf8"));
+    expect(exported.schema).toBe("fire-simulation/v1");
+    expect(exported.input.stages.length).toBeGreaterThan(0);
 });

@@ -1,4 +1,4 @@
-"""Asystent v2 — route, B2B oraz etapy Coast/Barista FIRE i kredytu."""
+"""Asystent — route, B2B oraz etapy Coast/Barista FIRE i kredytu."""
 
 from pathlib import Path
 
@@ -34,56 +34,92 @@ def accumulation_stages(a):
     return [stage for stage in build_stages(a).stages if stage.stage_type == "akumulacja"]
 
 
-def test_wizard_default_route_renders_v2(client):
+def test_wizard_renders_single_assistant(client):
     resp = client.get("/wizard")
     assert resp.status_code == 200
     text = resp.text
-    assert "wizard-v2.js" in text
-    assert 'id="v2SheltersPicker"' in text
-    assert 'id="v2SuggestList"' in text
-    assert 'id="v2NextBtn"' in text
-    assert 'id="v2StepCount"' in text
-    assert 'id="v2Age" class="acc-field" value="40"' in text
-    assert 'href="/wizard-v1"' in text
-    assert "/static/js/wizard.js" not in text
-
-
-def test_wizard_v2_alias_renders_v2(client):
-    resp = client.get("/wizard-v2")
-    assert resp.status_code == 200
-    text = resp.text
-    assert "wizard-v2.js" in text
-    assert 'id="v2NextBtn"' in text
-    assert 'id="v2StepCount"' in text
-
-
-def test_wizard_v1_route_keeps_classic_assistant(client):
-    resp = client.get("/wizard-v1")
-    assert resp.status_code == 200
-    text = resp.text
     assert "/static/js/wizard.js" in text
+    assert 'id="wzSheltersPicker"' in text
+    assert 'id="wzSuggestList"' in text
     assert 'id="wzNextBtn"' in text
-    assert "wizard-v2.js" not in text
+    assert 'id="wzStepCount"' in text
+    assert 'id="wzAge" class="acc-field" value="40"' in text
+    assert "wizard-v1" not in text
+    assert "wizard-v2" not in text
 
 
-def test_wizard_v1_switcher_links_to_canonical_routes(client):
-    resp = client.get("/wizard-v1")
-    assert resp.status_code == 200
-    assert 'href="/wizard-v1"' in resp.text
-    assert 'href="/wizard"' in resp.text
-    assert 'href="/wizard-v2"' not in resp.text
+def test_legacy_wizard_routes_redirect_to_canonical_wizard(client):
+    for path in ("/wizard-v1", "/wizard-v2"):
+        resp = client.get(path, follow_redirects=False)
+        assert resp.status_code in (307, 308)
+        assert resp.headers["location"] == "/wizard"
 
 
-def test_simulator_restore_links_follow_draft_source(client):
+def test_wizard_sources_have_no_legacy_v2_prefix():
+    for rel in (
+        "app/templates/wizard.html",
+        "static/css/wizard.css",
+        "qa/jsdom/wizard-repro.mjs",
+        "qa/visual/wizard-interactions.spec.js",
+    ):
+        text = (ROOT / rel).read_text(encoding="utf-8").lower()
+        assert "v2" not in text, rel
+
+    js = (ROOT / "static/js/wizard.js").read_text(encoding="utf-8").lower()
+    js = js.replace("fire.wizardv2state", "").replace("fire.wizardv2plan", "")
+    assert "v2" not in js
+
+
+def test_legacy_library_and_login_routes_redirect_to_comparison(client):
+    for path in ("/moje-symulacje", "/login"):
+        resp = client.get(path, follow_redirects=False)
+        assert resp.status_code in (307, 308)
+        assert resp.headers["location"] == "/compare"
+
+
+def test_compare_evaluate_runs_without_session(client):
+    payload = {
+        "items": [
+            {
+                "name": "Plan z pliku",
+                "input": {
+                    "stages": [
+                        {
+                            "stage_type": "akumulacja",
+                            "name": "Akumulacja",
+                            "start_age": 40,
+                            "end_age": 50,
+                            "accounts": {
+                                "broker": {
+                                    "starting_balance": 100_000,
+                                    "roi": 0.05,
+                                    "annual_contribution": 12_000,
+                                }
+                            },
+                        }
+                    ],
+                    "max_age": 50,
+                },
+            }
+        ]
+    }
+    resp = client.post("/api/compare/evaluate", json=payload)
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert len(body) == 1
+    assert body[0]["from_json"] is True
+    assert body[0]["summary"]["years"] == 10
+
+
+def test_simulator_restore_links_use_single_wizard(client):
     resp = client.get("/sim")
     assert resp.status_code == 200
     assert 'id="wizardDraftBackLink"' in resp.text
 
     js = (ROOT / "static/js/simulator.js").read_text(encoding="utf-8")
-    assert 'let loadedDraftSource = "v1";' in js
-    assert 'loadedDraftSource = draft.source || "v1";' in js
-    assert 'source === "v2" ? "/wizard?restore=1" : "/wizard-v1?restore=1"' in js
-    assert 'back.href = "/wizard-v2"' not in js
+    assert 'const restoreHref = "/wizard?restore=1";' in js
+    assert "loadedDraftSource" not in js
+    assert "wizard-v1" not in js
 
 
 def test_b2b_net_salary_is_normalized_to_invoice_revenue():
@@ -234,7 +270,8 @@ def test_landing_notes_precede_nav_cards(client):
     hero = text.index("Zaplanuj swoją drogę")
     notes = text.index("Zanim zaczniesz planować")
     nav = text.index("Dostępne sekcje")
-    recent = text.index("Ostatnie symulacje")
-    assert hero < notes < nav < recent
+    assert hero < notes < nav
     assert "Sześć pytań" not in text
     assert "Krótkie pytania dopasowane do Twojej sytuacji" in text
+    assert "Porównywarka" in text
+    assert "Moje symulacje" not in text

@@ -17,7 +17,7 @@ dev:
 dev-port:
 	$(PYTHON) uvicorn $(APP) --reload --host 0.0.0.0 --port $${PORT:-8000}
 
-## Uruchamia serwer produkcyjny (gunicorn + 1 worker uvicorn; SQLite jest single-writer)
+## Uruchamia serwer produkcyjny (gunicorn + 1 worker uvicorn; aplikacja jest bezstanowa)
 prod:
 	$(PYTHON) gunicorn $(APP) -k uvicorn.workers.UvicornWorker -w 1 --bind 0.0.0.0:8000
 
@@ -44,7 +44,7 @@ visual-setup:
 	npm --prefix $(QA) install
 	cd $(QA) && npx playwright install chromium
 
-## Porównanie zrzutów ekranu z baseline'ami (9 stron, desktop + mobile)
+## Porównanie zrzutów ekranu z baseline'ami (5 stron, desktop + mobile)
 visual:
 	npm --prefix $(QA) run check
 
