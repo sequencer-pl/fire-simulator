@@ -55,7 +55,8 @@ Symulator celowo jest **prostym modelem deterministycznym**, a nie symulacją Mo
 1. **Wszystko w dzisiejszych złotych.** Silnik przechowuje i pokazuje wyniki w sile nabywczej (realnie). `ROI` wpisujesz **realne (ponad inflacją), brutto — przed podatkiem**. Inflacja nie jest doliczana do wzrostu kont; wchodzi tylko w:
    - nominalną Belkę od zysku (broker, IKE/PPK/PPE przed progami) i mechanikę lokaty,
    - erozję gotówki (`-2,5%/rok`),
-   - waloryzację ZUS (punkt 8).
+   - waloryzację ZUS (punkt 8),
+   - indeksację progów PIT, kwoty wolnej, KUP i progu daniny — domyślnie progi są **stałe realnie** (`prog_indexation = None`). Pole „Indeksacja progów PIT” pozwala ustawić `0%` (progi zamrożone nominalnie) albo wartość pośrednią; presety „Realne” i „Konserwatywne” używają odpowiednio 1,5% i 1%.
 
    Ryczałt IKZE i skala PIT liczą się od realnych kwot. Podatek od aktywów OKI jest w modelu liczony od realnego salda (uproszczenie).
 

@@ -149,3 +149,24 @@ test("konfiguracja i presety zapisują się lokalnie między odświeżeniami", a
     await expect(page.locator("#presetSelect option:checked")).toHaveText("Lokalny preset");
     await expect(page.locator("#presetDeleteBtn")).toBeVisible();
 });
+
+test("indeksacja progów PIT rozróżnia puste, 0% i wartość dodatnią", async ({ page }) => {
+    await page.goto("/sim?view=config", { waitUntil: "networkidle" });
+    await openSection(page, "Skala podatkowa");
+    const f = field(page, "Indeksacja progów PIT");
+    const input = f.locator(".config-inline-editor input");
+
+    await input.fill("0");
+    expect(await page.evaluate(() => USER_CONFIG.prog_indexation)).toBe(0);
+
+    await input.fill("");
+    expect(await page.evaluate(() => USER_CONFIG.prog_indexation)).toBeNull();
+
+    await input.fill("1.5");
+    expect(await page.evaluate(() => USER_CONFIG.prog_indexation)).toBeCloseTo(0.015, 6);
+
+    page.once("dialog", (dialog) => dialog.accept());
+    await page.locator("#presetSelect").selectOption({ label: "Realne" });
+    await expect(page.locator("#presetSelect option:checked")).toHaveText("Realne");
+    await expect(input).toHaveValue("1.5");
+});

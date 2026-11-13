@@ -15,6 +15,11 @@ bez TypeScript), pytest. Odpowiadaj i pisz UI po polsku.
   app/simulation/zus.py), helperach Fisher/deflate (core/inflation.py), nominalnej
   Belce od zysku oraz mechanice lokaty. Nie dodawać inflacji do wzrostu kont ani do
   PMT bez zgody.
+- **Indeksacja progów PIT**: `TaxConfig.prog_indexation` (`None` = progi stałe
+  realnie, domyślnie; `0.0` = zamrożone nominalnie; wartość pośrednia = wolniejsza
+  niż inflacja). `threshold_factor(years)` przelicza kwotę wolną, progi, KUP i próg
+  daniny; silnik przekazuje lata od startu do `scale_kwargs(years)`. Presety
+  „Realne”/„Konserwatywne” mają 1,5%/1%.
 - **Długowieczność** modelujemy liniowo: `longevity.growth_months_per_year`
   (domyślnie 1,5 mies./rok) wydłuża tabelę ŚDTŻ dla roku emerytury oraz domyślny
   horyzont Asystenta (przybliżenie kohortowe: `lata × (1 + growth/12)`).
