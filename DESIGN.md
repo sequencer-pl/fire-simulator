@@ -84,7 +84,9 @@ w obu wykresach, a nie stan ani interakcję; legenda i tooltip są jedynym
 miejscem, gdzie ta tożsamość jest opisana. Wypełnienie area to pionowy
 gradient od 64% do 12% krycia z cienką krawędzią w kolorze konta — bez
 płaskich, w pełni kryjących plam. Próbki legendy używają mocniejszego
-gradientu 82% → 32%, żeby pozostały czytelne w małym rozmiarze.
+gradientu 82% → 32%, żeby pozostały czytelne w małym rozmiarze. Tooltip
+wykresów ma kartę totalu zbudowaną z `.metric`: etykieta, duża kwota
+i podpis z drugą jednostką lub kontekstem.
 
 Przezroczyste warianty robimy przez `color-mix(in srgb, var(--x) 12%,
 transparent)`; nie wpisujemy `rgba()` z liczbami.

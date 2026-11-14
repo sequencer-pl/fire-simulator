@@ -105,6 +105,9 @@ test("mobile layout stays within the screen throughout the employment path", asy
     await page.locator("#wzWithdrawalsChart svg").click();
     await expect(page.locator("#wzChartTip")).toBeVisible();
     await expect(page.locator("#wzChartTip")).toContainText(/Wiek \d+/);
+    await expect(page.locator("#wzChartTip .wz-chart-tip-total")).toBeVisible();
+    await expect(page.locator("#wzChartTip .wz-chart-tip-total .metric-label")).toHaveText("Wypłaty netto");
+    await expect(page.locator("#wzChartTip .wz-chart-tip-total .metric-value")).toContainText("/mies.");
     await page.locator("#wzChartTipClose").click();
 
     await page.locator("#wzTimeline .wz-timeline-segment").first().click();

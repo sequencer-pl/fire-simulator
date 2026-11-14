@@ -2128,6 +2128,33 @@
     text-align: center;
 }
 
+.wz-chart-tip-total {
+    margin-top: var(--sp-2);
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+    overflow: hidden;
+}
+
+.wz-chart-tip-total .metric-label,
+.wz-chart-tip-total .metric-value {
+    white-space: normal;
+}
+
+.wz-chart-tip-unit {
+    margin-left: 3px;
+    color: var(--text-2);
+    font-size: var(--fs-sm);
+    font-weight: 500;
+}
+
+.wz-chart-tip-total-sub {
+    display: block;
+    margin-top: 2px;
+    color: var(--text-3);
+    font-size: var(--fs-xs);
+    font-variant-numeric: tabular-nums;
+}
+
 .wz-chart-tip-list {
     display: grid;
     gap: 4px;

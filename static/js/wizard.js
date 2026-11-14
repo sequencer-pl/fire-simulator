@@ -3346,6 +3346,19 @@ function wzLimitChartGroups(groups) {
     return kept;
 }
 
+function wzScaleChartGroups(groups, factor) {
+    if (factor === 1) return groups;
+    return groups.map((group) => ({
+        ...group,
+        values: group.values.map((value) => value * factor),
+        accounts: group.accounts.map((account) => ({
+            ...account,
+            values: account.values.map((value) => value * factor),
+        })),
+        total: group.total * factor,
+    }));
+}
+
 function wzChartTotals(groups, count) {
     return Array.from({ length: count }, (_, index) => (
         groups.reduce((sum, group) => sum + (group.values[index] || 0), 0)
@@ -3416,8 +3429,8 @@ function wzChartSummary(model) {
     const last = model.ages[model.ages.length - 1];
     const peak = Math.max(...model.totals);
     if (model.kind === "withdrawals") {
-        const total = model.totals.reduce((sum, value) => sum + value, 0);
-        return `Wykres wypłat netto według kont, wiek ${first}–${last}. Łącznie ${wzFmtZloty(total)} zł. Użyj strzałek, aby czytać szczegóły.`;
+        const total = model.totals.reduce((sum, value) => sum + value, 0) * 12;
+        return `Wykres miesięcznych wypłat netto według kont, wiek ${first}–${last}. Łącznie w horyzoncie ${wzFmtZloty(total)} zł netto. Użyj strzałek, aby czytać szczegóły.`;
     }
     return `Wykres kapitału prywatnego według kont, wiek ${first}–${last}. Kapitał szczytowy ${wzFmtZloty(peak)} zł. Użyj strzałek, aby czytać szczegóły.`;
 }
@@ -3467,15 +3480,19 @@ function wzChartTooltipHtml(model, index) {
         .filter((entry) => entry.value > 0.5)
         .sort((a, b) => b.value - a.value);
 
-    let subtitle;
+    let totalCard;
     if (model.kind === "withdrawals") {
-        subtitle = total > 0.5
-            ? `Wypłaty netto w roku: ${wzFmtZloty(total)} zł · ≈ ${wzFmtZloty(total / 12)} zł/mies.`
-            : "Brak wypłat w tym roku";
+        totalCard = `<div class="metric wz-chart-tip-total">
+            <span class="metric-label">Wypłaty netto</span>
+            <span class="metric-value">${wzFmtZloty(total)} zł<span class="wz-chart-tip-unit">/mies.</span></span>
+            <span class="wz-chart-tip-total-sub">${total > 0.5 ? `≈ ${wzFmtZloty(total * 12)} zł rocznie` : "brak wypłat w tym roku"}</span>
+        </div>`;
     } else {
-        subtitle = total > 0.5
-            ? `Kapitał na koniec roku: ${wzFmtZloty(total)} zł brutto`
-            : "Brak kapitału prywatnego";
+        totalCard = `<div class="metric wz-chart-tip-total">
+            <span class="metric-label">Kapitał prywatny</span>
+            <span class="metric-value">${wzFmtZloty(total)} zł</span>
+            <span class="wz-chart-tip-total-sub">${total > 0.5 ? "na koniec roku · brutto" : "brak kapitału w tym roku"}</span>
+        </div>`;
     }
 
     const rows = entries.map(({ group, value }) => {
@@ -3497,7 +3514,7 @@ function wzChartTooltipHtml(model, index) {
     }).join("");
 
     return `<div class="wz-gantt-tip-title">Wiek ${model.ages[index]}</div>
-        <div class="wz-gantt-tip-sub">${escapeHtml(subtitle)}</div>
+        ${totalCard}
         ${rows ? `<div class="wz-chart-tip-list">${rows}</div>` : ""}`;
 }
 
@@ -3652,7 +3669,7 @@ function wzRenderChartSvg(container, model) {
         svg += `<text class="wz-chart-axis-text" x="${xPos.toFixed(2)}" y="${height - 8}" text-anchor="${anchor}">${age}</text>`;
     }
 
-    svg += `<text class="wz-chart-unit" x="${margin.left}" y="11">${model.kind === "withdrawals" ? "zł/rok" : "zł"}</text>`;
+    svg += `<text class="wz-chart-unit" x="${margin.left}" y="11">${model.kind === "withdrawals" ? "zł/mies." : "zł"}</text>`;
 
     model.groups.forEach((group, index) => {
         const upper = upperBounds[index];
@@ -3758,8 +3775,11 @@ function wzRenderCharts(input, projection) {
         return;
     }
 
-    const withdrawalGroups = wzLimitChartGroups(
-        wzChartGroups(chart.withdrawals_net, input, "withdrawals", ages.length)
+    const withdrawalGroups = wzScaleChartGroups(
+        wzLimitChartGroups(
+            wzChartGroups(chart.withdrawals_net, input, "withdrawals", ages.length)
+        ),
+        1 / 12
     );
     const capitalGroups = wzLimitChartGroups(
         wzChartGroups(chart.balances, input, "capital", ages.length)

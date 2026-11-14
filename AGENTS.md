@@ -298,11 +298,12 @@ bez TypeScript), pytest. Odpowiadaj i pisz UI po polsku.
   „Z portfela prywatnego FIRE: … zł netto” i „Z ZUS: … zł netto” (linia ZUS
   znika, gdy ZUS nic nie wypłaca). Na mobile jest przewijany w poziomie ze
   sticky etykietami kont. Pod Ganttem są dwa wykresy: „Wypłaty netto w czasie”
-  (stack rocznych wypłat netto per konto, z ZUS) i „Kapitał prywatny FIRE”
-  (stack sald na koniec roku, bez ZUS/OFE). Serie liczy planner w
-  `PlanProjection.chart` (`ages`, `withdrawals_net`, `balances`); kolory kont
-  to stałe tokeny `--acct-*`, a szczegóły pokazuje wspólny tooltip
-  `#wzChartTip` (kwota, udział, rozbicie kont wielokrotnych). Klik karty
+  (stack miesięcznych wypłat netto per konto, z ZUS; roczna tylko w tooltipie)
+  i „Kapitał prywatny FIRE” (stack sald na koniec roku, bez ZUS/OFE). Serie
+  liczy planner w `PlanProjection.chart` (`ages`, `withdrawals_net`, `balances`);
+  kolory kont to stałe tokeny `--acct-*`, a szczegóły pokazuje wspólny tooltip
+  `#wzChartTip` z kartą totalu (`.metric`), udziałami i rozbiciem kont
+  wielokrotnych. Klik karty
   scenariusza ustawia `wzSelectedScenario` i przerenderowuje cały wynik
   (`renderScenarioResult`). Wybór scenariusza zapisywany
   w `localStorage`, odtwarzany przez `/wizard?restore=1`. Wejście z kroku 5 od razu
