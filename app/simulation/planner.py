@@ -2592,7 +2592,7 @@ def _plan_single(
 
 
 SCENARIO_LABELS: dict[str, str] = {
-    "konserwatywne": "Kryzys / ostrożne",
+    "konserwatywne": "Kryzys / bessa",
     "realne": "Realne / bazowe",
     "optymistyczne": "Hossa / optymistyczne",
 }

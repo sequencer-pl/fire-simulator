@@ -101,6 +101,23 @@ def test_conservative_preset_indexes_thresholds_below_inflation():
         assert p is not None and p["prog_indexation"] is None
 
 
+def test_conservative_preset_models_a_bear_market():
+    preset = get_builtin_preset("Konserwatywne")
+    assert preset is not None
+    accounts = preset["accounts"]
+    vehicles = preset["wrapper_vehicles"]
+    # Najbardziej ryzykowne aktywo realnie traci; akcje są na zero.
+    assert accounts["krypto"]["default_roi"] < 0
+    assert accounts["broker"]["default_roi"] == 0
+    assert vehicles["broker"]["default_roi"] == 0
+    # Bezpieczne aktywa obrywają najmniej.
+    assert accounts["obligacje"]["default_roi"] > accounts["broker"]["default_roi"]
+    assert accounts["lokata"]["default_roi"] >= accounts["broker"]["default_roi"]
+    # Mieszane portfele są pomiędzy akcjami a obligacjami.
+    assert accounts["ppk"]["default_roi"] > accounts["broker"]["default_roi"]
+    assert vehicles["fund"]["default_roi"] > vehicles["broker"]["default_roi"]
+
+
 def test_backfill_adds_prog_indexation_to_legacy_config():
     legacy = {"year": 2026, "inflation": 0.03}
     filled = backfill_tax_config(legacy)

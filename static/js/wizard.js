@@ -2909,7 +2909,7 @@ function wzRenderScenarios(data) {
     };
     const path = data.path || wzCurrentPath();
 
-    let html = `<h3 class="eyebrow wz-panel-title">${tipLabelHtml("Scenariusze rynkowe", "Konserwatywne: wyższa inflacja, niższe ROI i słabsza waloryzacja ZUS. Realne: Twoja konfiguracja bazowa. Optymistyczne: niższa inflacja, wyższe ROI i mocniejsza waloryzacja. Kliknij kartę, aby ustawić scenariusz główny.")}</h3>
+    let html = `<h3 class="eyebrow wz-panel-title">${tipLabelHtml("Scenariusze rynkowe", "Kryzys / bessa: wyższa inflacja, niższe ROI — na krypto nawet ujemne — i słabsza waloryzacja ZUS. Realne: Twoja konfiguracja bazowa. Optymistyczne: niższa inflacja, wyższe ROI i mocniejsza waloryzacja. Kliknij kartę, aby ustawić scenariusz główny.")}</h3>
         <div class="wz-scenarios-grid">`;
     keys.forEach((key) => {
         const scenario = scenarios[key];

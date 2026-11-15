@@ -212,7 +212,11 @@ bez TypeScript), pytest. Odpowiadaj i pisz UI po polsku.
   klienta jako `WizardAnswers.base_config` / `SalaryPreviewRequest.base_config`.
   `realne` używa go w całości, a `konserwatywne`/`optymistyczne` nakładają tylko
   inflację, `default_roi` kont i waloryzację ZUS; podatki, limity i zasady kont
-  zostają z configu.
+  zostają z configu. Preset „Konserwatywne” modeluje bessę, nie krach: akcje
+  **0% realnie**, krypto **−8%**, obligacje **+0,5%**, lokaty i OKI oszcz. **0%**,
+  fundusze/PPK/PPE/OKI inw. **+0,5%**, ZUS/OFE **+1%**. Nie schodzimy z akcjami
+  poniżej zera — stały ujemny zwrot przez cały horyzont to już „stracone
+  półwiecze”, a nie bessa.
 - **Konfiguracja lokalna**: `fire.config` przechowuje aktywny config i baseline,
   a `fire.presets` — własne presety. Jeśli kluczy nie ma, wczytujemy defaulty
   z `/api/config`, a lista presetów pokazuje same wbudowane. Zapis jest

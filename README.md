@@ -88,6 +88,8 @@ Symulator celowo jest **prostym modelem deterministycznym**, a nie symulacją Mo
 
 8b. **Asystent a Konfiguracja:** jeśli użytkownik zapisał własną konfigurację, „Realne” używa jej w całości; „Konserwatywne”/„Optymistyczne” nakładają tylko inflację, domyślne ROI i waloryzację ZUS. Bez zapisanej konfiguracji działa stary preset. Pierwsza ręczna zmiana w Konfiguracji przełącza select presetu na „Własna konfiguracja”, a przywrócenie wszystkich wartości wraca do nazwy presetu. Niezalogowani zapisują konfigurację lokalnie (`localStorage`, klucz `fire.config.anonymous`) i Asystent używa jej przez `base_config`.
 
+8c. **Scenariusz „Kryzys / bessa”** zakłada słaby rynek przez cały horyzont, nie jednorazowy krach: akcje **0% realnie**, fundusze i PPK/PPE **+0,5%**, obligacje **+0,5%**, lokaty i OKI oszczędnościowe **0%**, nieruchomość **0%**, ZUS/OFE **+1%**, a krypto **−8% realnie**. Gotówka traci tyle, ile wynosi inflacja. To celowo mocniejszy scenariusz negatywny; nie jest prognozą.
+
 9. **Limity wpłat (2026):** IKE 28 260 zł, IKZE 11 304 zł (16 956 zł samozatrudnieni), OIPE 28 260 zł, składka dodatkowa PPE 42 390 zł. Przekroczenie to ostrzeżenie, nie automatyczne obcięcie — dopłaty ponad limit po prostu "wchodzą" i tracą sens podatkowy.
 
 10. **Nakładające się etapy** — dla danego konta wygrywa pierwszy z nich; konta nieobsługiwane w danym roku rosną pasywnie z ostatnim znanym ROI (domyślnie 2%).
