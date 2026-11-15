@@ -2256,8 +2256,24 @@
 
 .wz-optimizer {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     gap: var(--sp-3);
     margin-top: var(--sp-3);
+    min-width: 0;
+    max-width: 100%;
+}
+
+.wz-optimizer > summary {
+    min-width: 0;
+}
+
+#wzOptimizerResult {
+    min-width: 0;
+    max-width: 100%;
+}
+
+#wzOptimizerResult .table-wrap {
+    max-width: 100%;
 }
 .wz-optimizer-summary {
     margin: 0;

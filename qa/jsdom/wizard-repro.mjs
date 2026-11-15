@@ -273,6 +273,10 @@ const harness = `
             && Boolean(details)
             && Boolean(details.compareDocumentPosition(optimizer) & Node.DOCUMENT_POSITION_FOLLOWING);
     });
+    check("loader: bez spinnera, z paskiem postępu", () => {
+        return !document.querySelector("#wzPlanLoader .spinner")
+            && Boolean(document.querySelector("#wzPlanLoader .progress"));
+    });
     check("wynik: odpowiedź, plan i szczegóły renderują się", () => {
         wzPlan = {
             path: 1,

@@ -105,6 +105,7 @@ test("mobile layout stays within the screen throughout the employment path", asy
     await expect(page.locator("#wzFlowsTableDetails")).not.toHaveAttribute("open", "");
     await expect(page.locator("#wzAccountFlows .wz-phase-badge").first()).toBeAttached();
     await expect(page.locator("#wzFlowsGantt .wz-gantt-transfer").first()).toBeVisible();
+    await expect(page.locator("#wzFlowsGantt .wz-gantt-tick").last()).toHaveText("100");
     await page.locator("#wzFlowsTableDetails summary").click();
     await expect(page.locator("#wzAccountFlows .wz-phase-badge").first()).toBeVisible();
     await expect(page.locator("#wzAccumulationFlows tbody tr").first()).toBeVisible();
@@ -158,6 +159,15 @@ test("mobile layout stays within the screen throughout the employment path", asy
     await expect(page.locator("#wzWealthDetails .wz-wealth-row")).toHaveCount(3);
     await expect(page.locator("#wzPolicyNote")).toContainText("Najpierw");
     await expectNoHorizontalOverflow(page);
+
+    await page.locator("#wzOptimizer summary").click();
+    await expect(page.locator("#wzOptimizer")).toHaveAttribute("open", "");
+    await expectNoHorizontalOverflow(page);
+    const optimizerScrolls = await page.locator("#wzOptimizerResult .table-wrap").evaluate(
+        (el) => el.scrollWidth > el.clientWidth
+    );
+    expect(optimizerScrolls).toBe(true);
+    await page.locator("#wzOptimizer summary").click();
 
     const answerBeforeReturn = await page.locator("#wzHeroAnswer").evaluate((el) =>
         el.textContent.replace(/\s+/g, " ").trim()

@@ -3300,14 +3300,12 @@ function wzPhaseBadge(n) {
     return out;
 }
 
-function wzFlowsRange(input, phases, compact = false, extraAges = []) {
+function wzFlowsRange(input, phases, extraAges = []) {
     const ages = [];
-    if (!compact) {
-        (input?.stages || []).forEach((stage) => ages.push(stage.start_age, stage.end_age));
-        phases.forEach((phase) => {
-            if (phase.accumulation_start_age != null) ages.push(phase.accumulation_start_age);
-        });
-    }
+    (input?.stages || []).forEach((stage) => ages.push(stage.start_age, stage.end_age));
+    phases.forEach((phase) => {
+        if (phase.accumulation_start_age != null) ages.push(phase.accumulation_start_age);
+    });
     phases.forEach((phase) => ages.push(phase.start_age, phase.last_age + 1));
     extraAges.filter((age) => Number.isFinite(Number(age))).forEach((age) => ages.push(Number(age)));
     if (!ages.length) return { min: 0, max: 1 };
@@ -3680,10 +3678,7 @@ function wzRenderAccountFlows(input, projection) {
     flowsWrap?.classList.remove("hidden");
     tableDetails?.classList.remove("hidden");
 
-    const compact = typeof window.matchMedia === "function"
-        ? window.matchMedia("(max-width: 640px)").matches
-        : false;
-    const range = wzFlowsRange(input, phases, compact, [
+    const range = wzFlowsRange(input, phases, [
         ...accumulationPhases.flatMap((phase) => [phase.start_age, phase.end_age]),
         ...transfers.map((transfer) => transfer.age),
     ]);
