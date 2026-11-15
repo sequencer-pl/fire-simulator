@@ -74,8 +74,8 @@ Symulator celowo jest **prostym modelem deterministycznym**, a nie symulacją Mo
 
 5. **Wypłaty przed wiekiem uprawniającym** kosztują i nie zawsze da się to zamodelować w 100%:
    - **IKE przed 60** — Belka 19% od zysku (zamodelowane);
-   - **IKZE przed 65** — jednorazowe opodatkowanie całości skalą PIT; netto jest reinwestowane w konto docelowe (auto: IKE do limitu, reszta broker → lokata → gotówka);
-   - **PPK przed 60** — środki pracodawcy i dopłaty państwa przepadają, podatek Belka od zysku tylko na części pracownika;
+   - **IKZE przed 65** — jednorazowe opodatkowanie całości skalą PIT; netto jest reinwestowane w konto docelowe (auto: IKE/OIPE do limitu, jeśli są w etapie, potem obligacje → lokata → OKI oszczędnościowe → broker → gotówka; **nigdy krypto**);
+   - **PPK przed 60** — środki pracodawcy i dopłaty państwa przepadają, podatek Belki od zysku tylko na części pracownika;
    - **PPE przed 60** — 30% składek podstawowych pracodawcy trafia do ZUS subkonto.
 
 6. **Bufor to nie "poduszka", tylko wartość końcowa.** PMT wylicza wypłatę tak, by na koniec etapu zostało dokładnie `bufor` złotych. Chcesz zachować kapitał na później → wpisz go w bufor; chcesz przejeść wszystko → 0.
@@ -97,10 +97,12 @@ Wszystkie **wypłaty** w wynikach są netto (po podatku). Majątek pokazujemy
 planu: IKZE 10% po 65 r.ż. lub skala przed, IKE 0%, broker 19% od zysku).
 Ulga IKZE obniża podatek w roku wpłaty; zwrot można reinwestować na wybranym
 koncie (w edytorze wybór jest obowiązkowy; Asystent robi to automatycznie:
-IKE → OIPE → broker → OKI → obligacje → lokata → krypto → gotówka, do wysokości
-limitów IKE/OIPE) albo zostawić jako samą ulgę. Asystent najpierw wypełnia ulgi
-(IKZE, gdy ulga PIT bije 10% ryczałtu), a nadwyżkę dzieli wg strategii — m.in.
-z małym udziałem krypto (5% zrównoważona, 15% agresywna).
+IKE → OIPE → broker → OKI → obligacje → lokata → OKI oszczędnościowe → gotówka,
+do wysokości limitów IKE/OIPE; krypto tylko po jawnym wskazaniu) albo zostawić
+jako samą ulgę. Asystent najpierw wypełnia limity IKE/IKZE/OIPE, a pozostałą
+pulę dzieli według profilu ryzyka na bezpieczne/rynkowe/krypto. W IKE/IKZE/OIPE
+wybiera rodzaj inwestycji (maklerskie, funduszowe albo oszczędnościowe);
+OIPE jest dziś dostępne tylko w wersji funduszowej.
 Asystent porównuje też **kolejność wypłat**: wcześniejsze opodatkowanie IKZE
 vs odłożenie go do 65, oraz w ramach progów podatkowych kolejność wg ROI
 (niższe ROI pierwsze). Wcześniejszy zwrot netto jest reinwestowany w konto

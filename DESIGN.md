@@ -53,6 +53,19 @@ nie dopisuje własnych kolorów, rozmiarów ani promieni.
     uzasadnienia i wyliczenia idą do `.tip` przy nagłówku panelu. Nie
     powtarzamy listy opcji w nagłówku sekcji, jeśli kontrolki są pod spodem.
     Dotyczy całego projektu, nie tylko Asystenta.
+12. **Duży kafel czy mały przełącznik?** Wybór, który trzeba wytłumaczyć
+    (profil ryzyka, priorytet wypłat, typ FIRE, sposób planowania), dostaje
+    duże kafle `.wz-path`: tytuł i jednozdaniowy opis prostym językiem.
+    Wybór oczywisty (płeć, brutto/netto, rok/miesiąc) zostaje małym
+    `.segmented`. Kafel jest dla decyzji, nie dla dekoracji — nie zamieniamy
+    w kafle listy równorzędnych, samotłumaczących się opcji. Akcja
+    jednorazowa („Zacznij od propozycji”) może użyć wyglądu kafla, ale jest
+    `<button>`, nie radio: nie udaje trwałego zaznaczenia.
+13. **Jeden słowniczek, jedno znaczenie pojęć.** Definicje z sekcji 5 są
+    źródłem prawdy dla kafelków, tooltipów i wyników. Nie wymyślamy
+    synonimów („auto przygotuje podział”) ani skrótów, których nie ma
+    w słowniczku; nowy termin dopisujemy najpierw tutaj, potem używamy
+    w interfejsie.
 
 ## 2. Tokeny
 
@@ -108,6 +121,8 @@ służy do wypełnień, obramowań i fokusu — jako kolor tekstu jest za ciemny
 - `.banner` + wariant, `.banner-list` dla kilku punktów.
 - `.segmented` + `.seg-option` (radio w środku), pełna szerokość w formularzu,
   `.segmented-stack` na mobile.
+- `.wz-paths` + `.wz-path` (duży kafel wyboru: tytuł i opis; radio albo
+  przycisk-akcja), `.wz-choice-cards` dla siatki kafli.
 - `.pill-toggle` (ikona + etykieta, `aria-pressed`), `.pill-grid`.
 - `.chip` (mała etykieta konta), `.chip-accum | .chip-real` dla etapów.
 - `.num-control` (`.stepper` + `.acc-field`), `.range` dla suwaków.
@@ -130,3 +145,46 @@ Konfiguracja). Aktywna sekcja: tekst `--text`, tło `--primary` 12 %. Między
 zakładek (ikona + etykieta), w topbarze zostaje marka. Między 360 a 640 px
 marka zachowuje podtytuł w jednej linii (z elipsis); poniżej 360 px podtytuł
 znika.
+
+## 5. Słowniczek pojęć
+
+Ten sam termin ma wszędzie to samo znaczenie — w kafelkach, tooltipach,
+wynikach i eksporcie. Definicje są krótkie i pisane językiem użytkownika,
+bez skrótów myślowych.
+
+- **FIRE** — niezależność finansowa i możliwość wcześniejszego zakończenia
+  pracy zarobkowej.
+- **Full FIRE** — całkowite zakończenie pracy w wybranym wieku.
+- **Coast FIRE** — przejście na część etatu; pensja pokrywa bieżące życie,
+  a oszczędności nadal rosną bez nowych wpłat.
+- **Barista FIRE** — praca na część etatu z pensją mniejszą niż potrzeby;
+  różnicę pokrywa portfel.
+- **Horyzont planu** — wiek, do którego liczymy wypłaty, metryki i kapitał
+  końcowy. Wykresy wyniku dorysowują ZUS do 100 r.ż., ale metryki kończą się
+  na horyzoncie.
+- **Wypłata netto** — kwota, którą realnie dostajesz co miesiąc po podatkach
+  i składkach.
+- **Suma wypłat** — łączna kwota wypłacona w całym horyzoncie, bez kapitału
+  zostawionego na koniec.
+- **Profil ryzyka** — limity koncentracji **nowych wpłat** (krypto, aktywa
+  rynkowe, aktywa bezpieczne). Działa na całą pulę, także na zawartość
+  IKE/IKZE/OIPE; nie zmienia istniejącego portfela.
+- **Pula wpłat** — miesięczna kwota, którą dzielisz między konta i gotówkę.
+- **Udział konta** — część puli wpłat przypisana do jednego konta; suma
+  udziałów nie przekracza 100 %.
+- **Gotówka (reszta)** — część puli, której nie przypisano do żadnego konta;
+  leży bezczynnie i nie zarabia.
+- **IKE / IKZE / OIPE** — opakowania podatkowe z limitem rocznym i ulgą;
+  limit dotyczy wpłat, nie wypłat. Nie są klasą ryzyka — ryzyko wynika
+  z rodzaju inwestycji w środku.
+- **Rodzaj inwestycji (wrapper)** — Maklerskie (akcje/ETF), Funduszowe
+  (fundusze/portfel zarządzany) albo Oszczędnościowe (lokaty, obligacje,
+  fundusze obligacji). Rodzaj ustala domyślne ROI i klasę ryzyka. Jeden
+  wrapper ma jeden dominujący rodzaj; mieszany rachunek modelujemy własnym ROI.
+- **Dostępność rodzajów** — konfigurowalna per wrapper. Domyślnie OIPE ma
+  tylko Funduszowe (Finax), a IKE/IKZE wszystkie trzy.
+- **ZUS / wiek ZUS** — publiczna emerytura i wiek, od którego ją pobierasz.
+- **ROI** — średnioroczny zwrot przyjęty w symulacji; założenie scenariuszowe,
+  nie prognoza. Zmienisz je w Konfiguracji.
+- **Bufor / spadek** — minimalny majątek netto, który ma zostać na koniec
+  horyzontu (0 = wydać wszystko).

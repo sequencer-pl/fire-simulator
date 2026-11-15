@@ -34,7 +34,8 @@ bez TypeScript), pytest. Odpowiadaj i pisz UI po polsku.
   na konto wybrane w `ikze_refund_target` (w edytorze wybór jest **obowiązkowy**:
   konto albo `none`; wybrane konto jest automatycznie dodawane do etapu z notą
   o wpłatach ze zwrotu). `auto` = IKE → OIPE → broker → OKI → obligacje → lokata
-  → krypto → gotówka, używane przez Asystenta i stare zapisy. IKE/OIPE przyjmują
+  → OKI oszczędnościowe → gotówka, używane przez Asystenta i stare zapisy.
+  Automat **nie wybiera krypto**; krypto można wskazać tylko jawnie. IKE/OIPE przyjmują
   zwrot tylko do wysokości rocznego limitu wpłat, reszta leci dalej. Zwrot jest
   dopisywany **na koniec roku** (po wzroście), bo realnie przychodzi po PIT. Brak
   celu w `auto` = ostrzeżenie w wyniku. `SimulationResult` niesie
@@ -43,11 +44,15 @@ bez TypeScript), pytest. Odpowiadaj i pisz UI po polsku.
   broker 19% od zysku) — dzięki temu IKE i IKZE nie wyglądają identycznie przy
   tej samej stopie zwrotu.
 - **Wcześniejszy zwrot IKZE**: przed 65 podatek liczony od całości salda (skala),
-  ale netto **nie zostaje w IKZE** — jest reinwestowane w konto docelowe wg
-  `ikze_refund_target` (auto: IKE/OIPE do limitu, potem broker → lokata → gotówka).
-  `SimulationResult` niesie `early_return_total`, `early_return_tax_total` i
-  `early_return_allocations`; w przepływach pokazujemy chip „Wcześniejszy zwrot
-  IKZE”, a nie wiersz IKZE 0 zł. Konto docelowe jest dodawane do etapu w locie.
+  ale netto **nie zostaje w IKZE** — jest reinwestowane w konto docelowe.
+  Automatyczna kolejność (`_EARLY_RETURN_REINVEST_ORDER`) to IKE/OIPE **tylko
+  jeśli są w etapie** do limitu, potem obligacje → lokata → OKI oszczędnościowe
+  → broker → gotówka. **Nigdy nie wybiera krypto** — to była pułapka, w której
+  duży zwrot lądował w jedynym wolnym koncie. `SimulationResult` niesie
+  `early_return_total`, `early_return_tax_total`, `early_return_age` i
+  `early_return_allocations`; wynik pokazuje banner i pionową linię na wykresach,
+  a w przepływach chip „Wcześniejszy zwrot IKZE”, nie wiersz IKZE 0 zł. Konto
+  docelowe jest dodawane do etapu w locie.
 - **Polityka wypłat Asystenta**: `withdrawal_policy` = `defer_tier` (IKE/konta
   dostępne najpierw, IKZE później), `early_tier` (wymuszone opodatkowanie całości
   IKZE na starcie realizacji przed 65; netto jest reinwestowane w konto docelowe),
@@ -67,12 +72,54 @@ bez TypeScript), pytest. Odpowiadaj i pisz UI po polsku.
   nie baza.
 - Klucze kont są stałe (`broker, gotowka, ike, ikze, krypto, lokata, obligacje, oipe,
   oki_inw, oki_osk, ppe, ppk, zus`) — patrz `ACCOUNT_LABELS` w config.py.
+- **Profile ryzyka**: `TaxConfig.risk_profiles` (`spokojny`, `zrownowazony`,
+  `dynamiczny`) definiują `max_crypto`, `max_market`, `max_single_taxable`,
+  `min_safe` dla **nowych wpłat**. `max_market` i `max_crypto` dotyczą całej puli
+  (także rynkowych wariantów IKE/IKZE/OIPE), a `max_single_taxable` tylko kont
+  taxable. `min_safe` liczy bezpieczne aktywa w całej puli. Limity są edytowalne
+  globalnie w Konfiguracji. Stare configi z `max_taxable_market` są mapowane na
+  `max_market` w walidatorze.
+- **Rodzaje inwestycji w wrapperach**: `TaxConfig.wrapper_vehicles` definiuje
+  `broker` (Maklerskie), `fund` (Funduszowe) i `savings` (Oszczędnościowe) z
+  domyślnym realnym ROI i klasą ryzyka. `wrapper_vehicle_options` określa, które
+  rodzaje są dostępne dla IKE/IKZE/OIPE. Domyślnie OIPE ma tylko `fund` (Finax,
+  portfele ETF, opłata ok. 0,9%/rok), ale można to zmienić w Konfiguracji.
+  `WizardAnswers.wrapper_vehicles` niesie wybór per wrapper; `_roi` preferuje
+  jawne `roi_overrides`, potem rodzaj inwestycji, potem domyślne ROI konta.
+- **Podział nowych wpłat**: seed liczy cel `safe/market/high` z profilu, najpierw
+  wypełnia bezpieczne do IKZE (ulga), potem decyduje o roli IKE. IKE dostaje
+  bezpieczne, gdy reszta safe jest duża; przy resztce < 5% puli i większym rynku
+  IKE idzie na maklerskie. **Dopiero potem** wypełniamy OIPE — nigdy przed IKE,
+  gdy IKE jest wolne. OIPE jest dziś funduszowe i obsługuje rynek przed taxable.
+  Limity wrapperów są wspólne dla wpłat; nie tworzymy osobnych podkont dla
+  rodzajów inwestycji.
 - Wizard: path 1 = maks. stała wypłata netto (bisekcja + gross-up), path 2 = ile
   odkładać (procent liczymy od pensji **netto**), path 3 = kiedy FIRE. Gwarancja =
   żaden rok nie spada poniżej targetu. Path 2: górna granica bisekcji nie jest
   dowodem niewykonalności, bo podatek od aktywów OKI rośnie z saldem — przy bardzo
   wysokich oszczędnościach wypłata netto może spaść poniżej targetu; solver schodzi
   wtedy do osiągalnego pułapu i bisekcjonuje od zera (`_solve_savings`).
+- **Bequest**: `WizardAnswers.bequest_target` (netto, domyślnie 0) jest dolnym
+  ograniczeniem `final_wealth_net` na końcu horyzontu. Solver path 1 najpierw
+  wyznacza pułap bez spadku, potem bisekcjonuje wypłatę przy warunku spadku;
+  `PlanProjection` niesie `bequest_target` i `bequest_met`. 0.01 zł zamiast 0
+  utrzymuje tryb stałego celu (0 przełącza Realizację w PMT).
+- **Optymalizator Asystenta** (`app/simulation/optimizer.py`): optymalizuje
+  **wszystkie nowe wpłaty** (nie istniejący portfel) w trzech klasach ryzyka:
+  safe / market / high. Wrappery IKE/IKZE/OIPE są kontami z capem rocznym, a ich
+  klasa wynika z `wrapper_vehicles` (Maklerskie/Funduszowe → market,
+  Oszczędnościowe → safe). Seed pochodzi z `suggest_allocation_plan`
+  (capacity-aware), potem coordinate descent po udziałach klas i search wieku
+  ZUS. Każdy kandydat jest liczony pełnym symulatorem (`_solve_payout` +
+  bequest); wynik to best found, nie dowód globalnego optimum.
+  `PlanOptimizerResult` niesie `risk_profile`, `asset_mix`, `binding_limits`,
+  `baseline`, `recommended`, `best_total` i `break_even_age`; kandydat niesie
+  `vehicles` i `asset_mix`.
+  `plan_optimized()` uruchamia optymalizator i liczy główny plan z rekomendacją;
+  wynik niesie `optimization` (dict). Asystent używa `POST /api/wizard/plan`
+  z `optimize: true` tylko na ścieżce 1; `POST /api/wizard/optimize` zostaje
+  dla wywołań zaawansowanych. Testy: `tests/test_optimizer.py`; limit
+  `wizard_optimize`.
 
 ## Architektura i konwencje kodu
 
@@ -80,12 +127,15 @@ bez TypeScript), pytest. Odpowiadaj i pisz UI po polsku.
   ZUS (waloryzacja, konwersja kapitału na rentę, wiek emerytalny);
   `app/simulation/constants.py` — stałe liczbowe (DEFAULT_ROI, MONTHS_PER_YEAR,
   PPE_ZUS_FRACTION, ENGINE_VERSION); `app/simulation/planner.py` — wizard (plan, build_stages,
-  solvery); `app/stages/*.py` — implementacje etapów; `app/web/` — FastAPI
+  solvery); `app/simulation/optimizer.py` — pełna alokacja nowych wpłat (risk buckets) + wiek ZUS;
+  `app/stages/*.py` — implementacje etapów; `app/web/` — FastAPI
   (routes.py, limits.py); `app/core/` — helpery (tax, pmt, roi, inflation);
   `static/js/` + `static/css/` + `app/templates/` — front (system wizualny: `DESIGN.md`).
 - **Walidacja wejścia**: `app/simulation/schemas.py` ma twarde granice (wiek etapów
-  0–120, `end_age > start_age`, max 20 etapów, limity kwot/ROI). Symulacja kończy się
-  na ostatnim etapie (`end_age - 1`); `max_age` jest tylko pomocniczym horyzontem.
+  0–120, `end_age > start_age`, max 20 etapów, limity kwot/ROI). `max_age` jest
+  górnym limitem symulacji (włącznie): planner ustawia `plan_end - 1`, ale etapy
+  mogą wystawać dalej (ZUS do 100 r.ż.) i służą wtedy tylko do projekcji. Symulacja
+  nigdy nie wychodzi poza ostatni etap (`end_age - 1`) ani poza `max_age`.
 - **Limity API**: ciężkie endpointy (`/api/simulate`, `/api/wizard/*`)
   przechodzą przez `app/web/limits.py` (sliding window per IP). Nie dodawaj nowego
   kosztownego endpointu bez `check_limit`.
@@ -209,43 +259,44 @@ bez TypeScript), pytest. Odpowiadaj i pisz UI po polsku.
   tuż nad panelem dodawania. Wybrane konto dodaje `.wz-capital-item` do siatki
   (ponowne kliknięcie / `.wz-pill-remove` je zabiera). Do odpowiedzi trafiają tylko
   kwoty > 0. Pola liczbowe (wszędzie) zaznaczają całą wartość przy focusie
-  (`controls.js`), więc wpisanie `1000` nadpisuje domyślne `0`.
+  (`controls.js`), więc wpisanie `1000` nadpisuje domyślne `0`. Dla IKE/IKZE/OIPE
+  ROI zależy od rodzaju inwestycji wybranego w kroku planowania; ręczna zmiana
+  ROI w wierszu kapitału nadpisuje rodzaj i jest wysyłana jako `roi_overrides`.
 - Krok 4 (tytuł wg ścieżki: „Kiedy chcesz przejść na FIRE?” / „Twój cel wypłaty i
-  wiek FIRE” / „Wymarzona wypłata i horyzont”): 4 wiersze `.wz-slider` w `.wz-rows`,
+  wiek FIRE” / „Wymarzona wypłata i horyzont”): 5 wierszy `.wz-slider` w `.wz-rows`,
   bez hint-podpowiedzi (kontekst w `title` labela). Cel wypłaty tylko dla ścieżek 2/3,
   wiek FIRE tylko dla 1/2. Domyślne wartości **wg płci i wieku**, przeliczane dopóki
   pola nie były edytowane (`wzRetirementTouched`/`wzPlanEndTouched`): wiek emerytury
   ZUS = `RETIREMENT_DEFAULT` (60 k / 65 m); horyzont = wiek + `LIFE_EXPECTANCY`
   (GUS 2024, dane UI w wizard.js) powiększona o
   `longevity.growth_months_per_year` (przybliżenie kohortowe, patrz wyżej).
-- Krok 5 „Strategia i podział": 4 panele `.wz-alloc-panel` — „Strategia podziału
-  oszczędności", „Podział", „Dodaj instrument", „Wpłaty z pensji". **Bez wyboru
-  założeń rynkowych** — te są wybierane w kroku 6 przez karty scenariuszy.
-  Wybór strategii jest **wymagany** (na starcie żaden tryb); po jego wyborze
-  widok przewija się do `#wzAllocPanel` (manual od razu, auto po sugestii).
-  Strategie automatyczne: `wzAllocMode = "auto"`, `/api/wizard/suggest` (w ścieżce 2
-  z celem i `pool_monthly`), sekcja „Podział" **read-only** (`.wz-alloc-readonly`).
-  Sugestia najpierw wypełnia ulgi (IKZE, gdy średnia ulga PIT > 10,5%, inaczej IKE;
-  potem drugi shelter i OIPE), a **nadwyżkę ponad limity** dzieli wg miksu strategii
-  (`STRATEGY_MIX`: broker/obligacje/OKI/lokata/krypto; krypto 5% zrównoważona, 15%
-  agresywna, 0% konserwatywna). Poniżej `MIX_MIN_ANNUAL` (20 tys. zł/rok) nadwyżka
-  idzie do pierwszego konta miksu. Krok 5 pokazuje, gdzie trafi zwrot IKZE
-  (`#wzAllocRefundNote`), a krok 6 — kwoty po kontach (`ikze_refund_allocations`).
-  „Manualna": `"manual"`, pełny układ (pola `zł/rok` + suwaki, wiersz Gotówki,
-  „Dodaj instrument", „Wpłaty z pensji"). **Wiersz podziału jest kwotowy (rocznie)**:
-  etykieta | pole `zł/rok` | suwak | `≈zł/mies.` | `≈%` (procenty tylko
-  prezentacyjne; backend dostaje `allocations` jako udziały). Konta z limitem:
-  nota `limit roczny: X zł` / `limit roczny osiągnięty`, maksimum pola i suwaka =
-  `min(pozostała pula, limit)`. Ścieżki 1/3: kanoniczne kwoty (`wzAmounts`),
-  wzrost puli → różnica do Gotówki, spadek → proporcjonalne przycięcie
-  (`wzReconcileAmounts`). Ścieżka 2: kanoniczne wagi (`wzWeights`), kwoty pochodne
-  (`wzSyncAmountsFromWeights`). Nota o nadwyżce tylko gdy ≥ 1 zł/mies.
-  Bez strategii „Wylicz plan" jest wyłączony; wyjaśnienie w `title` wrappera
-  `.wz-next-tip` i w dymku `.wz-next-pop` po kliknięciu (`ALLOC_GATE_MSG`,
-  auto-ukrycie ~4 s); `validateStep(5)` to siatka bezpieczeństwa.
-  Usunięcie instrumentu czyści kwotę i wagę (`deactivateAllocAccount`/`togglePill`),
-  `collectAllocations` pomija nieaktywne konta.
-- Krok 6 „Twój plan FIRE": loader `#wzPlanLoader` jest indeterministyczny
+  Piąty suwak to `wzBequest` — minimalny majątek netto na koniec horyzontu
+  (0 = wydać wszystko); trafia do `answers.bequest_target`.
+- Krok „FIRE”: typ FIRE, pola zależne (Coast/Barista), wiek pełnego FIRE,
+  horyzont i bufor/spadek; dla ścieżek 2/3 także cel wypłaty. Bez profilu
+  ryzyka, trybu i wieku ZUS — te decyzje są w następnym kroku.
+- Krok „Jak zaplanować wpłaty?” (`data-step-id="strategia"`, wspólny dla
+  ścieżek 1–3): dwa duże kafle `wzOptimizeMode` — „Asystent dobierze” / „Sam
+  ustawię podział”. Auto pokazuje `wzRiskProfile` (limity nowych wpłat) i
+  `wzPriority` (`payout`/`total`) jako duże kafle z opisami; manual pokazuje
+  wiek ZUS, edytor podziału i kafle-akcje „Zacznij od propozycji”
+  (`data-profile-seed`; profil tylko wypełnia seed, nie jest constraintem).
+  Manual startuje od 0 % na kontach i 100 % w gotówce. Suwak konta ma maksimum
+  `min(limit konta, obecny udział + wolna gotówka)` — zwiększanie jednego
+  konta nie zabiera środków innemu. „Wylicz plan” jest zablokowane przy sumie
+  udziałów 0, bo cała pula trafiłaby do gotówki. Ścieżki 2/3 nie mają auto —
+  zawsze manual. `wzCollectAnswers` wysyła `risk_profile`,
+  `optimization_objective` oraz `wrapper_vehicles` w trybie manual;
+  `wzPlanBody` — `optimize` tylko dla auto path 1. W manualu każdy wrapper ma
+  select rodzaju inwestycji (OIPE domyślnie tylko Funduszowe), a zmiana typu
+  aktualizuje ROI i mix. Stare karty strategii usunięto; `strategy` pozostaje
+  tylko jako zgodność wstecz.
+- **Kafle czy segmented:** duże `.wz-path` z tytułem i opisem stosujemy, gdy
+  wybór wymaga wyjaśnienia (profil ryzyka, priorytet, typ FIRE, sposób
+  planowania); mały `.segmented` — gdy wybór jest oczywisty (płeć,
+  brutto/netto). Zasada i wspólny słowniczek pojęć: `DESIGN.md` §1 pkt 12–13
+  i §5.
+- Krok „Wynik” („Twój plan FIRE”): loader `#wzPlanLoader` jest indeterministyczny
   (losowe teksty o cierpliwości, wpłatach i ryzyku, zmieniane co 6 s, bez cyklu 1/3–3/3).
   Tip loadera jest kartą `#wzLoaderTip` z gradientem, ikoną i etykietą
   „Warto wiedzieć”; przed nowym planem `resetPlanResult()` czyści stary wynik
@@ -257,16 +308,25 @@ bez TypeScript), pytest. Odpowiadaj i pisz UI po polsku.
   4. **`#wzTimeline` + `#wzFlowsWrap`/`#wzFlowsGantt`** — etapy życia i konta
      w jednym bloku „Twój plan w czasie”, zawsze widoczne; nagłówek
      „Etapy życia” jest tylko dla czytników ekranu, a sekcja wypłat nosi tytuł
-     „Z czego żyjesz w kolejnych latach”,
-  5. `#wzDetails` — zwijane „Dane szczegółowe”: majątek, ulgi/podatki,
-     tabela przepływów i „Jak czytać ten plan?”.
+     „Z czego żyjesz w kolejnych latach”. Pod Ganttem jest zwijana
+     `#wzFlowsTableDetails` z tabelą przepływów (domyślnie zamknięta),
+  5. `#wzDetails` — zwijane „Dane szczegółowe”: majątek, ulgi/podatki
+     i „Jak czytać ten plan?”,
+  6. `#wzOptimizer` — zwijane „Jak dobraliśmy plan?” na samym dole, z
+     rekomendacją, profilem, limitami i tabelą wariantów. Widoczne tylko w auto
+     na ścieżce 1 i dla scenariusza Realne; domyślnie zamknięte, bez „Zastosuj”,
+     bo główny plan jest już rekomendacją. W manualu ukryte.
   **Nie ma `#wzPhaseTable` ani `#wzStageSummaryList`** — ich rolę przejmuje
   oś czasu i panel szczegółów etapu. Gantt jest widokiem głównym, nie schowanym
   w `<details>`. Klik segmentu osi czasu lub paska konta otwiera wspólny panel
   `#wzGanttTip`; pokazuje okres, wypłatę netto, portfel/ZUS, PIT, składkę
   zdrowotną i podatek jednorazowy IKZE w osobnych wierszach. Na mobile Gantt
   przewija się w poziomie, a hint jest widoczny tylko tam. Tabela przepływów
-  i chipy `Ulga IKZE` / `Wcześniejszy zwrot IKZE` są w „Danych szczegółowych”.
+  jest pod Ganttem w zwijanym `<details>` i ma trzy sekcje: **Akumulacja**
+  (wpłata/mies., wpłaty łącznie, wzrost, saldo), **Transfery kapitału**
+  (wiek, z/na konto, kwota netto) i **Wypłaty** (kolumna „Faza” z literami
+  A/B/C zgodnymi z paskami Gantta). Chipy `Ulga IKZE` / `Wcześniejszy zwrot
+  IKZE` są w „Danych szczegółowych”.
   Stary blok „Jak liczymy ten plan?” zastępuje „Jak czytać ten plan?” —
   wyjaśnia znaczenie kwot na ekranie, a nie założenia modelu.
   Po gotowym planie przycisk kroku 6 zmienia się na `btn-real`
@@ -283,7 +343,11 @@ bez TypeScript), pytest. Odpowiadaj i pisz UI po polsku.
   jeśli answers i ścieżka się zgadzają.
   Przepływy per konto
   (`YearResult.withdrawals/taxes/health/ending_balances`) planner grupuje w
-  `AccountPhase` (`PlanProjection.account_phases`): kolejne lata z wypłatami,
+  `AccountPhase` (`PlanProjection.account_phases`), a etapy wpłat w
+  `AccumulationPhase` (`PlanProjection.accumulation_phases`). Transfery
+  między kontami (np. wcześniejszy zwrot IKZE → IKE/Obligacje) są w
+  `CapitalTransfer` (`PlanProjection.capital_transfers`). `AccountPhase` grupuje
+  kolejne lata z wypłatami,
   podział przy progu wieku konta i istotnej zmianie kwoty (>20% i >100 zł/mies.),
   ZUS jako „emerytura” (kapitał ZUS na starcie, bez salda końcowego), jednorazowy
   podatek IKZE osobno. `AccountPhase.accumulation_*` niesie start/koniec wpłat,
@@ -294,13 +358,27 @@ bez TypeScript), pytest. Odpowiadaj i pisz UI po polsku.
   obok kwoty (`.wz-flow-tax-cell .tip`), a główna kwota pozostaje widoczna. „Razem netto” jest już po obu obciążeniach.
   Tooltip Gantta na hover pojawia się po ~0,9 s (`GANTT_TIP_HOVER_DELAY`),
   żeby nie wyskakiwał podczas przejeżdżania myszą; klik/tap pokazuje od razu.
-  Gantt ma wiersz „Razem” z sumą wypłat po okresach, a pod nim osobne kwoty
-  „Z portfela prywatnego FIRE: … zł netto” i „Z ZUS: … zł netto” (linia ZUS
-  znika, gdy ZUS nic nie wypłaca). Na mobile jest przewijany w poziomie ze
+  Gantt pokazuje cienkie pomarańczowe paski akumulacji dla wszystkich kont
+  (także tych, które później znikają, np. IKZE), wiersz **„Transfery”** ze
+  znacznikiem źródła i wieku (np. „IKZE →” w 55 r.ż.) oraz wiersz „Razem”
+  z sumą wypłat po okresach. Pod nim jest tylko
+  „Łączna suma wypłat z portfela prywatnego FIRE: … zł netto”. Sumy ZUS nie
+  pokazujemy — zależy od długości życia i nie jest obietnicą planu. Na mobile
+  jest przewijany w poziomie ze
   sticky etykietami kont. Pod Ganttem są dwa wykresy: „Wypłaty netto w czasie”
   (stack miesięcznych wypłat netto per konto, z ZUS; roczna tylko w tooltipie)
-  i „Kapitał prywatny FIRE” (stack sald na koniec roku, bez ZUS/OFE). Serie
-  liczy planner w `PlanProjection.chart` (`ages`, `withdrawals_net`, `balances`);
+  i „Kapitał prywatny FIRE” (stack sald na koniec roku, bez ZUS/OFE). Wykresy
+  są dorysowywane do 100 r.ż. (ZUS + pasywny wzrost portfela), nawet gdy horyzont
+  planu jest krótszy; metryki, final wealth i podatek wyjścia nadal liczą się
+  do horyzontu. `plan(..., extend_chart=False)` wyłącza dogrywkę w testach.
+  Pod drugim wykresem, nad opisem, jest jedna wspólna, zawsze widoczna legenda
+  adnotacji z etykietą „Kamienie milowe:” (FIRE, zwrot IKZE, ZUS, horyzont),
+  domyślnie wyszarzona. Kliknięcie pastylki pokazuje jedną pionową linię na
+  obu wykresach i krótki opis pod legendą; kliknięcie innej przełącza
+  adnotację, a kliknięcie aktywnej ją wyłącza. Nie ma ikony-toggle ani
+  osobnych legend/opisów per wykres. Długi opis wcześniejszego zwrotu IKZE
+  nie jest wyświetlany na głównej stronie.
+  Serie liczy planner w `PlanProjection.chart` (`ages`, `withdrawals_net`, `balances`);
   kolory kont to stałe tokeny `--acct-*`, a szczegóły pokazuje wspólny tooltip
   `#wzChartTip` z kartą totalu (`.metric`), udziałami i rozbiciem kont
   wielokrotnych. Klik karty
@@ -354,27 +432,27 @@ bez TypeScript), pytest. Odpowiadaj i pisz UI po polsku.
   dwie osobne sekcje, a OFE używa segmentu `wzHasOfe`. Kontrolka kwotowa
   w suwaku mieści maksymalną dozwoloną wartość — nie wystarczy, że nie
   powoduje poziomego scrolla strony.
-- Krok strategii wpłat oferuje tryb automatyczny i ręczny. Udziały ręczne są
+- Krok „Podział wpłat” (tylko manual / ścieżki 2/3) oferuje udziały ręczne. Są one
   procentami miesięcznej puli; każdy wiersz ma pole i suwak. Maksimum suwaka
-  wynika z limitu konta (IKE/IKZE/OIPE), a nie tylko z sumy 100%: np. IKZE
-  11 304 zł przy puli 4 600 zł/mies. kończy się na 20,5% i 11 304 zł/rok.
-  Zwiększanie jednego suwaka zdejmuje nadwyżkę z innych kont (najpierw
-  największe bez limitu), więc można dojść do maksimum konta bez ręcznego
-  zmniejszania sąsiadów. Suma nadal nie przekracza 100%.
+  wynika z limitu konta i wolnej gotówki: `min(limit, obecny udział + 100 − suma
+  pozostałych)`. Zwiększanie jednego konta nie zabiera środków innemu — tylko
+  zmniejsza gotówkę; gdy gotówki nie ma, można wyłącznie zmniejszać. Suma nadal
+  nie przekracza 100%.
   Suma udziałów jest osobnym statusem: zielony `chip-success` przy 100%.
   Drobna reszta po limitach/zaokrągleniach (≤ `WZ_TINY_CASH_ANNUAL`, 120 zł/rok)
   jest doliczana do największego konta bez limitu, tak samo jak w backendowym
   `_resolve_allocation`; dopiero większa nadwyżka pokazuje żółty wiersz gotówki.
   Przy ścieżce 2 wymaganą pulę oszczędności przeliczamy z uwzględnieniem
   udziałów ręcznych.
-- Strategia = sposób dzielenia wpłat, nie profil ryzyka. `STRATEGY_ROI`
-  jest usunięty; ROI pochodzi z konfiguracji i scenariuszy. `/api/wizard/suggest`
-  zwraca `strategy_previews` (kwoty) i `strategy_priorities` (kolejność kont).
-  Karta pokazuje 5 pierwszych priorytetów + „…i N dalsze” z pełną kolejnością
-  w tooltipie, bez procentów i kwot — te zostają w „Proponowanym podziale”.
-  Jeśli wszystkie strategie dają identyczny podział, UI pokazuje jedną kartę
-  i „Pokaż inne strategie”. Decyzja i przyszły model dwuwarstwowy:
-  `docs/adr/0001-strategy-vs-scenario.md`.
+- **Profil ryzyka to nie strategia alokacji**: ogranicza łączny udział klas
+  aktywów w nowych wpłatach, nie zmienia ROI. Stare karty
+  „konserwatywna/zbilansowana/agresywna” usunięto z UI; `strategy` pozostaje
+  tylko jako zgodność wstecz. Limity profili są globalnie edytowalne
+  w Konfiguracji („Profile ryzyka”). IKE/IKZE/OIPE są wrapperami podatkowymi,
+  ale ich zawartość (rodzaj inwestycji) wchodzi do miksu ryzyka. PPK/PPE
+  pozostają poza podziałem nowych wpłat. OIPE jest dziś funduszowe; przyszłe
+  rodzaje włącza się w Konfiguracji.
+
 - Przy podziale z IKZE pod listą pojawia się nota, że ulga wraca co roku
   i jest reinwestowana; tooltip podaje kolejność IKE → OIPE → Broker → …
   i zastrzeżenie, że bez konta docelowego zwrot tylko obniża podatek.
@@ -392,8 +470,10 @@ bez TypeScript), pytest. Odpowiadaj i pisz UI po polsku.
   przywracania domyślnego ROI. Do `roi_overrides` wysyłamy tylko wartość różną
   od domyślnej.
 - Wynik Asystenta eksponuje odpowiedź, scenariusze, 3 metryki i plan w czasie
-  (oś etapów + Gantt). Tabela przepływów, majątek, ulgi i „Jak czytać ten plan?”
-  są w zwijanych „Danych szczegółowych”. Loader pokazuje „Wyliczam Twój plan…”,
+  (oś etapów + Gantt). Tabela przepływów jest pod Ganttem, a majątek, ulgi
+  i „Jak czytać ten plan?” są w zwijanych „Danych szczegółowych”. „Jak
+  dobraliśmy plan?” jest na samym dole, domyślnie zamknięte. Loader pokazuje
+  „Wyliczam Twój plan…”,
   animowany pasek aktywności i rotujące teksty z v1 w karcie z gradientem;
   nie dodajemy banera „Czy wiesz, że…” ani nowych ciekawostek. Loader nie może
   sugerować, że symulacja jest prognozą ani rekomendacją.
@@ -421,10 +501,18 @@ bez TypeScript), pytest. Odpowiadaj i pisz UI po polsku.
 - **Dev-loop:** `make test-fast` (`-m "not slow"`) + `make harness-jsdom`;
   `make check-fast` zbiera lint, typy, jsdom i szybkie testy bez Playwrighta.
 - **Przed pushem:** `make check` (pełny pytest + jsdom + visual).
+- Wszystkie ścieżki mają teraz 9 kroków (wspólny krok „Jak zaplanować wpłaty?”).
+  Testy jsdom/visual muszą używać `wzStepOrder()` albo aktualnego licznika, nie
+  stałej liczby; nie testuj dokładnego copy ani każdej mikrointerakcji.
 - Testy planera: `plan(..., scenarios=False)` pomija 3 scenariusze rynkowe;
   `tests/test_planner.py` cache'uje identyczne plany i domyślnie używa
   `scenarios=False` (scenariusze tylko w testach kart). Pełne integracje
   solvera/API i scenariusze są oznaczone `@pytest.mark.slow`.
+  Optymalizator ma osobne `tests/test_optimizer.py`: clampy profili i bequest
+  są testowane jednostkowo (fast), a tylko 3 integracje pełnego searchu są
+  `@pytest.mark.slow`. Nie wywołuj optymalizatora w testach sliderów.
+  Visual jest smoke’em (ok. 54 uruchomienia); nie testuj w nim każdej
+  mikrointerakcji ani dokładnego copy.
 - `uv run mypy app/` (make typecheck) — typy muszą być czyste
 - `node --check static/js/...` dla zmienionych plików JS
 - zmiany w wizard.js / sim-stages.js / simulator.js (binding): `make harness-jsdom`
