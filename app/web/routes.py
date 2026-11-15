@@ -16,13 +16,20 @@ from app.simulation.config import (
     default_config,
 )
 from app.simulation.engine import simulate
+from app.simulation.optimizer import (
+    WizardOptimizeRequest,
+    optimize_plan,
+    plan_optimized,
+)
 from app.simulation.planner import (
     SalaryPreviewRequest,
     WizardPlanRequest,
     WizardSuggestRequest,
+    allocation_asset_mix,
     estimate_pool_monthly,
     plan,
     resolve_config,
+    suggest_allocation_plan,
     suggest_allocations,
     suggest_priority,
 )
@@ -247,7 +254,24 @@ async def wizard_legacy():
 def api_wizard_plan(body: WizardPlanRequest, request: Request):
     check_limit("wizard_plan", request)
     try:
+        if body.optimize and body.path == 1:
+            return plan_optimized(
+                body.path, body.answers, body.target_monthly
+            )
         return plan(body.path, body.answers, body.target_monthly)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+
+
+@router.post("/api/wizard/optimize")
+def api_wizard_optimize(body: WizardOptimizeRequest, request: Request):
+    check_limit("wizard_optimize", request)
+    try:
+        return optimize_plan(
+            body.answers,
+            objective=body.objective,
+            bequest=body.bequest_target,
+        )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
 
@@ -262,6 +286,10 @@ def api_wizard_suggest(body: WizardSuggestRequest, request: Request):
         )
         pool = pool_monthly * 12.0
         config = resolve_config(answers)
+        allocations, wrapper_vehicles = suggest_allocation_plan(answers, config, pool)
+        mix_answers = answers.model_copy(
+            update={"wrapper_vehicles": wrapper_vehicles}, deep=True
+        )
         strategy_previews = {
             strategy: suggest_allocations(
                 answers.model_copy(update={"strategy": strategy}), config, pool
@@ -275,7 +303,9 @@ def api_wizard_suggest(body: WizardSuggestRequest, request: Request):
             for strategy in ("konserwatywna", "zbilansowana", "agresywna")
         }
         return {
-            "allocations": suggest_allocations(answers, config, pool),
+            "allocations": allocations,
+            "wrapper_vehicles": wrapper_vehicles,
+            "asset_mix": allocation_asset_mix(mix_answers, config, allocations),
             "pool_monthly": round(pool_monthly, 2),
             "strategy_previews": strategy_previews,
             "strategy_priorities": strategy_priorities,

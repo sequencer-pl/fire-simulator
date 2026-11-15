@@ -114,8 +114,10 @@ class SimulationInput(BaseModel):
         ge=0,
         le=120,
         description=(
-            "Pomocniczy horyzont; symulacja i tak kończy się na ostatnim etapie "
-            "(end_age - 1), żeby nie ucinać planu ani nie dopisywać lat po jego końcu."
+            "Górny limit symulacji (włącznie). Planner ustawia plan_end - 1; "
+            "etapy mogą wystawać poza horyzont (np. ZUS do 100 r.ż.) i służą "
+            "wtedy tylko do projekcji. Symulacja nigdy nie wychodzi poza "
+            "ostatni etap (end_age - 1)."
         ),
     )
     gender: Literal["k", "m"] = "m"

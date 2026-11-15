@@ -39,10 +39,18 @@ def test_stage_name_is_length_limited():
         StageInput(stage_type="akumulacja", name="x" * 201, start_age=40, end_age=41)
 
 
-def test_simulate_extends_max_age_to_last_stage():
+def test_simulate_caps_horizon_at_max_age():
     stage = accumulation_stage({"broker": acc(starting_balance=1000, roi=0.0)}, start=40, end=110)
     result = simulate(
         SimulationInput(stages=[stage], max_age=100),
+    )
+    assert result.years[-1].age == 100
+
+
+def test_simulate_never_extends_past_last_stage():
+    stage = accumulation_stage({"broker": acc(starting_balance=1000, roi=0.0)}, start=40, end=110)
+    result = simulate(
+        SimulationInput(stages=[stage], max_age=120),
     )
     assert result.years[-1].age == 109
 

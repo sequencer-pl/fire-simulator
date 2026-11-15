@@ -69,7 +69,7 @@ def test_zwrot_lump_is_one_off_at_stage_start():
     assert all(y.tax_paid == 0 for y in result.years[11:])
 
 
-def test_zwrot_reinvests_into_ike_limit_then_broker():
+def test_zwrot_reinvests_into_ike_limit_then_safe_target():
     stages = [
         accumulation_stage({"ikze": acc(starting_balance=500_000, roi=0.0)}, 40, 50),
         realization_stage(
@@ -88,9 +88,10 @@ def test_zwrot_reinvests_into_ike_limit_then_broker():
     assert result.early_return_allocations["ike"] == pytest.approx(
         CFG_NOINFL.limits.ike_annual, rel=1e-3
     )
-    assert result.early_return_allocations["broker"] == pytest.approx(
+    assert result.early_return_allocations["obligacje"] == pytest.approx(
         net - CFG_NOINFL.limits.ike_annual, rel=1e-3
     )
+    assert "krypto" not in result.early_return_allocations
     assert result.early_return_tax_total == pytest.approx(scale_tax(500_000), rel=1e-3)
 
 
@@ -318,3 +319,24 @@ def test_zwrot_with_starting_balance_on_realization_stage():
     assert result.years[0].tax_paid == pytest.approx(132_400, rel=1e-3)
     assert result.years[0].annual_withdrawal == pytest.approx(73_520, rel=1e-3)
     assert result.total_tax + result.total_withdrawn == pytest.approx(500_000, rel=1e-3)
+
+
+def test_early_return_never_auto_invests_in_krypto():
+    stages = [
+        accumulation_stage({"ikze": acc(starting_balance=300_000, roi=0.0)}, 40, 50),
+        realization_stage(
+            "Wypłaty",
+            {
+                "ikze": acc(roi=0.0, ikze_refund_target="auto"),
+                "krypto": acc(roi=0.0),
+            },
+            50,
+            55,
+        ),
+    ]
+    result = simulate(SimulationInput(stages=stages, max_age=54, config=CFG_NOINFL))
+    assert result.early_return_total > 0
+    assert "krypto" not in result.early_return_allocations
+    assert set(result.early_return_allocations) <= {
+        "ike", "oipe", "obligacje", "lokata", "oki_osk", "broker", "gotowka"
+    }

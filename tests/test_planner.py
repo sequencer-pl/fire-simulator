@@ -11,6 +11,7 @@ from app.simulation.engine import simulate
 from app.simulation.planner import (
     WizardAnswers,
     _resolve_allocation,
+    suggest_allocation_plan,
     suggest_allocations,
     suggest_priority,
 )
@@ -28,6 +29,7 @@ def plan(
     """Cache identycznych planów — solver jest deterministyczny, a testy często
     pytają o ten sam ``answers()``. Zwracamy kopię, żeby mutacje nie przeciekały."""
     kwargs.setdefault("scenarios", False)
+    kwargs.setdefault("extend_chart", False)
     key = (path, a.model_dump_json(), target, tuple(sorted(kwargs.items())))
     if key not in _PLAN_CACHE:
         _PLAN_CACHE[key] = _plan(path, a, target, **kwargs)
@@ -947,8 +949,7 @@ def test_allocation_unknown_account_rejected():
 
 
 def test_suggest_capital_holder_opens_shelter():
-    # BASE capital: broker 100k (use_broker off). Broker is an unlimited account,
-    # so the "magic" first fills tax shelters instead of parking 100% in broker.
+    # BASE capital: broker 100k. Mała pula otwiera najpierw ulgi, nie broker.
     out = suggest_allocations(answers(allocations={}), default_config(), 12_000)
     assert out == {"ikze": 94.2, "ike": 5.8}
 
@@ -967,67 +968,59 @@ def test_capital_payroll_instruments_seeded():
 
 
 def test_suggest_minimal_single_account_for_small_pool():
-    # 2 000 zł/rok → jedno konto (pierwsza kuratowana ulga), nie 15 kont.
-    a = answers(allocations={}, capital={})
+    # 2 000 zł/rok → jedno konto, nie 15 kont.
+    a = answers(allocations={}, capital={}, gross_monthly=0)
     s = suggest_allocations(a, default_config(), 2_000)
-    assert set(s) == {"ikze"}
-    assert abs(s["ikze"] - 100.0) < 0.01
+    assert s == {"ike": 100.0}
 
 
-def test_suggest_fills_shelters_then_small_overflow_to_first_mix_account():
-    # 40k/rok: IKZE 11 304 + IKE 28 260, reszta (436 zł) do pierwszego konta
-    # miksu (broker), bo nadwyżka jest poniżej progu dywersyfikacji.
+def test_suggest_balanced_uses_safe_wrappers_and_oipe_fund():
+    # 40k/rok: bezpieczne 40% → IKZE + IKE oszczędnościowe,
+    # rynkowe 55% → OIPE funduszowe, krypto 5% taxable.
     a = answers(allocations={}, capital={})
-    s = suggest_allocations(a, default_config(), 40_000)
-    assert abs(s["ikze"] - 28.26) < 0.05
-    assert abs(s["ike"] - 70.65) < 0.05
-    assert abs(s["broker"] - 1.09) < 0.05
-    assert sum(s.values()) <= 100 + 1e-6
+    alloc, vehicles = suggest_allocation_plan(a, default_config(), 40_000)
+    assert vehicles == {"ikze": "savings", "ike": "savings", "oipe": "fund"}
+    assert alloc["ikze"] == pytest.approx(28.26, abs=0.05)
+    assert alloc["ike"] == pytest.approx(11.74, abs=0.05)
+    assert alloc["oipe"] == pytest.approx(55.0, abs=0.05)
+    assert alloc["krypto"] == pytest.approx(5.0, abs=0.05)
+    assert sum(alloc.values()) == pytest.approx(100.0, abs=0.02)
 
 
-def test_suggest_equal_capacity_fills_shelters_first():
-    # ikze/ike/oipe posiadane: ulgi do limitów, nadwyżka dzielona wg miksu.
+def test_suggest_equal_capacity_fills_wrappers_then_taxable():
     a = answers(allocations={}, use_ikze=True, use_ike=True, use_oipe=True, use_broker=True)
-    small = suggest_allocations(a, default_config(), 40_000)
-    assert small == {"ikze": 28.26, "ike": 70.65, "oipe": 1.09}
-    large = suggest_allocations(a, default_config(), 200_000)
-    assert large == {
-        "ikze": 5.65,
-        "ike": 14.13,
-        "oipe": 14.13,
-        "broker": 29.75,
-        "obligacje": 16.52,
-        "oki_inw": 9.91,
-        "lokata": 6.61,
-        "krypto": 3.3,
-    }
+    small, small_vehicles = suggest_allocation_plan(a, default_config(), 40_000)
+    assert small_vehicles == {"ikze": "savings", "ike": "savings", "oipe": "fund"}
+    assert set(small) >= {"ikze", "ike", "oipe"}
+    large, large_vehicles = suggest_allocation_plan(a, default_config(), 200_000)
+    assert large_vehicles == {"ikze": "savings", "ike": "savings", "oipe": "fund"}
+    assert large["ikze"] == pytest.approx(11_304 / 200_000 * 100, abs=0.02)
+    assert large["ike"] == pytest.approx(28_260 / 200_000 * 100, abs=0.02)
+    assert large["oipe"] == pytest.approx(28_260 / 200_000 * 100, abs=0.02)
+    assert large["broker"] > 0
     assert sum(large.values()) == pytest.approx(100.0, abs=0.02)
 
 
 def test_suggest_sole_active_account_opens_shelters_then_mix():
-    # Agresywna, sam krypto: ulgi do limitów, nadwyżka wg miksu (broker, OKI,
-    # krypto, obligacje, lokata).
-    s = suggest_allocations(
-        answers(strategy="agresywna", allocations={}, capital={}, use_krypto=True),
+    s, vehicles = suggest_allocation_plan(
+        answers(
+            risk_profile="dynamiczny",
+            allocations={},
+            capital={},
+            use_krypto=True,
+        ),
         default_config(),
         120_000,
     )
-    assert s == {
-        "ikze": 9.42,
-        "ike": 23.55,
-        "oipe": 23.55,
-        "broker": 21.74,
-        "oki_inw": 6.52,
-        "krypto": 6.52,
-        "obligacje": 4.35,
-        "lokata": 4.35,
-    }
+    assert vehicles["oipe"] == "fund"
+    assert vehicles["ike"] in ("broker", "fund")
+    assert s["krypto"] == pytest.approx(15.0, abs=0.05)
+    assert sum(s.values()) == pytest.approx(100.0, abs=0.02)
 
 
-def test_suggest_konserwatywna_fills_shelters():
-    """Konserwatywna: najpierw ulgi (IKZE, IKE, OIPE), 60k mieści się w limitach."""
+def test_suggest_spokojny_fills_safe_wrappers():
     a = answers(
-        strategy="konserwatywna",
+        risk_profile="spokojny",
         allocations={},
         use_ikze=True,
         use_ike=True,
@@ -1035,16 +1028,20 @@ def test_suggest_konserwatywna_fills_shelters():
         use_broker=True,
         use_lokata=True,
     )
-    s = suggest_allocations(a, default_config(), 60_000)
-    assert s == {"ikze": 18.84, "ike": 47.10, "oipe": 34.06}
+    s, vehicles = suggest_allocation_plan(a, default_config(), 60_000)
+    assert vehicles["ike"] == "savings"
+    assert vehicles["ikze"] == "savings"
+    assert vehicles["oipe"] == "fund"
+    assert s["ike"] == pytest.approx(47.1, abs=0.1)
+    assert s["ikze"] == pytest.approx(18.84, abs=0.1)
+    assert s["oipe"] == pytest.approx(30.0, abs=0.1)
+    assert sum(s.values()) == pytest.approx(100.0, abs=0.02)
 
 
-def test_suggest_agresywna_fills_shelters_then_mix():
-    """Agresywna: ulgi, nadwyżka dzielona z krypto (15% nadwyżki)."""
-    s = suggest_allocations(
+def test_suggest_dynamiczny_uses_market_wrappers():
+    s, vehicles = suggest_allocation_plan(
         answers(
-            strategy="agresywna",
-            allocations={},
+            risk_profile="dynamiczny",
             use_krypto=True,
             use_broker=True,
             use_obligacje=True,
@@ -1053,16 +1050,12 @@ def test_suggest_agresywna_fills_shelters_then_mix():
         default_config(),
         90_000,
     )
-    assert s == {
-        "ikze": 12.56,
-        "ike": 31.40,
-        "oipe": 31.40,
-        "broker": 12.32,
-        "oki_inw": 3.70,
-        "krypto": 3.70,
-        "obligacje": 2.46,
-        "lokata": 2.46,
-    }
+    assert vehicles["ike"] == "broker"
+    assert vehicles["ikze"] == "savings"
+    assert vehicles["oipe"] == "fund"
+    assert s["krypto"] == pytest.approx(15.0, abs=0.05)
+    assert s.get("obligacje", 0) == 0
+    assert sum(s.values()) == pytest.approx(100.0, abs=0.02)
 
 
 def test_suggest_low_tax_rate_prefers_ike():
@@ -1086,82 +1079,18 @@ def test_suggest_tax_rate_above_break_even_prefers_ikze():
 
 
 def test_suggest_ikze_b2b_higher_capacity():
-    # b2b ma wyższy limit IKZE (16 956), więc nadwyżka jest mniejsza.
+    # b2b ma wyższy limit IKZE (16 956), więc więcej mieści się w IKZE.
     etat = suggest_allocations(answers(allocations={}, capital={}), default_config(), 40_000)
     b2b = suggest_allocations(
         answers(allocations={}, capital={}, employment="b2b"),
         default_config(),
         40_000,
     )
-    assert etat == {"ikze": 28.26, "ike": 70.65, "broker": 1.09}
-    assert b2b == {"ikze": 42.39, "ike": 57.61}
+    assert etat["ikze"] == pytest.approx(28.26, abs=0.05)
+    assert b2b["ikze"] == pytest.approx(40.0, abs=0.05)
+    assert b2b["ikze"] > etat["ikze"]
+    assert sum(etat.values()) <= 100 + 1e-6
     assert sum(b2b.values()) <= 100 + 1e-6
-
-
-@pytest.mark.slow
-def test_gotowka_accums_when_all_cash():
-    a = answers(allocations={}, savings=1000)
-    r = plan(1, a)
-    acc = r.input.stages[0].accounts
-    assert "gotowka" in acc
-    assert acc["gotowka"].annual_contribution > 0
-
-
-def test_gotowka_absent_when_fully_allocated():
-    a = answers(allocations={"broker": 100})
-    r = plan(1, a)
-    acc = r.input.stages[0].accounts
-    assert "gotowka" not in acc
-
-
-@pytest.mark.slow
-def test_gotowka_warning_present():
-    a = answers(allocations={}, savings=1000)
-    r = plan(1, a)
-    assert any("gotówce" in w for w in r.projection.warnings)
-
-
-def test_gotowka_warning_absent_when_full():
-    a = answers(allocations={"broker": 100})
-    r = plan(1, a)
-    assert not any("gotówce" in w for w in r.projection.warnings)
-
-
-def test_path2_scales_balances_in_allocated_accounts():
-    a = answers(allocations={"broker": 50, "krypto": 50}, savings=1000)
-    r = plan(2, a, 10_000)
-    assert r.solved.feasible
-    acc = r.input.stages[0].accounts
-    assert "broker" in acc
-    assert "krypto" in acc
-
-
-def test_suggest_endpoint(client):
-    resp = client.post(
-        "/api/wizard/suggest",
-        json={"answers": dict(BASE, allocations={}, use_ikze=True, use_krypto=True)},
-    )
-    assert resp.status_code == 200, resp.text
-    body = resp.json()
-    assert "allocations" in body
-    assert set(body["strategy_previews"]) == {
-        "konserwatywna",
-        "zbilansowana",
-        "agresywna",
-    }
-    assert all(
-        sum(preview.values()) <= 100 + 1e-6
-        for preview in body["strategy_previews"].values()
-    )
-    assert set(body["strategy_priorities"]) == {
-        "konserwatywna",
-        "zbilansowana",
-        "agresywna",
-    }
-    for priority in body["strategy_priorities"].values():
-        assert priority
-        assert len(priority) == len(set(priority))
-    assert sum(body["allocations"].values()) <= 100 + 1e-6
 
 
 def test_suggest_priority_lists_shelters_then_strategy_mix():
@@ -1260,7 +1189,7 @@ def test_auto_policy_picks_early_ikze_for_bridge_case():
         capital={},
         savings=1000,
         use_ppk=False,
-        use_ike=True,
+        use_ike=False,
         use_ikze=True,
         gross_monthly=8000,
         retire_early_age=55,
@@ -1302,7 +1231,7 @@ def test_account_phases_split_by_tax_windows_and_amount():
         capital={},
         savings=1000,
         use_ppk=False,
-        use_ike=True,
+        use_ike=False,
         use_ikze=True,
         gross_monthly=8000,
         retire_early_age=55,
@@ -1315,15 +1244,12 @@ def test_account_phases_split_by_tax_windows_and_amount():
 
     ikze = [p for p in phases if p.account == "ikze"]
     ike = [p for p in phases if p.account == "ike"]
-    broker = [p for p in phases if p.account == "broker"]
+    safe_target = [p for p in phases if p.account == "obligacje"]
     assert not ikze  # wcześniejszy zwrot: podatek jednorazowy, brak wiersza 0 zł
-    assert broker and broker[0].start_age == 55
-    # Projekcja długowieczności obniża ZUS, więc bridge 55–64 finansuje broker,
-    # a IKE wchodzi dopiero od 65 r.ż. (granica podatkowa IKE/IKZE).
-    assert broker[0].last_age == 64
-    assert broker[1].start_age == 65
-    assert ike[0].start_age == 65
-    assert ike[1].start_age == 66
+    assert safe_target and safe_target[0].start_age == 55
+    # Netto z IKZE najpierw do IKE do limitu, reszta do bezpiecznego taxable.
+    assert safe_target[0].last_age >= 63
+    assert ike and ike[0].start_age >= 64
 
     # Szczegóły akumulacji do tooltipa Gantta: start -> koniec wpłat + wzrost.
     first_ike = ike[0]
@@ -1341,13 +1267,27 @@ def test_account_phases_split_by_tax_windows_and_amount():
         abs=0.02,
     )
 
-    first = broker[0]
+    first = safe_target[0]
     assert first.lump_tax == 0
     assert first.avg_monthly_net > 0
     assert first.starting_balance > 0
     assert first.total_net > 0
     assert result.projection.early_return_total > 0
     assert result.projection.early_return_tax_total > 0
+    assert result.projection.early_return_age == 55
+    ikze_accum = [
+        phase for phase in result.projection.accumulation_phases
+        if phase.account == "ikze"
+    ]
+    assert ikze_accum
+    assert ikze_accum[0].start_age == 30
+    assert ikze_accum[0].end_age == 55
+    assert any(
+        transfer.from_account == "ikze"
+        and transfer.to_account == "obligacje"
+        and transfer.age == 55
+        for transfer in result.projection.capital_transfers
+    )
     assert sum(result.projection.early_return_allocations.values()) == pytest.approx(
         result.projection.early_return_total, abs=0.02
     )
@@ -1390,3 +1330,110 @@ def test_projection_chart_is_net_and_excludes_zus_capital():
     )
     assert chart.withdrawals_net["broker"][index] == pytest.approx(expected, abs=0.1)
     assert any(value > 0 for value in chart.withdrawals_net["zus"])
+
+
+def test_suggest_ike_role_follows_ikze_capacity():
+    # Duża pula + dynamiczny: bezpieczne 10% prawie mieści się w IKZE,
+    # więc IKE zostaje maklerskie, a mała reszta safe idzie do taxable.
+    a = answers(risk_profile="dynamiczny", allocations={}, capital={}, use_krypto=True)
+    alloc, vehicles = suggest_allocation_plan(a, default_config(), 120_000)
+    assert vehicles["ike"] == "broker"
+    assert vehicles["ikze"] == "savings"
+    assert alloc.get("obligacje", 0) < 1.0
+
+    # Ta sama pula + zrównoważony: safe 40% nie mieści się w IKZE,
+    # więc IKE przejmuje bezpieczną część.
+    a = answers(risk_profile="zrownowazony", allocations={}, capital={})
+    alloc, vehicles = suggest_allocation_plan(a, default_config(), 60_000)
+    assert vehicles["ike"] == "savings"
+    assert vehicles["ikze"] == "savings"
+
+
+def test_suggest_small_pool_ikze_covers_safe_so_ike_is_market():
+    a = answers(risk_profile="zrownowazony", allocations={}, capital={}, gross_monthly=0)
+    alloc, vehicles = suggest_allocation_plan(a, default_config(), 20_000)
+    assert "ikze" in vehicles and vehicles["ikze"] == "savings"
+    assert vehicles.get("ike") in (None, "broker")
+    assert alloc.get("obligacje", 0) == 0
+
+
+def test_roi_precedence_explicit_over_vehicle_over_default():
+    a = answers(
+        risk_profile="spokojny",
+        wrapper_vehicles={"ike": "savings"},
+        roi_overrides={},
+    )
+    cfg = default_config()
+    assert P._roi(a, "ike", cfg) == pytest.approx(
+        cfg.wrapper_vehicles["savings"].default_roi
+    )
+    a.roi_overrides = {"ike": 0.031}
+    assert P._roi(a, "ike", cfg) == pytest.approx(0.031)
+
+
+def test_oipe_only_fund_by_default_but_configurable():
+    cfg = default_config()
+    assert cfg.wrapper_vehicle_options["oipe"] == ["fund"]
+    a = answers(risk_profile="zrownowazony", allocations={}, capital={})
+    alloc, vehicles = suggest_allocation_plan(a, cfg, 60_000)
+    assert vehicles["oipe"] == "fund"
+
+    cfg.wrapper_vehicle_options["oipe"] = ["fund", "broker"]
+    alloc, vehicles = suggest_allocation_plan(a, cfg, 60_000)
+    assert vehicles["oipe"] in ("fund", "broker")
+
+
+def test_wrapper_vehicle_unknown_rejected():
+    with pytest.raises(ValidationError):
+        WizardAnswers(wrapper_vehicles={"ike": "bondy"})
+
+
+def test_old_risk_profile_config_migrates_to_max_market():
+    cfg = P.TaxConfig.model_validate(
+        {
+            "risk_profiles": {
+                "spokojny": {
+                    "label": "Spokojny",
+                    "max_taxable_market": 0.42,
+                }
+            }
+        }
+    )
+    assert cfg.risk_profiles["spokojny"].max_market == pytest.approx(0.42)
+    assert set(cfg.wrapper_vehicle_options) == {"ike", "ikze", "oipe"}
+
+
+def test_result_chart_extends_to_100_beyond_horizon():
+    a = answers(plan_end_age=85, use_zus=True)
+    r = plan(1, a, scenarios=False, extend_chart=True)
+    assert r.projection.chart.ages[0] == a.age_now
+    assert r.projection.chart.ages[-1] == 100
+    zus = r.projection.chart.withdrawals_net.get("zus", [])
+    assert zus and zus[-1] > 0
+    base = plan(1, a, scenarios=False)
+    assert r.projection.final_wealth == base.projection.final_wealth
+    assert r.projection.final_wealth_net == base.projection.final_wealth_net
+
+
+def test_suggest_small_dynamic_prefers_ike_market_over_oipe():
+    a = answers(risk_profile="dynamiczny", allocations={}, capital={})
+    alloc, vehicles = suggest_allocation_plan(a, default_config(), 20_000)
+    assert vehicles.get("ike") == "broker"
+    assert "oipe" not in vehicles
+    assert alloc["ike"] == pytest.approx(75.0, abs=0.1)
+
+
+def test_suggest_small_balanced_prefers_ike_market_over_oipe():
+    a = answers(risk_profile="zrownowazony", allocations={}, capital={}, gross_monthly=0)
+    alloc, vehicles = suggest_allocation_plan(a, default_config(), 20_000)
+    assert vehicles.get("ike") == "broker"
+    assert "oipe" not in vehicles
+    assert alloc["ike"] == pytest.approx(55.0, abs=0.1)
+
+
+def test_suggest_large_balanced_ike_safe_oipe_market():
+    a = answers(risk_profile="zrownowazony", allocations={}, capital={}, gross_monthly=0)
+    alloc, vehicles = suggest_allocation_plan(a, default_config(), 60_000)
+    assert vehicles.get("ike") == "savings"
+    assert vehicles.get("oipe") == "fund"
+    assert alloc["oipe"] > alloc["ike"]

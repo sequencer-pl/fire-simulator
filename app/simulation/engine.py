@@ -1015,19 +1015,33 @@ _IKZE_REINVEST_ORDER = (
     "obligacje",
     "lokata",
     "oki_osk",
-    "krypto",
+    "gotowka",
+)
+
+# Wcześniejszy zwrot IKZE to jednorazowa, duża kwota. Automat nie może
+# wpakować jej w krypto tylko dlatego, że jest jedynym wolnym kontem.
+# Najpierw bezpieczne/likwidne cele, potem broker, na końcu gotówka.
+_EARLY_RETURN_REINVEST_ORDER = (
+    "ike",
+    "oipe",
+    "obligacje",
+    "lokata",
+    "oki_osk",
+    "broker",
     "gotowka",
 )
 
 
-def _ikze_refund_targets(cfg, si: StageInput) -> list[str]:
+def _ikze_refund_targets(
+    cfg, si: StageInput, order: tuple[str, ...] | None = None
+) -> list[str]:
     """Lista kont, na które może trafić zwrot ulgi IKZE (w kolejności)."""
     setting = cfg.ikze_refund_target
     if setting in ("", "none"):
         return []
     if setting == "auto":
         out: list[str] = []
-        for base in _IKZE_REINVEST_ORDER:
+        for base in (order or _IKZE_REINVEST_ORDER):
             for acc in si.accounts:
                 if base_account_key(acc) == base and acc not in out:
                     out.append(acc)
@@ -1099,12 +1113,18 @@ def _reinvest_early_return(
     ikze_cfg = stage.accounts.get("ikze")
     setting = ikze_cfg.ikze_refund_target if ikze_cfg else "auto"
     if setting == "auto":
-        targets = _ikze_refund_targets(ikze_cfg, stage) if ikze_cfg else []
-        for fallback in ("broker", "lokata", "gotowka"):
+        targets = (
+            _ikze_refund_targets(
+                ikze_cfg, stage, order=_EARLY_RETURN_REINVEST_ORDER
+            )
+            if ikze_cfg
+            else []
+        )
+        for fallback in ("obligacje", "lokata", "broker", "gotowka"):
             if fallback not in targets:
                 targets.append(fallback)
     elif setting in ("", "none"):
-        targets = ["broker", "lokata", "gotowka"]
+        targets = ["lokata", "obligacje", "broker", "gotowka"]
     else:
         targets = [setting, "gotowka"]
     remaining = amount
@@ -1482,9 +1502,14 @@ def simulate(data: SimulationInput, target: float | None = None) -> SimulationRe
     state = _init_state(data)
 
     min_age = min(si.start_age for si in data.stages)
-    # Horyzont wynika z ostatniego etapu — data.max_age nie może po cichu
-    # uciąć planu ani dopisać lat po zakończeniu wszystkich etapów.
-    max_age = max(si.end_age - 1 for si in data.stages)
+    # Etapy mogą wystawać poza horyzont planu (np. ZUS do 100 r.ż. w Asystencie).
+    # ``max_age`` jest górnym limitem symulacji: planner ustawia go na
+    # plan_end - 1, a ręczne symulacje mogą go pominąć. Nie dopisujemy lat po
+    # ostatnim etapie.
+    last_stage_age = max(si.end_age - 1 for si in data.stages)
+    max_age = min(data.max_age, last_stage_age)
+    if max_age < min_age:
+        max_age = last_stage_age
 
     for age in range(min_age, max_age + 1):
         _run_year(
@@ -1900,7 +1925,7 @@ def _collect_warnings(
                     warnings.append(
                         f"{label}: pierwsza wypłata w wieku {first_age} r.ż. — przed "
                         f"{rules.min_withdrawal_age} r.ż. środki pracodawcy i dopłaty "
-                        f"państwa przepadają; podatek Belka {ppk_early:.0f}% od zysku "
+                        f"państwa przepadają; podatek Belki {ppk_early:.0f}% od zysku "
                         f"pracownika, po {rules.min_withdrawal_age} r.ż. {ppk_after:.0f}%."
                     )
                     warned_early.add(name)
@@ -1915,10 +1940,25 @@ def _collect_warnings(
                         skala = f"{lower}/{upper}%"
                     flat = rules.tax_rate * 100
                     after = f"po {rules.min_withdrawal_age} r.ż."
+                    early_return = (
+                        name == "ikze"
+                        and state is not None
+                        and name in state.early_returned
+                    )
+                    intro = (
+                        "wcześniejszy zwrot całego salda"
+                        if early_return
+                        else "pierwsza wypłata"
+                    )
+                    tax_moment = (
+                        "przy wcześniejszym zwrocie"
+                        if early_return
+                        else "przy pierwszej wypłacie"
+                    )
                     warnings.append(
-                        f"{label}: pierwsza wypłata w wieku {first_age} r.ż. — przed "
+                        f"{label}: {intro} w wieku {first_age} r.ż. — przed "
                         f"{rules.min_withdrawal_age} r.ż. jednorazowe opodatkowanie całości "
-                        f"przy pierwszej wypłacie (podatek wg skali {skala}); netto jest "
+                        f"{tax_moment} (podatek wg skali {skala}); netto jest "
                         f"reinwestowane w konto docelowe. {after} ryczałt {flat:.0f}% "
                         f"od każdej wypłaty."
                     )

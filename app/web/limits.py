@@ -56,6 +56,7 @@ class SlidingWindowLimiter:
 LIMITS: dict[str, SlidingWindowLimiter] = {
     "simulate": SlidingWindowLimiter(limit=30, window_seconds=60),
     "wizard_plan": SlidingWindowLimiter(limit=6, window_seconds=60),
+    "wizard_optimize": SlidingWindowLimiter(limit=3, window_seconds=60),
     "wizard_suggest": SlidingWindowLimiter(limit=20, window_seconds=60),
     "wizard_salary": SlidingWindowLimiter(limit=60, window_seconds=60),
 }

@@ -1,4 +1,6 @@
-from pydantic import BaseModel, Field
+from typing import Literal
+
+from pydantic import BaseModel, Field, model_validator
 
 ACCOUNT_LABELS = {
     "broker": "Broker",
@@ -74,6 +76,7 @@ class AccountRules(BaseModel):
     asset_exemption: float = 0.0
     asset_group: str | None = None  # accounts with the same asset_group share a common limit
     asset_class: str | None = None  # "inwestycyjne" | "oszczednosciowe" w ramach grupy
+    risk_class: str = "market"  # safe | market | high | wrapper | illiquid
     default_roi: float = 0.04  # domyślna realna stopa zwrotu (ponad inflacją)
 
 
@@ -94,13 +97,20 @@ class Limits(BaseModel):
 
 def default_account_rules() -> dict[str, AccountRules]:
     return {
-        "broker": AccountRules(tax_model="flat", tax_rate=0.19, default_roi=0.05),
-        "krypto": AccountRules(tax_model="flat", tax_rate=0.19, default_roi=0.06),
-        "lokata": AccountRules(
-            tax_model="flat", tax_rate=0.19, tax_periodic=True, default_roi=0.018
+        "broker": AccountRules(
+            tax_model="flat", tax_rate=0.19, risk_class="market", default_roi=0.05
         ),
-        "obligacje": AccountRules(tax_model="flat", tax_rate=0.19, default_roi=0.02),
-        "gotowka": AccountRules(tax_model="none", default_roi=0.0),
+        "krypto": AccountRules(
+            tax_model="flat", tax_rate=0.19, risk_class="high", default_roi=0.06
+        ),
+        "lokata": AccountRules(
+            tax_model="flat", tax_rate=0.19, tax_periodic=True,
+            risk_class="safe", default_roi=0.018
+        ),
+        "obligacje": AccountRules(
+            tax_model="flat", tax_rate=0.19, risk_class="safe", default_roi=0.02
+        ),
+        "gotowka": AccountRules(tax_model="none", risk_class="safe", default_roi=0.0),
         "ike": AccountRules(
             tax_model="flat",
             tax_rate=0.0,
@@ -109,6 +119,7 @@ def default_account_rules() -> dict[str, AccountRules]:
             early_tax_model="flat",
             early_tax_rate=0.19,
             early_tax_basis="gains",
+            risk_class="wrapper",
             default_roi=0.05,
         ),
         "ikze": AccountRules(
@@ -117,6 +128,7 @@ def default_account_rules() -> dict[str, AccountRules]:
             tax_basis="full",
             min_withdrawal_age=65,
             early_tax_model="scale",
+            risk_class="wrapper",
             default_roi=0.05,
         ),
         "ppk": AccountRules(
@@ -125,6 +137,7 @@ def default_account_rules() -> dict[str, AccountRules]:
             early_tax_model="flat",
             early_tax_rate=0.19,
             early_tax_basis="gains",
+            risk_class="wrapper",
             default_roi=0.04,
         ),
         "ppe": AccountRules(
@@ -133,6 +146,7 @@ def default_account_rules() -> dict[str, AccountRules]:
             early_tax_model="flat",
             early_tax_rate=0.19,
             early_tax_basis="gains",
+            risk_class="wrapper",
             default_roi=0.04,
         ),
         "oipe": AccountRules(
@@ -143,6 +157,7 @@ def default_account_rules() -> dict[str, AccountRules]:
             early_tax_model="flat",
             early_tax_rate=0.19,
             early_tax_basis="gains",
+            risk_class="wrapper",
             default_roi=0.05,
         ),
         "oki_inw": AccountRules(
@@ -151,6 +166,7 @@ def default_account_rules() -> dict[str, AccountRules]:
             asset_exemption=100_000,
             asset_group="oki",
             asset_class="inwestycyjne",
+            risk_class="market",
             default_roi=0.045,
         ),
         "oki_osk": AccountRules(
@@ -159,10 +175,13 @@ def default_account_rules() -> dict[str, AccountRules]:
             asset_exemption=25_000,
             asset_group="oki",
             asset_class="oszczednosciowe",
+            risk_class="safe",
             default_roi=0.02,
         ),
-        "zus": AccountRules(tax_model="scale", default_roi=0.04),
-        "nieruchomosc": AccountRules(tax_model="none", default_roi=0.015),
+        "zus": AccountRules(tax_model="scale", risk_class="wrapper", default_roi=0.04),
+        "nieruchomosc": AccountRules(
+            tax_model="none", risk_class="illiquid", default_roi=0.015
+        ),
     }
 
 
@@ -223,6 +242,93 @@ class LongevityConfig(BaseModel):
     growth_months_per_year: float = Field(default=1.5, ge=0.0, le=5.0)
 
 
+class RiskProfile(BaseModel):
+    """Limity koncentracji nowych wpłat dla profilu ryzyka.
+
+    Procenty odnoszą się do miesięcznej puli wpłat (nie do istniejącego
+    portfela). ``max_market`` i ``max_crypto`` dotyczą całej puli — także
+    rynkowych wariantów IKE/IKZE/OIPE — a ``max_single_taxable`` tylko kont
+    taxable. ``min_safe`` liczy bezpieczne aktywa w całej puli, w tym
+    bezpieczne warianty wrapperów.
+    """
+
+    label: str
+    max_crypto: float = Field(default=0.05, ge=0.0, le=1.0)
+    max_market: float = Field(default=0.55, ge=0.0, le=1.0)
+    max_single_taxable: float = Field(default=0.35, ge=0.0, le=1.0)
+    min_safe: float = Field(default=0.20, ge=0.0, le=1.0)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _alias_old_market_key(cls, data):
+        # Stare configi miały max_taxable_market; po zmianie semantyki to
+        # pole oznacza łączny udział rynkowy (w tym wrapperów).
+        if isinstance(data, dict) and "max_market" not in data and "max_taxable_market" in data:
+            data = dict(data)
+            data["max_market"] = data.pop("max_taxable_market")
+        return data
+
+
+def default_risk_profiles() -> dict[str, RiskProfile]:
+    return {
+        "spokojny": RiskProfile(
+            label="Spokojny",
+            max_crypto=0.0,
+            max_market=0.30,
+            max_single_taxable=0.20,
+            min_safe=0.50,
+        ),
+        "zrownowazony": RiskProfile(
+            label="Zrównoważony",
+            max_crypto=0.05,
+            max_market=0.55,
+            max_single_taxable=0.35,
+            min_safe=0.20,
+        ),
+        "dynamiczny": RiskProfile(
+            label="Dynamiczny",
+            max_crypto=0.15,
+            max_market=0.75,
+            max_single_taxable=0.50,
+            min_safe=0.05,
+        ),
+    }
+
+
+class WrapperVehicle(BaseModel):
+    """Rodzaj inwestycji wewnątrz opakowania IKE/IKZE/OIPE."""
+
+    label: str
+    risk_class: Literal["safe", "market"] = "market"
+    default_roi: float = Field(default=0.045, ge=-0.99, le=10.0)
+
+
+WRAPPER_ACCOUNTS = ("ike", "ikze", "oipe")
+WRAPPER_VEHICLE_KEYS = ("broker", "fund", "savings")
+
+
+def default_wrapper_vehicles() -> dict[str, WrapperVehicle]:
+    return {
+        "broker": WrapperVehicle(
+            label="Maklerskie", risk_class="market", default_roi=0.05
+        ),
+        "fund": WrapperVehicle(
+            label="Funduszowe", risk_class="market", default_roi=0.045
+        ),
+        "savings": WrapperVehicle(
+            label="Oszczędnościowe", risk_class="safe", default_roi=0.018
+        ),
+    }
+
+
+def default_wrapper_vehicle_options() -> dict[str, list[str]]:
+    return {
+        "ike": ["broker", "fund", "savings"],
+        "ikze": ["broker", "fund", "savings"],
+        "oipe": ["fund"],
+    }
+
+
 class TaxConfig(BaseModel):
     year: int = 2026
     kwota_wolna: float = 30_000
@@ -251,6 +357,39 @@ class TaxConfig(BaseModel):
     longevity: LongevityConfig = Field(default_factory=LongevityConfig)
     ppk: PpkConfig = Field(default_factory=PpkConfig)
     ppe: PpeConfig = Field(default_factory=PpeConfig)
+    risk_profiles: dict[str, RiskProfile] = Field(default_factory=default_risk_profiles)
+    wrapper_vehicles: dict[str, WrapperVehicle] = Field(
+        default_factory=default_wrapper_vehicles
+    )
+    wrapper_vehicle_options: dict[str, list[str]] = Field(
+        default_factory=default_wrapper_vehicle_options
+    )
+
+    @model_validator(mode="after")
+    def _backfill_risk_metadata(self) -> "TaxConfig":
+        if not self.risk_profiles:
+            self.risk_profiles = default_risk_profiles()
+        for key, profile in default_risk_profiles().items():
+            self.risk_profiles.setdefault(key, profile)
+        defaults = default_account_rules()
+        for key, rules in self.accounts.items():
+            base = defaults.get(base_account_key(key))
+            if base is not None:
+                rules.risk_class = base.risk_class
+        defaults_vehicles = default_wrapper_vehicles()
+        for key, vehicle in defaults_vehicles.items():
+            if key not in self.wrapper_vehicles:
+                self.wrapper_vehicles[key] = vehicle
+        options = default_wrapper_vehicle_options()
+        for key in WRAPPER_ACCOUNTS:
+            allowed = [
+                v for v in self.wrapper_vehicle_options.get(key, [])
+                if v in self.wrapper_vehicles
+            ]
+            if not allowed:
+                allowed = options[key]
+            self.wrapper_vehicle_options[key] = allowed
+        return self
 
     def threshold_factor(self, years: int = 0) -> float:
         """Realny mnożnik progów nominalnych po ``years`` latach od startu.
@@ -346,6 +485,11 @@ BUILTIN_PRESETS: dict[str, dict] = {
             "zus": {"default_roi": 0.03},
             "nieruchomosc": {"default_roi": 0.005},
         },
+        "wrapper_vehicles": {
+            "broker": {"default_roi": 0.035},
+            "fund": {"default_roi": 0.03},
+            "savings": {"default_roi": 0.014},
+        },
     },
     "Realne": {
         "inflation": 0.025,
@@ -366,6 +510,11 @@ BUILTIN_PRESETS: dict[str, dict] = {
             "zus": {"default_roi": 0.04},
             "nieruchomosc": {"default_roi": 0.015},
         },
+        "wrapper_vehicles": {
+            "broker": {"default_roi": 0.05},
+            "fund": {"default_roi": 0.045},
+            "savings": {"default_roi": 0.018},
+        },
     },
     "Optymistyczne": {
         "inflation": 0.015,
@@ -384,6 +533,11 @@ BUILTIN_PRESETS: dict[str, dict] = {
             "krypto": {"default_roi": 0.08},
             "zus": {"default_roi": 0.05},
             "nieruchomosc": {"default_roi": 0.025},
+        },
+        "wrapper_vehicles": {
+            "broker": {"default_roi": 0.065},
+            "fund": {"default_roi": 0.055},
+            "savings": {"default_roi": 0.022},
         },
     },
 }

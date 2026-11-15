@@ -4,6 +4,8 @@ from pydantic import BaseModel, Field, model_validator
 
 from app.core.tax import scale_tax
 from app.simulation.config import (
+    WRAPPER_ACCOUNTS,
+    WRAPPER_VEHICLE_KEYS,
     TaxConfig,
     base_account_key,
     default_config,
@@ -33,12 +35,9 @@ from app.simulation.schemas import (
 
 SAVINGS_ACCOUNTS = ("broker", "lokata", "obligacje", "krypto")
 
-# Curated preference order used to open NEW accounts the user lacks. Capacity
-# logic (suggest_allocations) absorbs the annual pool account by account in this
-# order and only opens the next one when the previous hits its annual limit.
-# Kolejność zapełniania kont z ulgami. Strategia decyduje, które ulgi bierzemy
-# pod uwagę (OIPE tylko w agresywnej, chyba że użytkownik już je ma), a podział
-# kwoty ponad limity określa wyłącznie STRATEGY_MIX.
+# Legacy order używany przez małą pulę i stare podglądy priorytetów. Główny
+# podział (suggest_allocation_plan) bierze cel safe/market/high z profilu i
+# capacity-aware role wrapperów; STRATEGY_MIX nie steruje już nowymi wpłatami.
 STRATEGY_SHELTER_ORDER: dict[str, tuple[str, ...]] = {
     "konserwatywna": ("ikze", "ike"),
     "zbilansowana": ("ikze", "ike"),
@@ -66,6 +65,9 @@ STRATEGY_MIX: dict[str, dict[str, float]] = {
 
 # Poniżej tej nadwyżki nie dzielimy na kilka kont — szkoda mnogości wpłat.
 MIX_MIN_ANNUAL = 20_000.0
+# Poniżej tego udziału bezpieczną resztę można zostawić w taxable, jeśli
+# uwolni to IKE dla rynku. Powyżej — IKE przejmuje safe.
+SMALL_SAFE_SHARE = 5.0
 # Próg opłacalności IKZE vs IKE przy reinwestycji zwrotu w IKE/OIPE (10%
 # ryczałtu + ok. 0,5 p.p. opóźnienia zwrotu).
 IKZE_BREAKEVEN_RATE = 0.105
@@ -166,9 +168,21 @@ class WizardAnswers(BaseModel):
 
     retire_early_age: int | None = Field(default=None, ge=0, le=110)
     retirement_age: int | None = Field(default=None, ge=0, le=110)
+    # Wiek rozpoczęcia pobierania ZUS. None = wiek ustawowy. Wcześniej niż
+    # ustawowy jest przycinany; później wydłuża etap portfela (deferral).
+    zus_start_age: int | None = Field(default=None, ge=0, le=110)
     plan_end_age: int = Field(default=DEFAULT_PLAN_END, ge=1, le=120)
+    # Minimalny majątek netto na koniec horyzontu (spadek/rezerwa). Solver
+    # maksymalizuje wypłatę przy tym ograniczeniu; 0 = wydać wszystko.
+    bequest_target: float = Field(default=0.0, ge=0.0, le=1e9)
 
     savings: float = Field(default=1000.0, ge=0.0)
+
+    # Preferencja z kroku „Priorytety” (tylko ścieżka 1): stała wypłata
+    # (max-min) albo najwyższa suma wypłat przy stałej miesięcznej kwocie.
+    optimization_objective: Literal["payout", "total"] = "payout"
+    # Profil ryzyka ogranicza nowe wpłaty (nie istniejący portfel).
+    risk_profile: Literal["spokojny", "zrownowazony", "dynamiczny"] = "zrownowazony"
 
     strategy: Literal["konserwatywna", "zbilansowana", "agresywna", "manualna"] = "zbilansowana"
     assumptions: Literal["konserwatywne", "realne", "optymistyczne"] = "realne"
@@ -181,6 +195,8 @@ class WizardAnswers(BaseModel):
     # Monthly-savings shares (%) per allocatable account. Money NOT assigned
     # here (or exceeding a shelter's annual limit) lands in "gotowka".
     allocations: dict[str, float] = Field(default_factory=dict)
+    # Rodzaj inwestycji wewnątrz IKE/IKZE/OIPE (jeden na wrapper).
+    wrapper_vehicles: dict[str, str] = Field(default_factory=dict)
 
     @model_validator(mode="after")
     def validate_allocations(self) -> "WizardAnswers":
@@ -193,6 +209,11 @@ class WizardAnswers(BaseModel):
             share_sum += weight
         if share_sum > 100 + 1e-6:
             raise ValueError("Suma udziałów przekracza 100%.")
+        for name, vehicle in self.wrapper_vehicles.items():
+            if name not in WRAPPER_ACCOUNTS:
+                raise ValueError(f"Nieznany wrapper w rodzaju inwestycji: {name}")
+            if vehicle not in WRAPPER_VEHICLE_KEYS:
+                raise ValueError(f"Nieznany rodzaj inwestycji: {vehicle}")
         return self
 
 
@@ -200,6 +221,8 @@ class WizardPlanRequest(BaseModel):
     path: Literal[1, 2, 3]
     target_monthly: float | None = Field(default=None, ge=0.0)
     answers: WizardAnswers
+    # True uruchamia optymalizator wieku ZUS / mixu IKE-IKZE (ścieżka 1).
+    optimize: bool = False
 
 
 class WizardSuggestRequest(BaseModel):
@@ -284,6 +307,31 @@ class AccountPhase(BaseModel):
     max_monthly_net: float = 0.0
 
 
+class AccumulationPhase(BaseModel):
+    """Jeden etap akumulacji danego konta (do Gantta i tabeli)."""
+
+    account: str
+    start_age: int
+    end_age: int
+    stage_name: str = ""
+    monthly_contribution: float = 0.0
+    annual_contribution: float = 0.0
+    total_contributions: float = 0.0
+    starting_balance: float = 0.0
+    ending_balance: float = 0.0
+    growth: float = 0.0
+
+
+class CapitalTransfer(BaseModel):
+    """Transfer kapitału między kontami (np. wcześniejszy zwrot IKZE)."""
+
+    age: int
+    from_account: str
+    to_account: str
+    amount: float = 0.0
+    kind: str = "early_ikze_return"
+
+
 class ProjectionChart(BaseModel):
     """Compact yearly series for the result charts.
 
@@ -311,13 +359,18 @@ class PlanProjection(BaseModel):
     ikze_refund_allocations: dict[str, float] = Field(default_factory=dict)
     early_return_total: float = 0.0
     early_return_tax_total: float = 0.0
+    early_return_age: int | None = None
     early_return_allocations: dict[str, float] = Field(default_factory=dict)
     peak_wealth: float = 0.0
     exhaust_age: int | None = None
+    bequest_target: float = 0.0
+    bequest_met: bool = True
     warnings: list[str] = Field(default_factory=list)
     stage_metrics: list[StageMetric] = Field(default_factory=list)
     phase_metrics: list[PhaseMetric] = Field(default_factory=list)
     account_phases: list[AccountPhase] = Field(default_factory=list)
+    accumulation_phases: list[AccumulationPhase] = Field(default_factory=list)
+    capital_transfers: list[CapitalTransfer] = Field(default_factory=list)
     chart: ProjectionChart = Field(default_factory=ProjectionChart)
 
 
@@ -340,6 +393,7 @@ class ScenarioSummary(BaseModel):
     final_wealth: float = 0.0
     final_wealth_net: float = 0.0
     peak_wealth: float = 0.0
+    total_withdrawn: float = 0.0
     withdrawal_policy: str = "defer_tier"
 
 
@@ -349,10 +403,14 @@ class WizardPlanResult(BaseModel):
     net_monthly: float | None = None
     projection: PlanProjection
     solved: PlanSolved
+    wrapper_vehicles: dict[str, str] = Field(default_factory=dict)
+    asset_mix: dict[str, float] = Field(default_factory=dict)
     scenarios: dict[str, ScenarioSummary] = Field(default_factory=dict)
     scenario_inputs: dict[str, SimulationInput] = Field(default_factory=dict)
     scenario_projections: dict[str, PlanProjection] = Field(default_factory=dict)
     scenario_solved: dict[str, PlanSolved] = Field(default_factory=dict)
+    # Wynik optymalizatora (dict, żeby planner nie importował optimizer.py).
+    optimization: dict | None = None
 
 
 def _retirement_age(a: WizardAnswers, config) -> int:
@@ -443,6 +501,9 @@ def _with_market_overlay(config: TaxConfig, preset_name: str) -> TaxConfig:
     for name, rules in preset["accounts"].items():
         if name in data["accounts"]:
             data["accounts"][name]["default_roi"] = rules["default_roi"]
+    for name, rules in preset.get("wrapper_vehicles", {}).items():
+        if name in data.get("wrapper_vehicles", {}):
+            data["wrapper_vehicles"][name]["default_roi"] = rules["default_roi"]
     return TaxConfig.model_validate(data)
 
 
@@ -471,6 +532,41 @@ def resolve_config(a: WizardAnswers) -> TaxConfig:
     return _config_for_answers(a)
 
 
+def _allowed_wrapper_vehicles(config: TaxConfig, wrapper: str) -> list[str]:
+    allowed = config.wrapper_vehicle_options.get(wrapper, [])
+    return [v for v in allowed if v in config.wrapper_vehicles]
+
+
+def _vehicle_risk_class(config: TaxConfig, vehicle: str | None) -> str:
+    rules = config.wrapper_vehicles.get(vehicle or "")
+    return rules.risk_class if rules is not None else "market"
+
+
+def _vehicle_roi(config: TaxConfig, vehicle: str | None, fallback: float = 0.04) -> float:
+    rules = config.wrapper_vehicles.get(vehicle or "")
+    return rules.default_roi if rules is not None else fallback
+
+
+def _wrapper_vehicle(a: WizardAnswers, name: str, config: TaxConfig) -> str | None:
+    """Rodzaj inwestycji dla wrappera: jawny wybór albo sensowny default."""
+    base = base_account_key(name)
+    if base not in WRAPPER_ACCOUNTS:
+        return None
+    allowed = _allowed_wrapper_vehicles(config, base)
+    explicit = a.wrapper_vehicles.get(base)
+    if explicit in allowed:
+        return explicit
+    preferences = {
+        "spokojny": ("savings", "fund", "broker"),
+        "zrownowazony": ("broker", "fund", "savings"),
+        "dynamiczny": ("broker", "fund", "savings"),
+    }
+    for vehicle in preferences.get(a.risk_profile, ("broker", "fund", "savings")):
+        if vehicle in allowed:
+            return vehicle
+    return allowed[0] if allowed else None
+
+
 def _roi(a: WizardAnswers, name: str, config: TaxConfig | None = None) -> float:
     base = base_account_key(name)
     if name in a.roi_overrides:
@@ -478,10 +574,39 @@ def _roi(a: WizardAnswers, name: str, config: TaxConfig | None = None) -> float:
     if base in a.roi_overrides:
         return a.roi_overrides[base]
     if config is not None:
+        if base in WRAPPER_ACCOUNTS:
+            vehicle = _wrapper_vehicle(a, base, config)
+            if vehicle is not None:
+                return _vehicle_roi(config, vehicle)
         rules = config.get_account_rules(name)
         if rules is not None:
             return rules.default_roi
     return 0.04
+
+
+def allocation_asset_mix(
+    a: WizardAnswers,
+    config: TaxConfig,
+    allocations: dict[str, float] | None = None,
+) -> dict[str, float]:
+    """Udział klas aktywów w nowych wpłatach (safe/market/high), w procentach."""
+    mix = {"safe": 0.0, "market": 0.0, "high": 0.0}
+    for name, weight in (allocations or a.allocations).items():
+        value = max(0.0, float(weight or 0.0))
+        if value <= 0:
+            continue
+        base = base_account_key(name)
+        if base in WRAPPER_ACCOUNTS:
+            vehicle = _wrapper_vehicle(a, base, config)
+            risk = _vehicle_risk_class(config, vehicle)
+        elif base == "krypto":
+            risk = "high"
+        elif base in ("broker", "oki_inw"):
+            risk = "market"
+        else:
+            risk = "safe"
+        mix[risk] = mix.get(risk, 0.0) + value
+    return {key: round(value, 2) for key, value in mix.items()}
 
 
 def _with_basis(name: str) -> bool:
@@ -607,48 +732,209 @@ def suggest_priority(a: WizardAnswers, config) -> list[str]:
     return order
 
 
-def suggest_allocations(a: WizardAnswers, config, annual_pool: float) -> dict[str, float]:
-    """Auto % split: najpierw ulgi (IKZE/IKE/OIPE) do limitów, potem miks
-    nadwyżki wg strategii (broker/obligacje/OKI/lokata/krypto). Mała nadwyżka
-    (< MIX_MIN_ANNUAL) trafia do pierwszego konta miksu, żeby nie mnożyć wpłat."""
+def _target_asset_mix(a: WizardAnswers, config: TaxConfig) -> tuple[float, float, float]:
+    """Cel profilu: (safe, market, high) w procentach całej puli."""
+    profile = config.risk_profiles.get(a.risk_profile) or config.risk_profiles["zrownowazony"]
+    high = max(0.0, min(profile.max_crypto * 100.0, 100.0 - profile.min_safe * 100.0))
+    market = max(
+        0.0,
+        min(
+            profile.max_market * 100.0,
+            100.0 - profile.min_safe * 100.0 - high,
+        ),
+    )
+    safe = max(0.0, 100.0 - high - market)
+    return safe, market, high
+
+
+def _add_taxable_market(
+    amounts: dict[str, float],
+    share: float,
+    annual_pool: float,
+    profile,
+) -> None:
+    if share <= 1e-6:
+        return
+    if annual_pool * share / 100.0 < MIX_MIN_ANNUAL:
+        amounts["broker"] = amounts.get("broker", 0.0) + share
+        return
+    single_cap = max(0.0, profile.max_single_taxable * 100.0)
+    broker = min(share, single_cap)
+    rest = share - broker
+    oki = min(rest, single_cap)
+    rest -= oki
+    if broker > 1e-6:
+        amounts["broker"] = amounts.get("broker", 0.0) + broker
+    if oki > 1e-6:
+        amounts["oki_inw"] = amounts.get("oki_inw", 0.0) + oki
+    if rest > 1e-6:
+        # Oba konta rynkowe mają własne capy; resztę trzymamy w brokerze,
+        # żeby pula nie znikała. Optimizer i tak sprawdzi limity.
+        amounts["broker"] = amounts.get("broker", 0.0) + rest
+
+
+def _add_taxable_safe(
+    amounts: dict[str, float], share: float, annual_pool: float
+) -> None:
+    if share <= 1e-6:
+        return
+    if annual_pool * share / 100.0 < MIX_MIN_ANNUAL:
+        amounts["obligacje"] = amounts.get("obligacje", 0.0) + share
+        return
+    for name, pct in (("obligacje", 50.0), ("lokata", 30.0), ("oki_osk", 20.0)):
+        part = share * pct / 100.0
+        if part > 1e-6:
+            amounts[name] = amounts.get(name, 0.0) + part
+
+
+def suggest_allocation_plan(
+    a: WizardAnswers, config: TaxConfig, annual_pool: float
+) -> tuple[dict[str, float], dict[str, str]]:
+    """Podział puli wg profilu i limitów wrapperów.
+
+    Najpierw bezpieczne aktywa wypełniają IKZE (ulga), potem IKE, jeśli IKZE
+    nie mieści całej bezpiecznej części. Reszta IKE idzie na rynek. Dzięki
+    temu rola IKE zależy od limitu IKZE i wielkości puli, a nie od etykiety
+    profilu. Mała pula (< MIX_MIN_ANNUAL) trafia do jednego wrappera, żeby nie
+    mnożyć wpłat.
+    """
     if annual_pool <= 0:
-        return {}
+        return {}, {}
     a = _normalize_salary(a)
-    strat_key = "zbilansowana" if a.strategy == "manualna" else a.strategy
-    # Active = participation flag OR existing capital — an account the user
-    # already holds money in is a valid target for future savings even without
-    # an explicit "use_*" checkbox (wizard auto-checks on any non-zero balance).
-    active = {n for n in ALLOCATABLE_ACCOUNTS if _account_present(a, n, {})}
-    remaining = annual_pool
+    profile = config.risk_profiles.get(a.risk_profile) or config.risk_profiles["zrownowazony"]
+    safe_target, market_target, high_target = _target_asset_mix(a, config)
+
+    if annual_pool < MIX_MIN_ANNUAL:
+        active = {n for n in ALLOCATABLE_ACCOUNTS if _account_present(a, n, {})}
+        order = _shelter_order(a, active, config)
+        if not order:
+            return {}, {}
+        preference = (
+            ("savings", "fund", "broker")
+            if safe_target >= market_target
+            else ("broker", "fund", "savings")
+        )
+        small_amounts: dict[str, float] = {}
+        small_vehicles: dict[str, str] = {}
+        remaining = annual_pool
+        for name in order:
+            if remaining <= 1e-6:
+                break
+            allowed = _allowed_wrapper_vehicles(config, name)
+            vehicle = next((v for v in preference if v in allowed), None)
+            cap = _shelter_cap(a, config, name)
+            if vehicle is None or cap <= 0:
+                continue
+            take = min(cap, remaining)
+            if take <= 1e-6:
+                continue
+            small_amounts[name] = round(take / annual_pool * 100.0, 2)
+            small_vehicles[name] = vehicle
+            remaining -= take
+        if remaining > 1e-6:
+            small_amounts["gotowka"] = round(remaining / annual_pool * 100.0, 2)
+        drift = 100.0 - sum(small_amounts.values())
+        if abs(drift) > 1e-6 and small_amounts:
+            biggest = max(small_amounts, key=small_amounts.__getitem__)
+            small_amounts[biggest] = round(small_amounts[biggest] + drift, 2)
+        return small_amounts, small_vehicles
+
     amounts: dict[str, float] = {}
-    for name in _shelter_order(a, active, config):
-        if remaining <= 0:
+    vehicles: dict[str, str] = {}
+    caps = {
+        name: _shelter_cap(a, config, name) / annual_pool * 100.0
+        for name in WRAPPER_ACCOUNTS
+    }
+
+    # Specjaliści: IKZE (ulga) i OIPE (jeśli kiedyś dopuści safe) na bezpieczne.
+    safe_left = safe_target
+    for name in ("ikze", "oipe"):
+        if safe_left <= 1e-6:
             break
-        cap = _shelter_cap(a, config, name)
-        take = min(remaining, cap) if cap else remaining
+        if name not in caps or caps[name] <= 1e-6:
+            continue
+        if "savings" not in _allowed_wrapper_vehicles(config, name):
+            continue
+        take = min(caps[name], safe_left)
         if take > 1e-6:
             amounts[name] = amounts.get(name, 0.0) + take
-            remaining -= take
+            vehicles[name] = "savings"
+            safe_left -= take
 
-    if remaining > 1e-6:
-        mix = STRATEGY_MIX.get(strat_key, {})
-        if mix and remaining >= MIX_MIN_ANNUAL:
-            for name, pct in mix.items():
-                share = remaining * pct / 100.0
-                if share > 1e-6:
-                    amounts[name] = amounts.get(name, 0.0) + share
-        else:
-            first = next(iter(mix), "broker")
-            amounts[first] = amounts.get(first, 0.0) + remaining
+    # Specjaliści rynkowi: OIPE (funduszowe) przed taxable; IKZE zwykle safe.
+    market_left = market_target
 
-    if not amounts:
-        return {}
-    out = {n: round(share / annual_pool * 100.0, 2) for n, share in amounts.items()}
+    # IKE jest buforem. Najpierw decydujemy, czy dostaje safe, czy market —
+    # dopiero potem wypełniamy OIPE, żeby OIPE nie było preferowane nad IKE
+    # tylko dlatego, że zostało wypełnione wcześniej.
+    if "ike" in caps and caps["ike"] > 1e-6 and "ike" not in vehicles:
+        allowed = _allowed_wrapper_vehicles(config, "ike")
+        safe_vehicle = "savings" if "savings" in allowed else None
+        market_vehicle = (
+            "broker" if "broker" in allowed else ("fund" if "fund" in allowed else None)
+        )
+        choose_market = False
+        if safe_vehicle is None:
+            choose_market = True
+        elif market_vehicle is not None:
+            if safe_left <= 1e-6:
+                choose_market = True
+            elif safe_left < SMALL_SAFE_SHARE and market_left > safe_left:
+                choose_market = True
+        if choose_market and market_vehicle is not None:
+            take = min(caps["ike"], market_left)
+            if take > 1e-6:
+                amounts["ike"] = amounts.get("ike", 0.0) + take
+                vehicles["ike"] = market_vehicle
+                market_left -= take
+        elif safe_vehicle is not None:
+            take = min(caps["ike"], safe_left)
+            if take > 1e-6:
+                amounts["ike"] = amounts.get("ike", 0.0) + take
+                vehicles["ike"] = safe_vehicle
+                safe_left -= take
+
+    # OIPE (domyślnie funduszowe) dopiero po IKE. IKZE jest zwykle zajęte
+    # przez safe; jeśli nie, może dostać resztę rynku.
+    for name in ("oipe", "ikze"):
+        if market_left <= 1e-6:
+            break
+        if name in vehicles or name not in caps or caps[name] <= 1e-6:
+            continue
+        allowed = _allowed_wrapper_vehicles(config, name)
+        market_vehicle = (
+            "broker" if "broker" in allowed else ("fund" if "fund" in allowed else None)
+        )
+        if market_vehicle is None:
+            continue
+        take = min(caps[name], market_left)
+        if take > 1e-6:
+            amounts[name] = amounts.get(name, 0.0) + take
+            vehicles[name] = market_vehicle
+            market_left -= take
+
+    if high_target > 1e-6:
+        amounts["krypto"] = amounts.get("krypto", 0.0) + high_target
+    if market_left > 1e-6:
+        _add_taxable_market(amounts, market_left, annual_pool, profile)
+    if safe_left > 1e-6:
+        _add_taxable_safe(amounts, safe_left, annual_pool)
+
+    total = sum(amounts.values())
+    if total <= 0:
+        return {}, {}
+    out = {name: round(value, 2) for name, value in amounts.items() if value > 1e-6}
     drift = 100.0 - sum(out.values())
     if abs(drift) > 1e-6 and out:
         biggest = max(out, key=out.__getitem__)
         out[biggest] = round(out[biggest] + drift, 2)
-    return out
+    return out, vehicles
+
+
+def suggest_allocations(a: WizardAnswers, config, annual_pool: float) -> dict[str, float]:
+    """Backward-compatible wrapper: tylko udziały, bez rodzajów inwestycji."""
+    allocations, _vehicles = suggest_allocation_plan(a, config, annual_pool)
+    return allocations
 
 
 def _investment_used(a: WizardAnswers, name: str) -> bool:
@@ -797,11 +1083,12 @@ def build_stages(a: WizardAnswers) -> SimulationInput:
     config = _config_for_answers(a)
     gross = max(0.0, a.gross_monthly)
     employed = a.employment in ("etat", "b2b") and gross > 0
-    retirement = _retirement_age(a, config)
-    re = a.retire_early_age if a.retire_early_age is not None else retirement
+    statutory_retirement = _retirement_age(a, config)
+    re = a.retire_early_age if a.retire_early_age is not None else statutory_retirement
     re = max(re, a.age_now)
-    retirement = max(retirement, re)
-    plan_end = max(a.plan_end_age, retirement + 1)
+    zus_start = a.zus_start_age if a.zus_start_age is not None else statutory_retirement
+    zus_start = max(zus_start, statutory_retirement, re)
+    plan_end = max(a.plan_end_age, zus_start + 1)
     annual_pool = _savings_monthly(a) * 12.0
     alloc = _resolve_allocation(a, config, annual_pool)
     cash_present = (
@@ -1120,28 +1407,28 @@ def build_stages(a: WizardAnswers) -> SimulationInput:
                     },
                 )
             )
-        if re < retirement:
+        if re < zus_start:
             stages.append(
                 StageInput(
                     stage_type="realizacja",
                     name="Brydż do emerytury",
                     start_age=re,
-                    end_age=retirement,
+                    end_age=zus_start,
                     accounts={
                         k: v.model_copy(deep=True) for k, v in bridge_accounts.items()
                     },
                 )
             )
-        if retirement < plan_end:
+        if zus_start < plan_end:
             stages.append(
                 StageInput(
                     stage_type="realizacja",
                     name=(
                         "Dopłata do emerytury"
-                        if (re < retirement or barista_active)
+                        if (re < zus_start or barista_active)
                         else "Brydż do emerytury"
                     ),
-                    start_age=retirement,
+                    start_age=zus_start,
                     end_age=plan_end,
                     accounts={
                         k: v.model_copy(deep=True) for k, v in bridge_accounts.items()
@@ -1158,7 +1445,7 @@ def build_stages(a: WizardAnswers) -> SimulationInput:
             StageInput(
                 stage_type="realizacja",
                 name="Emerytura ZUS",
-                start_age=retirement,
+                start_age=zus_start,
                 end_age=zus_end,
                 accounts={
                     "zus": AccountConfig(
@@ -1502,6 +1789,65 @@ def _phase_metrics(
     return phases
 
 
+def _accumulation_phases(
+    data: SimulationInput, result: SimulationResult
+) -> list[AccumulationPhase]:
+    """Etapy akumulacji per konto — także dla kont, które później znikają."""
+    phases: list[AccumulationPhase] = []
+    years_by_age = {year.age: year for year in result.years}
+    first_accum_start = min(
+        (stage.start_age for stage in data.stages if stage.stage_type == "akumulacja"),
+        default=None,
+    )
+    for stage in sorted(data.stages, key=lambda item: (item.start_age, item.end_age)):
+        if stage.stage_type != "akumulacja":
+            continue
+        stage_years = max(0, stage.end_age - stage.start_age)
+        if stage_years <= 0:
+            continue
+        for name, cfg in stage.accounts.items():
+            base = base_account_key(name)
+            if base in ("zus", "zus:ofe"):
+                continue
+            funded = cfg.starting_balance > 0 or cfg.annual_contribution > 0
+            if base in ("ppk", "ppe"):
+                funded = funded or (
+                    cfg.monthly_base > 0
+                    or cfg.employee_pct > 0
+                    or cfg.employer_pct > 0
+                )
+            if not funded:
+                continue
+            monthly = _monthly_contribution(name, cfg, data.monthly_gross, data.config)
+            annual = monthly * MONTHS_PER_YEAR
+            total = annual * stage_years
+            if base == "ppk" and cfg.state_topups and stage.start_age == first_accum_start:
+                total += data.config.ppk.state_welcoming
+            start_year = years_by_age.get(stage.start_age - 1)
+            starting = (
+                start_year.ending_balances.get(name, 0.0)
+                if start_year is not None
+                else cfg.starting_balance
+            )
+            end_year = years_by_age.get(stage.end_age - 1)
+            ending = end_year.ending_balances.get(name, starting) if end_year else starting
+            phases.append(
+                AccumulationPhase(
+                    account=name,
+                    start_age=stage.start_age,
+                    end_age=stage.end_age,
+                    stage_name=stage.name or "",
+                    monthly_contribution=round(monthly, 2),
+                    annual_contribution=round(annual, 2),
+                    total_contributions=round(total, 2),
+                    starting_balance=round(starting, 2),
+                    ending_balance=round(ending, 2),
+                    growth=round(ending - starting - total, 2),
+                )
+            )
+    return phases
+
+
 def _account_phases(
     data: SimulationInput, result: SimulationResult
 ) -> list[AccountPhase]:
@@ -1709,6 +2055,59 @@ def _projection_chart(result: SimulationResult) -> ProjectionChart:
     )
 
 
+def _extend_chart_to_100(
+    data: SimulationInput,
+    target: float | None,
+    bequest: float,
+    projection: PlanProjection,
+    *,
+    max_age: int = 100,
+) -> PlanProjection:
+    """Dorysuj wykresy do 100 r.ż., nawet gdy horyzont planu jest krótszy.
+
+    Gantt już pokazuje ZUS do 100, bo etap ZUS wystaje poza horyzont. Wykresy
+    korzystają z lat symulacji, więc bez tej dogrywki kończyły się na horyzoncie.
+    Liczymy tylko ciąg dalszy (ZUS + pasywny wzrost portfela) i podmieniamy
+    wyłącznie ``chart`` — metryki planu nadal dotyczą horyzontu.
+    """
+    if data.max_age >= max_age:
+        return projection
+    chart_data = data.model_copy(deep=True)
+    chart_data.max_age = max_age
+
+    zus_stage = next(
+        (
+            si
+            for si in chart_data.stages
+            if si.stage_type == "realizacja" and "zus" in si.accounts
+        ),
+        None,
+    )
+    if zus_stage is not None:
+        zus_stage.end_age = max(zus_stage.end_age, max_age + 1)
+    if not any(si.start_age <= max_age < si.end_age for si in chart_data.stages):
+        start = min(data.max_age + 1, max_age)
+        chart_data.stages.append(
+            StageInput(
+                stage_type="realizacja",
+                name="",
+                start_age=start,
+                end_age=max_age + 1,
+                accounts={},
+            )
+        )
+
+    chart_target = target if target and target > 0 else projection.target_monthly
+    try:
+        _, chart_result = _evaluate_with_result(
+            chart_data, chart_target, bequest
+        )
+    except ValueError:
+        return projection
+    projection.chart = _projection_chart(chart_result)
+    return projection
+
+
 def _year_lifestyle_net_monthly(data: SimulationInput, year: YearResult) -> float:
     """Miesięczny budżet na życie w roku realizacji (uwzględnia Barista FIRE i kredyt)."""
     extra_income = 0.0
@@ -1733,7 +2132,10 @@ def _year_lifestyle_net_monthly(data: SimulationInput, year: YearResult) -> floa
 
 
 def _project(
-    data: SimulationInput, result: SimulationResult, target: float | None
+    data: SimulationInput,
+    result: SimulationResult,
+    target: float | None,
+    bequest: float = 0.0,
 ) -> PlanProjection:
     start, end = _realization_window(data)
     months = [
@@ -1753,8 +2155,30 @@ def _project(
         if m < floor:
             exhaust = age
             break
+    bequest_met = bequest <= 0 or result.final_wealth_net >= bequest - _tl(bequest)
+    early_return_age = next(
+        (
+            year.age
+            for year in result.years
+            if year.early_return_tax_by_account
+        ),
+        None,
+    )
+    capital_transfers: list[CapitalTransfer] = []
+    if early_return_age is not None and result.early_return_total > 0:
+        for to_account, amount in result.early_return_allocations.items():
+            if amount > 0.5:
+                capital_transfers.append(
+                    CapitalTransfer(
+                        age=early_return_age,
+                        from_account="ikze",
+                        to_account=to_account,
+                        amount=round(amount, 2),
+                        kind="early_ikze_return",
+                    )
+                )
     return PlanProjection(
-        met=target is None or exhaust is None,
+        met=(target is None or exhaust is None) and bequest_met,
         target_monthly=target,
         min_monthly=round(min_m, 2),
         mean_monthly=round(mean_m, 2),
@@ -1767,13 +2191,18 @@ def _project(
         ikze_refund_allocations=result.ikze_refund_allocations,
         early_return_total=round(result.early_return_total, 2),
         early_return_tax_total=round(result.early_return_tax_total, 2),
+        early_return_age=early_return_age,
         early_return_allocations=result.early_return_allocations,
         peak_wealth=round(result.peak_wealth, 2),
         exhaust_age=exhaust,
+        bequest_target=round(bequest, 2),
+        bequest_met=bequest_met,
         warnings=result.warnings,
         stage_metrics=_stage_metrics(data, result),
         phase_metrics=_phase_metrics(data, result),
         account_phases=_account_phases(data, result),
+        accumulation_phases=_accumulation_phases(data, result),
+        capital_transfers=capital_transfers,
         chart=_projection_chart(result),
     )
 
@@ -1796,7 +2225,7 @@ def _drawn_floor(data: SimulationInput, result: SimulationResult) -> float:
 
 
 def _net_to_gross(
-    data: SimulationInput, target: float
+    data: SimulationInput, target: float, max_iter: int = 25
 ) -> tuple[float, SimulationResult]:
     """Monthly gross draw whose minimum net take-home equals ``target``.
 
@@ -1810,7 +2239,7 @@ def _net_to_gross(
     G = target
     tol = _tl(target)
     res = simulate(data, G)
-    for _ in range(25):
+    for _ in range(max(1, max_iter)):
         net = _drawn_floor(data, res)
         if net <= 0:
             break
@@ -1824,36 +2253,78 @@ def _net_to_gross(
     return G, res
 
 
-def _evaluate(data: SimulationInput, target: float | None) -> PlanProjection:
+def _evaluate_with_result(
+    data: SimulationInput,
+    target: float | None,
+    bequest: float = 0.0,
+    grossup_iter: int = 25,
+) -> tuple[PlanProjection, SimulationResult]:
     if target is None or target <= 0:
-        return _project(data, simulate(data, target), target)
-    _G, res = _net_to_gross(data, target)
-    return _project(data, res, target)
+        res = simulate(data, target)
+    else:
+        _G, res = _net_to_gross(data, target, grossup_iter)
+    return _project(data, res, target, bequest), res
 
 
-def _solve_payout(data: SimulationInput) -> tuple[float, bool]:
-    """Highest constant monthly payout the portfolio sustains to the horizon.
+def _evaluate(
+    data: SimulationInput,
+    target: float | None,
+    bequest: float = 0.0,
+    grossup_iter: int = 25,
+) -> PlanProjection:
+    return _evaluate_with_result(data, target, bequest, grossup_iter)[0]
 
-    Returns (W, True) where W is the FIRE target for path 1: the maximum
-    fixed monthly withdrawal (net) such that no year's draw falls below W —
-    i.e. the portfolio never exhausts before ``plan_end``. Bisection over W:
-    monotone, a higher target exhausts sooner, so ``met`` decreases with W.
-    """
+
+def _solve_payout_unconstrained(
+    data: SimulationInput, bisection_iter: int = 24, grossup_iter: int = 25
+) -> tuple[float, bool]:
+    """Highest constant monthly payout without a bequest constraint."""
     start, end = _realization_window(data)
     if start >= end:
         return 0.0, True
 
     lo = 0.0
     hi = max(100.0, data.monthly_gross)
-    while _evaluate(data, hi).met and hi < 1e9:
+    while _evaluate(data, hi, grossup_iter=grossup_iter).met and hi < 1e9:
         hi *= 2.0
-    for _ in range(24):
+    for _ in range(max(1, bisection_iter)):
         mid = (lo + hi) / 2.0
-        if _evaluate(data, mid).met:
+        if _evaluate(data, mid, grossup_iter=grossup_iter).met:
             lo = mid
         else:
             hi = mid
     return lo, True
+
+
+def _solve_payout(
+    data: SimulationInput,
+    bequest: float = 0.0,
+    bisection_iter: int = 24,
+    grossup_iter: int = 25,
+) -> tuple[float, bool]:
+    """Highest constant monthly payout that also leaves ``bequest`` net.
+
+    Without a bequest this is the legacy max-min solver. With a positive
+    bequest we first find the unconstrained ceiling, then bisect below it —
+    a higher payout always lowers the ending estate, so ``met`` is monotone.
+    """
+    if bequest <= 0:
+        return _solve_payout_unconstrained(data, bisection_iter, grossup_iter)
+
+    hi, _ = _solve_payout_unconstrained(data, bisection_iter, grossup_iter)
+    # Target 0.01 (a hair above zero) keeps the engine in constant-target
+    # mode; a literal 0 falls back to PMT and would drain the portfolio.
+    if hi <= 0 or not _evaluate(data, 0.01, bequest, grossup_iter).met:
+        return 0.0, False
+
+    lo = 0.0
+    for _ in range(max(1, bisection_iter)):
+        mid = (lo + hi) / 2.0
+        if _evaluate(data, mid, bequest, grossup_iter).met:
+            lo = mid
+        else:
+            hi = mid
+    return (lo, True) if lo > 0 else (0.0, False)
 
 
 def _append_cash_warning(proj: PlanProjection, data: SimulationInput) -> PlanProjection:
@@ -1907,8 +2378,10 @@ def _solve_savings(a: WizardAnswers, target: float) -> tuple[float, bool]:
     tol = _tl(target)
 
     def meets(amount: float) -> bool:
-        projected = _evaluate(_vary_savings(a, amount), target).min_monthly
-        return projected >= target - tol
+        projected = _evaluate(
+            _vary_savings(a, amount), target, a.bequest_target
+        )
+        return projected.met
 
     if meets(0.0):
         return 0.0, True
@@ -1946,12 +2419,11 @@ def _solve_re(a: WizardAnswers, target: float) -> tuple[int | None, bool]:
     retirement = _retirement_age(a, default_config())
     low = a.age_now + 1
     high = max(retirement, low)
-    tol = _tl(target)
-    if _evaluate(_vary_re(a, high), target).min_monthly < target - tol:
+    if not _evaluate(_vary_re(a, high), target, a.bequest_target).met:
         return None, False
     while low < high:
         mid = (low + high) // 2
-        if _evaluate(_vary_re(a, mid), target).min_monthly >= target - tol:
+        if _evaluate(_vary_re(a, mid), target, a.bequest_target).met:
             high = mid
         else:
             low = mid + 1
@@ -2005,7 +2477,7 @@ def _policy_score(proj: PlanProjection) -> tuple[bool, float, float]:
 
 
 def _best_policy(
-    data: SimulationInput, target: float | None
+    data: SimulationInput, target: float | None, bequest: float = 0.0
 ) -> tuple[SimulationInput, PlanProjection]:
     """Porównuje warianty wypłat (kiedy zwrócić IKZE i wg jakiego ROI)."""
     best: tuple[tuple[bool, float, float], SimulationInput, PlanProjection] | None = None
@@ -2013,7 +2485,9 @@ def _best_policy(
         candidate = data.model_copy(
             update={"withdrawal_policy": policy}, deep=True
         )
-        proj = _append_cash_warning(_evaluate(candidate, target), candidate)
+        proj = _append_cash_warning(
+            _evaluate(candidate, target, bequest), candidate
+        )
         score = _policy_score(proj)
         if best is None or score > best[0]:
             best = (score, candidate, proj)
@@ -2026,14 +2500,27 @@ def _plan_single(
 ) -> tuple[SimulationInput, PlanProjection, PlanSolved]:
     if path == 1:
         data = build_stages(a)
-        payout, _ = _solve_payout(data)
-        _bake_realization_targets(data, payout)
-        data, proj = _best_policy(data, payout)
+        payout, feasible = _solve_payout(data, a.bequest_target)
+        # 0.01 keeps the engine in constant-target mode for an infeasible
+        # bequest; a literal 0 would fall back to PMT and drain the portfolio.
+        display_payout = payout if payout > 0 else 0.01
+        _bake_realization_targets(data, display_payout)
+        data, proj = _best_policy(data, display_payout, a.bequest_target)
         if data.withdrawal_policy != "defer_tier":
-            payout, _ = _solve_payout(data)
-            _bake_realization_targets(data, payout)
-            proj = _append_cash_warning(_evaluate(data, payout), data)
-        return data, proj, PlanSolved(feasible=True)
+            payout, feasible = _solve_payout(data, a.bequest_target)
+            display_payout = payout if payout > 0 else 0.01
+            _bake_realization_targets(data, display_payout)
+            proj = _append_cash_warning(
+                _evaluate(data, display_payout, a.bequest_target), data
+            )
+        note = ""
+        if not feasible:
+            note = (
+                "Nie da się jednocześnie utrzymać wypłaty i zostawić "
+                f"{a.bequest_target:,.0f} zł na koniec horyzontu. "
+                "Obniż spadek, wydłuż horyzont lub zwiększ oszczędności."
+            )
+        return data, proj, PlanSolved(feasible=feasible, note=note)
 
     if target is None or target <= 0:
         raise ValueError("target_monthly jest wymagany dla tej ścieżki.")
@@ -2042,7 +2529,7 @@ def _plan_single(
         amount, feasible = _solve_savings(a, target)
         data = _vary_savings(a, amount)
         _bake_realization_targets(data, target)
-        data, proj = _best_policy(data, target)
+        data, proj = _best_policy(data, target, a.bequest_target)
         net = _answers_net_monthly(a)
         pct = None
         if net is not None and net > 0:
@@ -2088,7 +2575,7 @@ def _plan_single(
         )
     data = _vary_re(a, re)
     _bake_realization_targets(data, target)
-    data, proj = _best_policy(data, target)
+    data, proj = _best_policy(data, target, a.bequest_target)
     return (
         data,
         proj,
@@ -2117,6 +2604,7 @@ def plan(
     target: float | None = None,
     *,
     scenarios: bool = True,
+    extend_chart: bool = True,
 ) -> WizardPlanResult:
     """Plan dla jednej ścieżki; ``scenarios=False`` pomija 3 scenariusze rynkowe.
 
@@ -2125,7 +2613,25 @@ def plan(
     to oszczędza dwa pełne przeliczenia solvera.
     """
     a = _normalize_salary(a)
+    plan_config = _config_for_answers(a)
+    used_wrappers = {
+        base_account_key(name)
+        for name, weight in a.allocations.items()
+        if weight > 0 and base_account_key(name) in WRAPPER_ACCOUNTS
+    }
+    used_wrappers |= {
+        wrapper for wrapper in WRAPPER_ACCOUNTS if a.capital.get(wrapper, 0.0) > 0
+    }
+    effective_vehicles = {
+        wrapper: vehicle
+        for wrapper in used_wrappers
+        if (vehicle := _wrapper_vehicle(a, wrapper, plan_config)) is not None
+    }
     main_input, main_proj, main_solved = _plan_single(path, a, target)
+    if extend_chart:
+        main_proj = _extend_chart_to_100(
+            main_input, target, a.bequest_target, main_proj
+        )
 
     scenarios_out: dict[str, ScenarioSummary] = {}
     scenario_inputs: dict[str, SimulationInput] = {}
@@ -2140,6 +2646,10 @@ def plan(
                 sa = a.model_copy(deep=True)
                 sa.assumptions = key  # type: ignore[assignment]
                 s_in, s_proj, s_solved = _plan_single(path, sa, target)
+                if extend_chart:
+                    s_proj = _extend_chart_to_100(
+                        s_in, target, sa.bequest_target, s_proj
+                    )
             scenario_inputs[key] = s_in
             scenario_projections[key] = s_proj
             scenario_solved[key] = s_solved
@@ -2154,6 +2664,7 @@ def plan(
                 final_wealth=s_proj.final_wealth,
                 final_wealth_net=s_proj.final_wealth_net,
                 peak_wealth=s_proj.peak_wealth,
+                total_withdrawn=s_proj.total_withdrawn,
                 withdrawal_policy=s_proj.withdrawal_policy,
             )
 
@@ -2163,6 +2674,8 @@ def plan(
         net_monthly=_answers_net_monthly(a),
         projection=main_proj,
         solved=main_solved,
+        wrapper_vehicles=effective_vehicles,
+        asset_mix=allocation_asset_mix(a, plan_config, a.allocations),
         scenarios=scenarios_out,
         scenario_inputs=scenario_inputs,
         scenario_projections=scenario_projections,
