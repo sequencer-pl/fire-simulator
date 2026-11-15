@@ -71,6 +71,17 @@ const WZ_ALLOCATABLE_ACCOUNTS = [
     "lokata",
     "krypto",
 ];
+const WZ_WRAPPER_ACCOUNTS = ["ike", "ikze", "oipe"];
+const WZ_VEHICLE_LABELS = {
+    broker: "Maklerskie",
+    fund: "Funduszowe",
+    savings: "Oszczędnościowe",
+};
+const WZ_VEHICLE_HINTS = {
+    broker: "Akcje/ETF, samodzielne decyzje, wyższe oczekiwane ROI.",
+    fund: "Fundusze lub portfel zarządzany, wyższe opłaty. OIPE jest dziś funduszowe.",
+    savings: "Lokaty, obligacje i fundusze obligacji — bezpieczna część portfela.",
+};
 
 const WZ_SALARY_IDS = new Set([
     "wzEtatSalary",
@@ -83,6 +94,7 @@ const WZ_SALARY_IDS = new Set([
     "wzPpkEmployerPct",
     "wzPpeEmployerPct",
 ]);
+
 const WZ_SALARY_NAMES = new Set([
     "wzEtatSalaryMode",
     "wzEtatPeriod",
@@ -93,80 +105,109 @@ const WZ_SALARY_NAMES = new Set([
     "wzB2bLumpRate",
     "wzB2bZusMode",
 ]);
-const WZ_PLAN_LOADER_TIPS = [
-    // Cierpliwość
-    "Cierpliwość to klucz do niezależności finansowej. Liczę Twój plan…",
-    "Dobre plany dojrzewają dłużej niż sekundę.",
-    "Procent składany lubi cierpliwych. Ten loader też.",
-    "Plan FIRE to maraton, nie sprint. Dlatego liczę go chwilę dłużej.",
-    "Nie chodzi o szybki zysk. Chodzi o to, żeby nie musieć się spieszyć.",
-    "Każdy rok cierpliwości to zwykle kilka lat spokoju później.",
-    "Czas w rynku bije timing rynku — nawet gdy czekasz na wynik symulacji.",
-    "Twoje pieniądze nie spieszą się z inwestowaniem. Ten loader też nie.",
-    "Cierpliwość jest jak procent składany: początkowo niewidoczna, potem robi całą robotę.",
-    "Im mniej pośpiechu w planie, tym więcej spokoju w realizacji.",
-    "Ten loader też ćwiczy cierpliwość. To feature, nie bug.",
-    "Nie chodzi o to, czy masz już wynik. Chodzi o to, czy wytrwasz w postanowieniach.",
-    "Spokojnie. Wolność finansowa i tak nie przyjdzie w kilka sekund.",
-    "Najlepsze decyzje finansowe rzadko mieszczą się w jednej sekundzie.",
-    "Nie ma trybu instant na niezależność. Jest dobra mapa i czas.",
-    "Procent składany nie potrzebuje idealnego momentu. Potrzebuje lat.",
 
-    // Oczekiwanie na wynik symulacji
+const WZ_PLAN_LOADER_TIPS = [
+    // Cierpliwość, czas i oczekiwanie
+
+    "Procent składany wynagradza cierpliwość. Loader na razie tylko ją testuje.",
+    "Plan FIRE to maraton, nie sprint. Szkoda tylko, że maraton nie ma opcji pominięcia pierwszych 30 kilometrów.",
+    "Nie chodzi o szybki zysk. Chodzi o to, żeby nie musieć się spieszyć.",
+    "Czas w rynku bije timing rynku. Przynajmniej w teorii, którą wyjątkowo łatwo zrozumieć na wykresie historycznym.",
+    "Cierpliwość jest jak procent składany: początkowo niewidoczna, potem robi całą robotę.",
+    "Spokojnie. Twoja wolność finansowa nie przyjdzie szybciej tylko dlatego, że patrzysz na pasek postępu.",
+    "Dobre decyzje finansowe potrzebują czasu. Na szczęście nie musisz podejmować ich wszystkich dzisiaj.",
+    "Nie ma trybu instant na niezależność finansową. Jest dobra mapa, konsekwencja i trochę szczęścia.",
+    "Każdy chce efektów procentu składanego. Mało kto ma cierpliwość, żeby uzbierać potrzebny mu kapitał.",
+    "Symulacja trwa sekundy. Oszczędzanie — lata.",
     "Za chwilę zobaczysz wynik symulacji, ale nie zobaczysz przyszłości.",
     "Za chwilę zobaczysz trzy scenariusze. Żaden nie jest przepowiednią.",
-    "Symulacja trwa sekundy. Oszczędzanie — lata. Ten podział jest sprawiedliwy.",
     "Ten symulator działa znacznie szybciej niż procent składany.",
     "Wynik — za chwilę. Konsekwencje — za dwadzieścia lat.",
-    "Plan będzie gotowy, zanim zdążysz zmienić strategię. To akurat dobrze.",
     "Ten pasek postępu nie ma nic wspólnego z postępem Twojego portfela.",
 
+    // Pieniądze i życie
+
+    "Pieniądze szczęścia nie dają. Ale ich brak potrafi bardzo skutecznie je odebrać.",
+    "Możesz mieć wszystko, czego chcesz. Problem w tym, że wtedy nie będziesz mieć pieniędzy.",
+    "Nie musisz być bogaty. Wystarczy, że nie będziesz musiał udawać, że lubisz poniedziałki.",
+    "Luksus to niekoniecznie drogi samochód. Czasem luksusem jest możliwość powiedzenia szefowi, co naprawdę o nim myślisz.",
+    "Nie odkładasz życia na później. Próbujesz kupić sobie możliwość decydowania o nim wcześniej.",
+    "Nie oszczędzasz po to, żeby umrzeć z największym portfelem. To byłaby dość kiepska strategia.",
+
     // Czas i rynek
+
     "Inwestowanie długoterminowe jest trudne głównie dlatego, że jest długoterminowe.",
-    "Każdy chce procentu składanego. Nikt nie chce czekać na jego efekty.",
-    "Największy zysk często nie pochodzi z trafionej spółki, tylko z tego, że nie sprzedałeś wszystkiego w panice.",
-    "Długi horyzont nie czyni złej strategii dobrą — daje tylko więcej czasu, żeby to zauważyć.",
-    "Nikt nie wie, kiedy rynek spadnie. Ci, którzy twierdzą inaczej, zwykle sprzedają szkolenia.",
     "Każdy potrafi czytać wykres w lewo.",
-    "„Tym razem jest inaczej” to najdroższe zdanie w inwestowaniu.",
+    "Długi horyzont nie naprawi złej strategii. Da Ci tylko więcej czasu na obserwowanie jej porażki.",
+    "Nikt nie wie, kiedy rynek spadnie. Ci, którzy twierdzą inaczej, zwykle sprzedają szkolenia.",
+    "Rynek nie wie, że istniejesz. I całe szczęście, bo nie musisz mu niczego udowadniać.",
+    "Kupowanie tanio i sprzedawanie drogo brzmi banalnie. Dlatego większość ludzi robi dokładnie odwrotnie.",
+    "Giełda jest jedynym miejscem, w którym ludzie uciekają ze sklepu, gdy przeceny są największe.",
+    "Nie musisz pokonać rynku. Wystarczy, że nie pokonasz sam siebie.",
+    "Trudno jest prognozować, szczególnie jeśli prognozy te dotyczą przyszłości.",
+    "Tym razem jest inaczej. Najdroższe zdanie w historii inwestowania.",
+    "Najlepszy moment na inwestowanie był wczoraj. Drugi najlepszy to wtedy, kiedy przestaniesz szukać najlepszego momentu.",
 
     // Ryzyko i niepewność
-    "Każdy plan opiera się na założeniach. Problem zaczyna się, gdy traktujesz je jak pewniki.",
-    "ROI z symulacji nie jest obietnicą. Jest hipotezą, dopóki rynek nie powie „sprawdzam”.",
+
+    "Każdy plan opiera się na założeniach. Przyszłość ma jednak irytujący zwyczaj, żeby ich nie przestrzegać.",
+    "ROI z symulacji nie jest obietnicą. Jest hipotezą, dopóki rynek nie powie: sprawdzam.",
     "Zmienność to nie usterka rynku, tylko koszt uczestnictwa w nim.",
-    "Ryzyko rynkowe możesz ograniczyć gotówką. Wtedy zamieniasz je na ryzyko inflacji.",
-    "Dywersyfikacja nie sprawia, że nie tracisz. Sprawia, że nie tracisz wszystkiego naraz.",
-    "Bezpieczna poduszka finansowa nie zwiększa zysku, ale zmniejsza liczbę głupich decyzji.",
+    "Dywersyfikacja nie eliminuje strat. Ogranicza ryzyko, że jedna zła decyzja pociągnie za sobą wszystko.",
+    "Poduszka finansowa nie pracuje na Twój zysk. Pracuje na to, żebyś nie musiał podejmować desperackich decyzji.",
     "Spadek o 50% wymaga wzrostu o 100%, żeby wrócić do punktu wyjścia.",
     "Historyczna stopa zwrotu mówi, co się wydarzyło, a nie co się stanie.",
     "Jeśli nie znasz swojego horyzontu, każdy spadek wygląda jak katastrofa.",
+    "Jeśli Twój plan zakłada ROI 15% rocznie, to może zamiast symulować FIRE, zasymuluj jednorożca.",
+    "Jeśli plan działa wyłącznie przy optymistycznych założeniach, to nie jest plan. To życzenie z Excela.",
+    "Ryzyko rynkowe możesz ograniczyć, trzymając gotówkę. Wtedy zaczynasz martwić się inflacją. Ryzyko nie lubi bezrobocia.",
 
     // Podatki i polskie realia
-    "IKE i IKZE nie tworzą zysku. Zmniejszają podatek, który od niego zapłacisz.",
+
+    "IKE i IKZE nie są magicznymi maszynkami do zarabiania. Ich przewaga tkwi w podatkach.",
     "Inflacja nie zabiera Ci banknotów. Zabiera to, co możesz za nie kupić.",
+    "Podatki są pewne. Stopy zwrotu już niekoniecznie.",
 
     // Zachowanie i psychologia
+
     "Twój największy koszt inwestycyjny to nie prowizja. To decyzje pod wpływem emocji.",
     "Nie potrzebujesz perfekcyjnej strategii. Potrzebujesz takiej, której nie porzucisz po pierwszym spadku.",
     "Wybór strategii jest łatwy. Trudniej jest jej nie zmieniać co tydzień.",
     "Podnoszenie standardu życia wraz z pensją to inflacja, którą tworzysz sam.",
     "Oglądanie portfela codziennie nie zwiększa stopy zwrotu.",
     "Zmiana strategii po każdym spadku to też strategia, tylko kosztowna.",
+    "Czasem najlepszą decyzją inwestycyjną jest nie robić nic. Dla niektórych okazuje się to zadaniem ekstremalnie trudnym.",
+    "Człowiek potrafi racjonalizować niemal każdą decyzję. Szczególnie tę, którą już podjął.",
+    "Nie każda zachcianka jest problemem. Problem zaczyna się wtedy, gdy każdą zachciankę nazywasz potrzebą.",
+    "Najłatwiej wydaje się pieniądze, których nie widzimy. Dlatego karta kredytowa jest tak doskonałym wynalazkiem.",
+    "Nie jesteś Warrenem Buffettem. I prawdopodobnie nie musisz nim być, żeby osiągnąć swój cel.",
+    "Twój portfel nie potrzebuje emocjonalnego wsparcia. Potrzebuje, żebyś dał mu święty spokój.",
+    "Jeśli strategia wymaga codziennego sprawdzania, czy nadal działa, być może to nie strategia, tylko źródło stresu.",
 
-    // FIRE
+    // FIRE i niezależność finansowa
+
     "FIRE to nie moment, w którym przestajesz pracować. To moment, w którym przestajesz musieć pracować.",
     "Twoja stopa oszczędności jest ważniejsza niż stopa zwrotu z ostatniego miesiąca.",
     "Wiek FIRE to wynik oszczędności, nie odwagi.",
     "Im niższe wydatki, tym mniej kapitału potrzebujesz. Wydatki zmienisz szybciej niż stopę zwrotu.",
+    "Celem nie jest emerytura w wieku 40 lat. Celem jest możliwość niepracowania w wieku 40 lat. To spora różnica.",
+    "Wolność finansowa nie oznacza, że nie musisz nic robić. Oznacza, że nie musisz robić rzeczy, których nie chcesz.",
+    "Możesz pracować do siedemdziesiątki. To też jest strategia. Niekoniecznie dobra, ale matematycznie dopuszczalna.",
 
-    // Wpłaty vs procent składany
+    // Wpłaty a procent składany
+
     "Na początku oszczędzania liczą się wpłaty, nie stopa zwrotu. Dołożenie 1 000 zł do 1 000 zł podwaja kapitał.",
-    "Przy 1 000 000 zł kapitału nawet 2% odsetek daje więcej niż kolejne 1 000 zł odłożone z pensji.",
+    "Przy 1 000 000 zł kapitału nawet 2% zwrotu daje więcej niż kolejne 1 000 zł odłożone z pensji.",
     "Przy małym kapitale liczy się każda wpłata. Przy dużym — każdy ułamek procenta.",
-    "Na pierwszy milion w większości zapracują wpłaty. Na kolejne — procent składany.",
+    "Na pierwszy milion w portfelu FIRE w większości zapracują wpłaty. Na kolejne — procent składany.",
 
+    // Bezczelności i finansowe otrzeźwienie
+
+    "Możesz próbować pokonać inflację, rynek i podatki. Ale jeśli przegrasz z własnym budżetem, cała reszta nie ma znaczenia.",
+    "Możesz przejść na emeryturę w wieku 35 lat. Wystarczy, że odziedziczysz kilka milionów.",
+    "Nie każda osoba z drogim zegarkiem jest bogata. Niektóre po prostu mają drogi zegarek.",
+    "Rynek może pozostać nieracjonalny dłużej, niż Ty pozostaniesz wypłacalny.",
 ];
-
 
 let wzInitialized = false;
 let wzCurrentStep = "cel";
@@ -198,6 +239,7 @@ let wzFormVersion = 0;
 let wzAccountConfig = null;
 let wzAllocationMode = "auto";
 let wzManualAllocations = null;
+let wzManualVehicles = {};
 let wzLoaderTimer = null;
 let wzLoaderTipBag = [];
 let wzLoaderLastTip = "";
@@ -250,6 +292,106 @@ function wzAccountLabel(account, customName = "") {
 function wzAccountIcon(account) {
     if (typeof accountIconFor === "function") return accountIconFor(account);
     return "";
+}
+
+function wzWrapperVehiclesConfig() {
+    return wzAccountConfig?.wrapper_vehicles || {};
+}
+
+function wzAllowedVehicles(wrapper) {
+    const configured = wzAccountConfig?.wrapper_vehicle_options?.[wrapper];
+    if (Array.isArray(configured) && configured.length) return configured;
+    const keys = Object.keys(wzWrapperVehiclesConfig());
+    if (keys.length) return keys;
+    return wrapper === "oipe" ? ["fund"] : ["broker", "fund", "savings"];
+}
+
+function wzVehicleLabel(vehicle) {
+    return wzWrapperVehiclesConfig()?.[vehicle]?.label
+        || WZ_VEHICLE_LABELS[vehicle]
+        || vehicle;
+}
+
+function wzVehicleRoi(vehicle) {
+    const roi = Number(wzWrapperVehiclesConfig()?.[vehicle]?.default_roi);
+    return Number.isFinite(roi) ? roi : null;
+}
+
+function wzVehicleRisk(vehicle) {
+    return wzWrapperVehiclesConfig()?.[vehicle]?.risk_class || "market";
+}
+
+function wzDefaultVehicleFor(wrapper, profile = wzRiskProfile()) {
+    const allowed = wzAllowedVehicles(wrapper);
+    const preferences = profile === "spokojny"
+        ? ["savings", "fund", "broker"]
+        : ["broker", "fund", "savings"];
+    return preferences.find((vehicle) => allowed.includes(vehicle)) || allowed[0] || null;
+}
+
+function wzApplyVehiclesToCapitalRows() {
+    WZ_WRAPPER_ACCOUNTS.forEach((wrapper) => {
+        const input = wzWrapperCapitalRoiInput(wrapper);
+        if (!input || input.dataset.roiEdited === "true") return;
+        const roi = wzVehicleRoi(wzManualVehicleFor(wrapper));
+        if (roi != null) {
+            input.value = (roi * 100).toFixed(1);
+            input.dataset.defaultRoi = input.value;
+            wzSyncRoiReset(input);
+        }
+    });
+}
+
+function wzSeedManualVehicles() {
+    if (!Object.keys(wzManualVehicles).length) {
+        const suggested = wzSuggested?.wrapperVehicles || {};
+        const profile = wzRiskProfile();
+        WZ_WRAPPER_ACCOUNTS.forEach((wrapper) => {
+            const allowed = wzAllowedVehicles(wrapper);
+            const vehicle = suggested?.[wrapper];
+            const chosen = allowed.includes(vehicle) ? vehicle : wzDefaultVehicleFor(wrapper, profile);
+            if (chosen) wzManualVehicles[wrapper] = chosen;
+        });
+    }
+    wzApplyVehiclesToCapitalRows();
+}
+
+function wzManualVehicleFor(wrapper) {
+    const allowed = wzAllowedVehicles(wrapper);
+    const current = wzManualVehicles?.[wrapper];
+    if (allowed.includes(current)) return current;
+    return wzDefaultVehicleFor(wrapper) || allowed[0] || null;
+}
+
+function wzVehicleOptionsHtml(wrapper) {
+    const current = wzManualVehicleFor(wrapper);
+    return wzAllowedVehicles(wrapper).map((vehicle) => (
+        `<option value="${vehicle}" title="${escapeHtml(WZ_VEHICLE_HINTS[vehicle] || "")}" ${vehicle === current ? "selected" : ""}>${escapeHtml(wzVehicleLabel(vehicle))}</option>`
+    )).join("");
+}
+
+function wzWrapperCapitalRoiInput(wrapper) {
+    return document.querySelector(
+        `#wzSheltersList .wz-cap-row[data-account="${wrapper}"] .wz-cap-roi`
+    );
+}
+
+function wzWrapperRoiOverride(wrapper) {
+    const input = wzWrapperCapitalRoiInput(wrapper);
+    if (input?.dataset.roiEdited !== "true") return null;
+    const value = parseFloat(input.value);
+    return Number.isFinite(value) ? value / 100 : null;
+}
+
+function wzEffectiveWrapperRoi(wrapper) {
+    return wzWrapperRoiOverride(wrapper) ?? wzVehicleRoi(wzManualVehicleFor(wrapper));
+}
+
+function wzVehicleRoiNote(wrapper) {
+    const roi = wzEffectiveWrapperRoi(wrapper);
+    if (roi == null) return "";
+    const own = wzWrapperRoiOverride(wrapper) != null ? " (własne)" : "";
+    return `ROI ${(roi * 100).toFixed(1).replace(".", ",")}%/rok${own}`;
 }
 
 function wzSetValue(id, value) {
@@ -324,11 +466,32 @@ function wzFormatRoiInput(roi) {
 
 function wzSeedManualAllocations() {
     if (wzManualAllocations !== null) return;
-    const suggested = wzSuggested?.allocations || {};
-    const seeded = Object.fromEntries(
-        WZ_ALLOCATABLE_ACCOUNTS.map((account) => [account, Number(suggested[account]) || 0])
+    // Manual startuje od zera: cała pula jest w gotówce, dopóki użytkownik
+    // nie ustawi udziałów albo nie użyje kafla „Zacznij od propozycji”.
+    wzManualAllocations = Object.fromEntries(
+        WZ_ALLOCATABLE_ACCOUNTS.map((account) => [account, 0])
     );
-    wzManualAllocations = wzNormalizeManualShares(seeded, { exact: true });
+}
+
+function wzAssetMixForShares(shares) {
+    const mix = { safe: 0, market: 0, high: 0 };
+    Object.entries(shares || {}).forEach(([account, value]) => {
+        const weight = Number(value) || 0;
+        if (weight <= 0) return;
+        const base = wzBaseKey(account);
+        let risk = "safe";
+        if (WZ_WRAPPER_ACCOUNTS.includes(base)) {
+            risk = wzVehicleRisk(wzManualVehicleFor(base));
+        } else if (base === "krypto") {
+            risk = "high";
+        } else if (base === "broker" || base === "oki_inw") {
+            risk = "market";
+        }
+        mix[risk] = (mix[risk] || 0) + weight;
+    });
+    return Object.fromEntries(
+        Object.entries(mix).map(([key, value]) => [key, Math.round(value * 10) / 10])
+    );
 }
 
 function wzManualAllocationShares() {
@@ -343,6 +506,17 @@ function wzManualAllocationShares() {
 function wzCurrentAllocations() {
     if (wzAllocationMode === "manual") return wzManualAllocationShares();
     return wzSuggested?.allocations || {};
+}
+
+function wzCurrentVehicles() {
+    if (wzAllocationMode === "manual") {
+        return Object.fromEntries(
+            WZ_WRAPPER_ACCOUNTS
+                .map((wrapper) => [wrapper, wzManualVehicleFor(wrapper)])
+                .filter(([, vehicle]) => Boolean(vehicle))
+        );
+    }
+    return wzPlan?.wrapper_vehicles || wzSuggested?.wrapperVehicles || {};
 }
 
 function wzManualAllocationCap(account) {
@@ -490,6 +664,33 @@ function wzCanonicalJson(value) {
 
 // --- Drzewo kroków ----------------------------------------------------------
 
+const WZ_RISK_STRATEGY = {
+    spokojny: "konserwatywna",
+    zrownowazony: "zbilansowana",
+    dynamiczny: "agresywna",
+};
+const WZ_RISK_LABELS = {
+    spokojny: "Spokojny",
+    zrownowazony: "Zrównoważony",
+    dynamiczny: "Dynamiczny",
+};
+
+function wzRiskProfile() {
+    return wzRadio("wzRiskProfile", "zrownowazony");
+}
+
+function wzStrategyForRisk() {
+    return WZ_RISK_STRATEGY[wzRiskProfile()] || "zbilansowana";
+}
+
+function wzOptimizeMode() {
+    return wzRadio("wzOptimizeMode", "auto");
+}
+
+function wzIsAutoPlan() {
+    return wzCurrentPath() === 1 && wzOptimizeMode() === "auto";
+}
+
 function wzStepOrder() {
     const employment = wzEmployment();
     const paidStep = employment === "etat" ? ["etat"] : employment === "b2b" ? ["b2b"] : [];
@@ -504,6 +705,17 @@ function wzStepOrder() {
         "strategia",
         "wynik",
     ];
+}
+
+function wzPlanStepId() {
+    const order = wzStepOrder();
+    return order.length > 1 ? order[order.length - 2] : "wynik";
+}
+
+function wzQuestionForPath(path = wzCurrentPath()) {
+    if (path === 2) return "Ile muszę odkładać?";
+    if (path === 3) return "Kiedy mogę przejść na FIRE?";
+    return "Ile dostanę miesięcznie?";
 }
 
 function wzShowStep(stepId, focus = false) {
@@ -529,7 +741,17 @@ function wzShowStep(stepId, focus = false) {
     const back = wzEl("wzBackBtn");
     if (back) back.classList.toggle("hidden", index === 0);
 
-    if (id === "strategia") wzRefreshSuggestion();
+    if (id === "kapital" && wzAllocationMode === "manual") {
+        wzSeedManualVehicles();
+    }
+    if (id === "strategia") {
+        wzSyncModeUI();
+        if (!wzIsAutoPlan()) {
+            wzAllocationMode = "manual";
+            wzUpdateAllocationModeControl();
+            wzRefreshSuggestion();
+        }
+    }
     if (id === "wynik" && wzPlan) wzRenderResult(wzPlan);
 
     wzUpdateActions();
@@ -554,7 +776,8 @@ function wzUpdateActions() {
 
     let label = "Dalej";
     let planReady = false;
-    if (wzCurrentStep === "strategia") {
+    const planStep = wzPlanStepId();
+    if (wzCurrentStep === planStep) {
         label = "Wylicz plan";
     } else if (wzCurrentStep === "wynik") {
         planReady = Boolean(wzPlan);
@@ -585,7 +808,12 @@ function wzNext() {
 
     if (!wzValidateStep(wzCurrentStep)) return;
 
-    if (wzCurrentStep === "strategia") {
+    const planStep = wzPlanStepId();
+    if (wzCurrentStep === "strategia" && planStep !== "strategia") {
+        wzShowStep(planStep, true);
+        return;
+    }
+    if (wzCurrentStep === planStep) {
         const body = wzPlanBody();
         if (wzPlan && wzPlanSignature === wzCanonicalJson(body)) {
             wzShowStep("wynik", true);
@@ -616,6 +844,23 @@ function wzSyncPathUI() {
     wzEl("wzTargetPanel")?.classList.toggle("hidden", path === 1);
     wzEl("wzSavingsPanel")?.classList.toggle("hidden", path === 2);
     wzEl("wzReGroup")?.classList.toggle("hidden", path === 3);
+    wzSyncModeUI();
+}
+
+function wzSyncModeUI() {
+    const path = wzCurrentPath();
+    const auto = wzIsAutoPlan();
+    wzEl("wzPlanningModePanel")?.classList.toggle("hidden", path !== 1);
+    wzEl("wzAutoPlanningPanel")?.classList.toggle("hidden", !auto);
+    wzEl("wzManualPlanningPanel")?.classList.toggle("hidden", auto);
+    const title = wzEl("wzPlanningTitle");
+    const subtitle = wzEl("wzPlanningSubtitle");
+    if (title) title.textContent = path === 1 ? "Jak zaplanować wpłaty?" : "Podział wpłat";
+    if (subtitle) {
+        subtitle.textContent = path === 1
+            ? "Możesz sam ustawić podział i wiek ZUS albo oddać dobór asystentowi. W trybie automatycznym silnik działa w granicach profilu ryzyka."
+            : "Ustaw, jaka część miesięcznej puli trafia na poszczególne konta.";
+    }
 }
 
 function wzSyncOfeBox() {
@@ -1434,10 +1679,13 @@ function wzCollectAnswers({ withAllocations = true } = {}) {
             ? wzNum("wzSemiSavings", 0)
             : 0,
         retire_early_age: path === 3 ? null : wzInt("wzRe", 55),
-        retirement_age: wzInt("wzRetirement", 65),
+        retirement_age: wzIsAutoPlan() ? null : wzInt("wzRetirement", 65),
         plan_end_age: wzInt("wzPlanEnd", 85),
+        bequest_target: wzNum("wzBequest", 0),
+        optimization_objective: wzRadio("wzPriority", "payout"),
+        risk_profile: wzRiskProfile(),
         savings: path === 2 ? 0 : wzNum("wzSavings", 0),
-        strategy: wzRadio("wzStrategy", "zbilansowana"),
+        strategy: wzStrategyForRisk(),
         assumptions: "realne",
     };
 
@@ -1450,12 +1698,20 @@ function wzCollectAnswers({ withAllocations = true } = {}) {
 
     const config = wzAnonymousConfig();
     if (config) answers.base_config = config;
-    if (withAllocations && wzSuggested) {
+    if (withAllocations && wzSuggested && !wzIsAutoPlan()) {
         answers.allocations = Object.fromEntries(
             Object.entries(wzCurrentAllocations())
                 .filter(([, share]) => Number(share) > 0)
                 .map(([account, share]) => [account, Number(share)])
         );
+    }
+    if (!wzIsAutoPlan()) {
+        const vehicles = {};
+        WZ_WRAPPER_ACCOUNTS.forEach((wrapper) => {
+            const vehicle = wzManualVehicleFor(wrapper);
+            if (vehicle) vehicles[wrapper] = vehicle;
+        });
+        answers.wrapper_vehicles = vehicles;
     }
     return answers;
 }
@@ -1464,6 +1720,9 @@ function wzPlanBody() {
     const path = wzCurrentPath();
     const body = { path, answers: wzCollectAnswers() };
     if (path !== 1) body.target_monthly = wzNum("wzTarget", 0);
+    if (path === 1) {
+        body.optimize = wzIsAutoPlan();
+    }
     return body;
 }
 
@@ -1527,7 +1786,8 @@ function wzValidateStep(stepId) {
 
         const retirement = wzInt("wzRetirement", 65);
         const planEnd = wzInt("wzPlanEnd", 85);
-        if (planEnd <= retirement) {
+        const auto = wzIsAutoPlan();
+        if (!auto && planEnd <= retirement) {
             alert("Horyzont planu musi być późniejszy niż wiek rozpoczęcia emerytury ZUS.");
             return false;
         }
@@ -1538,7 +1798,7 @@ function wzValidateStep(stepId) {
                 alert(`Wiek FIRE musi być większy niż obecny wiek (${age}).`);
                 return false;
             }
-            if (retirement < re) {
+            if (!auto && retirement < re) {
                 alert("Wiek emerytury ZUS nie może być wcześniejszy niż wiek pełnego FIRE. Zwiększ wiek emerytury albo obniż wiek FIRE.");
                 return false;
             }
@@ -1570,6 +1830,7 @@ function wzValidateStep(stepId) {
     }
 
     if (stepId === "strategia") {
+        if (wzIsAutoPlan()) return true;
         if (!wzSuggested || wzSuggestLoading) {
             alert("Poczekaj na wyliczenie propozycji podziału oszczędności, a potem przejdź dalej.");
             return false;
@@ -1581,7 +1842,7 @@ function wzValidateStep(stepId) {
             return false;
         }
         if (total <= 0 && wzManualAllocationPoolMonthly() > 0) {
-            alert("Nie udało się zaproponować podziału oszczędności. Spróbuj ponownie.");
+            alert("Rozdziel wpłaty: użyj kafla „Zacznij od propozycji” albo ustaw udziały. Inaczej cała pula trafi do gotówki.");
             return false;
         }
     }
@@ -1590,6 +1851,53 @@ function wzValidateStep(stepId) {
 }
 
 // --- Propozycja podziału ----------------------------------------------------
+
+async function wzApplyProfileSeed(profile) {
+    const path = wzCurrentPath();
+    const answers = wzCollectAnswers({ withAllocations: false });
+    answers.strategy = WZ_RISK_STRATEGY[profile] || "zbilansowana";
+    answers.risk_profile = profile;
+    const body = { answers, path };
+    if (path !== 1) body.target_monthly = wzNum("wzTarget", 0);
+    const seq = ++wzSuggestSeq;
+    try {
+        const data = await wzPostJson(
+            "/api/wizard/suggest",
+            body,
+            "Nie udało się wypełnić podziału propozycją."
+        );
+        if (seq !== wzSuggestSeq) return;
+        wzSuggested = {
+            ...(wzSuggested || {}),
+            allocations: data.allocations,
+            wrapperVehicles: data.wrapper_vehicles || {},
+            assetMix: data.asset_mix || {},
+            pool_monthly: data.pool_monthly,
+        };
+        const seeded = Object.fromEntries(
+            WZ_ALLOCATABLE_ACCOUNTS.map((account) => [
+                account,
+                Number(data.allocations?.[account]) || 0,
+            ])
+        );
+        wzManualVehicles = {};
+        WZ_WRAPPER_ACCOUNTS.forEach((wrapper) => {
+            const allowed = wzAllowedVehicles(wrapper);
+            const vehicle = data.wrapper_vehicles?.[wrapper];
+            const chosen = allowed.includes(vehicle)
+                ? vehicle
+                : wzDefaultVehicleFor(wrapper, profile);
+            if (chosen) wzManualVehicles[wrapper] = chosen;
+        });
+        wzManualAllocations = wzNormalizeManualShares(seeded, { exact: true });
+        wzAllocationMode = "manual";
+        wzApplyVehiclesToCapitalRows();
+        wzSuggestSignature = wzCanonicalJson(body);
+        wzRenderManualAllocation();
+    } catch (err) {
+        alert(err?.message || "Nie udało się wypełnić podziału propozycją.");
+    }
+}
 
 function wzSuggestBody() {
     const path = wzCurrentPath();
@@ -1640,6 +1948,8 @@ function wzRefreshSuggestion() {
             wzSuggestLoading = false;
             wzSuggested = {
                 allocations: data.allocations || {},
+                wrapperVehicles: data.wrapper_vehicles || {},
+                assetMix: data.asset_mix || {},
                 pool_monthly: Number(data.pool_monthly) || 0,
                 strategyPreviews: data.strategy_previews || {},
                 strategyPriorities: data.strategy_priorities || {},
@@ -1795,45 +2105,11 @@ function wzManualAllocationMaxShare(account, poolAnnual) {
     return Math.max(0, Math.min(100, Math.ceil((share - 1e-9) * 10) / 10));
 }
 
-function wzRebalanceManualShares(movedAccount, shares) {
-    const units = Object.fromEntries(
-        WZ_ALLOCATABLE_ACCOUNTS.map((account) => [
-            account,
-            Math.max(0, Math.round((Number(shares[account]) || 0) * 10)),
-        ])
-    );
-    let excess = Object.values(units).reduce((sum, value) => sum + value, 0) - 1000;
-    if (excess <= 0) return shares;
-
-    const candidates = WZ_ALLOCATABLE_ACCOUNTS
-        .filter((account) => account !== movedAccount && units[account] > 0)
-        .sort((a, b) => {
-            const cappedA = wzManualAllocationCap(a) > 0 ? 1 : 0;
-            const cappedB = wzManualAllocationCap(b) > 0 ? 1 : 0;
-            if (cappedA !== cappedB) return cappedA - cappedB;
-            return units[b] - units[a];
-        });
-
-    for (const account of candidates) {
-        if (excess <= 0) break;
-        const take = Math.min(units[account], excess);
-        units[account] -= take;
-        excess -= take;
-    }
-
-    const next = Object.fromEntries(
-        WZ_ALLOCATABLE_ACCOUNTS.map((account) => [account, units[account] / 10])
-    );
-    WZ_ALLOCATABLE_ACCOUNTS.forEach((account) => {
-        wzSetManualShare(account, next[account]);
-    });
-    return next;
-}
-
 function wzRenderManualAllocation() {
     const box = wzEl("wzSuggestList");
     if (!box || !wzSuggested) return;
     wzSeedManualAllocations();
+    wzSeedManualVehicles();
     box.innerHTML = `
         <div class="wz-manual-alloc-grid" role="table" aria-label="Ręczny podział oszczędności">
             <div class="wz-manual-alloc-head" role="row">
@@ -1851,7 +2127,16 @@ function wzRenderManualAllocation() {
                 </div>
                 ${WZ_ALLOCATABLE_ACCOUNTS.map((account) => `
                     <div class="wz-manual-alloc-row" role="row" data-account="${account}">
-                        <span class="wz-manual-alloc-name" role="rowheader">${wzAccountIcon(account)}${escapeHtml(wzAccountLabel(account))}</span>
+                        <span class="wz-manual-alloc-name" role="rowheader">
+                            ${wzAccountIcon(account)}${escapeHtml(wzAccountLabel(account))}
+                            ${WZ_WRAPPER_ACCOUNTS.includes(account) ? `
+                                <span class="wz-manual-vehicle">
+                                    <select class="wz-vehicle-select" data-account="${account}" aria-label="Rodzaj inwestycji w ${escapeHtml(wzAccountLabel(account))}">
+                                        ${wzVehicleOptionsHtml(account)}
+                                    </select>
+                                    <span class="wz-vehicle-roi">${escapeHtml(wzVehicleRoiNote(account))}</span>
+                                </span>` : ""}
+                        </span>
                         <div class="wz-manual-share-field" role="cell">
                             <span class="wz-field-label wz-manual-share-mobile-label">Udział (%)</span>
                             ${numControlsHtml({
@@ -1881,7 +2166,6 @@ function wzUpdateManualAllocationAmounts() {
     if (wzAllocationMode !== "manual") return;
     if (!document.querySelector(".wz-manual-share")) return;
     let shares = wzManualAllocationShares();
-    shares = wzNormalizeManualShares(shares);
     wzManualAllocations = { ...shares };
     const pool = wzManualAllocationPoolMonthly();
     const poolAnnual = pool * 12;
@@ -1890,9 +2174,11 @@ function wzUpdateManualAllocationAmounts() {
         0
     );
 
+    const freeShare = Math.max(0, 100 - totalShare);
     const allocations = WZ_ALLOCATABLE_ACCOUNTS.map((account) => {
         const share = Math.max(0, Number(shares[account]) || 0);
-        const max = wzManualAllocationMaxShare(account, poolAnnual);
+        const accountCap = wzManualAllocationMaxShare(account, poolAnnual);
+        const max = Math.min(accountCap, share + freeShare);
         const input = wzManualShareInput(account);
         const range = wzManualShareRange(account);
         if (input) input.max = wzManualShareAttr(max);
@@ -1975,10 +2261,39 @@ function wzUpdateManualAllocationAmounts() {
             : "";
         sumBox.hidden = false;
         sumBox.classList.remove("hidden");
-        sumBox.innerHTML = `<span class="chip ${chipClass}">${complete && !cashPositive ? iconSvg("check") : ""}Suma udziałów: ${wzFormatAllocationShare(totalShare)}%${extra}</span>`;
+        const mix = wzAssetMixLabel(wzAssetMixForShares(shares));
+        sumBox.innerHTML = `<span class="chip ${chipClass}">${complete && !cashPositive ? iconSvg("check") : ""}Suma udziałów: ${wzFormatAllocationShare(totalShare)}%${extra}</span>${mix ? `<span class="chip">${escapeHtml(mix)}</span>` : ""}`;
     }
     const note = wzEl("wzTaxTipNote");
     if (note) note.textContent = "";
+}
+
+function wzOnVehicleChange(select) {
+    const wrapper = select?.dataset?.account;
+    if (!WZ_WRAPPER_ACCOUNTS.includes(wrapper)) return;
+    wzManualVehicles[wrapper] = select.value;
+    const capitalRoi = wzWrapperCapitalRoiInput(wrapper);
+    if (capitalRoi && capitalRoi.dataset.roiEdited !== "true") {
+        const roi = wzVehicleRoi(select.value);
+        if (roi != null) {
+            capitalRoi.value = (roi * 100).toFixed(1);
+            capitalRoi.dataset.defaultRoi = capitalRoi.value;
+            wzSyncRoiReset(capitalRoi);
+        }
+    }
+    const note = select.closest(".wz-manual-vehicle")?.querySelector(".wz-vehicle-roi");
+    if (note) note.textContent = wzVehicleRoiNote(wrapper);
+    wzTouch();
+    wzFormVersion += 1;
+    wzPlan = null;
+    wzPlanSignature = "";
+    wzPlanBodyCache = null;
+    wzScheduleStateSave();
+    if (wzCurrentPath() === 2) {
+        wzScheduleSuggestion();
+    } else {
+        wzUpdateManualAllocationAmounts();
+    }
 }
 
 function wzUpdateManualAllocationInput(target) {
@@ -1989,18 +2304,21 @@ function wzUpdateManualAllocationInput(target) {
         : (target?.matches?.(".wz-manual-share") ? target : null);
     if (input && range) input.value = range.value;
     if (input && account) {
-        const max = wzManualAllocationMaxShare(
+        const shares = wzManualAllocationShares();
+        const othersTotal = Object.entries(shares)
+            .filter(([key]) => key !== account)
+            .reduce((sum, [, value]) => sum + (Number(value) || 0), 0);
+        const free = Math.max(0, 100 - othersTotal);
+        const capShare = wzManualAllocationMaxShare(
             account,
             wzManualAllocationPoolMonthly() * 12
         );
+        const max = Math.min(capShare, free);
         const current = Math.max(0, Math.min(max, parseFloat(input.value) || 0));
         input.value = wzManualShareAttr(current);
         const pairedRange = wzManualShareRange(account);
         if (pairedRange) pairedRange.value = input.value;
-        wzManualAllocations = wzRebalanceManualShares(
-            account,
-            wzManualAllocationShares()
-        );
+        wzManualAllocations = { ...shares, [account]: current };
     } else {
         wzManualAllocations = wzManualAllocationShares();
     }
@@ -2192,10 +2510,13 @@ function wzRenderSuggestion() {
 
     box.innerHTML = entries.map(([account, pct]) => {
         const monthly = (pool * pct) / 100;
+        const base = wzBaseKey(account);
+        const vehicle = wzSuggested.wrapperVehicles?.[base];
+        const suffix = vehicle ? ` · ${wzVehicleLabel(vehicle)}` : "";
         return `
             <div class="wz-suggest-row">
                 <span class="wz-suggest-icon">${wzAccountIcon(account)}</span>
-                <span class="wz-suggest-name">${escapeHtml(wzAccountLabel(account))}</span>
+                <span class="wz-suggest-name">${escapeHtml(wzAccountLabel(account))}${escapeHtml(suffix)}</span>
                 <span class="wz-suggest-pct">${escapeHtml(wzFormatPercent(pct))}</span>
                 <span class="wz-suggest-amount">${fmtMoney(monthly)}<span class="wz-suggest-unit">/mies.</span></span>
             </div>`;
@@ -2265,7 +2586,8 @@ function wzUpdateLoaderText() {
 
 async function wzRunPlan() {
     if (wzPlanLoading) return;
-    if (!wzValidateStep("sabbatical") || !wzValidateStep("strategia")) return;
+    if (!wzValidateStep("sabbatical")) return;
+    if (!wzIsAutoPlan() && !wzValidateStep("strategia")) return;
 
     const body = wzPlanBody();
     const seq = ++wzPlanSeq;
@@ -2327,21 +2649,167 @@ function wzActiveScenarioData(data) {
     };
 }
 
+function wzInputHorizonAge(input) {
+    const maxAge = Number(input?.max_age);
+    return Number.isFinite(maxAge) ? maxAge + 1 : null;
+}
+
+function wzResetOptimizer() {
+    const box = wzEl("wzOptimizerResult");
+    if (box) box.innerHTML = "";
+    wzEl("wzOptimizerChip")?.classList.add("hidden");
+}
+
+function wzOptimizerMixLabel(candidate) {
+    const entries = Object.entries(candidate?.allocations || {})
+        .filter(([, value]) => Number(value) > 0.01)
+        .sort((a, b) => Number(b[1]) - Number(a[1]));
+    if (!entries.length) return "—";
+    const visible = entries.slice(0, 3).map(([account, value]) => {
+        const base = wzBaseKey(account);
+        const vehicle = candidate?.vehicles?.[base];
+        const suffix = vehicle ? ` (${wzVehicleLabel(vehicle).toLowerCase()})` : "";
+        return `${wzAccountLabel(account)}${suffix} ${Math.round(Number(value))}%`;
+    });
+    if (entries.length > 3) visible.push(`+${entries.length - 3}`);
+    return visible.join(" · ");
+}
+
+function wzAssetMixLabel(mix) {
+    if (!mix || !Object.keys(mix).length) return "";
+    const labels = { safe: "bezpieczne", market: "rynkowe", high: "krypto" };
+    return Object.entries(labels)
+        .filter(([key]) => Number(mix[key]) > 0.01)
+        .map(([key, label]) => `${label} ${Math.round(Number(mix[key]))}%`)
+        .join(" · ");
+}
+
+function wzRenderOptimizer(data) {
+    const box = wzEl("wzOptimizerResult");
+    const chip = wzEl("wzOptimizerChip");
+    if (!box) return;
+    box.innerHTML = "";
+    if (chip) chip.classList.add("hidden");
+    if (!data) return;
+
+    const fmt = (value) => (value == null || !Number.isFinite(Number(value))
+        ? "—"
+        : Math.round(Number(value)).toLocaleString("pl-PL"));
+    const rec = data.recommended;
+    const baseline = data.baseline;
+
+    if (!rec) {
+        const warning = (data.warnings || [])[0] || "Nie znaleziono wariantu spełniającego założenia.";
+        box.innerHTML = `<div class="banner banner-warn">${iconSvg("warning")}<div class="banner-body">${escapeHtml(warning)}</div></div>`;
+        return;
+    }
+
+    const sameAsBaseline = Boolean(baseline)
+        && rec.zus_start_age === baseline.zus_start_age
+        && Math.abs(rec.payout_monthly - baseline.payout_monthly) <= 1
+        && JSON.stringify(rec.vehicles || {}) === JSON.stringify(baseline.vehicles || {})
+        && Object.keys({ ...(rec.allocations || {}), ...(baseline.allocations || {}) })
+            .every((key) => Math.abs(
+                Number(rec.allocations?.[key] || 0) - Number(baseline.allocations?.[key] || 0)
+            ) < 0.5);
+    const totalObjective = data.objective === "total";
+    const delta = totalObjective
+        ? rec.total_withdrawn - (baseline?.total_withdrawn || 0)
+        : rec.payout_monthly - (baseline?.payout_monthly || 0);
+    if (chip) {
+        chip.textContent = (rec.is_baseline || sameAsBaseline)
+            ? "Bez zmian"
+            : delta > 1
+                ? (totalObjective ? `+${fmt(delta)} zł łącznie` : `+${fmt(delta)} zł/mies.`)
+                : "Rekomendacja";
+        chip.classList.remove("hidden");
+    }
+
+    const intro = (rec.is_baseline || sameAsBaseline)
+        ? "W sprawdzonych wariantach nie znaleźliśmy lepszego podziału niż bazowy."
+        : totalObjective
+            ? `Rekomendacja: ZUS od ${rec.zus_start_age} r.ż., ${wzOptimizerMixLabel(rec)} — ${fmt(rec.total_withdrawn)} zł łącznie (wypłata od ${fmt(rec.payout_monthly)} zł/mies.).`
+            : `Rekomendacja: ZUS od ${rec.zus_start_age} r.ż., ${wzOptimizerMixLabel(rec)} — ${fmt(rec.payout_monthly)} zł/mies. netto.`;
+    const bestTotalNote = data.best_total
+        ? `<p class="field-hint">Najwyższa suma wypłat: ZUS od ${data.best_total.zus_start_age} r.ż., ${wzOptimizerMixLabel(data.best_total)} — ${fmt(data.best_total.total_withdrawn)} zł łącznie (wypłata od ${fmt(data.best_total.payout_monthly)} zł/mies.).</p>`
+        : "";
+
+    let rowCandidates = (data.candidates || []).filter((candidate) => !candidate.is_baseline);
+    if (!rowCandidates.length) rowCandidates = [rec];
+    const rows = rowCandidates.map((candidate) => {
+        const isRec = !rec.is_baseline
+            && candidate.zus_start_age === rec.zus_start_age
+            && JSON.stringify(candidate.allocations || {}) === JSON.stringify(rec.allocations || {});
+        const badge = candidate.is_baseline
+            ? `<span class="chip">Bazowy</span>`
+            : isRec
+                ? `<span class="chip chip-primary">Rekomendacja</span>`
+                : "";
+        return `<tr class="${candidate.met ? "" : "is-muted"}">
+            <td>${candidate.zus_start_age}${badge ? ` ${badge}` : ""}</td>
+            <td>${wzOptimizerMixLabel(candidate)}</td>
+            <td class="tabular-nums">${fmt(candidate.payout_monthly)} zł</td>
+            <td class="tabular-nums">${fmt(candidate.mean_monthly)} zł</td>
+            <td class="tabular-nums">${fmt(candidate.total_withdrawn)} zł</td>
+            <td class="tabular-nums">${fmt(candidate.final_wealth_net)} zł</td>
+            <td>${candidate.break_even_age != null ? `~${Math.round(candidate.break_even_age)} lat` : "—"}</td>
+        </tr>`;
+    }).join("");
+
+    box.innerHTML = `
+        <p class="wz-optimizer-summary">${escapeHtml(intro)}</p>
+        <p class="field-hint">Profil ryzyka: ${escapeHtml(WZ_RISK_LABELS[data.risk_profile] || data.risk_profile || "—")}${(data.binding_limits || []).length ? ` · wiążące limity: ${escapeHtml(data.binding_limits.join(", "))}` : ""}</p>
+        ${wzAssetMixLabel(data.asset_mix) ? `<p class="field-hint">Mix nowych wpłat: ${escapeHtml(wzAssetMixLabel(data.asset_mix))}.</p>` : ""}
+        ${bestTotalNote}
+        <div class="table-wrap">
+            <table class="wz-optimizer-table">
+                <thead><tr>
+                    <th>Wiek ZUS</th>
+                    <th>Podział wpłat</th>
+                    <th>Wypłata</th>
+                    <th>Średnia</th>
+                    <th>Suma</th>
+                    <th>Na koniec</th>
+                    <th>Break-even</th>
+                </tr></thead>
+                <tbody>${rows}</tbody>
+            </table>
+        </div>
+        <p class="field-hint">Kwoty netto. „Suma” to wszystkie wypłaty w horyzoncie; „Na koniec” to majątek po podatku wyjścia. Break-even dotyczy opóźnienia ZUS względem Twojego wariantu. Pozostałe konta pozostają bez zmian.</p>
+        ${(data.warnings || []).map((warning) => `<p class="field-hint">${escapeHtml(warning)}</p>`).join("")}
+    `;
+}
+
 function wzRenderResult(data) {
     const result = wzEl("wzResult");
     if (!result || !data) return;
     result.classList.remove("hidden");
     wzEl("wzResultError")?.classList.add("hidden");
     const active = wzActiveScenarioData(data);
+    const optimization = data.optimization;
+    const optimizerCard = wzEl("wzOptimizer");
+    const showOptimizer = data.path === 1
+        && Boolean(optimization)
+        && wzSelectedScenario === "realne";
+    if (optimizerCard) optimizerCard.classList.toggle("hidden", !showOptimizer);
+    wzResetOptimizer();
+    if (showOptimizer) wzRenderOptimizer(optimization);
     wzRenderHero(data);
     wzRenderScenarios(data);
     wzRenderMetrics(data);
-    wzRenderWarnings(active.projection?.warnings || []);
+    const warnings = (active.projection?.warnings || []).filter(
+        (warning) => !(
+            active.projection?.early_return_total > 0
+            && warning.startsWith("IKZE:")
+            && warning.includes("wcześniejszy zwrot")
+        )
+    );
+    wzRenderWarnings(warnings);
     wzRenderTimeline(active.input, active.projection);
     wzRenderAccountFlows(active.input, active.projection);
     wzRenderCharts(active.input, active.projection);
     wzRenderWealthDetails(active.projection);
-    wzRenderFacts(active.projection);
+    wzRenderFacts(active.projection, data);
     wzRenderPolicy(active.projection);
 }
 
@@ -2352,19 +2820,32 @@ function wzRenderHero(data) {
     const path = data.path || wzCurrentPath();
     const { projection: proj, solved, input } = wzActiveScenarioData(data);
     const scenarioLabel = data.scenarios?.[wzSelectedScenario]?.label || "";
-    const kicker = `Twoja odpowiedź${scenarioLabel ? ` · ${scenarioLabel}` : ""}`;
+    const kicker = `${wzQuestionForPath(path)}${scenarioLabel ? ` · ${scenarioLabel}` : ""}`;
 
     box.classList.toggle("is-warn", !solved.feasible || !proj.met);
 
     if (path === 1) {
         const payout = proj.min_monthly || 0;
         const reAge = solved.retire_early_age ?? input?.retire_early_age ?? wzInt("wzRe", 55);
-        const endAge = input?.plan_end_age ?? wzInt("wzPlanEnd", 85);
+        const endAge = wzInputHorizonAge(input) ?? wzInt("wzPlanEnd", 85);
+        const totalObjective = data.optimization?.objective === "total";
         if (solved.feasible && proj.met && payout > 0) {
-            box.innerHTML = `
-                <div class="wz-hero-kicker">${escapeHtml(kicker)}</div>
-                <div class="wz-hero-headline">Możesz wypłacać ${fmt(payout)} zł/mies. netto</div>
-                <div class="wz-hero-desc">Od ${reAge}. do ${endAge}. roku życia portfel i ZUS zapewnią co najmniej <strong>${fmt(payout)} zł/mies.</strong> na rękę.</div>`;
+            if (totalObjective) {
+                const baseScenario = !data.scenarios?.[wzSelectedScenario]
+                    || wzSelectedScenario === "realne";
+                const sourceNote = baseScenario
+                    ? "Plan jest dobrany pod najwyższą sumę wypłat."
+                    : "Podział i wiek ZUS pochodzą z wariantu Realne; ten scenariusz zmienia tylko założenia rynkowe.";
+                box.innerHTML = `
+                    <div class="wz-hero-kicker">${escapeHtml(kicker)}</div>
+                    <div class="wz-hero-headline">Możesz wypłacać co najmniej ${fmt(payout)} zł/mies. netto</div>
+                    <div class="wz-hero-desc">Wariant pod najwyższą sumę: łącznie <strong>${fmt(proj.total_withdrawn)} zł</strong> do ${endAge}. roku życia, średnio ${fmt(proj.mean_monthly)} zł/mies. ${escapeHtml(sourceNote)}</div>`;
+            } else {
+                box.innerHTML = `
+                    <div class="wz-hero-kicker">${escapeHtml(kicker)}</div>
+                    <div class="wz-hero-headline">Możesz wypłacać ${fmt(payout)} zł/mies. netto</div>
+                    <div class="wz-hero-desc">Od ${reAge}. do ${endAge}. roku życia portfel i ZUS zapewnią co najmniej <strong>${fmt(payout)} zł/mies.</strong> na rękę.</div>`;
+            }
         } else {
             box.innerHTML = `
                 <div class="wz-hero-kicker">${escapeHtml(kicker)}</div>
@@ -2437,6 +2918,9 @@ function wzRenderScenarios(data) {
         let subText = `Szczyt majątku: ${fmt(scenario.peak_wealth)} zł`;
         if (path === 1) {
             mainText = `${fmt(scenario.payout_monthly)} zł/mies.`;
+            if (data.optimization?.objective === "total") {
+                subText = `Łącznie ${fmt(scenario.total_withdrawn)} zł · Szczyt: ${fmt(scenario.peak_wealth)} zł`;
+            }
         } else if (path === 2) {
             mainText = scenario.feasible ? `${fmt(scenario.savings_monthly)} zł/mies.` : "Nieosiągalne";
             if (scenario.savings_pct != null && scenario.feasible) {
@@ -2481,26 +2965,41 @@ function wzRenderMetrics(data) {
             .filter((phase) => phase.cashflow === "payout");
         const start = solved.retire_early_age
             ?? (payoutPhases.length ? Math.min(...payoutPhases.map((phase) => phase.start_age)) : null);
-        const end = input?.plan_end_age
+        const end = wzInputHorizonAge(input)
             ?? (payoutPhases.length ? Math.max(...payoutPhases.map((phase) => phase.end_age)) : null);
         html += metric(
-            "Wypłata netto",
+            "Najniższa wypłata miesięczna",
             fmt(projection.min_monthly),
             "Najniższa miesięczna wypłata netto w całym okresie. Po PIT, składce zdrowotnej i ewentualnym podatku jednorazowym IKZE.",
-            " zł/mies."
+            " zł"
         );
-        html += metric(
-            "Średnia wypłata",
-            fmt(projection.mean_monthly),
-            "Średnia miesięczna wypłata netto z lat, w których plan wypłaca pieniądze.",
-            " zł/mies."
-        );
-        html += metric(
-            "Okres wypłat",
-            start != null && end != null ? `${start}–${end}` : "—",
-            "Od wieku rozpoczęcia wypłat do końca horyzontu planu.",
-            start != null && end != null ? " lat" : ""
-        );
+        if (data.optimization?.objective === "total") {
+            html += metric(
+                "Suma wypłat",
+                fmt(projection.total_withdrawn),
+                "Łączna suma wypłat netto w całym horyzoncie planu.",
+                " zł"
+            );
+            html += metric(
+                "Średnia wypłata miesięczna",
+                fmt(projection.mean_monthly),
+                "Średnia miesięczna wypłata netto z lat, w których plan wypłaca pieniądze.",
+                " zł"
+            );
+        } else {
+            html += metric(
+                "Średnia wypłata miesięczna",
+                fmt(projection.mean_monthly),
+                "Średnia miesięczna wypłata netto z lat, w których plan wypłaca pieniądze.",
+                " zł"
+            );
+            html += metric(
+                "Okres wypłat",
+                start != null && end != null ? `${start}–${end}` : "—",
+                "Od wieku rozpoczęcia wypłat do końca horyzontu planu.",
+                start != null && end != null ? " lat" : ""
+            );
+        }
     } else if (path === 2) {
         html += metric(
             "Odkładaj miesięcznie",
@@ -2516,9 +3015,9 @@ function wzRenderMetrics(data) {
         );
         html += metric(
             "Horyzont",
-            input?.plan_end_age != null ? `do ${input.plan_end_age}` : "—",
+            wzInputHorizonAge(input) != null ? `do ${wzInputHorizonAge(input)}` : "—",
             "Wiek, do którego plan ma wystarczyć.",
-            input?.plan_end_age != null ? " r.ż." : ""
+            wzInputHorizonAge(input) != null ? " r.ż." : ""
         );
     } else {
         html += metric(
@@ -2535,9 +3034,9 @@ function wzRenderMetrics(data) {
         );
         html += metric(
             "Horyzont",
-            input?.plan_end_age != null ? `do ${input.plan_end_age}` : "—",
+            wzInputHorizonAge(input) != null ? `do ${wzInputHorizonAge(input)}` : "—",
             "Wiek, do którego plan ma wystarczyć.",
-            input?.plan_end_age != null ? " r.ż." : ""
+            wzInputHorizonAge(input) != null ? " r.ż." : ""
         );
     }
     box.innerHTML = html;
@@ -2571,11 +3070,23 @@ function wzRenderWealthDetails(projection) {
         </div>`).join("");
 }
 
-function wzRenderFacts(projection) {
+function wzRenderFacts(projection, plan = null) {
     const box = wzEl("wzFacts");
     if (!box) return;
     const fmt = (value) => Math.round(value || 0).toLocaleString("pl-PL");
     const facts = [];
+
+    const mixText = wzAssetMixLabel(plan?.asset_mix);
+    if (mixText) {
+        const vehicleParts = Object.entries(plan?.wrapper_vehicles || {})
+            .map(([wrapper, vehicle]) => `${wzAccountLabel(wrapper)}: ${wzVehicleLabel(vehicle)}`);
+        const tip = vehicleParts.length
+            ? `Rodzaje inwestycji — ${vehicleParts.join(", ")}.`
+            : "Rodzaje inwestycji wynikają z profilu i limitów.";
+        facts.push(
+            `<span class="chip wz-fact">Nowe wpłaty: ${escapeHtml(mixText)}${tipHtml(tip)}</span>`
+        );
+    }
 
     const earlyTotal = projection?.early_return_total || 0;
     if (earlyTotal > 0.5) {
@@ -2789,7 +3300,7 @@ function wzPhaseBadge(n) {
     return out;
 }
 
-function wzFlowsRange(input, phases, compact = false) {
+function wzFlowsRange(input, phases, compact = false, extraAges = []) {
     const ages = [];
     if (!compact) {
         (input?.stages || []).forEach((stage) => ages.push(stage.start_age, stage.end_age));
@@ -2798,6 +3309,7 @@ function wzFlowsRange(input, phases, compact = false) {
         });
     }
     phases.forEach((phase) => ages.push(phase.start_age, phase.last_age + 1));
+    extraAges.filter((age) => Number.isFinite(Number(age))).forEach((age) => ages.push(Number(age)));
     if (!ages.length) return { min: 0, max: 1 };
     const min = Math.min(...ages);
     const max = Math.max(...ages);
@@ -3071,24 +3583,110 @@ function wzTotalTipHtml(phase) {
     return wzGanttTipPanel(phase.name || "Razem", "Wypłaty łączne", rows);
 }
 
+function wzAccumulationPhaseTipHtml(phase, accountLabel) {
+    const rows = [
+        wzGanttTipRow("Wpłata miesięcznie", `${wzFmtZloty(phase.monthly_contribution)} zł`),
+        wzGanttTipRow(
+            "Okres",
+            `${phase.start_age}–${phase.end_age} r.ż.`,
+            wzFormatYears(Math.max(0, phase.end_age - phase.start_age))
+        ),
+        wzGanttTipRow("Wpłaty łącznie", `${wzFmtZloty(phase.total_contributions)} zł`),
+        wzGanttTipRow("Kapitał startowy", `${wzFmtZloty(phase.starting_balance)} zł`),
+        wzGanttTipRow(
+            `Kapitał na koniec (${phase.end_age - 1} r.ż.)`,
+            `${wzFmtZloty(phase.ending_balance)} zł`
+        ),
+        wzGanttTipRow("Wzrost", `${wzFmtZloty(phase.growth)} zł`),
+    ];
+    return wzGanttTipPanel(`${accountLabel} — akumulacja`, "Akumulacja", rows);
+}
+
+function wzTransferTipHtml(transfers, projection, accountLabel) {
+    const age = transfers[0]?.age;
+    const rows = transfers.map((transfer) => wzGanttTipRow(
+        `${accountLabel(transfer.from_account)} → ${accountLabel(transfer.to_account)}`,
+        `${wzFmtZloty(transfer.amount)} zł netto`
+    ));
+    if (projection?.early_return_tax_total > 0.5) {
+        rows.push(wzGanttTipRow(
+            "Podatek od wcześniejszego zwrotu IKZE",
+            `${wzFmtZloty(projection.early_return_tax_total)} zł`
+        ));
+    }
+    return wzGanttTipPanel(`Transfery — ${age} r.ż.`, "Przepływ kapitału", rows);
+}
+
+function wzRenderAccumulationTable(phases, accountLabel) {
+    if (!phases.length) return "";
+    const rows = phases.map((phase) => `
+        <tr>
+            <td data-label="Konto">${escapeHtml(accountLabel(phase.account))}</td>
+            <td data-label="Okres">${phase.start_age}–${phase.end_age} r.ż.</td>
+            <td data-label="Wpłata miesięcznie">${fmtMoney(phase.monthly_contribution)}/mies.</td>
+            <td data-label="Wpłaty łącznie">${fmtMoney(phase.total_contributions)}</td>
+            <td data-label="Wzrost">${fmtMoney(phase.growth)}</td>
+            <td data-label="Saldo końcowe">${fmtMoney(phase.ending_balance)}</td>
+        </tr>`).join("");
+    return `
+        <h5 class="wz-flows-subtitle">Akumulacja</h5>
+        <div class="wz-flows-table-wrap">
+            <table class="wz-flows-table">
+                <thead><tr><th>Konto</th><th>Okres</th><th>Wpłata miesięcznie</th><th>Wpłaty łącznie</th><th>Wzrost</th><th>Saldo końcowe</th></tr></thead>
+                <tbody>${rows}</tbody>
+            </table>
+        </div>`;
+}
+
+function wzRenderTransferTable(transfers, projection, accountLabel) {
+    if (!transfers.length) return "";
+    const rows = transfers.map((transfer) => `
+        <tr>
+            <td data-label="Wiek">${transfer.age} r.ż.</td>
+            <td data-label="Z konta">${escapeHtml(accountLabel(transfer.from_account))}</td>
+            <td data-label="Na konto">${escapeHtml(accountLabel(transfer.to_account))}</td>
+            <td data-label="Kwota netto">${fmtMoney(transfer.amount)}</td>
+        </tr>`).join("");
+    const taxNote = projection?.early_return_tax_total > 0.5
+        ? `<p class="field-hint">Podatek od wcześniejszego zwrotu IKZE: ${fmtMoney(projection.early_return_tax_total)} łącznie.</p>`
+        : "";
+    return `
+        <h5 class="wz-flows-subtitle">Transfery kapitału</h5>
+        <div class="wz-flows-table-wrap">
+            <table class="wz-flows-table">
+                <thead><tr><th>Wiek</th><th>Z konta</th><th>Na konto</th><th>Kwota netto</th></tr></thead>
+                <tbody>${rows}</tbody>
+            </table>
+        </div>
+        ${taxNote}`;
+}
+
 function wzRenderAccountFlows(input, projection) {
     const wrap = wzEl("wzAccountFlows");
     const gantt = wzEl("wzFlowsGantt");
     const flowsWrap = wzEl("wzFlowsWrap");
+    const tableDetails = wzEl("wzFlowsTableDetails");
     const phases = projection?.account_phases || [];
-    if (!wrap || !gantt || !phases.length) {
+    const accumulationPhases = projection?.accumulation_phases || [];
+    const transfers = projection?.capital_transfers || [];
+    if (!wrap || !gantt || (!phases.length && !accumulationPhases.length && !transfers.length)) {
         flowsWrap?.classList.add("hidden");
+        tableDetails?.classList.add("hidden");
         if (wrap) {
             wrap.innerHTML = "<p class=\"field-hint\">Brak szczegółowych danych o wypłatach z kont w tym planie.</p>";
         }
         return;
     }
     flowsWrap?.classList.remove("hidden");
+    tableDetails?.classList.remove("hidden");
 
     const compact = typeof window.matchMedia === "function"
         ? window.matchMedia("(max-width: 640px)").matches
         : false;
-    const range = wzFlowsRange(input, phases, compact);
+    const range = wzFlowsRange(input, phases, compact, [
+        ...accumulationPhases.flatMap((phase) => [phase.start_age, phase.end_age]),
+        ...transfers.map((transfer) => transfer.age),
+    ]);
     phases.forEach((phase, index) => {
         phase._flowIndex = index + 1;
         phase._flowLabel = wzPhaseBadge(index + 1);
@@ -3108,7 +3706,18 @@ function wzRenderAccountFlows(input, projection) {
         return tips.length - 1;
     };
 
-    const accounts = [...new Set(phases.map((phase) => phase.account))];
+    const baseAccounts = [...new Set(phases.map((phase) => phase.account))];
+    const allAccounts = new Set(baseAccounts);
+    accumulationPhases.forEach((phase) => allAccounts.add(phase.account));
+    transfers.forEach((transfer) => {
+        allAccounts.add(transfer.from_account);
+        allAccounts.add(transfer.to_account);
+    });
+    const extraAccounts = [...allAccounts].filter((account) => !baseAccounts.includes(account));
+    const zusIndex = baseAccounts.indexOf("zus");
+    const accounts = zusIndex >= 0
+        ? [...baseAccounts.slice(0, zusIndex), ...extraAccounts, ...baseAccounts.slice(zusIndex)]
+        : [...baseAccounts, ...extraAccounts];
     const step = range.max - range.min <= 20 ? 2 : 5;
     let ganttHtml = `<div class="wz-gantt-axis"><span class="wz-gantt-axis-label">Konto</span><div class="wz-gantt-axis-track">`;
     for (let age = Math.ceil(range.min / step) * step; age <= range.max; age += step) {
@@ -3118,18 +3727,36 @@ function wzRenderAccountFlows(input, projection) {
 
     accounts.forEach((account) => {
         const list = phases.filter((phase) => phase.account === account);
-        const starts = list.map((phase) => phase.accumulation_start_age).filter((value) => value != null);
-        const accumStart = starts.length ? Math.min(...starts) : null;
-        const firstStart = Math.min(...list.map((phase) => phase.start_age));
-        const firstPhase = list[0];
+        const accumList = accumulationPhases.filter((phase) => phase.account === account);
         let bars = "";
-        if (accumStart != null && firstStart > accumStart && accumStart >= range.min) {
-            const left = wzFlowPct(accumStart, range);
-            const width = wzFlowPct(firstStart, range) - left;
-            const tipIdx = addTip(wzAccumulationTipHtml(input, firstPhase, accountName(account)));
-            const accumEnd = firstPhase.accumulation_end_age ?? firstStart;
-            const tipLabel = `Akumulacja ${accumStart}–${accumEnd} r.ż. — szczegóły`;
-            bars += `<span class="wz-gantt-accum" style="left:${left.toFixed(2)}%;width:${width.toFixed(2)}%" data-tip-id="${tipIdx}" tabindex="0" aria-label="${escapeHtml(tipLabel)}"></span>`;
+        if (accumList.length) {
+            accumList.forEach((phase) => {
+                if (phase.end_age <= phase.start_age) return;
+                const left = wzFlowPct(phase.start_age, range);
+                const width = Math.max(
+                    0.8,
+                    wzFlowPct(phase.end_age, range) - left
+                );
+                const tipIdx = addTip(
+                    wzAccumulationPhaseTipHtml(phase, accountName(account))
+                );
+                const tipLabel = `Akumulacja ${phase.start_age}–${phase.end_age} r.ż., ${wzFmtZloty(phase.monthly_contribution)} zł/mies. — szczegóły`;
+                bars += `<span class="wz-gantt-accum" style="left:${left.toFixed(2)}%;width:${width.toFixed(2)}%" data-tip-id="${tipIdx}" tabindex="0" aria-label="${escapeHtml(tipLabel)}"></span>`;
+            });
+        } else if (list.length && account !== "zus") {
+            // Zgodność ze starymi zapisanymi planami bez accumulation_phases.
+            const starts = list.map((phase) => phase.accumulation_start_age).filter((value) => value != null);
+            const accumStart = starts.length ? Math.min(...starts) : null;
+            const firstStart = Math.min(...list.map((phase) => phase.start_age));
+            const firstPhase = list[0];
+            if (accumStart != null && firstStart > accumStart && accumStart >= range.min) {
+                const left = wzFlowPct(accumStart, range);
+                const width = wzFlowPct(firstStart, range) - left;
+                const tipIdx = addTip(wzAccumulationTipHtml(input, firstPhase, accountName(account)));
+                const accumEnd = firstPhase.accumulation_end_age ?? firstStart;
+                const tipLabel = `Akumulacja ${accumStart}–${accumEnd} r.ż. — szczegóły`;
+                bars += `<span class="wz-gantt-accum" style="left:${left.toFixed(2)}%;width:${width.toFixed(2)}%" data-tip-id="${tipIdx}" tabindex="0" aria-label="${escapeHtml(tipLabel)}"></span>`;
+            }
         }
         list.forEach((phase) => {
             const left = wzFlowPct(phase.start_age, range);
@@ -3147,6 +3774,28 @@ function wzRenderAccountFlows(input, projection) {
         });
         ganttHtml += `<div class="wz-gantt-row"><span class="wz-gantt-label">${wzAccountIcon(account)}<span>${escapeHtml(account === "zus" ? "ZUS" : accountName(account))}</span></span><div class="wz-gantt-track">${bars}</div></div>`;
     });
+
+    if (transfers.length) {
+        const byAge = new Map();
+        transfers.forEach((transfer) => {
+            if (!byAge.has(transfer.age)) byAge.set(transfer.age, []);
+            byAge.get(transfer.age).push(transfer);
+        });
+        let transferBars = "";
+        byAge.forEach((items, age) => {
+            const left = wzFlowPct(age, range);
+            const tipIdx = addTip(wzTransferTipHtml(items, projection, accountName));
+            const summary = items
+                .map((transfer) => `${accountName(transfer.from_account)} → ${accountName(transfer.to_account)}`)
+                .join(", ");
+            const sources = [...new Set(
+                items.map((transfer) => accountName(transfer.from_account))
+            )].join(", ");
+            const tipLabel = `Transfery ${age} r.ż.: ${summary} — szczegóły`;
+            transferBars += `<span class="wz-gantt-transfer" style="left:${left.toFixed(2)}%" data-tip-id="${tipIdx}" tabindex="0" aria-label="${escapeHtml(tipLabel)}">${escapeHtml(sources)} ${iconSvg("arrow")}</span>`;
+        });
+        ganttHtml += `<div class="wz-gantt-row wz-gantt-transfer-row"><span class="wz-gantt-label">${iconSvg("arrow")}<span>Transfery</span></span><div class="wz-gantt-track">${transferBars}</div></div>`;
+    }
 
     const payouts = (projection.phase_metrics || []).filter(
         (phase) => phase.cashflow === "payout" && phase.end_age > phase.start_age
@@ -3175,13 +3824,9 @@ function wzRenderAccountFlows(input, projection) {
             0
         );
         const portfolioNet = netSum(phases.filter((phase) => phase.account !== "zus"));
-        const zusNet = netSum(phases.filter((phase) => phase.account === "zus"));
         const lines = [];
         if (portfolioNet > 0.5) {
-            lines.push(`Z portfela prywatnego FIRE: ${wzFmtZloty(portfolioNet)} zł netto.`);
-        }
-        if (zusNet > 0.5) {
-            lines.push(`Z ZUS: ${wzFmtZloty(zusNet)} zł netto.`);
+            lines.push(`Łączna suma wypłat z portfela prywatnego FIRE: ${wzFmtZloty(portfolioNet)} zł netto.`);
         }
         totalNote.innerHTML = lines
             .map((line) => `<span class="wz-flows-total-line">${line}</span>`)
@@ -3189,8 +3834,9 @@ function wzRenderAccountFlows(input, projection) {
         totalNote.hidden = !lines.length;
     }
 
-    const rows = phases.map((phase) => {
+    const rows = phases.map((phase, index) => {
         const account = accountName(phase.account);
+        const phaseLabel = phase._flowLabel || wzPhaseBadge(index + 1);
         const period = `${phase.start_age}–${phase.last_age} r.ż. (${wzFormatYears(phase.years)})`;
         const health = Number(phase.total_health || 0);
         const pit = Number(phase.total_tax || 0);
@@ -3208,22 +3854,40 @@ function wzRenderAccountFlows(input, projection) {
         const tax = `<span class="wz-flow-tax-cell"><span class="wz-flow-tax-main">${wzFmtZloty(pit + health)} zł</span>${taxSub ? tipHtml(taxSub) : ""}</span>`;
         return `
             <tr>
+                <td data-label="Faza"><span class="wz-phase-badge">${escapeHtml(phaseLabel)}</span></td>
                 <td data-label="Konto">${escapeHtml(account)}</td>
                 <td data-label="Okres">${escapeHtml(period)}</td>
-                <td data-label="Średnio netto">${fmtMoney(phase.avg_monthly_net)} zł/mies.</td>
-                <td data-label="Łącznie netto">${fmtMoney(phase.total_net)} zł</td>
+                <td data-label="Średnio netto">${fmtMoney(phase.avg_monthly_net)}/mies.</td>
+                <td data-label="Łącznie netto">${fmtMoney(phase.total_net)}</td>
                 <td data-label="Podatki i składki">${tax}</td>
-                <td data-label="Saldo końcowe">${fmtMoney(phase.ending_balance)} zł</td>
+                <td data-label="Saldo końcowe">${fmtMoney(phase.ending_balance)}</td>
             </tr>`;
     }).join("");
 
-    wrap.innerHTML = `
+    const accumulationBox = wzEl("wzAccumulationFlows");
+    if (accumulationBox) {
+        accumulationBox.innerHTML = wzRenderAccumulationTable(
+            accumulationPhases,
+            accountName
+        );
+    }
+    const transferBox = wzEl("wzTransferFlows");
+    if (transferBox) {
+        transferBox.innerHTML = wzRenderTransferTable(
+            transfers,
+            projection,
+            accountName
+        );
+    }
+    wrap.innerHTML = phases.length
+        ? `<h5 class="wz-flows-subtitle">Wypłaty</h5>
         <div class="wz-flows-table-wrap">
             <table class="wz-flows-table">
-                <thead><tr><th>Konto</th><th>Okres</th><th>Średnio netto</th><th>Łącznie netto</th><th>Podatki i składki</th><th>Saldo końcowe</th></tr></thead>
+                <thead><tr><th>Faza</th><th>Konto</th><th>Okres</th><th>Średnio netto</th><th>Łącznie netto</th><th>Podatki i składki</th><th>Saldo końcowe</th></tr></thead>
                 <tbody>${rows}</tbody>
             </table>
-        </div>`;
+        </div>`
+        : "";
 }
 
 /* ── Wykresy wyniku: wypłaty i kapitał prywatny ─────────────────────────── */
@@ -3435,6 +4099,138 @@ function wzChartSummary(model) {
     return `Wykres kapitału prywatnego według kont, wiek ${first}–${last}. Kapitał szczytowy ${wzFmtZloty(peak)} zł. Użyj strzałek, aby czytać szczegóły.`;
 }
 
+let wzChartAnnotations = [];
+let wzActiveChartAnnotation = null;
+
+function wzChartAnnotationsFor(input, projection) {
+    const ages = (projection?.chart?.ages || []).map(Number);
+    if (!ages.length) return [];
+    const minAge = ages[0];
+    const maxAge = ages[ages.length - 1];
+    const stages = input?.stages || [];
+    const fireStage = stages.find(
+        (stage) => stage.stage_type === "realizacja"
+            && !("zus" in (stage.accounts || {}))
+    );
+    const zusStage = stages.find(
+        (stage) => stage.stage_type === "realizacja"
+            && Object.keys(stage.accounts || {}).length === 1
+            && stage.accounts.zus
+    ) || stages.find(
+        (stage) => stage.stage_type === "realizacja"
+            && "zus" in (stage.accounts || {})
+    );
+    const statutoryAge = WZ_RETIREMENT_DEFAULT[input?.gender]
+        || (input?.gender === "k" ? 60 : 65);
+    const horizonAge = wzInputHorizonAge(input);
+    const annotations = [];
+
+    const add = (kind, label, age, text) => {
+        const numeric = Number(age);
+        if (!Number.isFinite(numeric) || numeric < minAge || numeric > maxAge) return;
+        annotations.push({ id: `${kind}-${numeric}`, kind, label, age: numeric, text });
+    };
+
+    if (fireStage?.start_age != null) {
+        add(
+            "fire",
+            "FIRE",
+            fireStage.start_age,
+            `Wiek FIRE: ${fireStage.start_age} r.ż. Od tego roku portfel finansuje życie zamiast pensji.`
+        );
+    }
+    if (projection?.early_return_total > 0 && projection?.early_return_age != null) {
+        add(
+            "ikze",
+            "Zwrot IKZE",
+            projection.early_return_age,
+            `W wieku ${projection.early_return_age} r.ż. IKZE zostało zamknięte: ${fmtMoney(projection.early_return_total)} netto przeniesione do kont docelowych po podatku ${fmtMoney(projection.early_return_tax_total)}. Pionowa linia oznacza ten transfer.`
+        );
+    }
+    if (zusStage?.start_age != null) {
+        const zusText = zusStage.start_age !== statutoryAge
+            ? `Ustawowy wiek emerytalny: ${statutoryAge} lat. W tym planie ZUS startuje od ${zusStage.start_age} r.ż.`
+            : `Ustawowy wiek emerytalny: ${statutoryAge} lat.`;
+        add("zus", "ZUS", statutoryAge, zusText);
+    }
+    if (horizonAge != null) {
+        add(
+            "horizon",
+            "Horyzont",
+            horizonAge,
+            `Horyzont planu: ${horizonAge} r.ż. Metryki i podatek wyjścia liczą się do tego wieku; wykresy pokazują ZUS do 100 r.ż.`
+        );
+    }
+
+    const byAge = new Map();
+    annotations.forEach((annotation) => {
+        if (!byAge.has(annotation.age)) byAge.set(annotation.age, []);
+        byAge.get(annotation.age).push(annotation);
+    });
+    byAge.forEach((items) => {
+        items.forEach((annotation, index) => {
+            annotation.offset = (index - (items.length - 1) / 2) * 3;
+        });
+    });
+    return annotations;
+}
+
+function wzRenderChartAnnotations(annotations) {
+    wzChartAnnotations = annotations || [];
+    if (
+        wzActiveChartAnnotation
+        && !wzChartAnnotations.some((annotation) => annotation.id === wzActiveChartAnnotation)
+    ) {
+        wzActiveChartAnnotation = null;
+    }
+    const box = wzEl("wzChartAnnotations");
+    if (box) {
+        box.innerHTML = wzChartAnnotations.map((annotation) => `
+            <button type="button" class="wz-chart-annotation-chip is-${annotation.kind}"
+                    data-annotation="${annotation.id}"
+                    aria-expanded="${annotation.id === wzActiveChartAnnotation}">
+                <span>${escapeHtml(annotation.label)}</span>
+                <span class="wz-chart-annotation-age">${annotation.age}</span>
+            </button>`).join("");
+        box.classList.toggle("hidden", !wzChartAnnotations.length);
+    }
+    wzUpdateChartAnnotationState();
+}
+
+function wzUpdateChartAnnotationState() {
+    const active = wzChartAnnotations.find(
+        (annotation) => annotation.id === wzActiveChartAnnotation
+    );
+    const note = wzEl("wzChartAnnotationNote");
+    document.querySelectorAll("#wzChartAnnotations .wz-chart-annotation-chip").forEach((chip) => {
+        const isActive = chip.dataset.annotation === wzActiveChartAnnotation;
+        chip.classList.toggle("is-active", isActive);
+        chip.setAttribute("aria-expanded", String(isActive));
+    });
+    document.querySelectorAll(".wz-chart-annotation-line").forEach((line) => {
+        line.classList.toggle(
+            "is-visible",
+            line.dataset.annotationId === wzActiveChartAnnotation
+        );
+    });
+    if (note) {
+        if (active) {
+            note.textContent = active.text;
+            note.hidden = false;
+            note.classList.remove("hidden");
+        } else {
+            note.hidden = true;
+            note.classList.add("hidden");
+            note.textContent = "";
+        }
+    }
+}
+
+function wzSelectChartAnnotation(id) {
+    wzActiveChartAnnotation = wzActiveChartAnnotation === id ? null : id;
+    wzUpdateChartAnnotationState();
+}
+
 function wzChartIndexFromEvent(svg, event) {
     const geom = wzChartGeom[svg?.dataset.chart];
     if (!geom) return 0;
@@ -3578,6 +4374,13 @@ function wzChartTipScheduleHide() {
 function wzBindChartGlobalEvents() {
     if (wzChartBound) return;
     wzChartBound = true;
+    const legend = wzEl("wzChartAnnotations");
+    legend?.addEventListener("click", (event) => {
+        const chip = event.target.closest?.(".wz-chart-annotation-chip");
+        if (!chip) return;
+        event.preventDefault();
+        wzSelectChartAnnotation(chip.dataset.annotation);
+    });
     const tip = wzEl("wzChartTip");
     const close = wzEl("wzChartTipClose");
     if (tip) {
@@ -3655,6 +4458,14 @@ function wzRenderChartSvg(container, model) {
         svg += `<line class="wz-chart-grid" x1="${margin.left}" y1="${yPos.toFixed(2)}" x2="${margin.left + plotW}" y2="${yPos.toFixed(2)}"/>`;
         svg += `<text class="wz-chart-axis-text" x="${margin.left - 8}" y="${yPos.toFixed(2)}" text-anchor="end">${wzChartCompact(value)}</text>`;
     }
+
+    (model.annotations || []).forEach((annotation) => {
+        const index = model.ages.indexOf(Number(annotation.age));
+        if (index < 0) return;
+        const lineX = x(index) + (annotation.offset || 0);
+        const activeClass = annotation.id === wzActiveChartAnnotation ? " is-visible" : "";
+        svg += `<line class="wz-chart-annotation-line is-${annotation.kind}${activeClass}" data-annotation-id="${annotation.id}" x1="${lineX.toFixed(2)}" y1="${margin.top}" x2="${lineX.toFixed(2)}" y2="${margin.top + plotH}"/>`;
+    });
 
     const span = count > 1 ? model.ages[count - 1] - model.ages[0] : 1;
     let ageStep = span <= 12 ? 1 : span <= 24 ? 2 : 5;
@@ -3770,6 +4581,7 @@ function wzRenderCharts(input, projection) {
     const ages = Array.isArray(chart?.ages) ? chart.ages.map(Number) : [];
     if (!ages.length) {
         wrap.classList.add("hidden");
+        wzRenderChartAnnotations([]);
         wzChartData = null;
         wzChartTipHide(true);
         return;
@@ -3786,27 +4598,32 @@ function wzRenderCharts(input, projection) {
     );
     if (!withdrawalGroups.length && !capitalGroups.length) {
         wrap.classList.add("hidden");
+        wzRenderChartAnnotations([]);
         wzChartData = null;
         wzChartTipHide(true);
         return;
     }
 
     wrap.classList.remove("hidden");
+    const annotations = wzChartAnnotationsFor(input, projection);
     wzChartData = { input, projection };
     wzChartModels = {
         withdrawals: {
             kind: "withdrawals",
             ages,
+            annotations,
             groups: withdrawalGroups,
             totals: wzChartTotals(withdrawalGroups, ages.length),
         },
         capital: {
             kind: "capital",
             ages,
+            annotations,
             groups: capitalGroups,
             totals: wzChartTotals(capitalGroups, ages.length),
         },
     };
+    wzRenderChartAnnotations(annotations);
     wzChartTipHide(true);
 
     const withdrawalLegend = wzEl("wzWithdrawalsLegend");
@@ -3834,6 +4651,7 @@ function wzRenderCharts(input, projection) {
         }
     }
 
+    wzUpdateChartAnnotationState();
     wzBindChartGlobalEvents();
 }
 
@@ -3881,10 +4699,16 @@ function wzExportPlan() {
         meta: {
             path: wzCurrentPath(),
             target_monthly: wzCurrentPath() !== 1 ? wzNum("wzTarget", 0) : null,
-            strategy: wzRadio("wzStrategy", "zbilansowana"),
+            strategy: wzStrategyForRisk(),
+            risk_profile: wzRiskProfile(),
             allocation_mode: wzAllocationMode,
             allocations: wzCurrentAllocations(),
+            wrapper_vehicles: wzCurrentVehicles(),
             pool_monthly: Number(wzSuggested?.pool_monthly) || 0,
+            optimized: Boolean(wzPlan.optimization),
+            recommended_allocations: wzPlan.optimization?.recommended?.allocations || null,
+            recommended_wrapper_vehicles: wzPlan.optimization?.recommended?.vehicles || null,
+            recommended_zus_start_age: wzPlan.optimization?.recommended?.zus_start_age ?? null,
         },
         input: activeInput,
     };
@@ -3923,6 +4747,7 @@ function wzTouch() {
     wzPlan = null;
     wzPlanSignature = "";
     wzPlanBodyCache = null;
+    wzResetOptimizer();
     wzInvalidateSuggestion();
     wzUpdateSavingsHint();
     if (wzCurrentStep === "strategia") wzScheduleSuggestion();
@@ -3961,6 +4786,10 @@ function wzBindEvents() {
     wzEl("wzBackBtn")?.addEventListener("click", wzBack);
     wzEl("wzNextBtn")?.addEventListener("click", wzNext);
     wzEl("wzExportBtn")?.addEventListener("click", wzExportPlan);
+    wzEl("wzProfileSeeds")?.addEventListener("click", (event) => {
+        const button = event.target.closest("[data-profile-seed]");
+        if (button) wzApplyProfileSeed(button.dataset.profileSeed);
+    });
 
     wizard.addEventListener("input", (event) => {
         const target = event.target;
@@ -3994,7 +4823,14 @@ function wzBindEvents() {
             if (display) display.textContent = target.value.trim() || row.dataset.defaultName;
         }
         if (wzIsSalaryEvent(target)) wzScheduleSalaryPreview();
-        if (target.name === "wzPath") wzSyncPathUI();
+        if (target.name === "wzOptimizeMode") {
+            wzSyncModeUI();
+            wzShowStep(wzCurrentStep, false);
+        }
+        if (target.name === "wzPath") {
+            wzSyncPathUI();
+            wzShowStep(wzCurrentStep, false);
+        }
         if (target.name === "wzEmployment") {
             wzApplyDefaultSalary();
             wzUpdateSalaryLabels();
@@ -4068,6 +4904,10 @@ function wzBindEvents() {
             wzUpdateSalaryLabels();
             wzScheduleSalaryPreview();
         }
+        if (target.name === "wzOptimizeMode") {
+            wzSyncModeUI();
+            wzShowStep(wzCurrentStep, false);
+        }
         if (target.name === "wzEtatPeriod") {
             wzApplyEtatPeriod(true);
             wzScheduleSalaryPreview();
@@ -4075,6 +4915,7 @@ function wzBindEvents() {
         if (target.name === "wzPath") {
             wzSyncPathUI();
             wzSyncSemiBounds();
+            wzShowStep(wzCurrentStep, false);
         }
         if (target.name === "wzB2bTaxForm" || target.name === "wzB2bZusMode") {
             wzSyncB2bRows();
@@ -4099,6 +4940,11 @@ function wzBindEvents() {
             }
         }
         if (target.name === "wzFireStyle") wzSyncFireStyle();
+    });
+
+    wizard.addEventListener("change", (event) => {
+        const select = event.target.closest?.(".wz-vehicle-select");
+        if (select) wzOnVehicleChange(select);
     });
 
     wizard.addEventListener("keydown", (event) => {
@@ -4244,6 +5090,7 @@ function wzSaveState() {
         rows: wzCollectCapitalState(),
         allocationMode: wzAllocationMode,
         manualAllocations: wzManualAllocations,
+        manualVehicles: wzManualVehicles,
         suggested: wzSuggested,
         suggestSignature: wzSuggestSignature,
         selectedScenario: wzSelectedScenario,
@@ -4419,6 +5266,7 @@ function wzRestoreIfRequested() {
             wzApplyDefaultAccountRois();
             wzAllocationMode = state.allocationMode === "manual" ? "manual" : "auto";
             wzManualAllocations = state.manualAllocations || null;
+            wzManualVehicles = state.manualVehicles || {};
             wzSuggested = state.suggested || null;
             wzSuggestSignature = state.suggestSignature || "";
             wzSelectedScenario = state.selectedScenario || "realne";
@@ -4494,6 +5342,7 @@ function wzInit() {
         ["wzReRange", "wzRe"],
         ["wzRetirementRange", "wzRetirement"],
         ["wzPlanEndRange", "wzPlanEnd"],
+        ["wzBequestRange", "wzBequest"],
     ];
     ranges.forEach(([rangeId, inputId]) => wzSyncRange(rangeId, inputId));
 

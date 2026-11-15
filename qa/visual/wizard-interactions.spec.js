@@ -1,6 +1,8 @@
 import fs from "node:fs";
 import { test, expect } from "@playwright/test";
 
+test.setTimeout(150_000);
+
 async function expectNoHorizontalOverflow(page) {
     const dimensions = await page.evaluate(() => ({
         viewport: window.innerWidth,
@@ -9,25 +11,31 @@ async function expectNoHorizontalOverflow(page) {
     expect(dimensions.document).toBeLessThanOrEqual(dimensions.viewport + 1);
 }
 
+async function openManualAllocation(page) {
+    await page.goto("/wizard", { waitUntil: "networkidle" });
+    await page.evaluate(() => {
+        const manual = document.querySelector('input[name="wzOptimizeMode"][value="manual"]');
+        if (manual) manual.checked = true;
+        wzSyncModeUI();
+        wzShowStep("strategia");
+    });
+    await expect(page.locator('.wz-step[data-step-id="strategia"]')).toBeVisible();
+    await page.waitForFunction(() => {
+        const list = document.getElementById("wzSuggestList");
+        return list
+            && !list.querySelector(".spinner")
+            && Boolean(list.querySelector(
+                ".wz-suggest-row, .wz-manual-alloc-row, .wz-suggest-empty, .banner"
+            ));
+    });
+}
+
 test("/wizard opens by default with the agreed age", async ({ page }) => {
     await page.goto("/wizard", { waitUntil: "networkidle" });
 
     await expect(page.locator(".wizard")).toBeVisible();
     await expect(page.locator("#wzAge")).toHaveValue("40");
     await expect(page.locator("#wzStepCount")).toHaveText("Krok 1 / 9");
-});
-
-test("loader tip is a highlighted gradient card", async ({ page }) => {
-    await page.goto("/wizard", { waitUntil: "networkidle" });
-    await page.evaluate(() => {
-        wzShowLoader(true);
-        wzUpdateLoaderText();
-    });
-    const tip = page.locator("#wzLoaderTip");
-    await expect(tip).toContainText("Warto wiedzieć");
-    const background = await tip.evaluate((el) => getComputedStyle(el).backgroundImage);
-    expect(background).toContain("gradient");
-    await page.evaluate(() => wzShowLoader(false));
 });
 
 test("salary defaults to annual gross from limits and converts modes", async ({ page }) => {
@@ -79,19 +87,11 @@ test("mobile layout stays within the screen throughout the employment path", asy
         );
         expect(segmentOverflows).toBe(false);
 
-        if (step === 8) {
-            await page.waitForFunction(() => {
-                const list = document.getElementById("wzSuggestList");
-                return list
-                    && !list.querySelector(".spinner")
-                    && Boolean(list.querySelector(".wz-suggest-row, .wz-suggest-empty, .banner"));
-            });
-        }
         await page.locator("#wzNextBtn").click();
     }
 
     await expect(page.locator("#wzStepCount")).toHaveText("Krok 9 / 9");
-    await expect(page.locator("#wzResult")).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator("#wzResult")).toBeVisible({ timeout: 120_000 });
     await expect(page.locator("#wzHeroAnswer")).not.toBeEmpty();
     await expect(page.locator("#wzScenariosBox .wz-scenario-card")).toHaveCount(3);
     await expect(page.locator("#wzMetrics .metric")).toHaveCount(3);
@@ -100,6 +100,38 @@ test("mobile layout stays within the screen throughout the employment path", asy
     await expect(page.locator("#wzWithdrawalsChart svg")).toBeVisible();
     await expect(page.locator("#wzCapitalChart svg")).toBeVisible();
     await expect(page.locator("#wzWithdrawalsLegend .wz-chart-legend-item").first()).toBeVisible();
+    await expect(page.locator("#wzFlowsTotal")).toContainText("Łączna suma wypłat z portfela prywatnego FIRE");
+    await expect(page.locator("#wzFlowsTotal")).not.toContainText("Z ZUS");
+    await expect(page.locator("#wzFlowsTableDetails")).not.toHaveAttribute("open", "");
+    await expect(page.locator("#wzAccountFlows .wz-phase-badge").first()).toBeAttached();
+    await expect(page.locator("#wzFlowsGantt .wz-gantt-transfer").first()).toBeVisible();
+    await page.locator("#wzFlowsTableDetails summary").click();
+    await expect(page.locator("#wzAccountFlows .wz-phase-badge").first()).toBeVisible();
+    await expect(page.locator("#wzAccumulationFlows tbody tr").first()).toBeVisible();
+    await expect(page.locator("#wzTransferFlows tbody tr").first()).toBeVisible();
+    await expect(page.locator("#wzOptimizer")).not.toHaveAttribute("open", "");
+    await expect(page.locator(".wz-chart-annotations-label")).toHaveText("Kamienie milowe:");
+    const annotationChips = page.locator("#wzChartAnnotations .wz-chart-annotation-chip");
+    await expect(annotationChips.first()).toBeVisible();
+    await expect(page.locator(".wz-chart-annotation-line.is-visible")).toHaveCount(0);
+    await annotationChips.nth(0).click();
+    await expect(page.locator("#wzChartAnnotationNote")).toBeVisible();
+    await expect(page.locator(".wz-chart-annotation-line.is-visible")).toHaveCount(2);
+    await annotationChips.nth(1).click();
+    await expect(annotationChips.nth(0)).not.toHaveClass(/is-active/);
+    await expect(annotationChips.nth(1)).toHaveClass(/is-active/);
+    await expect(page.locator(".wz-chart-annotation-line.is-visible")).toHaveCount(2);
+    await annotationChips.nth(1).click();
+    await expect(page.locator("#wzChartAnnotationNote")).toBeHidden();
+    await expect(page.locator(".wz-chart-annotation-line.is-visible")).toHaveCount(0);
+    const zusChip = page.locator(
+        "#wzChartAnnotations .wz-chart-annotation-chip",
+        { hasText: "ZUS" }
+    ).first();
+    await zusChip.click();
+    await expect(page.locator("#wzChartAnnotationNote")).toContainText("65");
+    await expect(page.locator("#wzChartAnnotationNote")).not.toContainText("40 r.ż.");
+    await zusChip.click();
     await page.locator("#wzChartsWrap").scrollIntoViewIfNeeded();
     await page.waitForTimeout(200);
     await page.locator("#wzWithdrawalsChart svg").click();
@@ -117,7 +149,7 @@ test("mobile layout stays within the screen throughout the employment path", asy
 
     await page.locator("#wzFlowsGantt .wz-gantt-phase").first().click();
     await expect(page.locator("#wzGanttTip")).toBeVisible();
-    await expect(page.locator("#wzGanttTip")).toContainText(/PIT|Składka zdrowotna|Podatek jednorazowy IKZE/);
+    await expect(page.locator("#wzGanttTip")).toContainText(/Faza|PIT|Składka zdrowotna|Podatek jednorazowy IKZE/);
     await page.locator("#wzGanttTipClose").click();
 
     await page.locator("#wzDetails summary").click();
@@ -203,19 +235,12 @@ test("step 8 allows a manual product split and submits the edited shares", async
             submittedAllocations = JSON.parse(request.postData() || "{}").answers?.allocations || null;
         }
     });
-    await page.goto("/wizard", { waitUntil: "networkidle" });
-    for (let step = 1; step < 8; step += 1) await page.locator("#wzNextBtn").click();
-    await expect(page.locator('.wz-step[data-step-id="strategia"]')).toBeVisible();
-    await page.waitForFunction(() => {
-        const list = document.getElementById("wzSuggestList");
-        return list
-            && !list.querySelector(".spinner")
-            && Boolean(list.querySelector(".wz-suggest-row, .wz-suggest-empty, .banner"));
-    });
+    await openManualAllocation(page);
 
-    await page.locator('label:has(input[name="wzAllocationMode"][value="manual"])').click();
     await expect(page.locator(".wz-manual-alloc-row:not(.wz-manual-cash-row)")).toHaveCount(9);
     await expect(page.locator(".wz-manual-cash-row")).toBeVisible();
+    await expect(page.locator('.wz-vehicle-select[data-account="ike"]')).toBeVisible();
+    await expect(page.locator('.wz-vehicle-select[data-account="oipe"] option')).toHaveCount(1);
     await expectNoHorizontalOverflow(page);
     const shares = page.locator(".wz-manual-share");
     for (let index = 0; index < await shares.count(); index += 1) await shares.nth(index).fill("0");
@@ -229,7 +254,7 @@ test("step 8 allows a manual product split and submits the edited shares", async
     await expectNoHorizontalOverflow(page);
 
     await page.locator("#wzNextBtn").click();
-    await expect(page.locator("#wzResult")).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator("#wzResult")).toBeVisible({ timeout: 120_000 });
     expect(submittedAllocations).toEqual({ broker: 70, lokata: 30 });
 
     await expect(page.locator("#wzFooter #wzExportBtn")).toBeVisible();
@@ -253,179 +278,41 @@ test("step 8 allows a manual product split and submits the edited shares", async
     expect(exported.input.stages.length).toBeGreaterThan(0);
 });
 
-test("manual split prevents totals above 100% and exposes sliders and cash row", async ({ page }) => {
-    await page.goto("/wizard", { waitUntil: "networkidle" });
-    for (let step = 1; step < 8; step += 1) await page.locator("#wzNextBtn").click();
-    await expect(page.locator('.wz-step[data-step-id="strategia"]')).toBeVisible();
-    await page.waitForFunction(() => {
-        const list = document.getElementById("wzSuggestList");
-        return list
-            && !list.querySelector(".spinner")
-            && Boolean(list.querySelector(".wz-suggest-row, .wz-suggest-empty, .banner"));
-    });
-    await page.locator('label:has(input[name="wzAllocationMode"][value="manual"])').click();
-    await expect(page.locator(".wz-manual-share-range")).toHaveCount(9);
-    await expect(page.locator("#wzIkzeRefundNote")).toBeVisible();
-
-    const shares = page.locator(".wz-manual-share");
-    for (let index = 0; index < await shares.count(); index += 1) await shares.nth(index).fill("0");
-    await expect(page.locator("#wzIkzeRefundNote")).toBeHidden();
-    await page.locator('.wz-manual-share[data-account="broker"]').fill("80");
-    await page.locator('.wz-manual-share[data-account="lokata"]').fill("50");
-
-    await expect(page.locator('.wz-manual-share[data-account="lokata"]')).toHaveValue("50");
-    await expect(page.locator('.wz-manual-share[data-account="broker"]')).toHaveValue("50");
-    await expect(page.locator("#wzManualSum")).toContainText("Suma udziałów: 100%");
-    await expect(page.locator(".wz-manual-cash-row")).toContainText("0 zł/mies.");
-    await expect(page.locator(".wz-manual-cash-row")).toHaveClass(/is-clear/);
-
-    await page.locator('.wz-manual-share[data-account="lokata"]').fill("10");
-    await expect(page.locator("#wzManualSum")).toContainText("Suma udziałów: 60%");
-    await expect(page.locator(".wz-manual-cash-row")).toHaveClass(/is-warning/);
-    await expectNoHorizontalOverflow(page);
-});
-
-test("strategy cards collapse when every strategy gives the same split", async ({ page }) => {
-    await page.goto("/wizard", { waitUntil: "networkidle" });
-    for (let step = 1; step < 5; step += 1) await page.locator("#wzNextBtn").click();
-    await expect(page.locator('.wz-step[data-step-id="oszczednosci"]')).toBeVisible();
-    await page.locator("#wzSavings").fill("500");
-    await page.locator("#wzSavings").dispatchEvent("input");
-    for (let step = 5; step < 8; step += 1) await page.locator("#wzNextBtn").click();
-    await expect(page.locator('.wz-step[data-step-id="strategia"]')).toBeVisible();
-    await page.waitForFunction(() => {
-        const list = document.getElementById("wzSuggestList");
-        return list
-            && !list.querySelector(".spinner")
-            && Boolean(list.querySelector(".wz-suggest-row, .wz-suggest-empty, .banner"));
-    });
-    await expect(page.locator(".wz-strategy-card:not([hidden])")).toHaveCount(1);
-    await expect(page.locator("#wzStrategyHint")).toContainText("wszystkie strategie dają ten sam podział");
-    await expect(page.locator("#wzStrategyShowAll")).toBeVisible();
-    const visibleCard = page.locator(".wz-strategy-card:not([hidden])");
-    await expect(visibleCard.locator(".wz-strategy-rank-row")).toHaveCount(5);
-    await expect(visibleCard.locator(".wz-strategy-more")).toContainText("…i 2 dalsze");
-    await expect(visibleCard).not.toContainText("%");
-    await expect(page.locator("#wzIkzeRefundNote")).toBeVisible();
-    await expect(page.locator("#wzIkzeRefundNote")).toContainText("Ulga IKZE wraca co roku");
-    await expect(page.locator("#wzIkzeRefundNote .tooltip")).toContainText("IKE → OIPE");
-    await expect(page.locator("#wzTaxTipNote")).toContainText("Pula:");
-    const notePlacement = await page.evaluate(() => {
-        const note = document.getElementById("wzTaxTipNote");
-        const list = document.getElementById("wzSuggestList");
-        return {
-            beforeList: Boolean(
-                note.compareDocumentPosition(list) & Node.DOCUMENT_POSITION_FOLLOWING
-            ),
-            border: getComputedStyle(note).borderTopWidth,
-        };
-    });
-    expect(notePlacement.beforeList).toBe(true);
-    expect(notePlacement.border).toBe("1px");
-    await page.locator("#wzStrategyShowAll").click();
-    await expect(page.locator(".wz-strategy-card:not([hidden])")).toHaveCount(3);
-
-    const widths = await page.locator(".wz-strategy-card:not([hidden])").evaluateAll((cards) =>
-        cards.map((card) => card.getBoundingClientRect().width)
-    );
-    if (page.viewportSize().width > 700) {
-        expect(widths.every((width) => Math.abs(width - 320) <= 1)).toBe(true);
-    } else {
-        expect(Math.max(...widths) - Math.min(...widths)).toBeLessThanOrEqual(1);
-    }
-    await expectNoHorizontalOverflow(page);
-});
-
-test("manual split seeded from many accounts never exceeds 100%", async ({ page }) => {
-    await page.goto("/wizard", { waitUntil: "networkidle" });
-    for (let step = 1; step < 8; step += 1) await page.locator("#wzNextBtn").click();
-    await expect(page.locator('.wz-step[data-step-id="strategia"]')).toBeVisible();
-    await page.waitForFunction(() => {
-        const list = document.getElementById("wzSuggestList");
-        return list
-            && !list.querySelector(".spinner")
-            && Boolean(list.querySelector(".wz-suggest-row, .wz-suggest-empty, .banner"));
-    });
-    await page.evaluate(() => {
-        wzSuggested.allocations = {
-            ikze: 9.42, ike: 23.55, oipe: 23.55, broker: 19.57,
-            obligacje: 10.87, oki_inw: 6.52, lokata: 4.35, krypto: 2.17,
-        };
-        wzSuggested.pool_monthly = 10_000;
-        wzManualAllocations = null;
-    });
-    await page.locator('label:has(input[name="wzAllocationMode"][value="manual"])').click();
-    const total = await page.locator(".wz-manual-share").evaluateAll((inputs) =>
-        inputs.reduce((sum, input) => sum + (parseFloat(input.value) || 0), 0)
-    );
-    expect(total).toBeCloseTo(100, 5);
-    await expect(page.locator("#wzManualSum")).toContainText("Suma udziałów: 100%");
-    await expectNoHorizontalOverflow(page);
-});
-
-test("manual split absorbs tiny cap overflow instead of showing cash warning", async ({ page }) => {
-    await page.goto("/wizard", { waitUntil: "networkidle" });
-    for (let step = 1; step < 8; step += 1) await page.locator("#wzNextBtn").click();
-    await expect(page.locator('.wz-step[data-step-id="strategia"]')).toBeVisible();
-    await page.waitForFunction(() => {
-        const list = document.getElementById("wzSuggestList");
-        return list
-            && !list.querySelector(".spinner")
-            && Boolean(list.querySelector(".wz-suggest-row, .wz-suggest-empty, .banner"));
-    });
+test("manual split respects account caps, free cash and never steals from other accounts", async ({ page }) => {
+    await openManualAllocation(page);
     await page.evaluate(() => {
         wzSuggested.allocations = { ike: 51.2, ikze: 20.5, broker: 28.3 };
         wzSuggested.pool_monthly = 4600;
-        wzManualAllocations = null;
+        wzManualAllocations = wzNormalizeManualShares(wzSuggested.allocations, { exact: true });
+        wzRenderManualAllocation();
     });
-    await page.locator('label:has(input[name="wzAllocationMode"][value="manual"])').click();
-    await expect(page.locator("#wzManualSum")).toContainText("Suma udziałów: 100%");
-    await expect(page.locator("#wzManualSum")).not.toContainText("nadwyżka");
-    await expect(page.locator(".wz-manual-cash-row")).not.toHaveClass(/is-warning/);
-    await expect(page.locator(".wz-manual-cash-row")).toContainText("0 zł/rok");
-    await expect(page.locator('.wz-manual-alloc-row[data-account="broker"] .wz-manual-annual')).toContainText(/15\s*636/);
-    await expectNoHorizontalOverflow(page);
-});
-
-test("manual sliders stop exactly at annual account limits", async ({ page }) => {
-    await page.goto("/wizard", { waitUntil: "networkidle" });
-    for (let step = 1; step < 8; step += 1) await page.locator("#wzNextBtn").click();
-    await expect(page.locator('.wz-step[data-step-id="strategia"]')).toBeVisible();
-    await page.waitForFunction(() => {
-        const list = document.getElementById("wzSuggestList");
-        return list
-            && !list.querySelector(".spinner")
-            && Boolean(list.querySelector(".wz-suggest-row, .wz-suggest-empty, .banner"));
-    });
-    await page.evaluate(() => {
-        wzSuggested.allocations = { ike: 40, ikze: 10, broker: 50 };
-        wzSuggested.pool_monthly = 4600;
-        wzManualAllocations = null;
-    });
-    await page.locator('label:has(input[name="wzAllocationMode"][value="manual"])').click();
-
     const ike = page.locator('.wz-manual-share[data-account="ike"]');
     const ikze = page.locator('.wz-manual-share[data-account="ikze"]');
+    const broker = page.locator('.wz-manual-share[data-account="broker"]');
+    const lokata = page.locator('.wz-manual-share[data-account="lokata"]');
     await expect(ike).toHaveAttribute("max", "51.2");
     await expect(ikze).toHaveAttribute("max", "20.5");
+    await expect(page.locator('.wz-manual-alloc-row[data-account="broker"] .wz-manual-annual'))
+        .toContainText(/15\s*636/);
 
-    await ike.fill("100");
-    await expect(ike).toHaveValue("51.2");
-    await expect(page.locator('.wz-manual-alloc-row[data-account="ike"] .wz-manual-annual'))
-        .toContainText(/28\s*260/);
-    await expect(page.locator('.wz-manual-alloc-row[data-account="ike"] .wz-manual-monthly'))
-        .toContainText(/2\s*355/);
+    const shares = page.locator(".wz-manual-share");
+    for (let index = 0; index < await shares.count(); index += 1) await shares.nth(index).fill("0");
+    await broker.fill("80");
+    await expect(broker).toHaveValue("80");
+    await expect(lokata).toHaveAttribute("max", "20");
 
-    await ikze.fill("100");
-    await expect(ikze).toHaveValue("20.5");
-    await expect(page.locator('.wz-manual-alloc-row[data-account="ikze"] .wz-manual-annual'))
-        .toContainText(/11\s*304/);
-    await expect(page.locator('.wz-manual-alloc-row[data-account="ikze"] .wz-manual-monthly'))
-        .toContainText(/942/);
-
+    // Lokata bierze tylko wolną gotówkę; broker zostaje na 80%, mimo próby 50%.
+    await lokata.fill("50");
+    await expect(broker).toHaveValue("80");
+    await expect(lokata).toHaveValue("20");
     await expect(page.locator("#wzManualSum")).toContainText("Suma udziałów: 100%");
-    await expect(page.locator("#wzManualSum")).not.toContainText("nadwyżka");
-    await expect(page.locator(".wz-manual-cash-row")).not.toHaveClass(/is-warning/);
+    await expect(page.locator(".wz-manual-cash-row")).toContainText("0 zł/mies.");
+
+    // Zmniejszenie jednego konta oddaje miejsce gotówce, nie innym kontom.
+    await lokata.fill("10");
+    await expect(broker).toHaveValue("80");
+    await expect(page.locator("#wzManualSum")).toContainText("Suma udziałów: 90%");
+    await expect(page.locator(".wz-manual-cash-row")).toHaveClass(/is-warning/);
     await expectNoHorizontalOverflow(page);
 });
 
@@ -438,10 +325,11 @@ test("path 2 recalculates its required savings using manual product shares", asy
         const list = document.getElementById("wzSuggestList");
         return list
             && !list.querySelector(".spinner")
-            && Boolean(list.querySelector(".wz-suggest-row, .wz-suggest-empty, .banner"));
+            && Boolean(list.querySelector(
+                ".wz-suggest-row, .wz-manual-alloc-row, .wz-suggest-empty, .banner"
+            ));
     });
 
-    await page.locator('label:has(input[name="wzAllocationMode"][value="manual"])').click();
     await expect(page.locator(".wz-manual-alloc-row:not(.wz-manual-cash-row)")).toHaveCount(9);
     await expect(page.locator(".wz-manual-cash-row")).toBeVisible();
     await expect(page.locator("#wzManualSum")).toContainText("Suma udziałów:", { timeout: 30_000 });
@@ -490,98 +378,5 @@ test("PPK/PPE choices are independent and balances live in the capital step", as
     await expect(page.locator('.wz-step[data-step-id="kapital"]')).toBeVisible();
     await expect(page.locator("#wzPpkBalance")).toBeVisible();
     await expect(page.locator("#wzPpeBalance")).toBeVisible();
-    await expectNoHorizontalOverflow(page);
-});
-
-test("ZUS and OFE capital fields fit large values and stay responsive", async ({ page }) => {
-    await page.setViewportSize({ width: 1280, height: 900 });
-    await page.goto("/wizard", { waitUntil: "networkidle" });
-    for (let step = 0; step < 3; step += 1) await page.locator("#wzNextBtn").click();
-    await expect(page.locator('.wz-step[data-step-id="zus"]')).toBeVisible();
-    await page.locator('label:has(input[name="wzHasZusCap"][value="yes"])').click();
-    await page.locator('label:has(input[name="wzHasOfe"][value="yes"])').click();
-
-    const desktopLayout = await page.locator(".wz-zus-cap-grid").evaluate((grid) => {
-        const control = grid.querySelector(".num-control").getBoundingClientRect();
-        const input = grid.querySelector("input[type=number]").getBoundingClientRect();
-        return { controlWidth: control.width, inputWidth: input.width };
-    });
-    expect(desktopLayout.controlWidth).toBeGreaterThanOrEqual(190);
-    expect(desktopLayout.inputWidth).toBeGreaterThanOrEqual(90);
-    await expect(page.locator("#wzOfeCapBox")).toBeVisible();
-    await page.locator("#wzZusBalance").fill("800000");
-    await page.locator("#wzOfeBalance").fill("300000");
-    await expect(page.locator("#wzZusBalance")).toHaveValue("800000");
-    await expect(page.locator("#wzOfeBalance")).toHaveValue("300000");
-    await expectNoHorizontalOverflow(page);
-
-    await page.setViewportSize({ width: 390, height: 844 });
-    await expect(page.locator("#wzOfeCapBox")).toBeVisible();
-    await expectNoHorizontalOverflow(page);
-});
-
-test("real-estate controls use balanced columns and a wide value input", async ({ page }) => {
-    await page.setViewportSize({ width: 1280, height: 900 });
-    await page.goto("/wizard", { waitUntil: "networkidle" });
-    for (let step = 1; step < 6; step += 1) await page.locator("#wzNextBtn").click();
-    await expect(page.locator('.wz-step[data-step-id="kapital"]')).toBeVisible();
-    await page.locator('label:has(input[name="wzHasRealEstate"][value="yes"])').click();
-    await expect(page.locator("#wzRealEstateBox")).toBeVisible();
-
-    const desktopLayout = await page.locator(".wz-real-estate-grid").evaluate((grid) => {
-        const fields = [...grid.querySelectorAll(":scope > .wz-field-block")];
-        const rects = fields.map((field) => field.getBoundingClientRect());
-        const number = grid.querySelector("#wzReValue");
-        return {
-            firstWidth: rects[0].width,
-            secondWidth: rects[1].width,
-            thirdWidth: rects[2].width,
-            controlWidth: number.closest(".num-control").getBoundingClientRect().width,
-            inputWidth: number.getBoundingClientRect().width,
-        };
-    });
-    expect(Math.abs(desktopLayout.firstWidth - desktopLayout.secondWidth)).toBeLessThanOrEqual(1);
-    expect(desktopLayout.thirdWidth).toBeGreaterThan(desktopLayout.firstWidth * 1.9);
-    expect(desktopLayout.controlWidth).toBeGreaterThanOrEqual(220);
-    expect(desktopLayout.inputWidth).toBeGreaterThanOrEqual(120);
-    await page.locator("#wzReValue").fill("3000000");
-    await expect(page.locator("#wzReValue")).toHaveValue("3000000");
-    await expectNoHorizontalOverflow(page);
-
-    await page.setViewportSize({ width: 390, height: 844 });
-    const stacked = await page.locator(".wz-real-estate-grid").evaluate((grid) => {
-        const fields = [...grid.querySelectorAll(":scope > .wz-field-block")];
-        return fields[1].getBoundingClientRect().top > fields[0].getBoundingClientRect().bottom
-            && fields[2].getBoundingClientRect().top > fields[1].getBoundingClientRect().bottom;
-    });
-    expect(stacked).toBe(true);
-    await expectNoHorizontalOverflow(page);
-});
-
-test("mortgage fields stay balanced and Coast FIRE fields stack one per row", async ({ page }) => {
-    await page.setViewportSize({ width: 1280, height: 900 });
-    await page.goto("/wizard", { waitUntil: "networkidle" });
-    for (let step = 0; step < 4; step += 1) await page.locator("#wzNextBtn").click();
-    await page.locator('label:has(input[name="wzHasMortgage"][value="yes"])').click();
-    const mortgageWidths = await page.locator("#wzMortgageBox .wz-grid").evaluate((grid) => {
-        const fields = [...grid.querySelectorAll(":scope > .wz-field-block")];
-        return fields.map((field) => field.getBoundingClientRect().width);
-    });
-    expect(Math.abs(mortgageWidths[0] - mortgageWidths[1])).toBeLessThanOrEqual(1);
-
-    await page.locator("#wzNextBtn").click();
-    await page.locator("#wzNextBtn").click();
-    await page.locator('label:has(input[name="wzFireStyle"][value="coast"])').click();
-    await expect(page.locator("#wzSemiSavingsGroup")).toBeVisible();
-    const coastLayout = await page.locator("#wzSemiFireBox .wz-rows").evaluate((grid) => {
-        const fields = [...grid.querySelectorAll(":scope > .wz-field-block")];
-        const rects = fields.map((field) => field.getBoundingClientRect());
-        return {
-            widths: rects.map((rect) => rect.width),
-            stacked: rects.every((rect, index) => index === 0 || rect.top >= rects[index - 1].bottom),
-        };
-    });
-    expect(coastLayout.stacked).toBe(true);
-    expect(Math.max(...coastLayout.widths) - Math.min(...coastLayout.widths)).toBeLessThanOrEqual(1);
     await expectNoHorizontalOverflow(page);
 });

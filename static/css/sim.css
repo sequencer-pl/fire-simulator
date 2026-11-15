@@ -540,3 +540,22 @@
     .add-stage-btns .btn .icon { display: block; }
     .add-stage-btns .btn .btn-label-short { display: none; }
 }
+
+.config-checkbox-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sp-2) var(--sp-4);
+}
+
+.config-checkbox {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--sp-2);
+    font-size: var(--fs-sm);
+    color: var(--text-2);
+    cursor: pointer;
+}
+
+.config-checkbox input {
+    accent-color: var(--primary);
+}

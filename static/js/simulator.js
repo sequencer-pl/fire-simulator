@@ -20,6 +20,9 @@ let lastInput = null;
 let lastResult = null;
 // Polityka wypłat przeniesiona z Asystenta (bez UI w edytorze).
 let loadedWithdrawalPolicy = "defer_tier";
+// Horyzont z wczytanego planu (np. draftu Asystenta). Zachowujemy go, bo etap
+// ZUS może wystawać do 100 r.ż., a portfel ma się kończyć na plan_end.
+let loadedMaxAge = null;
 
 function gatherFormData() {
     const stages = [];
@@ -65,9 +68,12 @@ function gatherFormData() {
         });
     });
 
+    const lastStageAge = Math.max(...stages.map((s) => s.end_age), 0) - 1;
     return {
         stages: stages,
-        max_age: Math.min(120, Math.max(100, Math.max(...stages.map((s) => s.end_age), 0) - 1)),
+        max_age: loadedMaxAge != null
+            ? Math.min(120, Math.max(0, loadedMaxAge))
+            : Math.min(120, Math.max(0, lastStageAge)),
         gender: currentGender(),
         monthly_gross: 0,
         inflation: null,
@@ -447,6 +453,12 @@ function backfillConfig(config) {
             out[section] = loaded !== undefined ? loaded : defaults;
         }
     }
+    for (const profile of Object.values(out.risk_profiles || {})) {
+        if (profile && profile.max_market == null && profile.max_taxable_market != null) {
+            profile.max_market = profile.max_taxable_market;
+            delete profile.max_taxable_market;
+        }
+    }
     return out;
 }
 
@@ -553,6 +565,33 @@ function renderConfigView() {
         configNumberField("limits.ppe_additional_annual", "PPE — składka dodatkowa", USER_CONFIG.limits.ppe_additional_annual, "Limit roczny składki dodatkowej PPE (2026 r.: 42 390 zł)."),
     ]));
 
+    const riskFields = [];
+    const riskLabels = {
+        spokojny: "Spokojny",
+        zrownowazony: "Zrównoważony",
+        dynamiczny: "Dynamiczny",
+    };
+    for (const [key, label] of Object.entries(riskLabels)) {
+        const profile = USER_CONFIG.risk_profiles?.[key] || {};
+        riskFields.push(
+            configPercentField(`risk_profiles.${key}.max_crypto`, `${label} — max krypto`, profile.max_crypto ?? 0, "Maksymalny udział nowych wpłat w krypto dla tego profilu."),
+            configPercentField(`risk_profiles.${key}.max_market`, `${label} — max rynkowe`, profile.max_market ?? 0, "Maksymalny udział nowych wpłat w aktywach rynkowych — łącznie w IKE/IKZE/OIPE i kontach taxable."),
+            configPercentField(`risk_profiles.${key}.max_single_taxable`, `${label} — max pojedyncze`, profile.max_single_taxable ?? 0, "Maksymalny udział nowych wpłat w jednym rynkowym koncie taxable."),
+            configPercentField(`risk_profiles.${key}.min_safe`, `${label} — min safe`, profile.min_safe ?? 0, "Minimalny udział nowych wpłat w aktywach bezpiecznych — łącznie z bezpiecznymi wariantami IKE/IKZE/OIPE."),
+        );
+    }
+    root.appendChild(configSection("Profile ryzyka — limity nowych wpłat", riskFields));
+
+    const vehicleFields = [
+        configPercentField("wrapper_vehicles.broker.default_roi", "Maklerskie — ROI", USER_CONFIG.wrapper_vehicles?.broker?.default_roi ?? 0.05, "Domyślne realne ROI dla samodzielnego inwestowania w akcje/ETF wewnątrz IKE/IKZE/OIPE."),
+        configPercentField("wrapper_vehicles.fund.default_roi", "Funduszowe — ROI", USER_CONFIG.wrapper_vehicles?.fund?.default_roi ?? 0.045, "Domyślne realne ROI dla funduszy i portfeli zarządzanych. OIPE jest dziś funduszowe (Finax), z opłatą ok. 0,9% rocznie."),
+        configPercentField("wrapper_vehicles.savings.default_roi", "Oszczędnościowe — ROI", USER_CONFIG.wrapper_vehicles?.savings?.default_roi ?? 0.018, "Domyślne realne ROI dla lokat, obligacji i funduszy obligacji wewnątrz wrappera."),
+        configWrapperOptionsField("ike", "IKE — dostępne rodzaje", "Zaznacz rodzaje inwestycji, które chcesz dopuścić w IKE."),
+        configWrapperOptionsField("ikze", "IKZE — dostępne rodzaje", "Zaznacz rodzaje inwestycji, które chcesz dopuścić w IKZE."),
+        configWrapperOptionsField("oipe", "OIPE — dostępne rodzaje", "Domyślnie tylko funduszowe (Finax). W przyszłości możesz tu włączyć maklerskie lub oszczędnościowe."),
+    ];
+    root.appendChild(configSection("Rodzaje inwestycji w IKE/IKZE/OIPE", vehicleFields));
+
     root.appendChild(configSection("PPK — parametry", [
         configPercentField("ppk.employee_pct", "Wpłata pracownika", USER_CONFIG.ppk.employee_pct, "Ustawowo min. 2% wynagrodzenia; można obniżyć do 0,5%."),
         configPercentField("ppk.employer_pct", "Wpłata pracodawcy", USER_CONFIG.ppk.employer_pct, "Ustawowo min. 1,5%, max 4% wynagrodzenia."),
@@ -596,6 +635,71 @@ function renderConfigView() {
     });
     updateConfigExpandButton();
     refreshConfigSectionBadges();
+}
+
+function configWrapperOptionsField(wrapper, label, hint) {
+    const path = `wrapper_vehicle_options.${wrapper}`;
+    const all = Object.entries(USER_CONFIG.wrapper_vehicles || {});
+    const current = USER_CONFIG.wrapper_vehicle_options?.[wrapper] || [];
+    const wrap = document.createElement("div");
+    wrap.className = "field config-field";
+    wrap.innerHTML = `
+        <div class="config-field-heading">
+            <label class="config-field-label">${tipLabelHtml(label, hint)}</label>
+            <span class="config-override-indicator" role="img" hidden></span>
+        </div>
+        <div class="config-field-control">
+            <div class="config-inline-editor config-checkbox-row">
+                ${all.map(([key, vehicle]) => `
+                    <label class="config-checkbox">
+                        <input type="checkbox" value="${key}" ${current.includes(key) ? "checked" : ""}>
+                        <span>${escapeHtml(vehicle.label || key)}</span>
+                    </label>`).join("")}
+            </div>
+            <button type="button" class="btn btn-ghost btn-icon config-restore-btn">${iconSvg("restore")}</button>
+        </div>`;
+    const inputs = [...wrap.querySelectorAll("input[type=checkbox]")];
+    const indicator = wrap.querySelector(".config-override-indicator");
+    const restoreBtn = wrap.querySelector(".config-restore-btn");
+    restoreBtn.title = "Przywróć domyślne";
+    restoreBtn.setAttribute("aria-label", "Przywróć domyślne");
+    const baseline = () => configPathValue(CONFIG_BASELINE || DEFAULT_CONFIG, path) || [];
+    function updateState() {
+        const value = USER_CONFIG.wrapper_vehicle_options?.[wrapper] || [];
+        const base = baseline();
+        const changed = JSON.stringify([...value].sort()) !== JSON.stringify([...base].sort());
+        if (changed) CONFIG_OVERRIDE_PATHS.add(path);
+        else CONFIG_OVERRIDE_PATHS.delete(path);
+        indicator.hidden = !changed;
+        indicator.title = changed ? "Wartość różni się od presetu" : "";
+        wrap.classList.toggle("has-override", changed);
+        restoreBtn.disabled = !changed;
+        syncConfigCustomState();
+        refreshConfigSectionBadges();
+    }
+    inputs.forEach((input) => {
+        input.addEventListener("change", () => {
+            let selected = inputs.filter((item) => item.checked).map((item) => item.value);
+            if (!selected.length) {
+                input.checked = true;
+                selected = [input.value];
+            }
+            setConfigPath(path, selected);
+            updateState();
+            scheduleConfigSave();
+        });
+    });
+    restoreBtn.addEventListener("click", () => {
+        setConfigPath(path, [...baseline()]);
+        inputs.forEach((input) => {
+            input.checked = baseline().includes(input.value);
+        });
+        updateState();
+        scheduleConfigSave();
+    });
+    updateState();
+    wrap._updateConfigState = updateState;
+    return wrap;
 }
 
 function configSection(title, fields) {
@@ -1253,6 +1357,9 @@ function migrateLegacyAccounts(stage) {
 
 function populateStages(inputData) {
     const container = document.getElementById("stages-container");
+    loadedMaxAge = Number.isFinite(Number(inputData.max_age))
+        ? Number(inputData.max_age)
+        : null;
     if (inputData.config) CONFIG = backfillConfig(inputData.config);
     if (inputData.gender) setGender(inputData.gender);
     resetStartingBalanceValues();

@@ -36,7 +36,9 @@ window.fetch = (url) => {
             ok: true,
             json: () =>
                 Promise.resolve({
-                    allocations: { ikze: 40, broker: 60 },
+                    allocations: { ikze: 40, ike: 20, broker: 40 },
+                    wrapper_vehicles: { ike: "savings", ikze: "savings", oipe: "fund" },
+                    asset_mix: { safe: 60, market: 40, high: 0 },
                     pool_monthly: 2_000,
                 }),
         });
@@ -68,11 +70,31 @@ const harness = `
 
     wzInit();
 
-    check("start: krok cel, 9 kroków, wstecz ukryty", () => {
+    check("start: krok cel, 9 kroków", () => {
         const cel = document.querySelector('.wz-step[data-step-id="cel"]');
         return !cel.classList.contains("hidden")
             && document.getElementById("wzStepCount").textContent === "Krok 1 / 9"
             && document.getElementById("wzBackBtn").classList.contains("hidden");
+    });
+    check("tryb auto vs manual przełącza panele planowania", () => {
+        const autoRadio = document.querySelector('input[name="wzOptimizeMode"][value="auto"]');
+        const manualRadio = document.querySelector('input[name="wzOptimizeMode"][value="manual"]');
+        if (!autoRadio || !manualRadio) return false;
+        autoRadio.checked = true;
+        wzSyncModeUI();
+        const autoOk = !document.getElementById("wzAutoPlanningPanel").classList.contains("hidden")
+            && document.getElementById("wzManualPlanningPanel").classList.contains("hidden");
+        manualRadio.checked = true;
+        wzSyncModeUI();
+        const manualOk = document.getElementById("wzAutoPlanningPanel").classList.contains("hidden")
+            && !document.getElementById("wzManualPlanningPanel").classList.contains("hidden");
+        autoRadio.checked = true;
+        wzSyncModeUI();
+        return autoOk && manualOk;
+    });
+    check("planowanie: priorytet i seed używają dużych kafli", () => {
+        return document.querySelectorAll("#wzPriorityPanel .wz-path").length === 2
+            && document.querySelectorAll("#wzProfileSeeds button.wz-path").length === 3;
     });
     check("wynagrodzenie: domyślnie brutto rocznie z limitów", () => {
         return document.getElementById("wzEtatSalary").value === "113000"
@@ -196,12 +218,60 @@ const harness = `
         const sum = Object.values(out).reduce((a, b) => a + b, 0);
         return Math.abs(sum - 100) < 1e-9;
     });
+    check("podział ręczny: wrapper ma wybór rodzaju inwestycji", () => {
+        wzSuggested = {
+            allocations: { ikze: 40, ike: 20, broker: 40 },
+            wrapperVehicles: { ike: "savings", ikze: "savings", oipe: "fund" },
+            pool_monthly: 2_000,
+        };
+        wzManualAllocations = Object.fromEntries(
+            WZ_ALLOCATABLE_ACCOUNTS.map((account) => [account, 0])
+        );
+        wzManualVehicles = {};
+        wzAllocationMode = "manual";
+        wzRenderManualAllocation();
+        const selects = [...document.querySelectorAll(".wz-vehicle-select")];
+        const oipe = document.querySelector('.wz-vehicle-select[data-account="oipe"]');
+        const ike = document.querySelector('.wz-vehicle-select[data-account="ike"]');
+        return selects.length === 3
+            && Boolean(oipe) && oipe.options.length === 1 && oipe.value === "fund"
+            && Boolean(ike) && ike.value === "savings";
+    });
+    check("podział ręczny: start to 100% gotówki", () => {
+        wzManualAllocations = null;
+        wzSeedManualAllocations();
+        return Object.values(wzManualAllocationShares()).every((value) => value === 0);
+    });
+    check("podział ręczny: plan zablokowany przy 0% udziałów", () => {
+        const manual = document.querySelector('input[name="wzOptimizeMode"][value="manual"]');
+        if (!manual) return false;
+        manual.checked = true;
+        wzSyncModeUI();
+        wzSuggested = { allocations: {}, pool_monthly: 2000 };
+        wzManualAllocations = Object.fromEntries(
+            WZ_ALLOCATABLE_ACCOUNTS.map((account) => [account, 0])
+        );
+        try {
+            return !wzValidateStep("strategia");
+        } catch (error) {
+            return /Rozdziel wpłaty/.test(error.message);
+        }
+    });
     check("ROI: brak powtarzanej notatki o domyślnej wartości", () => {
         wzShowStep("kapital");
         const row = document.querySelector('#wzSafeList .wz-cap-row[data-account="lokata"]');
         return Boolean(row)
             && !row.querySelector(".wz-cap-roi-note")
             && Boolean(row.querySelector(".wz-cap-roi-reset"));
+    });
+    check("wynik: optymalizator na dole i zwinięty", () => {
+        const optimizer = document.getElementById("wzOptimizer");
+        const details = document.getElementById("wzDetails");
+        return Boolean(optimizer)
+            && optimizer.tagName === "DETAILS"
+            && !optimizer.open
+            && Boolean(details)
+            && Boolean(details.compareDocumentPosition(optimizer) & Node.DOCUMENT_POSITION_FOLLOWING);
     });
     check("wynik: odpowiedź, plan i szczegóły renderują się", () => {
         wzPlan = {
@@ -211,6 +281,7 @@ const harness = `
                 stages: [
                     { stage_type: "akumulacja", name: "Akumulacja", start_age: 35, end_age: 55, accounts: { broker: {} } },
                     { stage_type: "realizacja", name: "Brydż", start_age: 55, end_age: 65, accounts: { broker: {} } },
+                    { stage_type: "realizacja", name: "Emerytura ZUS", start_age: 65, end_age: 100, accounts: { zus: {} } },
                 ],
             },
             projection: {
@@ -234,6 +305,25 @@ const harness = `
                     { name: "Akumulacja", cashflow: "contribution", start_age: 35, end_age: 55, monthly: 2000, portfolio_monthly: 0, zus_monthly: 0 },
                     { name: "Brydż", cashflow: "payout", start_age: 55, end_age: 65, monthly: 5000, portfolio_monthly: 5000, zus_monthly: 0 },
                 ],
+                accumulation_phases: [{
+                    account: "broker",
+                    start_age: 35,
+                    end_age: 55,
+                    stage_name: "Akumulacja",
+                    monthly_contribution: 2000,
+                    annual_contribution: 24000,
+                    total_contributions: 480000,
+                    starting_balance: 0,
+                    ending_balance: 1000000,
+                    growth: 520000,
+                }],
+                capital_transfers: [{
+                    age: 55,
+                    from_account: "ikze",
+                    to_account: "broker",
+                    amount: 50000,
+                    kind: "early_ikze_return",
+                }],
                 account_phases: [{
                     account: "broker",
                     accumulation_start_age: 35,
@@ -282,16 +372,113 @@ const harness = `
         return document.getElementById("wzHeroAnswer").textContent.includes("5")
             && document.querySelectorAll("#wzMetrics .metric").length === 3
             && document.querySelectorAll("#wzTimeline .wz-timeline-segment").length === 2
-            && document.querySelectorAll("#wzFlowsGantt .wz-gantt-row").length >= 1
+            && document.querySelectorAll("#wzFlowsGantt .wz-gantt-row").length >= 3
+            && Boolean(document.querySelector("#wzFlowsGantt .wz-gantt-transfer"))
             && document.querySelectorAll("#wzWealthDetails .wz-wealth-row").length === 3
             && document.querySelectorAll("#wzFacts .wz-fact").length >= 1
             && document.getElementById("wzPolicyNote").textContent.includes("Najpierw");
+    });
+    check("wynik: suma tylko z portfela, bez ZUS", () => {
+        const note = document.getElementById("wzFlowsTotal");
+        return Boolean(note)
+            && note.textContent.includes("Łączna suma wypłat z portfela prywatnego FIRE")
+            && !note.textContent.includes("Z ZUS");
+    });
+    check("wynik: tabela przepływów pod ganttem i zwinięta", () => {
+        const details = document.getElementById("wzFlowsTableDetails");
+        return Boolean(details)
+            && details.tagName === "DETAILS"
+            && !details.open
+            && Boolean(details.closest("#wzFlowsWrap"))
+            && Boolean(details.querySelector("#wzAccountFlows"))
+            && details.querySelectorAll(".wz-phase-badge").length > 0
+            && document.querySelectorAll("#wzAccumulationFlows tbody tr").length > 0
+            && document.querySelectorAll("#wzTransferFlows tbody tr").length > 0;
+    });
+    check("wynik: wspólna legenda adnotacji", () => {
+        return document.querySelectorAll("#wzChartAnnotations .wz-chart-annotation-chip").length > 0
+            && document.querySelector(".wz-chart-annotations-label")?.textContent.trim()
+                === "Kamienie milowe:"
+            && !document.getElementById("wzWithdrawalsAnnotationsToggle");
+    });
+    check("wynik: aktywna adnotacja pokazuje linię i opis", () => {
+        const chips = [...document.querySelectorAll("#wzChartAnnotations .wz-chart-annotation-chip")];
+        const note = document.getElementById("wzChartAnnotationNote");
+        if (chips.length < 2 || !note) return false;
+        const visibleLines = () => document.querySelectorAll(
+            ".wz-chart-annotation-line.is-visible"
+        ).length;
+        const initial = note.hidden && visibleLines() === 0;
+        chips[0].click();
+        const first = !note.hidden
+            && visibleLines() === 2
+            && chips[0].classList.contains("is-active");
+        chips[1].click();
+        const second = visibleLines() === 2
+            && chips[1].classList.contains("is-active")
+            && !chips[0].classList.contains("is-active");
+        chips[1].click();
+        const off = note.hidden && visibleLines() === 0;
+        return initial && first && second && off;
+    });
+    check("adnotacja ZUS bierze etap realizacji, nie akumulacji", () => {
+        const input = {
+            gender: "m",
+            max_age: 99,
+            stages: [
+                { stage_type: "akumulacja", start_age: 40, end_age: 55, accounts: { zus: {} } },
+                { stage_type: "realizacja", start_age: 65, end_age: 100, accounts: { zus: {} } },
+            ],
+        };
+        const projection = {
+            chart: { ages: Array.from({ length: 61 }, (_, index) => 40 + index) },
+            early_return_total: 0,
+        };
+        const zus = wzChartAnnotationsFor(input, projection)
+            .find((annotation) => annotation.kind === "zus");
+        return Boolean(zus)
+            && zus.age === 65
+            && zus.text.includes("65")
+            && !zus.text.includes("40 r.ż.");
     });
     check("wynik: wykresy wypłat i kapitału renderują się", () => {
         return Boolean(document.querySelector("#wzWithdrawalsChart svg"))
             && Boolean(document.querySelector("#wzCapitalChart svg"))
             && document.querySelectorAll("#wzWithdrawalsLegend .wz-chart-legend-item").length > 0
             && document.querySelectorAll("#wzCapitalLegend .wz-chart-legend-item").length > 0;
+    });
+    check("optymalizator: tabela wariantów i rekomendacja renderują się", () => {
+        const candidate = (age, ike, ikze, payout, final, baseline = false) => ({
+            zus_start_age: age,
+            allocations: { ike, ikze },
+            withdrawal_policy: "defer_tier",
+            payout_monthly: payout,
+            min_monthly: payout,
+            mean_monthly: payout + 100,
+            total_withdrawn: payout * 12 * 20,
+            final_wealth_net: final,
+            met: true,
+            feasible: true,
+            break_even_age: null,
+            is_baseline: baseline,
+        });
+        wzRenderOptimizer({
+            objective: "payout",
+            bequest_target: 0,
+            baseline: candidate(65, 53, 47, 4000, 300000, true),
+            recommended: candidate(65, 65, 35, 4500, 0),
+            best_total: candidate(70, 100, 0, 4200, 0),
+            candidates: [
+                candidate(65, 53, 47, 4000, 300000, true),
+                candidate(65, 65, 35, 4500, 0),
+                candidate(70, 100, 0, 4200, 0),
+            ],
+            evaluated: 12,
+            warnings: [],
+        });
+        return document.querySelectorAll("#wzOptimizerResult tbody tr").length === 2
+            && !document.getElementById("wzOptimizerChip").classList.contains("hidden")
+            && document.querySelectorAll("[data-optimizer-apply]").length === 0;
     });
     check("restore: ?restore=1 odtwarza krok wyniku z zapisanego planu", () => {
         localStorage.removeItem("fire.wizardState");

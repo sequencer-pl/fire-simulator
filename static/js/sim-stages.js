@@ -476,7 +476,7 @@ function updateStageHints(container) {
                         level: "warning",
                         text:
                             `PPK wypłacane od ${startAge} r.ż. — przed ${rules.min_withdrawal_age} r.ż. ` +
-                            `środki pracodawcy i dopłaty państwa przepadają; podatek Belka 19% od zysku pracownika.`
+                            `środki pracodawcy i dopłaty państwa przepadają; podatek Belki 19% od zysku pracownika.`
                     });
                 }
                 if (startAge < rules.min_withdrawal_age) {
@@ -991,6 +991,7 @@ function initStageEventHandlers(container) {
     document.getElementById("clearStagesBtn").addEventListener("click", () => {
         if (!confirm("Na pewno wyczyścić wszystkie etapy?")) return;
         container.querySelectorAll(".stage-block").forEach((b) => b.remove());
+        if (typeof loadedMaxAge !== "undefined") loadedMaxAge = null;
         if (typeof switchToConfig === "function") switchToConfig();
         if (typeof clearWizardDraft === "function") clearWizardDraft();
         updateStageButtons(container);

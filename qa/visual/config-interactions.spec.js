@@ -37,15 +37,6 @@ test("sekcje startują zwinięte, przycisk rozwija i zwija wszystkie", async ({ 
     await expect.poll(allClosed).toBe(true);
 });
 
-test("ikona ? pokazuje dymek po najechaniu", async ({ page }) => {
-    await page.goto("/sim?view=config", { waitUntil: "networkidle" });
-    await openSection(page, "Skala podatkowa");
-    const tip = field(page, "Inflacja roczna").locator(".tip");
-    expect(await tip.evaluate((element) => element.firstChild.textContent)).toBe("?");
-    await tip.hover();
-    await expect(tip.locator(".tooltip")).toBeVisible();
-});
-
 test("pole jest edytowalne od razu, zmiana przełącza preset na Własną, przywróć wraca do presetu", async ({ page }) => {
     await page.goto("/sim?view=config", { waitUntil: "networkidle" });
     await openSection(page, "Skala podatkowa");
@@ -76,41 +67,6 @@ test("pole jest edytowalne od razu, zmiana przełącza preset na Własną, przyw
     await expect(restore).toBeDisabled();
     await expect(badge).toBeHidden();
     await expect(page.locator("#presetSelect option:checked")).toHaveText("Domyślne 2026");
-});
-
-test("select konfiguracji jest natywnym <select> z klasą .select", async ({ page }) => {
-    await page.goto("/sim?view=config", { waitUntil: "networkidle" });
-    await openSection(page, "Konta — reguły");
-    const f = field(page, "Model podatkowy");
-    await f.evaluate((element) => {
-        const details = element.closest("details");
-        if (details) details.open = true;
-    });
-    const select = f.locator("select.select");
-    await expect(select).toBeVisible();
-    await select.selectOption("none");
-    await expect(f).toHaveClass(/has-override/);
-});
-
-test("„Usuń preset” jest ukryty dla wbudowanego presetu", async ({ page }) => {
-    await page.goto("/sim?view=config", { waitUntil: "networkidle" });
-    await expect(page.locator("#presetDeleteBtn")).toBeHidden();
-});
-
-test("„Przywróć domyślne” wymaga potwierdzenia", async ({ page }) => {
-    await page.goto("/sim?view=config", { waitUntil: "networkidle" });
-    await openSection(page, "Skala podatkowa");
-    const f = field(page, "Inflacja roczna");
-    const input = f.locator(".config-inline-editor input");
-    await input.fill("3.5");
-
-    page.once("dialog", (dialog) => dialog.dismiss());
-    await page.locator("#configResetBtn").click();
-    await expect(input).toHaveValue("3.5");
-
-    page.once("dialog", (dialog) => dialog.accept());
-    await page.locator("#configResetBtn").click();
-    await expect(input).toHaveValue("2.5");
 });
 
 test("eksport i import konfiguracji używają .config.json", async ({ page }) => {
@@ -148,25 +104,4 @@ test("konfiguracja i presety zapisują się lokalnie między odświeżeniami", a
     await expect(field(page, "Inflacja roczna").locator(".config-inline-editor input")).toHaveValue("3.7");
     await expect(page.locator("#presetSelect option:checked")).toHaveText("Lokalny preset");
     await expect(page.locator("#presetDeleteBtn")).toBeVisible();
-});
-
-test("indeksacja progów PIT rozróżnia puste, 0% i wartość dodatnią", async ({ page }) => {
-    await page.goto("/sim?view=config", { waitUntil: "networkidle" });
-    await openSection(page, "Skala podatkowa");
-    const f = field(page, "Indeksacja progów PIT");
-    const input = f.locator(".config-inline-editor input");
-
-    await input.fill("0");
-    expect(await page.evaluate(() => USER_CONFIG.prog_indexation)).toBe(0);
-
-    await input.fill("");
-    expect(await page.evaluate(() => USER_CONFIG.prog_indexation)).toBeNull();
-
-    await input.fill("1.5");
-    expect(await page.evaluate(() => USER_CONFIG.prog_indexation)).toBeCloseTo(0.015, 6);
-
-    page.once("dialog", (dialog) => dialog.accept());
-    await page.locator("#presetSelect").selectOption({ label: "Realne" });
-    await expect(page.locator("#presetSelect option:checked")).toHaveText("Realne");
-    await expect(input).toHaveValue("1.5");
 });

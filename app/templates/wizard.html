@@ -457,7 +457,7 @@
             <h3 class="eyebrow wz-panel-title">
                 <span class="tip-label-row">
                     <span class="tip-label-text">1. Konta emerytalne z ulgą podatkową</span>
-                    <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">Każde z tych kont możesz mieć tylko jedno (limit ustawowy). IKE i OIPE dają 0% podatku Belki po 60. r.ż., a IKZE pozwala odliczać wpłaty od podatku już dziś (zwrot PIT) i płacić tylko 10% ryczałtu po 65. r.ż. ROI jest wstępnie wypełnione wartością z Konfiguracji — możesz je zmienić tylko dla tego planu.</span></span>
+                    <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">Każde z tych kont możesz mieć tylko jedno (limit ustawowy). IKE i OIPE dają 0% podatku Belki po 60. r.ż., a IKZE pozwala odliczać wpłaty od podatku już dziś (zwrot PIT) i płacić tylko 10% ryczałtu po 65. r.ż. Dla IKE/IKZE/OIPE ROI zależy od rodzaju inwestycji wybranego w kroku planowania; tutaj możesz je nadpisać dla całego salda. OIPE jest dziś dostępne tylko w wersji funduszowej.</span></span>
                 </span>
             </h3>
             <div class="pill-grid" id="wzSheltersPicker"></div>
@@ -641,7 +641,7 @@
                     <input type="radio" name="wzFireStyle" value="barista">
                     <span class="wz-path-check" aria-hidden="true"></span>
                     <span class="wz-path-title">Barista FIRE / Pół etatu + dopłata z inwestycji</span>
-                    <span class="wz-path-desc">Od wybranego wieku przechodzę na lżejszą pracę (np. zarabiam 4–5 tys. zł), a brakującą kwotę do pełnego utrzymania dopłacam sobie co miesiąc z portfela FIRE.</span>
+                    <span class="wz-path-desc">Od wybranego wieku przechodzę na lżejszą pracę, a brakującą kwotę do pełnego utrzymania dopłacam sobie co miesiąc z portfela FIRE.</span>
                 </label>
             </div>
 
@@ -718,22 +718,6 @@
                     </div>
                 </div>
                 <div class="field wz-field-block">
-                    <label class="field-label-lg" for="wzRetirement">
-                        <span class="tip-label-row">
-                            <span class="tip-label-text">Wiek rozpoczęcia pobierania emerytury ZUS</span>
-                            <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">Domyślnie ustawowy wiek emerytalny: 60 lat dla kobiet, 65 lat dla mężczyzn.</span></span>
-                        </span>
-                    </label>
-                    <div class="wz-slider">
-                        <div class="num-control">
-                            <button type="button" class="stepper stepper-down" tabindex="-1">&minus;</button>
-                            <input type="number" id="wzRetirement" class="acc-field" value="65" min="50" max="95" step="1">
-                            <button type="button" class="stepper stepper-up" tabindex="-1">+</button>
-                        </div>
-                        <input type="range" id="wzRetirementRange" min="50" max="95" step="1" value="65" aria-label="Wiek emerytury ZUS">
-                    </div>
-                </div>
-                <div class="field wz-field-block">
                     <label class="field-label-lg" for="wzPlanEnd">
                         <span class="tip-label-row">
                             <span class="tip-label-text">Do jakiego wieku prywatny portfel ma gwarantować pełną wypłatę?</span>
@@ -749,65 +733,160 @@
                         <input type="range" id="wzPlanEndRange" min="65" max="115" step="1" value="85" aria-label="Horyzont planu">
                     </div>
                 </div>
+                <div class="field wz-field-block">
+                    <label class="field-label-lg" for="wzBequest">
+                        <span class="tip-label-row">
+                            <span class="tip-label-text">Ile chcesz zostawić na koniec horyzontu? (netto, 0 = wydać wszystko)</span>
+                            <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">Minimalny majątek netto po podatku wyjścia, jaki ma zostać na koniec planu. Silnik maksymalizuje wypłatę przy tym ograniczeniu. 0 zł oznacza, że plan może wydać cały kapitał.</span></span>
+                        </span>
+                    </label>
+                    <div class="wz-slider">
+                        <div class="num-control">
+                            <button type="button" class="stepper stepper-down" tabindex="-1" aria-label="Zmniejsz spadek">&minus;</button>
+                            <input type="number" id="wzBequest" class="acc-field" value="0" min="0" max="10000000" step="50000">
+                            <button type="button" class="stepper stepper-up" tabindex="-1" aria-label="Zwiększ spadek">+</button>
+                        </div>
+                        <input type="range" id="wzBequestRange" min="0" max="10000000" step="50000" value="0" aria-label="Majątek na koniec horyzontu">
+                    </div>
+                </div>
             </div>
         </div>
     </section>
 
-    <!-- KROK: STRATEGIA DZIELENIA WPŁAT -->
+    <!-- KROK: PODZIAŁ WPŁAT (manual / path 2-3) -->
     <section class="card wz-step hidden" data-step-id="strategia">
-        <h2>Strategia dzielenia wpłat</h2>
+        <h2 id="wzPlanningTitle">Jak zaplanować wpłaty?</h2>
+        <p class="subtitle" id="wzPlanningSubtitle">Możesz sam ustawić podział i wiek ZUS albo oddać dobór asystentowi. W trybie automatycznym silnik działa w granicach profilu ryzyka.</p>
 
-        <div class="card-inset wz-alloc-panel">
-            <div class="wz-alloc-panel-head">
-                <h3 class="eyebrow wz-panel-title">
-                    <span class="tip-label-row">
-                        <span class="tip-label-text">Wybierz strategię</span>
-                        <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">Strategia decyduje o kolejności zapełniania kont i o tym, jak dzielimy kwotę ponad limity IKE/IKZE/OIPE. Nie zmienia ROI — założenia rynkowe wybierasz w scenariuszach wyniku. IKE/IKZE to opakowania podatkowe; ich ROI zależy od tego, co w nich trzymasz.</span></span>
-                    </span>
-                </h3>
-                <button type="button" class="btn btn-secondary btn-sm hidden" id="wzStrategyShowAll">Pokaż inne strategie</button>
-            </div>
-            <div class="wz-paths wz-strategy-cards" id="wzStrategyCards">
-                <label class="wz-path wz-strategy-card" data-strategy-card="konserwatywna">
-                    <input type="radio" name="wzStrategy" value="konserwatywna" />
+        <div class="card-inset wz-panel" id="wzPlanningModePanel">
+            <div class="wz-paths wz-choice-cards" id="wzPlanningModeCards">
+                <label class="wz-path">
+                    <input type="radio" name="wzOptimizeMode" value="auto" checked>
                     <span class="wz-path-check" aria-hidden="true"></span>
-                    <svg class="wz-strategy-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 4 6v6c0 5 3.4 8.4 8 9 4.6-.6 8-4 8-9V6z"/></svg>
-                    <span class="wz-path-title">Konserwatywna</span>
-                    <span class="wz-strategy-rank" data-strategy-rank="konserwatywna"></span>
+                    <span class="wz-path-title">Asystent dobierze</span>
+                    <span class="wz-path-desc">Silnik wybierze wiek ZUS i podział wpłat w granicach profilu ryzyka.</span>
                 </label>
-                <label class="wz-path wz-strategy-card" data-strategy-card="zbilansowana">
-                    <input type="radio" name="wzStrategy" value="zbilansowana" checked />
+                <label class="wz-path">
+                    <input type="radio" name="wzOptimizeMode" value="manual">
                     <span class="wz-path-check" aria-hidden="true"></span>
-                    <svg class="wz-strategy-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v18M4 21h16M6 7l-3 7a3 3 0 0 0 6 0zM18 7l-3 7a3 3 0 0 0 6 0zM5 7h14"/></svg>
-                    <span class="wz-path-title">Zrównoważona</span>
-                    <span class="wz-strategy-rank" data-strategy-rank="zbilansowana"></span>
-                </label>
-                <label class="wz-path wz-strategy-card" data-strategy-card="agresywna">
-                    <input type="radio" name="wzStrategy" value="agresywna" />
-                    <span class="wz-path-check" aria-hidden="true"></span>
-                    <svg class="wz-strategy-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 15c-1.5 1.5-2 5-2 5s3.5-.5 5-2M14 4c3 .5 5.5 3 6 6-2 3-5 6-9 8l-5-5c2-4 5-7 8-9z"/><circle cx="14.5" cy="9.5" r="1.5"/></svg>
-                    <span class="wz-path-title">Agresywna</span>
-                    <span class="wz-strategy-rank" data-strategy-rank="agresywna"></span>
+                    <span class="wz-path-title">Sam ustawię podział</span>
+                    <span class="wz-path-desc">Sam ustawisz wiek ZUS i udziały kont. Profil może podpowiedzieć start.</span>
                 </label>
             </div>
-            <div id="wzStrategyHint" class="wz-strategy-hint hidden" aria-live="polite"></div>
         </div>
 
-        <div class="card-inset wz-alloc-panel" id="wzSuggestPreviewPanel">
-            <h3 class="eyebrow wz-panel-title">
-                <span class="tip-label-row">
-                    <span class="tip-label-text" id="wzSuggestTitle">Proponowany podział oszczędności</span>
-                    <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">Możesz użyć podziału automatycznego albo ustawić własne udziały. Limity roczne IKE, IKZE i OIPE nadal obowiązują, a nadwyżki oraz nieprzydzielona kwota trafiają do gotówki.</span></span>
-                </span>
-            </h3>
-            <div class="segmented is-auto wz-allocation-mode" role="group" aria-label="Sposób podziału oszczędności">
-                <label class="seg-option"><input type="radio" name="wzAllocationMode" value="auto" checked> Automatyczny</label>
-                <label class="seg-option"><input type="radio" name="wzAllocationMode" value="manual"> Ręczny</label>
+        <div id="wzAutoPlanningPanel">
+            <div class="card-inset wz-panel">
+                <h3 class="eyebrow wz-panel-title">
+                    <span class="tip-label-row">
+                        <span class="tip-label-text">Profil ryzyka nowych wpłat</span>
+                        <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">Profil ogranicza łączny udział krypto i aktywów rynkowych w nowych wpłatach — także wewnątrz IKE/IKZE/OIPE — oraz pilnuje minimalnego udziału bezpiecznych aktywów. Nie zmienia istniejącego portfela. Rodzaj inwestycji w wrapperze dobieramy do profilu.</span></span>
+                    </span>
+                </h3>
+                <div class="wz-paths wz-choice-cards" id="wzRiskProfileCards">
+                    <label class="wz-path">
+                        <input type="radio" name="wzRiskProfile" value="spokojny">
+                        <span class="wz-path-check" aria-hidden="true"></span>
+                        <span class="wz-path-title">Spokojny</span>
+                        <span class="wz-path-desc">Najmniej krypto, najwięcej bezpiecznych aktywów.</span>
+                    </label>
+                    <label class="wz-path">
+                        <input type="radio" name="wzRiskProfile" value="zrownowazony" checked>
+                        <span class="wz-path-check" aria-hidden="true"></span>
+                        <span class="wz-path-title">Zrównoważony</span>
+                        <span class="wz-path-desc">Umiarkowana koncentracja rynkowa i niewielki udział krypto.</span>
+                    </label>
+                    <label class="wz-path">
+                        <input type="radio" name="wzRiskProfile" value="dynamiczny">
+                        <span class="wz-path-check" aria-hidden="true"></span>
+                        <span class="wz-path-title">Dynamiczny</span>
+                        <span class="wz-path-desc">Więcej rynkowych i krypto, ale w granicach limitu profilu.</span>
+                    </label>
+                </div>
             </div>
-            <p class="wz-suggest-note" id="wzTaxTipNote"></p>
-            <div id="wzManualSum" class="wz-manual-sum hidden" aria-live="polite"></div>
-            <div id="wzSuggestList" class="wz-suggest-list"></div>
-            <div class="wz-refund-note hidden" id="wzIkzeRefundNote"></div>
+
+            <div class="card-inset wz-panel" id="wzPriorityPanel">
+                <h3 class="eyebrow wz-panel-title">
+                    <span class="tip-label-row">
+                        <span class="tip-label-text">Co ma maksymalizować silnik?</span>
+                        <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">„Stała wypłata” maksymalizuje najniższą miesięczną kwotę. „Wyższa suma” wybiera wariant z największą sumą wypłat w horyzoncie.</span></span>
+                    </span>
+                </h3>
+                <div class="wz-paths wz-choice-cards" role="radiogroup" aria-label="Priorytet optymalizacji">
+                    <label class="wz-path">
+                        <input type="radio" name="wzPriority" value="payout" checked>
+                        <span class="wz-path-check" aria-hidden="true"></span>
+                        <span class="wz-path-title">Stała wypłata</span>
+                        <span class="wz-path-desc">Silnik maksymalizuje najniższą miesięczną wypłatę. Plan jest bardziej równy i bezpieczny; część kapitału może zostać na koniec horyzontu.</span>
+                    </label>
+                    <label class="wz-path">
+                        <input type="radio" name="wzPriority" value="total">
+                        <span class="wz-path-check" aria-hidden="true"></span>
+                        <span class="wz-path-title">Wyższa suma</span>
+                        <span class="wz-path-desc">Silnik maksymalizuje sumę wypłat w całym horyzoncie. Miesięczna kwota może być niższa w niektórych latach, ale łącznie wypłacisz więcej.</span>
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <div id="wzManualPlanningPanel">
+            <div class="card-inset wz-panel">
+                <h3 class="eyebrow wz-panel-title">
+                    <span class="tip-label-row">
+                        <span class="tip-label-text">Zacznij od propozycji</span>
+                        <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">Profil wypełni edytor startowym podziałem. To tylko punkt wyjścia — możesz zmienić każdy udział.</span></span>
+                    </span>
+                </h3>
+                <div class="wz-paths wz-choice-cards" id="wzProfileSeeds">
+                    <button type="button" class="wz-path wz-profile-seed" data-profile-seed="spokojny">
+                        <span class="wz-path-title">Spokojny</span>
+                        <span class="wz-path-desc">Najmniej krypto, najwięcej bezpiecznych aktywów.</span>
+                    </button>
+                    <button type="button" class="wz-path wz-profile-seed" data-profile-seed="zrownowazony">
+                        <span class="wz-path-title">Zrównoważony</span>
+                        <span class="wz-path-desc">Umiarkowana koncentracja rynkowa i niewielki udział krypto.</span>
+                    </button>
+                    <button type="button" class="wz-path wz-profile-seed" data-profile-seed="dynamiczny">
+                        <span class="wz-path-title">Dynamiczny</span>
+                        <span class="wz-path-desc">Więcej rynkowych i krypto, ale w granicach limitu profilu.</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="card-inset wz-panel">
+                <div class="wz-rows">
+                <div class="field wz-field-block" id="wzRetirementGroup">
+                    <label class="field-label-lg" for="wzRetirement">
+                        <span class="tip-label-row">
+                            <span class="tip-label-text">Wiek rozpoczęcia pobierania emerytury ZUS</span>
+                            <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">Domyślnie ustawowy wiek emerytalny: 60 lat dla kobiet, 65 lat dla mężczyzn.</span></span>
+                        </span>
+                    </label>
+                    <div class="wz-slider">
+                        <div class="num-control">
+                            <button type="button" class="stepper stepper-down" tabindex="-1">&minus;</button>
+                            <input type="number" id="wzRetirement" class="acc-field" value="65" min="50" max="95" step="1">
+                            <button type="button" class="stepper stepper-up" tabindex="-1">+</button>
+                        </div>
+                        <input type="range" id="wzRetirementRange" min="50" max="95" step="1" value="65" aria-label="Wiek emerytury ZUS">
+                    </div>
+                </div>
+                </div>
+            </div>
+
+            <div class="card-inset wz-alloc-panel" id="wzSuggestPreviewPanel">
+                <h3 class="eyebrow wz-panel-title">
+                    <span class="tip-label-row">
+                        <span class="tip-label-text" id="wzSuggestTitle">Twój podział wpłat</span>
+                        <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">Limity roczne IKE, IKZE i OIPE nadal obowiązują. Przy każdym wrapperze wybierz rodzaj inwestycji: maklerskie, funduszowe albo oszczędnościowe. OIPE jest dziś dostępne tylko w wersji funduszowej (Finax). Kwota, której nie przypiszesz, trafia do gotówki.</span></span>
+                    </span>
+                </h3>
+                <p class="wz-suggest-note" id="wzTaxTipNote"></p>
+                <p class="field-hint">Rodzaj inwestycji zmienia domyślne ROI całego wrappera. Jeśli masz mieszany rachunek, ustaw własne ROI w kroku „Kapitał”.</p>
+                <div id="wzManualSum" class="wz-manual-sum hidden" aria-live="polite"></div>
+                <div id="wzSuggestList" class="wz-suggest-list"></div>
+                <div class="wz-refund-note hidden" id="wzIkzeRefundNote"></div>
+            </div>
         </div>
     </section>
 
@@ -866,23 +945,38 @@
                         <div id="wzGanttTipBody"></div>
                     </div>
                     <p class="wz-flows-total-note" id="wzFlowsTotal"></p>
+                    <details class="wz-flows-table-details" id="wzFlowsTableDetails">
+                        <summary>Tabela przepływów</summary>
+                        <div id="wzAccumulationFlows"></div>
+                        <div id="wzTransferFlows"></div>
+                        <div id="wzAccountFlows"></div>
+                    </details>
                 </div>
 
                 <div class="wz-charts-wrap hidden" id="wzChartsWrap">
                     <section class="wz-chart-card" aria-labelledby="wzWithdrawalsTitle">
                         <div class="wz-chart-head">
                             <h4 class="wz-plan-subhead" id="wzWithdrawalsTitle">Wypłaty netto w czasie</h4>
-                            <div class="wz-chart-legend" id="wzWithdrawalsLegend"></div>
+                            <div class="wz-chart-head-actions">
+                                <div class="wz-chart-legend" id="wzWithdrawalsLegend"></div>
+                            </div>
                         </div>
                         <div class="wz-chart" id="wzWithdrawalsChart"></div>
                     </section>
                     <section class="wz-chart-card" aria-labelledby="wzCapitalTitle">
                         <div class="wz-chart-head">
                             <h4 class="wz-plan-subhead" id="wzCapitalTitle">Kapitał prywatny FIRE</h4>
-                            <div class="wz-chart-legend" id="wzCapitalLegend"></div>
+                            <div class="wz-chart-head-actions">
+                                <div class="wz-chart-legend" id="wzCapitalLegend"></div>
+                            </div>
                         </div>
                         <div class="wz-chart" id="wzCapitalChart"></div>
                     </section>
+                    <div class="wz-chart-annotations-row">
+                        <span class="wz-chart-annotations-label">Kamienie milowe:</span>
+                        <div class="wz-chart-annotations" id="wzChartAnnotations"></div>
+                    </div>
+                    <div class="wz-chart-annotation-note hidden" id="wzChartAnnotationNote"></div>
                 </div>
 
                 <div class="wz-gantt-tip hidden" id="wzChartTip" role="tooltip">
@@ -905,21 +999,32 @@
                         <p class="wz-method-policy" id="wzPolicyNote"></p>
                     </section>
                     <section class="wz-details-block">
-                        <h4 class="wz-details-title">Tabela przepływów</h4>
-                        <div id="wzAccountFlows"></div>
-                    </section>
-                    <section class="wz-details-block">
                         <h4 class="wz-details-title">Jak czytać ten plan?</h4>
                         <ul class="wz-read-list">
                             <li><strong>Wypłata netto</strong> — kwota na rękę po PIT, składce zdrowotnej i ewentualnym podatku jednorazowym IKZE.</li>
                             <li><strong>Portfel i ZUS</strong> — wypłata może pochodzić z obu źródeł; ich podział widać po kliknięciu etapu lub paska konta.</li>
                             <li><strong>Majątek brutto / netto</strong> — stan kont przed podatkiem od likwidacji i po nim, na koniec horyzontu.</li>
+                            <li><strong>Po horyzoncie</strong> — portfel przestaje być liczony; pokazujemy tylko prognozę dożywotniej emerytury ZUS.</li>
+                            <li><strong>Optymalizacja</strong> — porównuje wiek ZUS i podział IKE/IKZE; niczego nie zmienia bez kliknięcia „Zastosuj”.</li>
                             <li><strong>Scenariusze</strong> — zmieniają założenia rynkowe, nie Twoje wpłaty ani cel.</li>
                             <li><strong>Kwoty realne</strong> — wszystkie wartości są w dzisiejszej sile nabywczej.</li>
                         </ul>
                         <p class="wz-disclaimer">Model edukacyjny — nie prognoza ani rekomendacja inwestycyjna.</p>
                     </section>
                 </div>
+            </details>
+
+            <details class="card-inset wz-optimizer hidden" id="wzOptimizer">
+                <summary class="wz-optimizer-summary-head">
+                    <span class="eyebrow wz-panel-title">
+                        <span class="tip-label-row">
+                            <span class="tip-label-text">Jak dobraliśmy plan?</span>
+                            <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">Silnik porównał kilka wariantów wieku rozpoczęcia ZUS i podziału wpłat IKE/IKZE. Główny plan to rekomendacja według wybranego priorytetu. Tabela pokazuje też Twoje pierwotne ustawienia i najlepszy wariant pod kątem sumy wypłat. Wszystkie warianty mają stałą miesięczną wypłatę.</span></span>
+                        </span>
+                    </span>
+                    <span class="chip chip-primary hidden" id="wzOptimizerChip"></span>
+                </summary>
+                <div id="wzOptimizerResult"></div>
             </details>
         </div>
     </section>
