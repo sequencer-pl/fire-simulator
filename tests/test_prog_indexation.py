@@ -118,6 +118,32 @@ def test_conservative_preset_models_a_bear_market():
     assert vehicles["fund"]["default_roi"] > vehicles["broker"]["default_roi"]
 
 
+def test_real_preset_sits_between_bear_and_bull():
+    bear = get_builtin_preset("Konserwatywne")
+    real = get_builtin_preset("Realne")
+    bull = get_builtin_preset("Optymistyczne")
+    assert bear is not None and real is not None and bull is not None
+    for account in (
+        "broker",
+        "ppk",
+        "oki_inw",
+        "obligacje",
+        "lokata",
+        "krypto",
+        "zus",
+        "nieruchomosc",
+    ):
+        low = bear["accounts"][account]["default_roi"]
+        mid = real["accounts"][account]["default_roi"]
+        high = bull["accounts"][account]["default_roi"]
+        assert low < mid < high, account
+    for vehicle in ("broker", "fund", "savings"):
+        low = bear["wrapper_vehicles"][vehicle]["default_roi"]
+        mid = real["wrapper_vehicles"][vehicle]["default_roi"]
+        high = bull["wrapper_vehicles"][vehicle]["default_roi"]
+        assert low < mid < high, vehicle
+
+
 def test_backfill_adds_prog_indexation_to_legacy_config():
     legacy = {"year": 2026, "inflation": 0.03}
     filled = backfill_tax_config(legacy)

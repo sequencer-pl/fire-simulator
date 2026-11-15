@@ -90,6 +90,8 @@ Symulator celowo jest **prostym modelem deterministycznym**, a nie symulacją Mo
 
 8c. **Scenariusz „Kryzys / bessa”** zakłada słaby rynek przez cały horyzont, nie jednorazowy krach: akcje **0% realnie**, fundusze i PPK/PPE **+0,5%**, obligacje **+0,5%**, lokaty i OKI oszczędnościowe **0%**, nieruchomość **0%**, ZUS/OFE **+1%**, a krypto **−8% realnie**. Gotówka traci tyle, ile wynosi inflacja. To celowo mocniejszy scenariusz negatywny; nie jest prognozą.
 
+8d. **Scenariusz „Realne / bazowe”** leży pomiędzy bessą a hossą: akcje **3,5% realnie**, fundusze, PPK/PPE i OKI inwestycyjne **+3,0%**, krypto **0%**, obligacje **+1,5%**, lokaty, OKI oszczędnościowe i nieruchomość **+1,0%**, ZUS/OFE **+3,0%**. Przez procent składany nie jest to środek wypłat — wynik jest bliżej bessy niż hossy, co jest świadomym wyborem konserwatywnym.
+
 9. **Limity wpłat (2026):** IKE 28 260 zł, IKZE 11 304 zł (16 956 zł samozatrudnieni), OIPE 28 260 zł, składka dodatkowa PPE 42 390 zł. Przekroczenie to ostrzeżenie, nie automatyczne obcięcie — dopłaty ponad limit po prostu "wchodzą" i tracą sens podatkowy.
 
 10. **Nakładające się etapy** — dla danego konta wygrywa pierwszy z nich; konta nieobsługiwane w danym roku rosną pasywnie z ostatnim znanym ROI (domyślnie 2%).

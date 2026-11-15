@@ -216,7 +216,10 @@ bez TypeScript), pytest. Odpowiadaj i pisz UI po polsku.
   **0% realnie**, krypto **−8%**, obligacje **+0,5%**, lokaty i OKI oszcz. **0%**,
   fundusze/PPK/PPE/OKI inw. **+0,5%**, ZUS/OFE **+1%**. Nie schodzimy z akcjami
   poniżej zera — stały ujemny zwrot przez cały horyzont to już „stracone
-  półwiecze”, a nie bessa.
+  półwiecze”, a nie bessa. Preset „Realne” jest środkiem założeń: akcje **3,5%**,
+  fundusze/PPK/PPE/OKI inw. **+3%**, krypto **0%**, obligacje **+1,5%**, lokaty/
+  OKI oszcz./nieruchomość **+1%**, ZUS/OFE **+3%**. Przez procent składany to nie
+  jest środek wypłat — wynik jest bliżej bessy, i tak ma być.
 - **Konfiguracja lokalna**: `fire.config` przechowuje aktywny config i baseline,
   a `fire.presets` — własne presety. Jeśli kluczy nie ma, wczytujemy defaulty
   z `/api/config`, a lista presetów pokazuje same wbudowane. Zapis jest
