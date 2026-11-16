@@ -56,9 +56,15 @@ bez TypeScript), pytest. Odpowiadaj i pisz UI po polsku.
 - **Polityka wypłat Asystenta**: `withdrawal_policy` = `defer_tier` (IKE/konta
   dostępne najpierw, IKZE później), `early_tier` (wymuszone opodatkowanie całości
   IKZE na starcie realizacji przed 65; netto jest reinwestowane w konto docelowe),
-  `defer_roi`/`early_roi` (w ramach progu podatkowego najpierw konta o niższym ROI). Asystent `auto` uruchamia cztery
-  warianty i wybiera najwyższą wartość netto (`total_withdrawn + final_wealth_net`);
+  `defer_roi`/`early_roi` (w ramach progu podatkowego najpierw konta o niższym ROI)
+  oraz `defer_tax`/`early_tax` (w ramach progu najpierw konta najtańsze podatkowo:
+  OKI, IKE po 60, potem broker/obligacje itd.). Asystent `auto` uruchamia sześć
+  wariantów i wybiera najwyższą wartość netto (`total_withdrawn + final_wealth_net`);
   wybrany wariant trafia do `input.withdrawal_policy` i do `/sim` przez draft.
+- **Sugestia a istniejące OKI**: `suggest_allocation_plan` respektuje saldo
+  `capital.oki_inw`/`capital.oki_osk`; nowe wpłaty do OKI proponuje tylko w ramach
+  pozostałego limitu (100 tys. zł łącznie, 25 tys. zł oszczędności). Po jego
+  wykorzystaniu nadwyżka rynkowa idzie do brokera, a bezpieczna do obligacji/lokat.
 - **ZUS obsługuje engine**, nie etap (waloryzacja zamiast ROI, konwersja kapitału na
   rentę zamiast PMT; renta waloryzowana corocznie). Rok emerytury = `start_year` +
   (wiek − wiek startowy); tabela ŚDTŻ jest wtedy przesuwana o wzrost długowieczności.

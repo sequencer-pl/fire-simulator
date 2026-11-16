@@ -748,11 +748,45 @@ def _target_asset_mix(a: WizardAnswers, config: TaxConfig) -> tuple[float, float
     return safe, market, high
 
 
+def _oki_exemption_room(a: WizardAnswers, config: TaxConfig) -> tuple[float, float]:
+    """Wolne miejsce w uldze OKI: (limit łączny, limit oszczędnościowy).
+
+    Bierzemy istniejące salda OKI z odpowiedzi użytkownika. To przybliżenie:
+    limit dotyczy średniego rocznego stanu, ale dla sugestii bieżące saldo
+    jest wystarczające i konserwatywne.
+    """
+    total_limit = max(
+        (
+            rules.asset_exemption
+            for name in ("oki_inw", "oki_osk")
+            if (rules := config.get_account_rules(name)) is not None
+        ),
+        default=0.0,
+    )
+    savings_rules = config.get_account_rules("oki_osk")
+    savings_limit = savings_rules.asset_exemption if savings_rules else 0.0
+    existing_total = sum(
+        value
+        for name, value in a.capital.items()
+        if base_account_key(name) in ("oki_inw", "oki_osk")
+    )
+    existing_savings = sum(
+        value
+        for name, value in a.capital.items()
+        if base_account_key(name) == "oki_osk"
+    )
+    return (
+        max(0.0, total_limit - existing_total),
+        max(0.0, savings_limit - existing_savings),
+    )
+
+
 def _add_taxable_market(
     amounts: dict[str, float],
     share: float,
     annual_pool: float,
     profile,
+    oki_room: float = 0.0,
 ) -> None:
     if share <= 1e-6:
         return
@@ -760,9 +794,13 @@ def _add_taxable_market(
         amounts["broker"] = amounts.get("broker", 0.0) + share
         return
     single_cap = max(0.0, profile.max_single_taxable * 100.0)
+    oki_cap = min(
+        single_cap,
+        oki_room / annual_pool * 100.0 if annual_pool > 0 else 0.0,
+    )
     broker = min(share, single_cap)
     rest = share - broker
-    oki = min(rest, single_cap)
+    oki = min(rest, oki_cap)
     rest -= oki
     if broker > 1e-6:
         amounts["broker"] = amounts.get("broker", 0.0) + broker
@@ -775,17 +813,27 @@ def _add_taxable_market(
 
 
 def _add_taxable_safe(
-    amounts: dict[str, float], share: float, annual_pool: float
+    amounts: dict[str, float],
+    share: float,
+    annual_pool: float,
+    oki_room: float = 0.0,
 ) -> None:
     if share <= 1e-6:
         return
     if annual_pool * share / 100.0 < MIX_MIN_ANNUAL:
         amounts["obligacje"] = amounts.get("obligacje", 0.0) + share
         return
-    for name, pct in (("obligacje", 50.0), ("lokata", 30.0), ("oki_osk", 20.0)):
-        part = share * pct / 100.0
+    oki_share = min(
+        share * 20.0 / 100.0,
+        oki_room / annual_pool * 100.0 if annual_pool > 0 else 0.0,
+    )
+    safe_rest = share - oki_share
+    for name, pct in (("obligacje", 50.0), ("lokata", 30.0)):
+        part = safe_rest * pct / 80.0
         if part > 1e-6:
             amounts[name] = amounts.get(name, 0.0) + part
+    if oki_share > 1e-6:
+        amounts["oki_osk"] = amounts.get("oki_osk", 0.0) + oki_share
 
 
 def suggest_allocation_plan(
@@ -804,6 +852,7 @@ def suggest_allocation_plan(
     a = _normalize_salary(a)
     profile = config.risk_profiles.get(a.risk_profile) or config.risk_profiles["zrownowazony"]
     safe_target, market_target, high_target = _target_asset_mix(a, config)
+    oki_total_room, oki_savings_room = _oki_exemption_room(a, config)
 
     if annual_pool < MIX_MIN_ANNUAL:
         active = {n for n in ALLOCATABLE_ACCOUNTS if _account_present(a, n, {})}
@@ -917,9 +966,11 @@ def suggest_allocation_plan(
     if high_target > 1e-6:
         amounts["krypto"] = amounts.get("krypto", 0.0) + high_target
     if market_left > 1e-6:
-        _add_taxable_market(amounts, market_left, annual_pool, profile)
+        _add_taxable_market(
+            amounts, market_left, annual_pool, profile, oki_total_room
+        )
     if safe_left > 1e-6:
-        _add_taxable_safe(amounts, safe_left, annual_pool)
+        _add_taxable_safe(amounts, safe_left, annual_pool, oki_savings_room)
 
     total = sum(amounts.values())
     if total <= 0:
@@ -2465,7 +2516,14 @@ def _bake_realization_targets(data: SimulationInput, target_net: float | None) -
                         acc_cfg.buffer = round(max(0.0, end_bal[acc_name]), 2)
 
 
-WIZARD_POLICIES = ("defer_tier", "early_tier", "defer_roi", "early_roi")
+WIZARD_POLICIES = (
+    "defer_tier",
+    "early_tier",
+    "defer_roi",
+    "early_roi",
+    "defer_tax",
+    "early_tax",
+)
 
 
 def _policy_score(proj: PlanProjection) -> tuple[bool, float, float]:

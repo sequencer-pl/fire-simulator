@@ -1001,6 +1001,36 @@ def test_suggest_equal_capacity_fills_wrappers_then_taxable():
     assert sum(large.values()) == pytest.approx(100.0, abs=0.02)
 
 
+def test_suggest_respects_existing_oki_balance():
+    # Limit OKI to 100 tys. — jeśli już jest wykorzystany, nowe wpłaty idą
+    # do brokera, a nie do OKI.
+    full = answers(
+        risk_profile="zrownowazony",
+        allocations={},
+        capital={"oki_inw": 100_000},
+    )
+    alloc_full, _ = suggest_allocation_plan(full, default_config(), 200_000)
+    assert "oki_inw" not in alloc_full
+    assert alloc_full["broker"] > 50.0
+
+    empty = answers(risk_profile="zrownowazony", allocations={}, capital={})
+    alloc_empty, _ = suggest_allocation_plan(empty, default_config(), 200_000)
+    assert alloc_empty["oki_inw"] > 0
+
+
+def test_suggest_respects_existing_oki_savings_balance():
+    a = answers(
+        risk_profile="spokojny",
+        allocations={},
+        capital={"oki_osk": 25_000},
+        use_ike=True,
+        use_ikze=True,
+    )
+    alloc, _vehicles = suggest_allocation_plan(a, default_config(), 60_000)
+    assert "oki_osk" not in alloc
+    assert alloc["obligacje"] > 0
+
+
 def test_suggest_sole_active_account_opens_shelters_then_mix():
     s, vehicles = suggest_allocation_plan(
         answers(

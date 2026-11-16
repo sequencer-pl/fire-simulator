@@ -430,6 +430,45 @@ def _pick_liquid_target(
     return None
 
 
+def _withdrawal_tax_cost(
+    account: str,
+    balance: float,
+    basis: float,
+    config: TaxConfig,
+    age: int,
+) -> float:
+    """Szacowany efektywny podatek od kolejnej złotówki wypłaty.
+
+    Używany wyłącznie do KOLEJNOŚCI wypłat (nie do liczenia podatku).
+    Niższa wartość = konta, z których warto wypłacać najpierw.
+    """
+    rules = config.get_account_rules(account)
+    if rules is None or balance <= 0:
+        return 0.0
+    if rules.tax_periodic:
+        return 0.0
+    early = rules.min_withdrawal_age > 0 and age < rules.min_withdrawal_age
+    if early:
+        model = rules.early_tax_model
+        rate = rules.early_tax_rate
+        basis_mode = rules.early_tax_basis
+    else:
+        model = rules.tax_model
+        rate = rules.tax_rate
+        basis_mode = rules.tax_basis
+    if model in ("none", "assets"):
+        return 0.0
+    if model == "flat":
+        if basis_mode == "full":
+            return max(0.0, rate)
+        gain_ratio = max(0.0, 1.0 - basis / balance) if balance > 0 else 0.0
+        return max(0.0, rate) * gain_ratio
+    if model == "scale":
+        tax = scale_tax(balance, **config.scale_kwargs(0))
+        return tax / balance if balance > 0 else 0.0
+    return 0.0
+
+
 def _process_stages(
     active_stages: list[StageInput],
     age: int,
@@ -697,11 +736,23 @@ def _process_stages(
             if desired_withdrawal is not None:
                 kwargs["desired_withdrawal"] = desired_withdrawal
             if stage_input.stage_type == "realizacja":
-                kwargs["withdrawal_order"] = (
-                    "roi_asc"
-                    if state is not None and state.withdrawal_policy.endswith("_roi")
-                    else "proportional"
-                )
+                policy = state.withdrawal_policy if state is not None else "defer_tier"
+                if policy.endswith("_roi"):
+                    kwargs["withdrawal_order"] = "roi_asc"
+                elif policy.endswith("_tax"):
+                    kwargs["withdrawal_order"] = "tax_asc"
+                    kwargs["tax_costs"] = {
+                        name: _withdrawal_tax_cost(
+                            name,
+                            balances.get(name, 0.0),
+                            basis.get(name, 0.0),
+                            config,
+                            age,
+                        )
+                        for name in accounts_to_process
+                    }
+                else:
+                    kwargs["withdrawal_order"] = "proportional"
             result = stage_obj.calculate_year(
                 age=age,
                 end_age=stage_input.end_age,

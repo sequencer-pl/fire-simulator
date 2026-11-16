@@ -26,6 +26,7 @@ class RealizacjaStage(BaseStage):
         config: dict,
         desired_withdrawal: float | None = None,
         withdrawal_order: str = "proportional",
+        tax_costs: dict[str, float] | None = None,
     ) -> dict:
         new_balances = {}
         withdrawal = {}
@@ -87,12 +88,24 @@ class RealizacjaStage(BaseStage):
             for tier in (tier_0, tier_1, tier_2):
                 tier_balance = sum(max(0.0, balances.get(acc, 0.0)) for acc in tier)
                 if remaining_needed > 1e-9 and tier_balance > 0:
-                    if withdrawal_order == "roi_asc":
-                        # Najpierw najniższe ROI — chroni wysokostopowe konta.
-                        ordered = sorted(
-                            tier,
-                            key=lambda acc: (investable[acc].get("roi", 0.02), acc),
-                        )
+                    if withdrawal_order in ("roi_asc", "tax_asc"):
+                        if withdrawal_order == "tax_asc":
+                            # Najpierw najtańsze podatkowo konta (np. OKI, IKE
+                            # po 60), a przy remisie — niższe ROI.
+                            ordered = sorted(
+                                tier,
+                                key=lambda acc: (
+                                    (tax_costs or {}).get(acc, 0.0),
+                                    investable[acc].get("roi", 0.02),
+                                    acc,
+                                ),
+                            )
+                        else:
+                            # Najpierw najniższe ROI — chroni wysokostopowe konta.
+                            ordered = sorted(
+                                tier,
+                                key=lambda acc: (investable[acc].get("roi", 0.02), acc),
+                            )
                         for account in ordered:
                             balance = max(0.0, balances.get(account, 0.0))
                             roi = investable[account].get("roi", 0.02)

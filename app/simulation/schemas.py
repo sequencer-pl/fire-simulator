@@ -144,7 +144,13 @@ class SimulationInput(BaseModel):
     #   konta o niższym ROI (chroni wysokostopowe konta dłużej).
     # "auto" rozwija Asystent; samo simulate() traktuje je jak defer_tier.
     withdrawal_policy: Literal[
-        "auto", "defer_tier", "early_tier", "defer_roi", "early_roi"
+        "auto",
+        "defer_tier",
+        "early_tier",
+        "defer_roi",
+        "early_roi",
+        "defer_tax",
+        "early_tax",
     ] = "defer_tier"
     # Kredyt hipoteczny (mieszkanie własne): miesięczna rata i wiek końca spłaty.
     mortgage_monthly: float = Field(default=0.0, ge=0.0, le=1e7)

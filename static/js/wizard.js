@@ -4656,14 +4656,17 @@ function wzRenderPolicy(projection) {
     const policy = projection?.withdrawal_policy || "";
     const early = policy.startsWith("early");
     const roi = policy.endsWith("_roi");
+    const tax = policy.endsWith("_tax");
     let text = "Najpierw konta dostępne bez kary, potem wcześniejsze z 19% "
         + "(IKE/PPK/PPE przed 60), na końcu IKZE przed 65 (skala).";
     text += early
         ? " W tym planie IKZE jest opodatkowane wcześniej, a IKE/PPK schodzą później."
         : " W tym planie nie wymuszamy wcześniejszego zwrotu IKZE — najpierw schodzą IKE/PPK i konta dostępne. Jeśli portfel nie wystarcza, silnik może odblokować IKZE wcześniej.";
-    text += roi
-        ? " W obrębie progu najpierw konta z niższym ROI."
-        : " W obrębie progu wypłaty idą proporcjonalnie do sald.";
+    text += tax
+        ? " W obrębie progu najpierw konta najtańsze podatkowo (np. OKI, IKE po 60)."
+        : roi
+            ? " W obrębie progu najpierw konta z niższym ROI."
+            : " W obrębie progu wypłaty idą proporcjonalnie do sald.";
     note.textContent = text;
 }
 

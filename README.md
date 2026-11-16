@@ -111,9 +111,12 @@ wybiera rodzaj inwestycji (maklerskie, funduszowe albo oszczędnościowe);
 OIPE jest dziś dostępne tylko w wersji funduszowej.
 Asystent porównuje też **kolejność wypłat**: wcześniejsze opodatkowanie IKZE
 vs odłożenie go do 65, oraz w ramach progów podatkowych kolejność wg ROI
-(niższe ROI pierwsze). Wcześniejszy zwrot netto jest reinwestowany w konto
+(niższe ROI pierwsze) albo **kosztu podatkowego** (najtańsze konta pierwsze,
+np. OKI, IKE po 60). Wcześniejszy zwrot netto jest reinwestowany w konto
 docelowe, więc porównanie uwzględnia jego niższe ROI/podatek. Wybiera wariant
-o najwyższej wartości netto.
+o najwyższej wartości netto. Istniejące saldo OKI jest respektowane przy
+proponowaniu nowych wpłat — Asystent nie dokłada do OKI ponad limit ulgi
+100 tys. zł (25 tys. zł dla części oszczędnościowej).
 
 ## Obsługiwane konta
 
