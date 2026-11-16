@@ -6,7 +6,7 @@ from app.simulation.engine import simulate
 from app.simulation.planner import _account_phases
 from app.simulation.schemas import SimulationInput
 
-CFG_NOINFL = TaxConfig(inflation=0.0)
+CFG_NOINFL = TaxConfig(inflation=0.0, prog_indexation=None)
 
 # --- Składki i dopłaty państwa ---
 

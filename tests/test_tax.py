@@ -6,7 +6,7 @@ from app.simulation.config import TaxConfig, backfill_tax_config, default_config
 from app.simulation.engine import simulate
 from app.simulation.schemas import SimulationInput
 
-CFG_NOINFL = TaxConfig(inflation=0.0, health_rate=0.0)
+CFG_NOINFL = TaxConfig(inflation=0.0, health_rate=0.0, prog_indexation=None)
 
 # --- Skala PIT 2026 ---
 
@@ -25,7 +25,7 @@ def test_scale_tax(income, expected):
     assert scale_tax(income) == pytest.approx(expected)
 
 
-# --- Skala PIT 2027 (projekt UD458): 12% do 130k, 24% do 150k, 32% powyżej ---
+# --- Skala PIT 2027: 12% do 130k, 24% do 150k, 32% powyżej ---
 
 
 def _scale_2027(income: float) -> float:
@@ -311,9 +311,19 @@ def test_scale_tax_indexed_with_inflation():
         accumulation_stage({"broker": acc(starting_balance=10_000, roi=0.0)}, start=30, end=65),
         realization_stage("ZUS", {"zus": acc(monthly_pension=4_500)}, 65, 70),
     ]
-    r_noinfl = simulate(SimulationInput(stages=stages, max_age=69, config=TaxConfig(inflation=0.0)))
+    r_noinfl = simulate(
+        SimulationInput(
+            stages=stages,
+            max_age=69,
+            config=TaxConfig(inflation=0.0, prog_indexation=None),
+        )
+    )
     r_infl = simulate(
-        SimulationInput(stages=stages, max_age=69, config=TaxConfig(inflation=0.025))
+        SimulationInput(
+            stages=stages,
+            max_age=69,
+            config=TaxConfig(inflation=0.025, prog_indexation=0.025),
+        )
     )
     y_noinfl = next(y for y in r_noinfl.years if y.age == 65)
     y_infl = next(y for y in r_infl.years if y.age == 65)

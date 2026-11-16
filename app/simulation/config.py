@@ -98,17 +98,17 @@ class Limits(BaseModel):
 def default_account_rules() -> dict[str, AccountRules]:
     return {
         "broker": AccountRules(
-            tax_model="flat", tax_rate=0.19, risk_class="market", default_roi=0.05
+            tax_model="flat", tax_rate=0.19, risk_class="market", default_roi=0.035
         ),
         "krypto": AccountRules(
-            tax_model="flat", tax_rate=0.19, risk_class="high", default_roi=0.06
+            tax_model="flat", tax_rate=0.19, risk_class="high", default_roi=0.0
         ),
         "lokata": AccountRules(
             tax_model="flat", tax_rate=0.19, tax_periodic=True,
-            risk_class="safe", default_roi=0.018
+            risk_class="safe", default_roi=0.01
         ),
         "obligacje": AccountRules(
-            tax_model="flat", tax_rate=0.19, risk_class="safe", default_roi=0.02
+            tax_model="flat", tax_rate=0.19, risk_class="safe", default_roi=0.015
         ),
         "gotowka": AccountRules(tax_model="none", risk_class="safe", default_roi=0.0),
         "ike": AccountRules(
@@ -120,7 +120,7 @@ def default_account_rules() -> dict[str, AccountRules]:
             early_tax_rate=0.19,
             early_tax_basis="gains",
             risk_class="wrapper",
-            default_roi=0.05,
+            default_roi=0.035,
         ),
         "ikze": AccountRules(
             tax_model="flat",
@@ -129,7 +129,7 @@ def default_account_rules() -> dict[str, AccountRules]:
             min_withdrawal_age=65,
             early_tax_model="scale",
             risk_class="wrapper",
-            default_roi=0.05,
+            default_roi=0.035,
         ),
         "ppk": AccountRules(
             tax_model="none",
@@ -138,7 +138,7 @@ def default_account_rules() -> dict[str, AccountRules]:
             early_tax_rate=0.19,
             early_tax_basis="gains",
             risk_class="wrapper",
-            default_roi=0.04,
+            default_roi=0.03,
         ),
         "ppe": AccountRules(
             tax_model="none",
@@ -147,7 +147,7 @@ def default_account_rules() -> dict[str, AccountRules]:
             early_tax_rate=0.19,
             early_tax_basis="gains",
             risk_class="wrapper",
-            default_roi=0.04,
+            default_roi=0.03,
         ),
         "oipe": AccountRules(
             tax_model="flat",
@@ -158,7 +158,7 @@ def default_account_rules() -> dict[str, AccountRules]:
             early_tax_rate=0.19,
             early_tax_basis="gains",
             risk_class="wrapper",
-            default_roi=0.05,
+            default_roi=0.035,
         ),
         "oki_inw": AccountRules(
             tax_model="assets",
@@ -167,7 +167,7 @@ def default_account_rules() -> dict[str, AccountRules]:
             asset_group="oki",
             asset_class="inwestycyjne",
             risk_class="market",
-            default_roi=0.045,
+            default_roi=0.03,
         ),
         "oki_osk": AccountRules(
             tax_model="assets",
@@ -176,11 +176,11 @@ def default_account_rules() -> dict[str, AccountRules]:
             asset_group="oki",
             asset_class="oszczednosciowe",
             risk_class="safe",
-            default_roi=0.02,
+            default_roi=0.01,
         ),
-        "zus": AccountRules(tax_model="scale", risk_class="wrapper", default_roi=0.04),
+        "zus": AccountRules(tax_model="scale", risk_class="wrapper", default_roi=0.03),
         "nieruchomosc": AccountRules(
-            tax_model="none", risk_class="illiquid", default_roi=0.015
+            tax_model="none", risk_class="illiquid", default_roi=0.01
         ),
     }
 
@@ -197,7 +197,7 @@ class ZusConfig(BaseModel):
     employee_rate: float = 0.1371
     ofe_rate: float = 0.0292
     limit_base_annual: float = 270_000
-    waloryzacja_skladek: float = 0.01
+    waloryzacja_skladek: float = 0.02
     waloryzacja_swiadczenia: float = 0.01
     wiek_emerytalny_k: int = 60
     wiek_emerytalny_m: int = 65
@@ -271,26 +271,27 @@ class RiskProfile(BaseModel):
 
 def default_risk_profiles() -> dict[str, RiskProfile]:
     return {
+        # Trzy punkty skali: 100% safe -> 100% market -> 70/30 market/krypto.
         "spokojny": RiskProfile(
             label="Spokojny",
             max_crypto=0.0,
-            max_market=0.30,
-            max_single_taxable=0.20,
-            min_safe=0.50,
+            max_market=0.0,
+            max_single_taxable=0.0,
+            min_safe=1.0,
         ),
         "zrownowazony": RiskProfile(
-            label="Zrównoważony",
-            max_crypto=0.05,
-            max_market=0.55,
-            max_single_taxable=0.35,
-            min_safe=0.20,
+            label="Rynkowy",
+            max_crypto=0.0,
+            max_market=1.0,
+            max_single_taxable=0.50,
+            min_safe=0.0,
         ),
         "dynamiczny": RiskProfile(
             label="Dynamiczny",
-            max_crypto=0.15,
-            max_market=0.75,
+            max_crypto=0.30,
+            max_market=0.70,
             max_single_taxable=0.50,
-            min_safe=0.05,
+            min_safe=0.0,
         ),
     }
 
@@ -310,13 +311,13 @@ WRAPPER_VEHICLE_KEYS = ("broker", "fund", "savings")
 def default_wrapper_vehicles() -> dict[str, WrapperVehicle]:
     return {
         "broker": WrapperVehicle(
-            label="Maklerskie", risk_class="market", default_roi=0.05
+            label="Maklerskie", risk_class="market", default_roi=0.035
         ),
         "fund": WrapperVehicle(
-            label="Funduszowe", risk_class="market", default_roi=0.045
+            label="Funduszowe", risk_class="market", default_roi=0.03
         ),
         "savings": WrapperVehicle(
-            label="Oszczędnościowe", risk_class="safe", default_roi=0.018
+            label="Oszczędnościowe", risk_class="safe", default_roi=0.01
         ),
     }
 
@@ -327,6 +328,57 @@ def default_wrapper_vehicle_options() -> dict[str, list[str]]:
         "ikze": ["broker", "fund", "savings"],
         "oipe": ["fund"],
     }
+
+
+class ScenarioModifier(BaseModel):
+    """Delty rynkowe nakładane na globalny config dla bessy/hossy."""
+
+    label: str = ""
+    inflation_delta: float = 0.0
+    prog_indexation_delta: float | None = None
+    prog_indexation_full: bool = False
+    zus_skladki_delta: float = 0.0
+    zus_swiadczenie_delta: float = 0.0
+    account_roi_deltas: dict[str, float] = Field(default_factory=dict)
+    wrapper_roi_deltas: dict[str, float] = Field(default_factory=dict)
+
+
+class ScenarioConfig(BaseModel):
+    bear: ScenarioModifier
+    bull: ScenarioModifier
+
+
+def default_scenarios() -> ScenarioConfig:
+    return ScenarioConfig(
+        bear=ScenarioModifier(
+            label="Kryzys / bessa",
+            inflation_delta=0.010,
+            prog_indexation_delta=-0.005,
+            zus_skladki_delta=-0.010,
+            zus_swiadczenie_delta=-0.010,
+            account_roi_deltas={
+                "broker": -0.035, "ike": -0.035, "ikze": -0.035, "oipe": -0.035,
+                "ppk": -0.025, "ppe": -0.025, "oki_inw": -0.025, "oki_osk": -0.010,
+                "obligacje": -0.010, "lokata": -0.010, "krypto": -0.080,
+                "zus": -0.020, "nieruchomosc": -0.010,
+            },
+            wrapper_roi_deltas={"broker": -0.035, "fund": -0.025, "savings": -0.010},
+        ),
+        bull=ScenarioModifier(
+            label="Hossa / optymistyczne",
+            inflation_delta=-0.010,
+            prog_indexation_full=True,
+            zus_skladki_delta=0.005,
+            zus_swiadczenie_delta=0.010,
+            account_roi_deltas={
+                "broker": 0.030, "ike": 0.030, "ikze": 0.030, "oipe": 0.030,
+                "ppk": 0.025, "ppe": 0.025, "oki_inw": 0.030, "oki_osk": 0.015,
+                "obligacje": 0.010, "lokata": 0.012, "krypto": 0.080,
+                "zus": 0.020, "nieruchomosc": 0.015,
+            },
+            wrapper_roi_deltas={"broker": 0.030, "fund": 0.025, "savings": 0.012},
+        ),
+    )
 
 
 class TaxConfig(BaseModel):
@@ -350,7 +402,7 @@ class TaxConfig(BaseModel):
     # Nominalna indeksacja progów PIT (kwota wolna, progi, KUP, próg daniny).
     # None = indeksacja równa inflacji (progi stałe realnie); 0.0 = progi
     # zamrożone nominalnie, więc realnie maleją co roku o inflację.
-    prog_indexation: float | None = None
+    prog_indexation: float | None = 0.015
     limits: Limits = Field(default_factory=Limits)
     accounts: dict[str, AccountRules] = Field(default_factory=default_account_rules)
     zus: ZusConfig = Field(default_factory=ZusConfig)
@@ -358,6 +410,7 @@ class TaxConfig(BaseModel):
     ppk: PpkConfig = Field(default_factory=PpkConfig)
     ppe: PpeConfig = Field(default_factory=PpeConfig)
     risk_profiles: dict[str, RiskProfile] = Field(default_factory=default_risk_profiles)
+    scenarios: ScenarioConfig = Field(default_factory=default_scenarios)
     wrapper_vehicles: dict[str, WrapperVehicle] = Field(
         default_factory=default_wrapper_vehicles
     )
@@ -434,14 +487,22 @@ class TaxConfig(BaseModel):
 
 
 def default_config(year: int = 2026) -> TaxConfig:
-    cfg = TaxConfig()
+    cfg = TaxConfig(year=year)
     if year == 2027:
-        cfg.year = 2027
         cfg.prog = 130_000
         cfg.prog2 = 150_000
         cfg.rate_middle = 0.24
         cfg.danina_rate = 0.05
         cfg.kup_50_limit = 130_000
+        # Oficjalne limity MRPiPS na 2027 (Monitor Polski, październik 2026).
+        cfg.limits = Limits(
+            ike_annual=30_099.0,
+            ikze_annual=12_039.60,
+            ikze_annual_self_employed=18_059.40,
+            oipe_annual=30_099.0,
+            ppe_additional_annual=45_148.50,
+        )
+        cfg.zus.limit_base_annual = 300_990.0
     return cfg
 
 
@@ -453,113 +514,15 @@ def backfill_tax_config(data: dict) -> dict:
     return data
 
 
-BUILTIN_PRESETS: dict[str, dict] = {
-    "Domyślne 2026": {"year": 2026, "inflation": 0.025},
-    "2027 (projekt UD458)": {
-        "year": 2027,
-        "prog": 130_000,
-        "prog2": 150_000,
-        "rate_lower": 0.12,
-        "rate_middle": 0.24,
-        "rate_upper": 0.32,
-        "danina_rate": 0.05,
-        "kup_50_limit": 130_000,
-        "inflation": 0.025,
-    },
-    "Konserwatywne": {
-        "inflation": 0.035,
-        "prog_indexation": 0.01,
-        "zus": {"waloryzacja_skladek": 0.01, "waloryzacja_swiadczenia": 0.0},
-        "accounts": {
-            # Bessa: akcje realnie na zero, krypto na minusie, bezpieczne
-            # aktywa prawie bez zysku. To nie krach, tylko słaby rynek na
-            # cały horyzont — dlatego nie schodzimy z akcjami poniżej zera.
-            "broker": {"default_roi": 0.0},
-            "ike": {"default_roi": 0.0},
-            "ikze": {"default_roi": 0.0},
-            "oipe": {"default_roi": 0.0},
-            "ppk": {"default_roi": 0.005},
-            "ppe": {"default_roi": 0.005},
-            "oki_inw": {"default_roi": 0.005},
-            "oki_osk": {"default_roi": 0.0},
-            "obligacje": {"default_roi": 0.005},
-            "lokata": {"default_roi": 0.0},
-            "krypto": {"default_roi": -0.08},
-            "zus": {"default_roi": 0.01},
-            "nieruchomosc": {"default_roi": 0.0},
-        },
-        "wrapper_vehicles": {
-            "broker": {"default_roi": 0.0},
-            "fund": {"default_roi": 0.005},
-            "savings": {"default_roi": 0.0},
-        },
-    },
-    "Realne": {
-        "inflation": 0.025,
-        "prog_indexation": 0.015,
-        "zus": {"waloryzacja_skladek": 0.02, "waloryzacja_swiadczenia": 0.01},
-        "accounts": {
-            # Środek między bessą a hossą, zaokrąglony do czytelnych wartości:
-            # akcje 3,5%, krypto 0% (neutralnie), bezpieczne aktywa 1-1,5%.
-            "broker": {"default_roi": 0.035},
-            "ike": {"default_roi": 0.035},
-            "ikze": {"default_roi": 0.035},
-            "oipe": {"default_roi": 0.035},
-            "ppk": {"default_roi": 0.03},
-            "ppe": {"default_roi": 0.03},
-            "oki_inw": {"default_roi": 0.03},
-            "oki_osk": {"default_roi": 0.01},
-            "obligacje": {"default_roi": 0.015},
-            "lokata": {"default_roi": 0.01},
-            "krypto": {"default_roi": 0.0},
-            "zus": {"default_roi": 0.03},
-            "nieruchomosc": {"default_roi": 0.01},
-        },
-        "wrapper_vehicles": {
-            "broker": {"default_roi": 0.035},
-            "fund": {"default_roi": 0.03},
-            "savings": {"default_roi": 0.01},
-        },
-    },
-    "Optymistyczne": {
-        "inflation": 0.015,
-        "zus": {"waloryzacja_skladek": 0.025, "waloryzacja_swiadczenia": 0.02},
-        "accounts": {
-            "broker": {"default_roi": 0.065},
-            "ike": {"default_roi": 0.065},
-            "ikze": {"default_roi": 0.065},
-            "oipe": {"default_roi": 0.065},
-            "ppk": {"default_roi": 0.055},
-            "ppe": {"default_roi": 0.055},
-            "oki_inw": {"default_roi": 0.06},
-            "oki_osk": {"default_roi": 0.025},
-            "obligacje": {"default_roi": 0.025},
-            "lokata": {"default_roi": 0.022},
-            "krypto": {"default_roi": 0.08},
-            "zus": {"default_roi": 0.05},
-            "nieruchomosc": {"default_roi": 0.025},
-        },
-        "wrapper_vehicles": {
-            "broker": {"default_roi": 0.065},
-            "fund": {"default_roi": 0.055},
-            "savings": {"default_roi": 0.022},
-        },
-    },
+# Dwie bazy: 2026 i 2027. Reszta to scenariusze (delty w TaxConfig.scenarios).
+BUILTIN_PRESET_YEARS: dict[str, int] = {
+    "Domyślny 2026": 2026,
+    "Domyślny 2027": 2027,
 }
 
 
 def get_builtin_preset(name: str) -> dict | None:
-    overrides = BUILTIN_PRESETS.get(name)
-    if overrides is None:
+    year = BUILTIN_PRESET_YEARS.get(name)
+    if year is None:
         return None
-    base = default_config().model_dump()
-    _deep_merge(base, overrides)
-    return base
-
-
-def _deep_merge(base: dict, overrides: dict) -> None:
-    for key, val in overrides.items():
-        if isinstance(val, dict) and isinstance(base.get(key), dict):
-            _deep_merge(base[key], val)
-        else:
-            base[key] = val
+    return default_config(year).model_dump()

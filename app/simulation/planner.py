@@ -6,10 +6,10 @@ from app.core.tax import scale_tax
 from app.simulation.config import (
     WRAPPER_ACCOUNTS,
     WRAPPER_VEHICLE_KEYS,
+    ScenarioModifier,
     TaxConfig,
     base_account_key,
     default_config,
-    get_builtin_preset,
 )
 from app.simulation.constants import MONTHS_PER_YEAR, PPE_ZUS_FRACTION
 from app.simulation.engine import (
@@ -48,16 +48,15 @@ STRATEGY_SHELTER_ORDER: dict[str, tuple[str, ...]] = {
 STRATEGY_MIX: dict[str, dict[str, float]] = {
     "konserwatywna": {"obligacje": 50, "lokata": 30, "oki_osk": 20},
     "zbilansowana": {
-        "broker": 45,
+        "broker": 50,
         "obligacje": 25,
         "oki_inw": 15,
         "lokata": 10,
-        "krypto": 5,
     },
     "agresywna": {
-        "broker": 50,
+        "broker": 45,
         "oki_inw": 15,
-        "krypto": 15,
+        "krypto": 20,
         "obligacje": 10,
         "lokata": 10,
     },
@@ -74,12 +73,6 @@ IKZE_BREAKEVEN_RATE = 0.105
 
 # Accounts with statutory annual contribution caps (limits in config.limits).
 TAX_SHELTER_ACCOUNTS = ("ike", "ikze", "oipe")
-
-ASSUMPTIONS_PRESET_MAP: dict[str, str] = {
-    "konserwatywne": "Konserwatywne",
-    "realne": "Realne",
-    "optymistyczne": "Optymistyczne",
-}
 
 # Preferred funding order of tax-privileged vehicles. Funds NOT assigned by the
 # user (or overflowing annual limits below) stay in "gotowka" — the visible,
@@ -484,51 +477,59 @@ def estimate_pool_monthly(
     return _savings_monthly(a)
 
 
-def _with_market_overlay(config: TaxConfig, preset_name: str) -> TaxConfig:
-    """Apply only market assumptions from a built-in preset.
-
-    Structural data (taxes, limits, account rules, PPK/PPE, longevity) stays
-    from the user's saved config; the preset changes inflation, default ROI
-    and ZUS indexation.
-    """
-    preset = get_builtin_preset(preset_name)
-    if preset is None:
-        return config
+def _apply_scenario_modifier(config: TaxConfig, modifier: ScenarioModifier) -> TaxConfig:
+    """Nakłada delty rynkowe bessy/hossy na globalny (lub zapisany) config."""
     data = config.model_dump()
-    data["inflation"] = preset["inflation"]
-    data["zus"]["waloryzacja_skladek"] = preset["zus"]["waloryzacja_skladek"]
-    data["zus"]["waloryzacja_swiadczenia"] = preset["zus"]["waloryzacja_swiadczenia"]
-    for name, rules in preset["accounts"].items():
+    inflation = data["inflation"] + modifier.inflation_delta
+    data["inflation"] = max(-0.99, min(2.0, inflation))
+
+    if modifier.prog_indexation_full:
+        data["prog_indexation"] = None
+    elif (
+        modifier.prog_indexation_delta is not None
+        and data["prog_indexation"] is not None
+    ):
+        data["prog_indexation"] = data["prog_indexation"] + modifier.prog_indexation_delta
+
+    data["zus"]["waloryzacja_skladek"] = max(
+        0.0,
+        min(2.0, data["zus"]["waloryzacja_skladek"] + modifier.zus_skladki_delta),
+    )
+    data["zus"]["waloryzacja_swiadczenia"] = max(
+        0.0,
+        min(2.0, data["zus"]["waloryzacja_swiadczenia"] + modifier.zus_swiadczenie_delta),
+    )
+
+    for name, delta in modifier.account_roi_deltas.items():
         if name in data["accounts"]:
-            data["accounts"][name]["default_roi"] = rules["default_roi"]
-    for name, rules in preset.get("wrapper_vehicles", {}).items():
-        if name in data.get("wrapper_vehicles", {}):
-            data["wrapper_vehicles"][name]["default_roi"] = rules["default_roi"]
+            data["accounts"][name]["default_roi"] = max(
+                -0.99, data["accounts"][name]["default_roi"] + delta
+            )
+    for name, delta in modifier.wrapper_roi_deltas.items():
+        if name in data["wrapper_vehicles"]:
+            data["wrapper_vehicles"][name]["default_roi"] = max(
+                -0.99, data["wrapper_vehicles"][name]["default_roi"] + delta
+            )
     return TaxConfig.model_validate(data)
 
 
 def _config_for_answers(a: WizardAnswers) -> TaxConfig:
-    if a.base_config is not None:
-        config = a.base_config.model_copy(deep=True)
-        if a.assumptions != "realne":
-            config = _with_market_overlay(
-                config, ASSUMPTIONS_PRESET_MAP.get(a.assumptions, "Realne")
-            )
-    else:
-        preset_name = ASSUMPTIONS_PRESET_MAP.get(a.assumptions, "Realne")
-        preset_dict = get_builtin_preset(preset_name)
-        config = (
-            TaxConfig.model_validate(preset_dict)
-            if preset_dict is not None
-            else default_config()
-        )
+    config = (
+        a.base_config.model_copy(deep=True)
+        if a.base_config is not None
+        else default_config()
+    )
+    if a.assumptions == "konserwatywne":
+        config = _apply_scenario_modifier(config, config.scenarios.bear)
+    elif a.assumptions == "optymistyczne":
+        config = _apply_scenario_modifier(config, config.scenarios.bull)
     if a.life_expectancy_growth_months_per_year is not None:
         config.longevity.growth_months_per_year = a.life_expectancy_growth_months_per_year
     return config
 
 
 def resolve_config(a: WizardAnswers) -> TaxConfig:
-    """Effective config for one assistant run (saved base + market overlay)."""
+    """Effective config for one assistant run (saved base + scenario deltas)."""
     return _config_for_answers(a)
 
 

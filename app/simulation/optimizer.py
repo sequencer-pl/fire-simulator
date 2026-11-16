@@ -333,9 +333,9 @@ def _binding_limits(
     labels: list[str] = []
     if profile.max_crypto > 0 and totals["high"] >= profile.max_crypto * 100 - 0.5:
         labels.append(f"krypto ≤ {profile.max_crypto * 100:.0f}%")
-    if totals["market"] >= profile.max_market * 100 - 0.5:
+    if profile.max_market < 1.0 and totals["market"] >= profile.max_market * 100 - 0.5:
         labels.append(f"rynkowe ≤ {profile.max_market * 100:.0f}%")
-    if totals["safe"] <= profile.min_safe * 100 + 0.5:
+    if profile.min_safe > 0 and totals["safe"] <= profile.min_safe * 100 + 0.5:
         labels.append(f"safe ≥ {profile.min_safe * 100:.0f}%")
     wrapper_cap = _wrapper_capacity(a, config, pool_annual)
     wrapper_weight = sum(

@@ -16,10 +16,10 @@ bez TypeScript), pytest. Odpowiadaj i pisz UI po polsku.
   Belce od zysku oraz mechanice lokaty. Nie dodawać inflacji do wzrostu kont ani do
   PMT bez zgody.
 - **Indeksacja progów PIT**: `TaxConfig.prog_indexation` (`None` = progi stałe
-  realnie, domyślnie; `0.0` = zamrożone nominalnie; wartość pośrednia = wolniejsza
-  niż inflacja). `threshold_factor(years)` przelicza kwotę wolną, progi, KUP i próg
-  daniny; silnik przekazuje lata od startu do `scale_kwargs(years)`. Presety
-  „Realne”/„Konserwatywne” mają 1,5%/1%.
+  realnie; `0.0` = zamrożone nominalnie; wartość pośrednia = wolniejsza niż
+  inflacja). Domyślnie **1,5%**; bessa obniża o 0,5 p.p., hossa ustawia pełną
+  indeksację (`None`). `threshold_factor(years)` przelicza kwotę wolną, progi,
+  KUP i próg daniny; silnik przekazuje lata od startu do `scale_kwargs(years)`.
 - **Długowieczność** modelujemy liniowo: `longevity.growth_months_per_year`
   (domyślnie 1,5 mies./rok) wydłuża tabelę ŚDTŻ dla roku emerytury oraz domyślny
   horyzont Asystenta (przybliżenie kohortowe: `lata × (1 + growth/12)`).
@@ -66,10 +66,9 @@ bez TypeScript), pytest. Odpowiadaj i pisz UI po polsku.
   (`_process_stages`, engine.py — guard `zus_handled`). Emerytura netto = brutto − PIT
   (skala) − 9% składki zdrowotnej (`YearResult.health`, `health_paid`); portfel w
   etapie „Dopłata” uzupełnia tylko różnicę do celu netto (`_zus_net_annual`).
-  Domyślne realne waloryzacje w presetach: świadczenie **0/1/2%**, składki
-  **1/2/2,5%** (Konserwatywne/Realne/Optymistyczne). Historycznie świadczenie rosło
-  realnie ~+1,1 pp/rok, składki ~+2–4 pp/rok (baza płacowa), więc 0% to podłoga,
-  nie baza.
+  Waloryzacje: świadczenie **0/1/2%**, składki **1/2/2,5%** (bessa/default/hossa).
+  Historycznie świadczenie rosło realnie ~+1,1 pp/rok, składki ~+2–4 pp/rok
+  (baza płacowa), więc 0% to podłoga, nie baza.
 - Klucze kont są stałe (`broker, gotowka, ike, ikze, krypto, lokata, obligacje, oipe,
   oki_inw, oki_osk, ppe, ppk, zus`) — patrz `ACCOUNT_LABELS` w config.py.
 - **Profile ryzyka**: `TaxConfig.risk_profiles` (`spokojny`, `zrownowazony`,
@@ -212,17 +211,19 @@ bez TypeScript), pytest. Odpowiadaj i pisz UI po polsku.
   klienta jako `WizardAnswers.base_config` / `SalaryPreviewRequest.base_config`.
   `realne` używa go w całości, a `konserwatywne`/`optymistyczne` nakładają tylko
   inflację, `default_roi` kont i waloryzację ZUS; podatki, limity i zasady kont
-  zostają z configu. Preset „Konserwatywne” modeluje bessę, nie krach: akcje
-  **0% realnie**, krypto **−8%**, obligacje **+0,5%**, lokaty i OKI oszcz. **0%**,
-  fundusze/PPK/PPE/OKI inw. **+0,5%**, ZUS/OFE **+1%**. Nie schodzimy z akcjami
-  poniżej zera — stały ujemny zwrot przez cały horyzont to już „stracone
-  półwiecze”, a nie bessa. Preset „Realne” jest środkiem założeń: akcje **3,5%**,
-  fundusze/PPK/PPE/OKI inw. **+3%**, krypto **0%**, obligacje **+1,5%**, lokaty/
-  OKI oszcz./nieruchomość **+1%**, ZUS/OFE **+3%**. Przez procent składany to nie
-  jest środek wypłat — wynik jest bliżej bessy, i tak ma być.
+  zostają z configu. Globalny config = Realne: akcje **3,5%**, fundusze/PPK/PPE/
+  OKI inw. **+3%**, krypto **0%**, obligacje **+1,5%**, lokaty/OKI oszcz./
+  nieruchomość **+1%**, ZUS/OFE **+3%**. Bessa i hossa to **delty** w
+  `TaxConfig.scenarios`, nie osobne presety: bessa daje akcje **0%**, krypto
+  **−8%**, obligacje **+0,5%**, lokaty **0%**, ZUS **+1%**; hossa akcje **6,5%**,
+  krypto **+8%**, obligacje **+2,5%**, lokaty **+2,2%**, ZUS **+5%**. Nie
+  schodzimy z akcjami poniżej zera — stały ujemny zwrot przez cały horyzont to
+  już „stracone półwiecze”, a nie bessa. Wbudowane presety to wyłącznie
+  `Domyślny 2026` i `Domyślny 2027` (progi 130/150 tys., limity 2027).
 - **Konfiguracja lokalna**: `fire.config` przechowuje aktywny config i baseline,
   a `fire.presets` — własne presety. Jeśli kluczy nie ma, wczytujemy defaulty
-  z `/api/config`, a lista presetów pokazuje same wbudowane. Zapis jest
+  z `/api/config`, a pełne configi presetów z `/api/presets`. Lista pokazuje
+  dwie wbudowane bazy (2026/2027) oraz własne presety. Zapis jest
   natychmiastowy (bez serwera); `fire.config.anonymous` jest tylko legacy fallbackiem.
 - Nowe pola liczbowe przez `numControlsHtml`/`initNumControls` (controls.js), nie
   surowe inputy. Pola kwotowe używają `tabular-nums`. W suwakach pole liczbowe musi

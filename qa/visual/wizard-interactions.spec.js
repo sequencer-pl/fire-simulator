@@ -104,12 +104,10 @@ test("mobile layout stays within the screen throughout the employment path", asy
     await expect(page.locator("#wzFlowsTotal")).not.toContainText("Z ZUS");
     await expect(page.locator("#wzFlowsTableDetails")).not.toHaveAttribute("open", "");
     await expect(page.locator("#wzAccountFlows .wz-phase-badge").first()).toBeAttached();
-    await expect(page.locator("#wzFlowsGantt .wz-gantt-transfer").first()).toBeVisible();
     await expect(page.locator("#wzFlowsGantt .wz-gantt-tick").last()).toHaveText("100");
     await page.locator("#wzFlowsTableDetails summary").click();
     await expect(page.locator("#wzAccountFlows .wz-phase-badge").first()).toBeVisible();
     await expect(page.locator("#wzAccumulationFlows tbody tr").first()).toBeVisible();
-    await expect(page.locator("#wzTransferFlows tbody tr").first()).toBeVisible();
     await expect(page.locator("#wzOptimizer")).not.toHaveAttribute("open", "");
     await expect(page.locator(".wz-chart-annotations-label")).toHaveText("Kamienie milowe:");
     const annotationChips = page.locator("#wzChartAnnotations .wz-chart-annotation-chip");

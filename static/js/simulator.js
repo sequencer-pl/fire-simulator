@@ -6,10 +6,11 @@ let CONFIG = null;
 let USER_CONFIG = null;
 let DEFAULT_CONFIG = null;
 let PRESETS = [];
+let SERVER_PRESETS = {};
 let _currentPresetId = null;
-let _currentPresetName = "Domyślne 2026";
+let _currentPresetName = "Domyślny 2026";
 let CONFIG_BASELINE = null;
-let CONFIG_BASELINE_NAME = "Domyślne 2026";
+let CONFIG_BASELINE_NAME = "Domyślny 2026";
 let CONFIG_IS_CUSTOM = false;
 let CONFIG_OVERRIDE_PATHS = new Set();
 const CONFIG_KEY = "fire.config";
@@ -408,12 +409,21 @@ async function initConfig() {
     try {
         const defaultsRes = await fetch("/api/config");
         DEFAULT_CONFIG = await defaultsRes.json();
+        try {
+            const presetsRes = await fetch("/api/presets");
+            SERVER_PRESETS = presetsRes.ok ? await presetsRes.json() : {};
+        } catch {
+            SERVER_PRESETS = {};
+        }
+        if (!Object.keys(SERVER_PRESETS).length) {
+            SERVER_PRESETS = { "Domyślny 2026": structuredClone(DEFAULT_CONFIG) };
+        }
         const localData = loadLocalConfig();
 
         if (localData) {
             USER_CONFIG = backfillConfig(localData.config);
             CONFIG_BASELINE = backfillConfig(localData.baseline || localData.config);
-            CONFIG_BASELINE_NAME = localData.preset_name || "Własna konfiguracja";
+            CONFIG_BASELINE_NAME = normalizePresetName(localData.preset_name);
             _currentPresetId = localData.preset_id ?? null;
             _currentPresetName = CONFIG_BASELINE_NAME === "Własna konfiguracja" ? null : CONFIG_BASELINE_NAME;
             CONFIG_OVERRIDE_PATHS = new Set(localData.overrides || []);
@@ -422,9 +432,9 @@ async function initConfig() {
         } else {
             USER_CONFIG = structuredClone(DEFAULT_CONFIG);
             CONFIG_BASELINE = structuredClone(DEFAULT_CONFIG);
-            CONFIG_BASELINE_NAME = "Domyślne 2026";
+            CONFIG_BASELINE_NAME = "Domyślny 2026";
             _currentPresetId = null;
-            _currentPresetName = "Domyślne 2026";
+            _currentPresetName = "Domyślny 2026";
             CONFIG_OVERRIDE_PATHS = new Set();
             CONFIG_IS_CUSTOM = false;
         }
@@ -442,6 +452,15 @@ async function initConfig() {
 }
 
 // Uzupełnia brakujące klucze wczytanego configu domyślnymi (stare zapisane symulacje).
+function normalizePresetName(name) {
+    if (!name) return "Własna konfiguracja";
+    if (name === "Domyślne 2026") return "Domyślny 2026";
+    if (["Realne", "Konserwatywne", "Optymistyczne", "2027 (projekt UD458)"].includes(name)) {
+        return "Własna konfiguracja";
+    }
+    return name;
+}
+
 function backfillConfig(config) {
     if (!DEFAULT_CONFIG) return config;
     const out = {};
@@ -539,7 +558,7 @@ function renderConfigView() {
         const p1 = USER_CONFIG.prog;
         const p2 = USER_CONFIG.prog2;
         const rm = USER_CONFIG.rate_middle;
-        if (p1 === 130000 && p2 === 150000 && rm === 0.24) return "Skala podatkowa — 2027 (projekt UD458)";
+        if (p1 === 130000 && p2 === 150000 && rm === 0.24) return "Skala podatkowa — 2027";
         if (p1 === 120000 && p2 == null && rm == null) return "Skala podatkowa — 2026 (obowiązuje)";
         return "Skala podatkowa — custom";
     })();
@@ -568,7 +587,7 @@ function renderConfigView() {
     const riskFields = [];
     const riskLabels = {
         spokojny: "Spokojny",
-        zrownowazony: "Zrównoważony",
+        zrownowazony: "Rynkowy",
         dynamiczny: "Dynamiczny",
     };
     for (const [key, label] of Object.entries(riskLabels)) {
@@ -936,11 +955,11 @@ async function resetConfig() {
     _configSaveDirty = false;
     USER_CONFIG = structuredClone(DEFAULT_CONFIG);
     CONFIG_BASELINE = structuredClone(DEFAULT_CONFIG);
-    CONFIG_BASELINE_NAME = "Domyślne 2026";
+    CONFIG_BASELINE_NAME = "Domyślny 2026";
     CONFIG_IS_CUSTOM = false;
     CONFIG_OVERRIDE_PATHS.clear();
     _currentPresetId = null;
-    _currentPresetName = "Domyślne 2026";
+    _currentPresetName = "Domyślny 2026";
     renderConfigView();
     initTipAnchoring();
     updateStageHints(document.getElementById("stages-container"));
@@ -968,7 +987,7 @@ function writeLocalPresets(list) {
 }
 
 function loadPresetList() {
-    const builtins = Object.keys(BUILTIN_PRESETS_CLIENT).map((name) => ({
+    const builtins = Object.keys(SERVER_PRESETS).map((name) => ({
         id: null,
         name,
         is_builtin: true,
@@ -1045,12 +1064,12 @@ function initPresetBar() {
     });
 
     deleteBtn.addEventListener("click", async () => {
-        if (_currentPresetId === null || !confirm("Na pewno usunąć ten preset? Po usunięciu zostanie wczytana konfiguracja Domyślne 2026.")) return;
+        if (_currentPresetId === null || !confirm("Na pewno usunąć ten preset? Po usunięciu zostanie wczytana konfiguracja Domyślny 2026.")) return;
         writeLocalPresets(readLocalPresets().filter(
             (p) => String(p.id) !== String(_currentPresetId)
         ));
         await refreshPresets();
-        await applyPresetByName("Domyślne 2026");
+        await applyPresetByName("Domyślny 2026");
     });
 
     exportBtn.addEventListener("click", () => {
@@ -1160,9 +1179,9 @@ async function refreshPresets() {
 }
 
 async function applyPresetByName(name) {
-    const overrides = BUILTIN_PRESETS_CLIENT[name];
-    USER_CONFIG = overrides
-        ? deepMerge(structuredClone(DEFAULT_CONFIG), overrides)
+    const preset = SERVER_PRESETS[name];
+    USER_CONFIG = preset
+        ? backfillConfig(structuredClone(preset))
         : backfillConfig(structuredClone(DEFAULT_CONFIG));
     CONFIG_BASELINE = structuredClone(USER_CONFIG);
     CONFIG_BASELINE_NAME = name;
@@ -1177,87 +1196,6 @@ async function applyPresetByName(name) {
     refreshPresetBar();
 }
 
-const BUILTIN_PRESETS_CLIENT = {
-    "Domyślne 2026": { year: 2026, inflation: 0.025 },
-    "2027 (projekt UD458)": {
-        year: 2027,
-        prog: 130_000,
-        prog2: 150_000,
-        rate_lower: 0.12,
-        rate_middle: 0.24,
-        rate_upper: 0.32,
-        danina_rate: 0.05,
-        kup_50_limit: 130_000,
-        inflation: 0.025,
-    },
-    "Konserwatywne": {
-        inflation: 0.035,
-        prog_indexation: 0.01,
-        zus: { waloryzacja_skladek: 0.01, waloryzacja_swiadczenia: 0.01 },
-        accounts: {
-            broker: { default_roi: 0.035 },
-            ike: { default_roi: 0.035 },
-            ikze: { default_roi: 0.035 },
-            oipe: { default_roi: 0.035 },
-            ppk: { default_roi: 0.03 },
-            ppe: { default_roi: 0.03 },
-            oki_inw: { default_roi: 0.03 },
-            oki_osk: { default_roi: 0.01 },
-            obligacje: { default_roi: 0.015 },
-            lokata: { default_roi: 0.014 },
-            krypto: { default_roi: 0.03 },
-            zus: { default_roi: 0.03 },
-        },
-    },
-    "Realne": {
-        inflation: 0.025,
-        prog_indexation: 0.015,
-        zus: { waloryzacja_skladek: 0.02, waloryzacja_swiadczenia: 0.02 },
-        accounts: {
-            broker: { default_roi: 0.05 },
-            ike: { default_roi: 0.05 },
-            ikze: { default_roi: 0.05 },
-            oipe: { default_roi: 0.05 },
-            ppk: { default_roi: 0.04 },
-            ppe: { default_roi: 0.04 },
-            oki_inw: { default_roi: 0.045 },
-            oki_osk: { default_roi: 0.02 },
-            obligacje: { default_roi: 0.02 },
-            lokata: { default_roi: 0.018 },
-            krypto: { default_roi: 0.06 },
-            zus: { default_roi: 0.04 },
-        },
-    },
-    "Optymistyczne": {
-        inflation: 0.015,
-        zus: { waloryzacja_skladek: 0.025, waloryzacja_swiadczenia: 0.025 },
-        accounts: {
-            broker: { default_roi: 0.065 },
-            ike: { default_roi: 0.065 },
-            ikze: { default_roi: 0.065 },
-            oipe: { default_roi: 0.065 },
-            ppk: { default_roi: 0.055 },
-            ppe: { default_roi: 0.055 },
-            oki_inw: { default_roi: 0.06 },
-            oki_osk: { default_roi: 0.025 },
-            obligacje: { default_roi: 0.025 },
-            lokata: { default_roi: 0.022 },
-            krypto: { default_roi: 0.08 },
-            zus: { default_roi: 0.05 },
-        },
-    },
-};
-
-function deepMerge(base, overrides) {
-    for (const [key, val] of Object.entries(overrides)) {
-        if (val && typeof val === "object" && !Array.isArray(val) && base[key] && typeof base[key] === "object") {
-            deepMerge(base[key], val);
-        } else {
-            base[key] = val;
-        }
-    }
-    return base;
-}
 
 async function applyPresetById(presetId) {
     const preset = readLocalPresets().find(

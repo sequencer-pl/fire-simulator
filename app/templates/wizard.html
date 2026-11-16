@@ -780,7 +780,7 @@
                 <h3 class="eyebrow wz-panel-title">
                     <span class="tip-label-row">
                         <span class="tip-label-text">Profil ryzyka nowych wpłat</span>
-                        <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">Profil ogranicza łączny udział krypto i aktywów rynkowych w nowych wpłatach — także wewnątrz IKE/IKZE/OIPE — oraz pilnuje minimalnego udziału bezpiecznych aktywów. Nie zmienia istniejącego portfela. Rodzaj inwestycji w wrapperze dobieramy do profilu.</span></span>
+                        <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">Profil określa docelowy udział bezpiecznych, rynkowych i krypto w nowych wpłatach — także wewnątrz IKE/IKZE/OIPE. Nie zmienia istniejącego portfela. Rodzaj inwestycji w wrapperze dobieramy do profilu.</span></span>
                     </span>
                 </h3>
                 <div class="wz-paths wz-choice-cards" id="wzRiskProfileCards">
@@ -788,19 +788,19 @@
                         <input type="radio" name="wzRiskProfile" value="spokojny">
                         <span class="wz-path-check" aria-hidden="true"></span>
                         <span class="wz-path-title">Spokojny</span>
-                        <span class="wz-path-desc">Najmniej krypto, najwięcej bezpiecznych aktywów.</span>
+                        <span class="wz-path-desc">100% bezpiecznych aktywów: obligacje, lokaty, OKI oszczędnościowe i bezpieczne warianty IKE/IKZE. Zero rynku i krypto.</span>
                     </label>
                     <label class="wz-path">
                         <input type="radio" name="wzRiskProfile" value="zrownowazony" checked>
                         <span class="wz-path-check" aria-hidden="true"></span>
-                        <span class="wz-path-title">Zrównoważony</span>
-                        <span class="wz-path-desc">Umiarkowana koncentracja rynkowa i niewielki udział krypto.</span>
+                        <span class="wz-path-title">Rynkowy</span>
+                        <span class="wz-path-desc">100% aktywów rynkowych: akcje/ETF, fundusze i ich warianty w IKE/IKZE/OIPE. Zero krypto i zero bezpiecznego bufora.</span>
                     </label>
                     <label class="wz-path">
                         <input type="radio" name="wzRiskProfile" value="dynamiczny">
                         <span class="wz-path-check" aria-hidden="true"></span>
                         <span class="wz-path-title">Dynamiczny</span>
-                        <span class="wz-path-desc">Więcej rynkowych i krypto, ale w granicach limitu profilu.</span>
+                        <span class="wz-path-desc">70% rynkowych i 30% krypto. Bez bezpiecznego bufora.</span>
                     </label>
                 </div>
             </div>
@@ -840,15 +840,15 @@
                 <div class="wz-paths wz-choice-cards" id="wzProfileSeeds">
                     <button type="button" class="wz-path wz-profile-seed" data-profile-seed="spokojny">
                         <span class="wz-path-title">Spokojny</span>
-                        <span class="wz-path-desc">Najmniej krypto, najwięcej bezpiecznych aktywów.</span>
+                        <span class="wz-path-desc">100% bezpiecznych aktywów: obligacje, lokaty, OKI oszczędnościowe i bezpieczne warianty IKE/IKZE. Zero rynku i krypto.</span>
                     </button>
                     <button type="button" class="wz-path wz-profile-seed" data-profile-seed="zrownowazony">
-                        <span class="wz-path-title">Zrównoważony</span>
-                        <span class="wz-path-desc">Umiarkowana koncentracja rynkowa i niewielki udział krypto.</span>
+                        <span class="wz-path-title">Rynkowy</span>
+                        <span class="wz-path-desc">100% aktywów rynkowych: akcje/ETF, fundusze i ich warianty w IKE/IKZE/OIPE. Zero krypto i zero bezpiecznego bufora.</span>
                     </button>
                     <button type="button" class="wz-path wz-profile-seed" data-profile-seed="dynamiczny">
                         <span class="wz-path-title">Dynamiczny</span>
-                        <span class="wz-path-desc">Więcej rynkowych i krypto, ale w granicach limitu profilu.</span>
+                        <span class="wz-path-desc">70% rynkowych i 30% krypto. Bez bezpiecznego bufora.</span>
                     </button>
                 </div>
             </div>

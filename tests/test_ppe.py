@@ -5,7 +5,7 @@ from app.simulation.config import TaxConfig
 from app.simulation.engine import simulate
 from app.simulation.schemas import SimulationInput
 
-CFG_NOINFL = TaxConfig(inflation=0.0)
+CFG_NOINFL = TaxConfig(inflation=0.0, prog_indexation=None)
 
 # --- Składki: podstawowa (pracodawca) + dodatkowa (uczestnik) ---
 
@@ -29,7 +29,7 @@ def test_ppe_contributions_from_employer_pct_and_additional():
     result = simulate(SimulationInput(stages=stages, max_age=41, config=CFG_NOINFL))
     assert result.years[1].balances["ppe"] == pytest.approx(8352.0)
     # 1 008 trafia do ZUS i rośnie z waloryzacją 1%/rok
-    assert result.years[1].balances["zus"] == pytest.approx(1008 * 1.01)
+    assert result.years[1].balances["zus"] == pytest.approx(1008 * 1.02)
 
 
 def test_ppe_growth_and_contribution():
@@ -178,7 +178,7 @@ def test_ppe_early_withdrawal_30pct_goes_to_zus():
     result = simulate(SimulationInput(stages=stages, max_age=59, config=CFG_NOINFL))
     # Rok 1 (wiek 41): 1 008 trafia do ZUS i rośnie z waloryzacją 1%
     zus_year1 = result.years[1].balances.get("zus", 0)
-    assert zus_year1 == pytest.approx(1008 * 1.01)
+    assert zus_year1 == pytest.approx(1008 * 1.02)
     # PPE: 70% składek pracodawcy = 2 352
     ppe_year1 = result.years[1].balances.get("ppe", 0)
     assert ppe_year1 == pytest.approx(50000 * 1.02 + 2352)

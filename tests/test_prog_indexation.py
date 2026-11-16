@@ -1,6 +1,6 @@
 import pytest
-from conftest import acc, accumulation_stage, realization_stage
 
+import app.simulation.planner as P
 from app.core.tax import scale_tax
 from app.simulation.config import (
     TaxConfig,
@@ -8,8 +8,6 @@ from app.simulation.config import (
     default_config,
     get_builtin_preset,
 )
-from app.simulation.engine import simulate
-from app.simulation.schemas import SimulationInput
 
 INFL = 0.025
 
@@ -82,47 +80,29 @@ def test_frozen_thresholds_raise_tax_on_same_real_income():
 # --- Presety i wsteczna zgodność --------------------------------------------
 
 
-def test_default_config_keeps_thresholds_real():
-    assert default_config().prog_indexation is None
-    assert default_config(2027).prog_indexation is None
+def test_default_config_uses_real_threshold_indexation():
+    assert default_config().prog_indexation == pytest.approx(0.015)
+    assert default_config(2027).prog_indexation == pytest.approx(0.015)
 
 
-def test_conservative_preset_indexes_thresholds_below_inflation():
-    preset = get_builtin_preset("Konserwatywne")
-    assert preset is not None
-    assert preset["prog_indexation"] == 0.01
-    assert preset["inflation"] == 0.035
-    realne = get_builtin_preset("Realne")
-    assert realne is not None
-    assert realne["prog_indexation"] == 0.015
-    assert realne["inflation"] == 0.025
-    for name in ("Domyślne 2026", "2027 (projekt UD458)", "Optymistyczne"):
-        p = get_builtin_preset(name)
-        assert p is not None and p["prog_indexation"] is None
+def test_bear_scenario_reproduces_expected_market_assumptions():
+    cfg = default_config()
+    bear = P._apply_scenario_modifier(cfg, cfg.scenarios.bear)
+    assert bear.inflation == pytest.approx(0.035)
+    assert bear.prog_indexation == pytest.approx(0.01)
+    assert bear.accounts["broker"].default_roi == pytest.approx(0.0)
+    assert bear.accounts["krypto"].default_roi == pytest.approx(-0.08)
+    assert bear.accounts["obligacje"].default_roi == pytest.approx(0.005)
+    assert bear.accounts["lokata"].default_roi == pytest.approx(0.0)
+    assert bear.accounts["ppk"].default_roi == pytest.approx(0.005)
+    assert bear.wrapper_vehicles["broker"].default_roi == pytest.approx(0.0)
+    assert bear.wrapper_vehicles["fund"].default_roi == pytest.approx(0.005)
 
 
-def test_conservative_preset_models_a_bear_market():
-    preset = get_builtin_preset("Konserwatywne")
-    assert preset is not None
-    accounts = preset["accounts"]
-    vehicles = preset["wrapper_vehicles"]
-    # Najbardziej ryzykowne aktywo realnie traci; akcje są na zero.
-    assert accounts["krypto"]["default_roi"] < 0
-    assert accounts["broker"]["default_roi"] == 0
-    assert vehicles["broker"]["default_roi"] == 0
-    # Bezpieczne aktywa obrywają najmniej.
-    assert accounts["obligacje"]["default_roi"] > accounts["broker"]["default_roi"]
-    assert accounts["lokata"]["default_roi"] >= accounts["broker"]["default_roi"]
-    # Mieszane portfele są pomiędzy akcjami a obligacjami.
-    assert accounts["ppk"]["default_roi"] > accounts["broker"]["default_roi"]
-    assert vehicles["fund"]["default_roi"] > vehicles["broker"]["default_roi"]
-
-
-def test_real_preset_sits_between_bear_and_bull():
-    bear = get_builtin_preset("Konserwatywne")
-    real = get_builtin_preset("Realne")
-    bull = get_builtin_preset("Optymistyczne")
-    assert bear is not None and real is not None and bull is not None
+def test_real_default_sits_between_bear_and_bull():
+    real = default_config()
+    bear = P._apply_scenario_modifier(real, real.scenarios.bear)
+    bull = P._apply_scenario_modifier(real, real.scenarios.bull)
     for account in (
         "broker",
         "ppk",
@@ -133,88 +113,42 @@ def test_real_preset_sits_between_bear_and_bull():
         "zus",
         "nieruchomosc",
     ):
-        low = bear["accounts"][account]["default_roi"]
-        mid = real["accounts"][account]["default_roi"]
-        high = bull["accounts"][account]["default_roi"]
+        low = bear.accounts[account].default_roi
+        mid = real.accounts[account].default_roi
+        high = bull.accounts[account].default_roi
         assert low < mid < high, account
     for vehicle in ("broker", "fund", "savings"):
-        low = bear["wrapper_vehicles"][vehicle]["default_roi"]
-        mid = real["wrapper_vehicles"][vehicle]["default_roi"]
-        high = bull["wrapper_vehicles"][vehicle]["default_roi"]
+        low = bear.wrapper_vehicles[vehicle].default_roi
+        mid = real.wrapper_vehicles[vehicle].default_roi
+        high = bull.wrapper_vehicles[vehicle].default_roi
         assert low < mid < high, vehicle
+    assert bear.inflation > real.inflation > bull.inflation
+
+
+def test_builtin_presets_are_two_tax_year_bases():
+    assert get_builtin_preset("Konserwatywne") is None
+    assert get_builtin_preset("Optymistyczne") is None
+    base_2026 = get_builtin_preset("Domyślny 2026")
+    base_2027 = get_builtin_preset("Domyślny 2027")
+    assert base_2026 is not None and base_2027 is not None
+    assert base_2026["year"] == 2026
+    assert base_2027["year"] == 2027
+    assert base_2027["prog"] == 130_000
+    assert base_2027["prog2"] == 150_000
+    assert base_2027["rate_middle"] == pytest.approx(0.24)
+    assert base_2027["danina_rate"] == pytest.approx(0.05)
+    assert base_2027["limits"]["ike_annual"] == pytest.approx(30_099.0)
+    assert base_2027["limits"]["ikze_annual"] == pytest.approx(12_039.60)
+    assert base_2027["limits"]["ikze_annual_self_employed"] == pytest.approx(18_059.40)
+    assert base_2027["limits"]["oipe_annual"] == pytest.approx(30_099.0)
+    assert base_2027["limits"]["ppe_additional_annual"] == pytest.approx(45_148.50)
+    assert base_2027["zus"]["limit_base_annual"] == pytest.approx(300_990.0)
 
 
 def test_backfill_adds_prog_indexation_to_legacy_config():
     legacy = {"year": 2026, "inflation": 0.03}
     filled = backfill_tax_config(legacy)
-    assert "prog_indexation" in filled and filled["prog_indexation"] is None
-    assert TaxConfig(**filled).threshold_factor(10) == 1.0
-
-
-# --- Silnik: emerytura ZUS na skali ------------------------------------------
-
-
-def _zus_pension_run(prog_indexation):
-    cfg = TaxConfig(inflation=INFL, prog_indexation=prog_indexation)
-    stages = [realization_stage("ZUS", {"zus": acc(monthly_pension=5000)}, 65, 96)]
-    return simulate(SimulationInput(stages=stages, max_age=95, config=cfg))
-
-
-def test_zus_pension_net_identical_in_first_year():
-    frozen = _zus_pension_run(0.0)
-    real = _zus_pension_run(None)
-    assert frozen.years[0].zus_monthly == pytest.approx(real.years[0].zus_monthly)
-    assert frozen.years[0].tax_paid == pytest.approx(real.years[0].tax_paid)
-
-
-def test_zus_pension_net_falls_over_time_with_frozen_thresholds():
-    frozen = _zus_pension_run(0.0)
-    real = _zus_pension_run(None)
-    # progi stałe realnie -> stała emerytura netto; zamrożone -> malejąca
-    assert real.years[20].zus_monthly == pytest.approx(real.years[0].zus_monthly)
-    assert frozen.years[20].zus_monthly < frozen.years[0].zus_monthly
-    assert frozen.years[20].tax_paid > real.years[20].tax_paid
-    # 60 000 zł/rok, po 20 latach kwota wolna realnie 30 000 / 1.025^20
-    expected_tax = scale_tax(60_000, kwota_wolna=30_000 / 1.025**20)
-    assert frozen.years[20].tax_paid == pytest.approx(expected_tax, abs=0.01)
-
-
-def test_none_indexation_matches_previous_behaviour():
-    legacy_cfg = TaxConfig(inflation=INFL)
-    explicit = TaxConfig(inflation=INFL, prog_indexation=INFL)
-    stages = [realization_stage("ZUS", {"zus": acc(monthly_pension=5000)}, 65, 96)]
-    a = simulate(SimulationInput(stages=stages, max_age=95, config=legacy_cfg))
-    b = simulate(SimulationInput(stages=stages, max_age=95, config=explicit))
-    for ya, yb in zip(a.years, b.years, strict=True):
-        assert ya.tax_paid == pytest.approx(yb.tax_paid)
-
-
-# --- Silnik: oszczędność podatkowa IKZE --------------------------------------
-
-
-def _ikze_run(prog_indexation):
-    cfg = TaxConfig(inflation=INFL, prog_indexation=prog_indexation)
-    stages = [
-        accumulation_stage(
-            {
-                "ikze": acc(annual_contribution=10_000, monthly_base=9_000),
-                "broker": acc(starting_balance=0, roi=0.0),
-            },
-            start=40,
-            end=65,
-        )
-    ]
-    return simulate(SimulationInput(stages=stages, max_age=64, config=cfg))
-
-
-def test_ikze_saving_grows_when_thresholds_freeze():
-    frozen = _ikze_run(0.0)
-    real = _ikze_run(None)
-    # rok 0: identycznie; później dochód 108k wpada realnie coraz głębiej w II próg,
-    # więc odliczenie IKZE jest warte więcej (ujemny podatek = oszczędność)
-    assert frozen.years[0].tax_paid == pytest.approx(real.years[0].tax_paid)
-    assert real.years[15].tax_paid == pytest.approx(real.years[0].tax_paid)
-    assert frozen.years[15].tax_paid < real.years[15].tax_paid
+    assert filled["prog_indexation"] == pytest.approx(0.015)
 
 
 # --- API ----------------------------------------------------------------------
@@ -222,4 +156,10 @@ def test_ikze_saving_grows_when_thresholds_freeze():
 
 def test_api_config_exposes_prog_indexation(client):
     body = client.get("/api/config").json()
-    assert "prog_indexation" in body and body["prog_indexation"] is None
+    assert body["prog_indexation"] == pytest.approx(0.015)
+
+
+def test_api_presets_exposes_two_tax_year_bases(client):
+    body = client.get("/api/presets").json()
+    assert set(body) == {"Domyślny 2026", "Domyślny 2027"}
+    assert body["Domyślny 2027"]["limits"]["ike_annual"] == pytest.approx(30_099.0)

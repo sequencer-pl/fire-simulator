@@ -5,7 +5,7 @@ from app.simulation.config import TaxConfig, default_config
 from app.simulation.engine import simulate
 from app.simulation.schemas import SimulationInput
 
-CFG_NOINFL = TaxConfig(inflation=0.0)
+CFG_NOINFL = TaxConfig(inflation=0.0, prog_indexation=None)
 
 # --- Krypto: aktywo opodatkowane 19% Belki od zysku (jak broker) ---
 

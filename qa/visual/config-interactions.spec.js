@@ -66,7 +66,7 @@ test("pole jest edytowalne od razu, zmiana przełącza preset na Własną, przyw
     await expect(indicator).toBeHidden();
     await expect(restore).toBeDisabled();
     await expect(badge).toBeHidden();
-    await expect(page.locator("#presetSelect option:checked")).toHaveText("Domyślne 2026");
+    await expect(page.locator("#presetSelect option:checked")).toHaveText("Domyślny 2026");
 });
 
 test("eksport i import konfiguracji używają .config.json", async ({ page }) => {

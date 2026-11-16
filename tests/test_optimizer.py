@@ -174,9 +174,9 @@ def test_optimizer_candidate_carries_vehicles_and_asset_mix():
     rec = result.recommended
     assert rec.vehicles.get("ike") == "savings"
     assert rec.vehicles.get("ikze") == "savings"
-    assert rec.vehicles.get("oipe") == "fund"
-    assert result.asset_mix["safe"] >= 69.0
-    assert result.asset_mix["market"] <= 31.0
+    assert rec.vehicles.get("oipe") is None
+    assert result.asset_mix["safe"] >= 99.0
+    assert result.asset_mix["market"] <= 1.0
 
 
 def test_optimizer_respects_oipe_fund_only():

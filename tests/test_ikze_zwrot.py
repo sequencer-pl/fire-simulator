@@ -18,7 +18,7 @@ from app.simulation.config import TaxConfig, default_config
 from app.simulation.engine import simulate
 from app.simulation.schemas import SimulationInput
 
-CFG_NOINFL = TaxConfig(inflation=0.0)
+CFG_NOINFL = TaxConfig(inflation=0.0, prog_indexation=None)
 
 
 def ikze_zwrot_scenario(
@@ -133,7 +133,7 @@ def test_zwrot_boundary_one_year_early():
 
 def test_zwrot_with_growth():
     balance = 500_000
-    config = TaxConfig(inflation=0.0)
+    config = TaxConfig(inflation=0.0, prog_indexation=None)
     config.accounts["broker"].tax_rate = 0.0
     config.accounts["broker"].default_roi = 0.05
     result = ikze_zwrot_scenario(

@@ -56,7 +56,7 @@ Symulator celowo jest **prostym modelem deterministycznym**, a nie symulacją Mo
    - nominalną Belkę od zysku (broker, IKE/PPK/PPE przed progami) i mechanikę lokaty,
    - erozję gotówki (`-2,5%/rok`),
    - waloryzację ZUS (punkt 8),
-   - indeksację progów PIT, kwoty wolnej, KUP i progu daniny — domyślnie progi są **stałe realnie** (`prog_indexation = None`). Pole „Indeksacja progów PIT” pozwala ustawić `0%` (progi zamrożone nominalnie) albo wartość pośrednią; presety „Realne” i „Konserwatywne” używają odpowiednio 1,5% i 1%.
+   - indeksację progów PIT, kwoty wolnej, KUP i progu daniny — domyślnie **1,5%** (scenariusz Realne). Pole „Indeksacja progów PIT” pozwala ustawić `0%` (progi zamrożone nominalnie) albo wartość pośrednią; bessa obniża ją do 1,0%, a hossa ustawia pełną indeksację (`None`).
 
    Ryczałt IKZE i skala PIT liczą się od realnych kwot. Podatek od aktywów OKI jest w modelu liczony od realnego salda (uproszczenie).
 
@@ -86,11 +86,13 @@ Symulator celowo jest **prostym modelem deterministycznym**, a nie symulacją Mo
 
 8a. **Domyślny horyzont Asystenta** = oczekiwana długość życia (GUS 2024, wg płci) powiększona o skumulowany wzrost długowieczności (`longevity.growth_months_per_year`). To przybliżenie kohortowe: każdy pozostały rok życia wydłuża się o założoną liczbę miesięcy. Użytkownik może nadpisać horyzont suwakiem.
 
-8b. **Asystent a Konfiguracja:** jeśli użytkownik zapisał własną konfigurację, „Realne” używa jej w całości; „Konserwatywne”/„Optymistyczne” nakładają tylko inflację, domyślne ROI i waloryzację ZUS. Bez zapisanej konfiguracji działa stary preset. Pierwsza ręczna zmiana w Konfiguracji przełącza select presetu na „Własna konfiguracja”, a przywrócenie wszystkich wartości wraca do nazwy presetu. Niezalogowani zapisują konfigurację lokalnie (`localStorage`, klucz `fire.config.anonymous`) i Asystent używa jej przez `base_config`.
+8b. **Asystent a Konfiguracja:** globalny config jest bazą scenariusza „Realne”. Bessa i hossa to **delty względem tej bazy** (inflacja, ROI kont, waloryzacja ZUS), a nie osobne presety. Jeśli użytkownik zapisał własną konfigurację, scenariusze przesuwają właśnie jej wartości. Wbudowane presety to tylko `Domyślny 2026` i `Domyślny 2027`. Pierwsza ręczna zmiana w Konfiguracji przełącza select presetu na „Własna konfiguracja”, a przywrócenie wszystkich wartości wraca do nazwy presetu. Konfiguracja jest zapisywana lokalnie (`localStorage`, klucz `fire.config`) i Asystent używa jej przez `base_config`.
 
 8c. **Scenariusz „Kryzys / bessa”** zakłada słaby rynek przez cały horyzont, nie jednorazowy krach: akcje **0% realnie**, fundusze i PPK/PPE **+0,5%**, obligacje **+0,5%**, lokaty i OKI oszczędnościowe **0%**, nieruchomość **0%**, ZUS/OFE **+1%**, a krypto **−8% realnie**. Gotówka traci tyle, ile wynosi inflacja. To celowo mocniejszy scenariusz negatywny; nie jest prognozą.
 
-8d. **Scenariusz „Realne / bazowe”** leży pomiędzy bessą a hossą: akcje **3,5% realnie**, fundusze, PPK/PPE i OKI inwestycyjne **+3,0%**, krypto **0%**, obligacje **+1,5%**, lokaty, OKI oszczędnościowe i nieruchomość **+1,0%**, ZUS/OFE **+3,0%**. Przez procent składany nie jest to środek wypłat — wynik jest bliżej bessy niż hossy, co jest świadomym wyborem konserwatywnym.
+8d. **Scenariusz „Realne / bazowe”** to globalny default: akcje **3,5% realnie**, fundusze, PPK/PPE i OKI inwestycyjne **+3,0%**, krypto **0%**, obligacje **+1,5%**, lokaty, OKI oszczędnościowe i nieruchomość **+1,0%**, ZUS/OFE **+3,0%**. Przez procent składany nie jest to środek wypłat — wynik jest bliżej bessy niż hossy, co jest świadomym wyborem konserwatywnym.
+
+8e. **Limity 2027:** IKE i OIPE **30 099 zł**, IKZE **12 039,60 zł** (**18 059,40 zł** dla działalności gospodarczej), PPE — składki dodatkowe **45 148,50 zł**, limit 30-krotności ZUS **300 990 zł**. Preset `Domyślny 2027` używa progów PIT 130/150 tys. i stawek 12/24/32%.
 
 9. **Limity wpłat (2026):** IKE 28 260 zł, IKZE 11 304 zł (16 956 zł samozatrudnieni), OIPE 28 260 zł, składka dodatkowa PPE 42 390 zł. Przekroczenie to ostrzeżenie, nie automatyczne obcięcie — dopłaty ponad limit po prostu "wchodzą" i tracą sens podatkowy.
 

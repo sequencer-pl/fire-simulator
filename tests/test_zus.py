@@ -6,7 +6,7 @@ from app.simulation.engine import simulate
 from app.simulation.schemas import SimulationInput
 from app.simulation.tablica_sdtz import sdtz_months
 
-CFG_NOINFL = TaxConfig(inflation=0.0, health_rate=0.0)
+CFG_NOINFL = TaxConfig(inflation=0.0, health_rate=0.0, prog_indexation=None)
 
 # --- Składka i wzrost kapitału ---
 
@@ -31,7 +31,7 @@ def test_zus_skladka_19_52_from_monthly_base():
     after_one_year = simulate(SimulationInput(stages=stages, max_age=41, config=CFG_NOINFL)).years[
         1
     ]
-    assert after_one_year.balances["zus"] == pytest.approx(100000 * 1.01 + 18739.2)
+    assert after_one_year.balances["zus"] == pytest.approx(100000 * 1.02 + 18739.2)
 
 
 def test_zus_skladka_capped_at_30x_base():
@@ -84,7 +84,7 @@ def test_zus_ofe_capital_ignored_when_not_member():
     ]
     result = simulate(SimulationInput(stages=stages, max_age=41, config=CFG_NOINFL))
     y = result.years[1]
-    assert y.balances["zus"] == pytest.approx(100000 * 1.01 + 18739.2)
+    assert y.balances["zus"] == pytest.approx(100000 * 1.02 + 18739.2)
     assert "zus:ofe" not in y.balances
 
 
@@ -139,7 +139,7 @@ def test_zus_conversion_uses_projected_sdtz_for_future_retirement():
     ]
     result = simulate(SimulationInput(stages=stages, max_age=65, config=cfg))
     y = next(year for year in result.years if year.age == 65)
-    capital = 500000 * 1.01**25
+    capital = 500000 * 1.02**25
     expected = capital / sdtz_months(65, year=2051, improvement_months_per_year=1.5)
     assert y.monthly_withdrawal == pytest.approx(expected, abs=0.01)
 

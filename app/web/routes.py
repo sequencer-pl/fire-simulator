@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from app.core.base import resolve_base
 from app.simulation.config import (
     ACCOUNT_LABELS,
-    BUILTIN_PRESETS,
+    BUILTIN_PRESET_YEARS,
     account_display_label,
     base_account_key,
     default_config,
@@ -353,12 +353,20 @@ async def api_stage_types():
 
 @router.get("/api/metadata")
 async def api_metadata():
-    return {"account_labels": ACCOUNT_LABELS, "builtin_presets": list(BUILTIN_PRESETS.keys())}
+    return {"account_labels": ACCOUNT_LABELS, "builtin_presets": list(BUILTIN_PRESET_YEARS.keys())}
 
 
 @router.get("/api/config")
 async def api_config():
     return default_config().model_dump()
+
+
+@router.get("/api/presets")
+async def api_presets():
+    return {
+        name: default_config(year).model_dump()
+        for name, year in BUILTIN_PRESET_YEARS.items()
+    }
 
 
 

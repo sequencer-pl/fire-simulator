@@ -5,7 +5,7 @@ from app.simulation.config import TaxConfig
 from app.simulation.engine import simulate
 from app.simulation.schemas import SimulationInput
 
-CFG_NOINFL = TaxConfig(inflation=0.0)
+CFG_NOINFL = TaxConfig(inflation=0.0, prog_indexation=None)
 
 # --- Lokata: Belka naliczana co interwał (tax_periodic) ---
 
