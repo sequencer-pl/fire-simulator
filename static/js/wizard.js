@@ -1000,12 +1000,14 @@ function wzApplyEtatPeriod(convert) {
     }
     wzEtatPeriodPrev = period;
 
-    const max = annual ? 1_200_000 : 100_000;
+    // Suwak pokazuje realistyczny zakres; ręcznie można wpisać więcej.
+    const rangeMax = annual ? 600_000 : 50_000;
+    const inputMax = annual ? 2_000_000 : 166_667;
     const step = annual ? 1_000 : 250;
-    input.max = String(max);
+    input.max = String(inputMax);
     input.step = String(step);
     if (range) {
-        range.max = String(max);
+        range.max = String(rangeMax);
         range.step = String(step);
     }
     wzUpdateSalaryLabels();

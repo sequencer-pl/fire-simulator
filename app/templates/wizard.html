@@ -146,10 +146,10 @@
                     <div class="wz-slider">
                         <div class="num-control">
                             <button type="button" class="stepper stepper-down" tabindex="-1" aria-label="Zmniejsz pensję">&minus;</button>
-                            <input type="number" id="wzEtatSalary" class="acc-field" value="113000" min="0" max="1200000" step="1000">
+                            <input type="number" id="wzEtatSalary" class="acc-field" value="113000" min="0" max="2000000" step="1000">
                             <button type="button" class="stepper stepper-up" tabindex="-1" aria-label="Zwiększ pensję">+</button>
                         </div>
-                        <input type="range" id="wzEtatSalaryRange" min="0" max="1200000" step="1000" value="113000" aria-label="Pensja na etacie">
+                        <input type="range" id="wzEtatSalaryRange" min="0" max="600000" step="1000" value="113000" aria-label="Pensja na etacie">
                     </div>
                     <div class="wz-salary-preview" id="wzEtatSalaryPreview" aria-live="polite" hidden></div>
                 </div>
@@ -216,8 +216,8 @@
             </h3>
             <div class="segmented segmented-stack gender-options">
                 <label class="seg-option gender-option"><input type="radio" name="wzB2bTaxForm" value="ryczalt" checked /> Ryczałt ewidencjonowany</label>
-                <label class="seg-option gender-option"><input type="radio" name="wzB2bTaxForm" value="liniowy" /> Podatek liniowy (19%)</label>
                 <label class="seg-option gender-option"><input type="radio" name="wzB2bTaxForm" value="skala" /> Skala podatkowa (12% / 32%)</label>
+                <label class="seg-option gender-option"><input type="radio" name="wzB2bTaxForm" value="liniowy" /> Podatek liniowy (19%)</label>
             </div>
 
             <div id="wzB2bLumpRow" class="wz-subpanel">
@@ -273,10 +273,10 @@
                     <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">Możesz podać swój miesięczny przychód netto na fakturze (po odjęciu kosztów firmowych, takich jak księgowość czy leasing) ALBO kwotę, która zostaje Ci „na czysto” po opłaceniu ZUS i podatku dochodowego.</span></span>
                 </span>
             </h3>
-            <div class="wz-grid wz-grid-choice">
+            <div class="wz-grid wz-grid-choice wz-grid-single">
                 <div class="field wz-inline-field">
                     <label class="field-label-lg">Sposób podania kwoty</label>
-                    <div class="segmented is-auto gender-options">
+                    <div class="segmented is-auto gender-options segmented-stack">
                         <label class="seg-option gender-option"><input type="radio" name="wzB2bSalaryMode" value="gross" checked /> Przychód (na fakturze po kosztach)</label>
                         <label class="seg-option gender-option"><input type="radio" name="wzB2bSalaryMode" value="net" /> Na czysto (po ZUS i podatku)</label>
                     </div>
@@ -288,10 +288,10 @@
                     <div class="wz-slider">
                         <div class="num-control">
                             <button type="button" class="stepper stepper-down" tabindex="-1">&minus;</button>
-                            <input type="number" id="wzB2bSalary" class="acc-field" value="18000" min="0" max="150000" step="500">
+                            <input type="number" id="wzB2bSalary" class="acc-field" value="18000" min="0" max="200000" step="500">
                             <button type="button" class="stepper stepper-up" tabindex="-1">+</button>
                         </div>
-                        <input type="range" id="wzB2bSalaryRange" min="0" max="150000" step="500" value="18000" aria-label="Dochód B2B">
+                        <input type="range" id="wzB2bSalaryRange" min="0" max="50000" step="500" value="18000" aria-label="Dochód B2B">
                     </div>
                     <div class="wz-salary-preview" id="wzB2bSalaryPreview" aria-live="polite" hidden></div>
                 </div>
@@ -419,7 +419,7 @@
                                 <input type="number" id="wzMortgageMonthly" class="acc-field" value="3000" min="0" max="30000" step="100">
                                 <button type="button" class="stepper stepper-up" tabindex="-1">+</button>
                             </div>
-                            <input type="range" id="wzMortgageMonthlyRange" min="0" max="20000" step="100" value="3000" aria-label="Rata kredytu">
+                            <input type="range" id="wzMortgageMonthlyRange" min="0" max="15000" step="100" value="3000" aria-label="Rata kredytu">
                         </div>
                     </div>
                     <div class="field wz-field-block">
@@ -541,7 +541,7 @@
                                 <input type="number" id="wzReRent" class="acc-field" value="2500" min="0" step="100">
                                 <button type="button" class="stepper stepper-up" tabindex="-1">+</button>
                             </div>
-                            <input type="range" id="wzReRentRange" min="0" max="20000" step="100" value="2500" aria-label="Przychód z najmu">
+                            <input type="range" id="wzReRentRange" min="0" max="15000" step="100" value="2500" aria-label="Przychód z najmu">
                         </div>
                     </div>
                     <div class="field wz-field-block">
@@ -618,7 +618,7 @@
                         <input type="number" id="wzTarget" class="acc-field" value="6000" min="500" max="60000" step="250">
                         <button type="button" class="stepper stepper-up" tabindex="-1">+</button>
                     </div>
-                    <input type="range" id="wzTargetRange" min="1000" max="50000" step="250" value="6000" aria-label="Cel wypłaty miesięcznej netto">
+                    <input type="range" id="wzTargetRange" min="1000" max="30000" step="250" value="6000" aria-label="Cel wypłaty miesięcznej netto">
                 </div>
             </div>
         </div>
@@ -676,7 +676,7 @@
                                 <input type="number" id="wzSemiNet" class="acc-field" value="4500" min="0" max="50000" step="250">
                                 <button type="button" class="stepper stepper-up" tabindex="-1">+</button>
                             </div>
-                            <input type="range" id="wzSemiNetRange" min="0" max="30000" step="250" value="4500" aria-label="Zarobki netto na części etatu">
+                            <input type="range" id="wzSemiNetRange" min="0" max="20000" step="250" value="4500" aria-label="Zarobki netto na części etatu">
                         </div>
                     </div>
                     <div class="field wz-field-block" id="wzSemiSavingsGroup">
@@ -746,7 +746,7 @@
                             <input type="number" id="wzBequest" class="acc-field" value="0" min="0" max="10000000" step="50000">
                             <button type="button" class="stepper stepper-up" tabindex="-1" aria-label="Zwiększ spadek">+</button>
                         </div>
-                        <input type="range" id="wzBequestRange" min="0" max="10000000" step="50000" value="0" aria-label="Majątek na koniec horyzontu">
+                        <input type="range" id="wzBequestRange" min="0" max="2000000" step="50000" value="0" aria-label="Majątek na koniec horyzontu">
                     </div>
                 </div>
             </div>

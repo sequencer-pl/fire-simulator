@@ -1059,6 +1059,9 @@ tbody tr.table-group:hover td { background: var(--surface-2); }
     font-weight: 400;
     line-height: 1.45;
     text-align: left;
+    /* Tooltip nie dziedziczy KAPITALIKÓW ani rozstrzelenia z nagłówków. */
+    text-transform: none;
+    letter-spacing: normal;
     white-space: normal;
     opacity: 0;
     visibility: hidden;

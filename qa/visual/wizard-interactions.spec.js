@@ -388,3 +388,53 @@ test("PPK/PPE choices are independent and balances live in the capital step", as
     await expect(page.locator("#wzPpeBalance")).toBeVisible();
     await expectNoHorizontalOverflow(page);
 });
+
+test("B2B step 3 orders tax forms by popularity and keeps salary fields apart", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto("/wizard", { waitUntil: "networkidle" });
+    await page.locator("#wzNextBtn").click();
+    await page.locator('label:has(input[name="wzEmployment"][value="b2b"])').click();
+    await page.locator("#wzNextBtn").click();
+    await expect(page.locator('.wz-step[data-step-id="b2b"]')).toBeVisible();
+
+    await expect(page.locator('input[name="wzB2bTaxForm"]:checked')).toHaveValue("ryczalt");
+    const formOrder = await page.locator('input[name="wzB2bTaxForm"]').evaluateAll(
+        (els) => els.map((el) => el.value)
+    );
+    expect(formOrder).toEqual(["ryczalt", "skala", "liniowy"]);
+
+    const overlaps = (a, b) => !(
+        a.right <= b.left + 1
+        || a.bottom <= b.top + 1
+        || b.right <= a.left + 1
+        || b.bottom <= a.top + 1
+    );
+    const modesAndSalary = async () => page.evaluate(() => {
+        const rect = (element) => {
+            const box = element.getBoundingClientRect();
+            return { top: box.top, bottom: box.bottom, left: box.left, right: box.right };
+        };
+        return {
+            mode: rect(
+                document.querySelector('input[name="wzB2bSalaryMode"][value="gross"]')
+                    .closest(".segmented")
+            ),
+            salary: rect(document.querySelector("#wzB2bSalary").closest(".wz-slider")),
+        };
+    });
+
+    const desktop = await modesAndSalary();
+    expect(overlaps(desktop.mode, desktop.salary)).toBe(false);
+    await expectNoHorizontalOverflow(page);
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.waitForTimeout(200);
+    const mobile = await modesAndSalary();
+    expect(overlaps(mobile.mode, mobile.salary)).toBe(false);
+    await expectNoHorizontalOverflow(page);
+
+    const tooltipTransform = await page.locator(".wz-panel-title .tooltip").first().evaluate(
+        (el) => getComputedStyle(el).textTransform
+    );
+    expect(tooltipTransform).toBe("none");
+});
