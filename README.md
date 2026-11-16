@@ -1,208 +1,110 @@
 # FIRE Simulator
 
-Symulator niezależności finansowej (*Financial Independence, Retire Early*) dla polskiego systemu podatkowego i emerytalnego.
+Polski symulator niezależności finansowej (*Financial Independence, Retire Early*):
+ile oszczędzać, w co inwestować i jak długo, żeby móc przestać pracować w wieku X —
+z podatkami, limitami i ZUS.
 
-**Nie obiecujemy, że będziesz bogaty.** Nie znamy Twojej przyszłości, nie przewidzimy rynku i nie zastąpimy doradcy. Ten projekt ma jedno zadanie: pokazać, co wynika z Twoich liczb — po polsku, po podatkach i bez ściemy. Jeśli po jednej symulacji spojrzysz na oszczędzanie trochę poważniej, uznamy to za sukces.
+## Czym jest
 
-FIRE Simulator odpowiada na pytanie, które zadaje sobie każdy, kto planuje wcześniejszą emeryturę: **ile dziś oszczędzać, w co, i jak długo inwestować, żeby w wieku X móc przestać pracować i mieć środki do końca życia** — z uwzględnieniem podatków, limitów i reguł wiekowych, które naprawdę obowiązują w Polsce.
+**Modelem, nie wróżbą.** Bierze Twoje zarobki, oszczędności, wiek i założenia,
+a potem pokazuje rok po roku, co z nich wynika: wpłaty, podatki, wypłaty z kont
+i ZUS. Ma pomóc zrozumieć mechanikę, a nie zastąpić doradcy.
 
-Zamiast jednej magicznej liczby ("potrzebujesz 2 mln zł") pokazuje **rozpisane po latach** źródła finansowania: co wypłacasz z rachunku maklerskiego i IKZE, co z IKE i PPK, a co realnie otrzymasz z ZUS — oraz ile z tego oddasz fiskusowi.
+**Jest** modelem deterministycznym: pokazuje „co się stanie, jeśli”, a nie
+„co będzie”. **Nie jest** poradą inwestycyjną, prognozą rynku ani gwarancją.
+Nie zna przyszłej inflacji, stóp procentowych, prawa ani Twojej psychiki.
+Jeśli szukasz rekomendacji „kup X, sprzedaj Y” — to nie tutaj.
 
-## Czym to jest — i czym nie jest
+## Po co powstał
 
-**Jest** modelem, nie wróżbą. Bierze Twoje zarobki, oszczędności, wiek i założenia, a potem pokazuje rok po roku, co z nich wynika. Ma pomóc zrozumieć mechanikę: podatki, limity, kolejność wypłat, ZUS. I ma inspirować — bo czasem jedna dobrze zaprezentowana symulacja robi więcej niż dziesięć artykułów o „wolności finansowej”.
+Narzędzia do planowania FIRE są zwykle oparte na rynkach amerykańskich
+(401k, Roth IRA, stopa wycofania 4%). W Polsce układ jest inny: ZUS, PPK, PPE,
+IKE, IKZE, OIPE i OKI, skala PIT, Belka, ryczałt IKZE oraz inne progi wiekowe.
+Ten projekt modeluje właśnie tę układankę:
 
-**Nie jest** poradą inwestycyjną, prognozą rynku ani gwarancją. Nie wie, jaka będzie inflacja, stopy procentowe i prawo za 20 lat. Nie uwzględnia Twojej psychiki, nieprzewidzianych wydatków ani tego, że życie lubi pisać własne scenariusze. Jeśli szukasz odpowiedzi „czy warto”, to nie tutaj — tutaj znajdziesz „co się stanie, jeśli”.
+- **polskie podatki i limity** — PIT, Belka, ryczałt IKZE, podatek od aktywów OKI;
+- **ZUS liczony z kapitału** — emerytura = kapitał ÷ ŚDTŻ (tablica GUS), a nie
+  „życzeniowa” kwota;
+- **etapy życia** — akumulacja, sabatical, wcześniejsza emerytura, dopłata z ZUS;
+- **trzy scenariusze rynkowe** — bessa, realne i hossa — zamiast jednej magicznej
+  liczby.
 
-## Dla kogo
+## Główne założenia
 
-- **Dla Ciebie, jeśli** chcesz zrozumieć, co robią z Twoimi pieniędzmi podatki, limity i kolejność wypłat.
-- **Dla Ciebie, jeśli** lubisz scenariusze „co by było, gdyby” bardziej niż jedną magiczną liczbę.
-- **Nie dla Ciebie, jeśli** szukasz rekomendacji „kup X, sprzedaj Y, będziesz wolny w 2035”.
+- **Wszystko w dzisiejszych złotych.** Wyniki są realne i netto; `ROI` podajesz
+  realne, brutto, przed podatkiem.
+- **Model deterministyczny.** Stałe ROI, bez Monte Carlo i zmienności rynku.
+  „6% średnio” nie znaczy „6% co roku”.
+- **Podatki per konto.** Belka, ryczałt IKZE, skala PIT i podatek od aktywów OKI
+  są liczone według zasad konta, a nie ukryte w jednej stopie zwrotu.
+- **ZUS to kapitał ÷ ŚDTŻ.** Wiek emerytalny jest sugestią, nie twardą granicą;
+  silnik policzy emeryturę także z wcześniejszego wieku (z ostrzeżeniem).
+- **Scenariusze to delty.** „Realne” to globalny config, a bessa i hossa to
+  modyfikatory względem niego — nie osobne, ukryte presety.
+- **Bezstanowość.** Brak bazy, logowania i sesji; dane żyją w `localStorage`
+  i plikach `.sim.json` / `.config.json`.
 
-## Od czego zacząć
+Pełne założenia, wyjątki i ograniczenia: [`docs/model.md`](docs/model.md).
 
-- **Asystent** — krok po kroku dopasowuje pytania do Twojej sytuacji i tworzy plan w trzech scenariuszach rynkowych. Pensję podajesz domyślnie brutto rocznie (z premiami i nadgodzinami), a możesz przełączyć na netto i miesięcznie; szczegóły obejmują oś czasu, etapy oraz wypłaty z poszczególnych kont. PPK i PPE traktujemy niezależnie — możesz mieć PPE od byłego pracodawcy i PPK u obecnego. Gotowy plan eksportujesz do pliku `.sim.json`.
-- **Symulator** — pełna kontrola: etapy, konta, wpłaty, wypłaty i tabela rok po roku. Możesz importować i eksportować plany `.sim.json`.
-- **Porównywarka** — wczytaj od 1 do 4 plików `.sim.json` i porównaj werdykt, wypłaty, podatki, majątek i strukturę etapów. Nic nie zapisujemy na serwerze.
+## Co dostajesz
 
-Przyciski plików są celowo ogólne — **„Wczytaj JSON”** i **„Eksportuj JSON”**. Tooltip mówi, że plany to `.sim.json`, a konfiguracje `.config.json`; filtry plików pilnują właściwego formatu.
-
-## Dlaczego powstał
-
-Narzędzia do planowania FIRE są zwykle oparte na rynkach amerykańskich (401k, Roth IRA, stopa wycofania 4%). W Polsce układ jest inny i nieco szerszy: cztery filary (ZUS, PPK, IKE, IKZE) plus nowe konta OKI, inny system podatkowy (skala PIT, Belka, ryczałt od IKZE) i inne progi wiekowe. Chcieliśmy narzędzie, które:
-
-- modeluje **polskie reguły z 2026 r.**: skala PIT 12/32% z kwotą wolną 30 000 zł, Belka 19%, ryczałt IKZE 10%, podatek od aktywów OKI 0,85%;
-- rozlicza **podatki przy wypłacie** (nie tylko "Brutto"), bo to one najczęściej psują amerykańskie kalkulatory przeniesione 1:1 do Polski;
-- wylicza **emeryturę ZUS z kapitału** wg tablic GUS (kapitał ÷ ŚDTŻ), a nie z życzeniowej kwoty "4000 zł/mies.";
-- pozwala budować scenariusze **etapami** — np. ciężki okres oszczędzania do 50., "sabatical" 50–60, właściwa emerytura od 60.
-
-## Jak się z tego korzysta
-
-Symulację układasz z **etapów** (akumulacja i realizacja), a każdy etap to zbiór **kont**:
-
-1. **Akumulacja** — oszczędzasz: wpisujesz saldo startowe, roczne dopłaty, składki (ZUS/PPK/PPE), ROI i wiek początku/końca.
-2. **Realizacja** — wypłacasz: silnik liczy roczną wypłatę jako annuitet (PMT), tak by środki starczyły do końca etapu (opcjonalnie zostawiając bufor).
-
-Etapy mogą się nakładać (np. IKE + ZUS jednocześnie), a jedno konto może występować w wielu etapach z różnymi regułami. Wynik to tabela i wykres majątku w każdym roku życia.
-
-## Zanim uwierzysz wynikom
-
-Symulator celowo jest **prostym modelem deterministycznym**, a nie symulacją Monte Carlo. To, czego nie modeluje, jest równie ważne jak to, co modeluje:
-
-> **W skrócie:** liczby są realne i netto, ROI jest stałe, ZUS uproszczony, a rynek, inflacja i prawo siedzą poza modelem. To wystarczy, żeby planować, ale nie wystarczy, żeby traktować wynik jak proroctwo.
-
-1. **Wszystko w dzisiejszych złotych.** Silnik przechowuje i pokazuje wyniki w sile nabywczej (realnie). `ROI` wpisujesz **realne (ponad inflacją), brutto — przed podatkiem**. Inflacja nie jest doliczana do wzrostu kont; wchodzi tylko w:
-   - nominalną Belkę od zysku (broker, IKE/PPK/PPE przed progami) i mechanikę lokaty,
-   - erozję gotówki (`-2,5%/rok`),
-   - waloryzację ZUS (punkt 8),
-   - indeksację progów PIT, kwoty wolnej, KUP i progu daniny — domyślnie **1,5%** (scenariusz Realne). Pole „Indeksacja progów PIT” pozwala ustawić `0%` (progi zamrożone nominalnie) albo wartość pośrednią; bessa obniża ją do 1,0%, a hossa ustawia pełną indeksację (`None`).
-
-   Ryczałt IKZE i skala PIT liczą się od realnych kwot. Podatek od aktywów OKI jest w modelu liczony od realnego salda (uproszczenie).
-
-2. **ROI to realna stopa zwrotu (ponad inflacją), brutto, i jest stała w każdym roku.** Dla brokera, krypto, obligacji, IKE, IKZE, PPK, PPE i OIPE to zwrot **przed** podatkiem od wypłat; silnik nalicza go według zasad konta (Belka, ryczałt, skala PIT). Wyjątki:
-   - **lokata** — Belka 19% pobierana co okres; silnik przelicza ROI na nominalne brutto i urealnia,
-   - **OKI** — ROI przed rocznym podatkiem od aktywów (0,85%),
-   - **gotówka** — ROI = `-inflacja`,
-   - **ZUS** — waloryzacja, nie ROI; emerytura netto po 9% składce zdrowotnej.
-
-   Przykład: lokata 5% realnie brutto, inflacja 0% → po Belce 19% zostaje 4,05% realnie. Przy inflacji 2,5% nominalne brutto ≈7,63%, po Belce ≈6,18% nominalnie, czyli ≈3,59% realnie. Nie ma zmienności rynku: 6% średnio nie znaczy 6% co roku.
-
-3. **Emerytura ZUS = kapitał ÷ ŚDTŻ(GUS).** Dla danego wieku emeryturę liczy się jako zgromadzony kapitał podzielony przez tablicę średniego dalszego trwania życia. Bazą jest oficjalna tablica GUS 2026; dla emerytury w późniejszym roku tabela jest wydłużana o `longevity.growth_months_per_year` (domyślnie **1,5 mies./rok**). To **projekcja**, nie oficjalna tabela na dany rok. Tablica jest **wspólna dla obu płci** (GUS publikuje jedną; zróżnicowanie usunął wyrok TK K 1/13) — płeć zmienia jedynie **wiek emerytalny: kobiety 60, mężczyźni 65**. Silnik nie sprawdza warunków stażowych ani nie wyrównuje do emerytury minimalnej — o tym tylko ostrzega.
-
-4. **Wiek emerytalny ZUS to sugestia, nie twarda granica.** Silnik policzy emeryturę z dowolnego wieku (np. 55), bo "przed 60/65 realnie świadczenie nie przysługuje" — dostaniesz ostrzeżenie, ale wynik się pojawi. Traktuj go jako poglądowy.
-
-5. **Wypłaty przed wiekiem uprawniającym** kosztują i nie zawsze da się to zamodelować w 100%:
-   - **IKE przed 60** — Belka 19% od zysku (zamodelowane);
-   - **IKZE przed 65** — jednorazowe opodatkowanie całości skalą PIT; netto jest reinwestowane w konto docelowe (auto: IKE/OIPE do limitu, jeśli są w etapie, potem obligacje → lokata → OKI oszczędnościowe → broker → gotówka; **nigdy krypto**);
-   - **PPK przed 60** — środki pracodawcy i dopłaty państwa przepadają, podatek Belki od zysku tylko na części pracownika;
-   - **PPE przed 60** — 30% składek podstawowych pracodawcy trafia do ZUS subkonto.
-
-6. **Bufor to nie "poduszka", tylko wartość końcowa.** PMT wylicza wypłatę tak, by na koniec etapu zostało dokładnie `bufor` złotych. Chcesz zachować kapitał na później → wpisz go w bufor; chcesz przejeść wszystko → 0.
-
-7. **OKI (od 2027 r.)** — zamiast Belki coroczny podatek od wartości aktywów (0,85%) od średniego stanu ponad **wspólny limit 100 000 zł** dla wszystkich kont OKI, z czego max 25 000 zł na część oszczędnościową (lokaty/obligacje). Podatek płacisz niezależnie od zysku lub straty. Wypłaty nie podlegają Belce. Zamodelowane wprost.
-
-8. **ZUS w akumulacji rośnie przez waloryzację (domyślnie 1%/rok), nie przez ROI** — plus składka 19,52% od podstawy do limitu 30× przeciętnego wynagrodzenia. Członkowie OFE mają rozdzielany strumień: 2,92 pkt do OFE (rośnie z ROI), reszta waloryzowana w ZUS.
-
-8a. **Domyślny horyzont Asystenta** = oczekiwana długość życia (GUS 2024, wg płci) powiększona o skumulowany wzrost długowieczności (`longevity.growth_months_per_year`). To przybliżenie kohortowe: każdy pozostały rok życia wydłuża się o założoną liczbę miesięcy. Użytkownik może nadpisać horyzont suwakiem.
-
-8b. **Asystent a Konfiguracja:** globalny config jest bazą scenariusza „Realne”. Bessa i hossa to **delty względem tej bazy** (inflacja, ROI kont, waloryzacja ZUS), a nie osobne presety. Jeśli użytkownik zapisał własną konfigurację, scenariusze przesuwają właśnie jej wartości. Wbudowane presety to tylko `Domyślny 2026` i `Domyślny 2027`. Pierwsza ręczna zmiana w Konfiguracji przełącza select presetu na „Własna konfiguracja”, a przywrócenie wszystkich wartości wraca do nazwy presetu. Konfiguracja jest zapisywana lokalnie (`localStorage`, klucz `fire.config`) i Asystent używa jej przez `base_config`.
-
-8c. **Scenariusz „Kryzys / bessa”** zakłada słaby rynek przez cały horyzont, nie jednorazowy krach: akcje **0% realnie**, fundusze i PPK/PPE **+0,5%**, obligacje **+0,5%**, lokaty i OKI oszczędnościowe **0%**, nieruchomość **0%**, ZUS/OFE **+1%**, a krypto **−8% realnie**. Gotówka traci tyle, ile wynosi inflacja. To celowo mocniejszy scenariusz negatywny; nie jest prognozą.
-
-8d. **Scenariusz „Realne / bazowe”** to globalny default: akcje **3,5% realnie**, fundusze, PPK/PPE i OKI inwestycyjne **+3,0%**, krypto **0%**, obligacje **+1,5%**, lokaty, OKI oszczędnościowe i nieruchomość **+1,0%**, ZUS/OFE **+3,0%**. Przez procent składany nie jest to środek wypłat — wynik jest bliżej bessy niż hossy, co jest świadomym wyborem konserwatywnym.
-
-8e. **Limity 2027:** IKE i OIPE **30 099 zł**, IKZE **12 039,60 zł** (**18 059,40 zł** dla działalności gospodarczej), PPE — składki dodatkowe **45 148,50 zł**, limit 30-krotności ZUS **300 990 zł**. Preset `Domyślny 2027` używa progów PIT 130/150 tys. i stawek 12/24/32%.
-
-9. **Limity wpłat (2026):** IKE 28 260 zł, IKZE 11 304 zł (16 956 zł samozatrudnieni), OIPE 28 260 zł, składka dodatkowa PPE 42 390 zł. Przekroczenie to ostrzeżenie, nie automatyczne obcięcie — dopłaty ponad limit po prostu "wchodzą" i tracą sens podatkowy.
-
-10. **Nakładające się etapy** — dla danego konta wygrywa pierwszy z nich; konta nieobsługiwane w danym roku rosną pasywnie z ostatnim znanym ROI (domyślnie 2%).
-
-Wszystkie **wypłaty** w wynikach są netto (po podatku). Majątek pokazujemy
-**brutto** oraz **netto po podatku wyjścia** (gdyby zlikwidować konta na koniec
-planu: IKZE 10% po 65 r.ż. lub skala przed, IKE 0%, broker 19% od zysku).
-Ulga IKZE obniża podatek w roku wpłaty; zwrot można reinwestować na wybranym
-koncie (w edytorze wybór jest obowiązkowy; Asystent robi to automatycznie:
-IKE → OIPE → broker → OKI → obligacje → lokata → OKI oszczędnościowe → gotówka,
-do wysokości limitów IKE/OIPE; krypto tylko po jawnym wskazaniu) albo zostawić
-jako samą ulgę. Asystent najpierw wypełnia limity IKE/IKZE/OIPE, a pozostałą
-pulę dzieli według profilu ryzyka na bezpieczne/rynkowe/krypto. W IKE/IKZE/OIPE
-wybiera rodzaj inwestycji (maklerskie, funduszowe albo oszczędnościowe);
-OIPE jest dziś dostępne tylko w wersji funduszowej.
-Asystent porównuje też **kolejność wypłat**: wcześniejsze opodatkowanie IKZE
-vs odłożenie go do 65, oraz w ramach progów podatkowych kolejność wg ROI
-(niższe ROI pierwsze) albo **kosztu podatkowego** (najtańsze konta pierwsze,
-np. OKI, IKE po 60). Wcześniejszy zwrot netto jest reinwestowany w konto
-docelowe, więc porównanie uwzględnia jego niższe ROI/podatek. Wybiera wariant
-o najwyższej wartości netto. Istniejące saldo OKI jest respektowane przy
-proponowaniu nowych wpłat — Asystent nie dokłada do OKI ponad limit ulgi
-100 tys. zł (25 tys. zł dla części oszczędnościowej).
+- **Asystent** — krok po kroku dopasowuje pytania do Twojej sytuacji i tworzy
+  plan w trzech scenariuszach. Pokazuje oś czasu, etapy, Gantt wypłat i wyniki
+  per konto.
+- **Symulator** — pełna kontrola: etapy, konta, wpłaty, wypłaty i tabela rok
+  po roku. Plany importujesz i eksportujesz jako `.sim.json`.
+- **Porównywarka** — wczytaj od 1 do 4 plików `.sim.json` i porównaj wypłaty,
+  podatki, majątek i strukturę etapów. Nic nie zapisujemy na serwerze.
 
 ## Obsługiwane konta
 
-| Konto | Reżim podatkowy | Dostępność | Uwagi |
-|-------|-----------------|------------|-------|
-| Broker / krypto | Belka 19% od zysku przy wypłacie | dowolna | ROI brutto |
-| Lokata | Belka 19% co okres | dowolna | ROI brutto; podatek rozliczany w trakcie |
-| Obligacje | Belka 19% od zysku | dowolna | ROI brutto, realna marża ponad inflację |
-| Gotówka | brak | dowolna | domyślnie −2,5%/rok (inflacja) |
-| IKE | 0% po 60. r.ż. | od 60 | przed 60: Belka 19% od zysku |
-| IKZE | ryczałt 10% po 65. | od 65 | przed 65: skala PIT od całości zwrotu |
-| PPK | 0% po 60. r.ż. | od 60 | dopłaty państwa: 250 + 240 zł/rok |
-| PPE | 0% po 60. r.ż. | od 60 | składka podstawowa pracodawcy do 7% |
-| OIPE | 0% po 60. r.ż. | od 60 | limit wpłat jak IKE |
-| OKI (inw./osk.) | podatek od aktywów 0,85% | dowolna | wspólny limit 100 000 zł / 25 000 zł |
-| ZUS | skala PIT przy wypłacie | od 60/65 | emerytura = kapitał ÷ ŚDTŻ(GUS, projekcja na rok emerytury) |
+| Konto | Podatki | Uwagi |
+|---|---|---|
+| Broker / krypto | Belka 19% od zysku przy wypłacie | ROI brutto |
+| Lokata / obligacje | Belka 19% (lokata: co okres) | ROI brutto |
+| Gotówka | brak | domyślnie traci tyle, ile wynosi inflacja |
+| IKE | 0% po 60 r.ż.; przed 60 Belka 19% od zysku | limit wpłat |
+| IKZE | 10% po 65 r.ż.; przed 65 skala PIT od całości | ulga w roku wpłaty |
+| PPK / PPE | 0% po 60 r.ż.; przed 60 ograniczenia | składki pracodawcy i państwa |
+| OIPE | 0% po 60 r.ż. | limit wpłat jak IKE; dziś funduszowe |
+| OKI (inw./osk.) | podatek od aktywów 0,85% | wspólny limit 100 tys. zł / 25 tys. zł |
+| ZUS | skala PIT przy wypłacie | kapitał ÷ ŚDTŻ (projekcja GUS) |
 
-## Wiek emerytalny i płeć
+## Szybki start
 
-Przełącznik płci (K/M) w pasku akcji dotyczy **wyłącznie ZUS** — ustawia powszechny wiek emerytalny (60 dla kobiet, 65 dla mężczyzn), od którego znika ostrzeżenie o wcześniejszej wypłacie. Nie zmienia ani wysokości emerytury (tablica ŚDTŻ jest wspólna), ani zasad innych kont. Wartości można edytować w Konfiguracji („Wiek emerytalny — kobiety/mężczyźni").
-
-## Jak pracować z projektem
-
-Wymagania: [uv](https://docs.astral.sh/uv/), Python 3.12+.
+Wymagania: [uv](https://docs.astral.sh/uv/) i Python 3.12+.
 
 ```bash
-make setup      # pierwszy raz: tworzy .venv i instaluje zależności
-make dev        # serwer deweloperski z auto-reload na http://localhost:8000
+make setup
+make dev
 ```
 
-Typowy cykl: edytujesz kod → serwer sam się przeładuje → odświeżasz stronę → `make test` → `make lint`. Statyczne pliki (CSS/JS) są serwowane z cache-bustingiem, więc zmiany widać od razu.
+Otwórz [http://localhost:8000/wizard](http://localhost:8000/wizard).
+Produkcja: `make prod` albo `PORT=... make prod-port`.
+Szczegóły pracy z kodem, testów i deployu: [`AGENTS.md`](AGENTS.md).
 
-| Cel | Opis |
-|-----|------|
-| `make setup` | Instaluje zależności (`uv sync`) |
-| `make dev` | Serwer deweloperski z auto-reload |
-| `make dev-port` | Serwer dev z auto-reload na `0.0.0.0`, port z env `PORT` (domyślnie 8000) |
-| `make prod` | Serwer na `0.0.0.0:8000` (gunicorn + uvicorn worker) |
-| `make prod-port` | Jak `prod`, ale port z env `PORT` (np. Render) |
-| `make test` | Testy jednostkowe (pytest) |
-| `make lint` | Linter (ruff check) |
-| `make format` | Formatowanie kodu (ruff format + fix) |
-| `make clean` | Usuwa cache i artefakty |
+## Dokumentacja
 
-Aplikacja jest **bezstanowa**. Nie ma kont, logowania ani bazy danych: konfiguracja i presety siedzą w `localStorage` przeglądarki, a gotowe plany zapisujesz na dysku jako `.sim.json`. Dzięki temu możesz trzymać dane u siebie i wczytywać je w Porównywarce.
-
-## Uruchamianie produkcyjne
-
-Produkcja to FastAPI + gunicorn/uvicorn. Aplikacja nie wymaga bazy ani sekretu sesji.
-
-| Zmienna | Obowiązkowa | Opis |
-|---------|-------------|------|
-| `FIRE_ENV` | nie | `production` wyłącza `/docs` i `/openapi.json`. Bez niej działa tryb deweloperski. |
-
-Dwa sposoby startu:
-
-- **gunicorn** (rekomendowane, używane na hostingu): `gunicorn app.main:app -k uvicorn.workers.UvicornWorker -w 1 --bind 0.0.0.0:$PORT`.
-- **uvicorn**: `make prod` albo `make prod-port` (port z `PORT`).
-
-Endpoint `GET /healthz` zwraca `{"status": "ok"}` — używany jako probe hostingu.
-
-**Deploy na Render** — repo zawiera `render.yaml` (Blueprint: web service, build przez `pip install -r requirements.txt`, start przez gunicorn, `/healthz`). CI/CD leci z GitHub Actions: `ci.yml` przy pushu/PR, a `deploy.yml` po każdym pushu do `main` (Render buduje linkowany branch).
-
-> **Dlaczego bez bazy?** Free tier Render nie wspiera persistent disk, a projekt nie ma ambicji trzymać prawdziwych danych finansowych użytkowników. Pliki `.sim.json` i `.config.json` są źródłem prawdy i zostają na dysku użytkownika.
-
-## Struktura
-
-```
-app/
-├── core/          # PMT (annuitet) i podatki (skala PIT, ryczałt)
-├── stages/        # etapy akumulacji i realizacji + metadane formularza
-├── simulation/    # silnik symulacji, schematy, tablica ŚDTŻ, parametry (2026)
-├── web/           # trasy FastAPI (stateless)
-├── templates/     # szablony (asystent, symulator, porównywarka)
-└── main.py        # aplikacja FastAPI
-static/js/         # frontend (vanilla JS)
-tests/             # testy pytest (silnik, podatki, ZUS, OKI, ...)
-```
+- [`AGENTS.md`](AGENTS.md) — praca z kodem, testy, architektura, deploy.
+- [`DESIGN.md`](DESIGN.md) — system wizualny, komponenty i słowniczek.
+- [`docs/model.md`](docs/model.md) — pełne założenia i ograniczenia modelu.
+- `app/simulation/config.py` — źródło prawdy dla stawek, limitów, ROI i presetów.
 
 ## Zastrzeżenie
 
-To narzędzie do myślenia, nie do wróżenia. **Nie jest poradą inwestycyjną ani gwarancją.** Wyniki zależą od założeń, które musisz samodzielnie zweryfikować. Model celowo upraszcza rzeczywistość: zakłada stałe ROI, uproszczony ZUS i pomija zmienność rynku oraz część realnych zasad. Decyzje finansowe podejmuj z głową — najlepiej z doradcą, który zna Twoją sytuację.
+To narzędzie do myślenia, nie do wróżenia. **Nie jest poradą inwestycyjną ani
+gwarancją.** Wyniki zależą od założeń, które musisz samodzielnie zweryfikować.
+Model celowo upraszcza rzeczywistość: zakłada stałe ROI, uproszczony ZUS i pomija
+zmienność rynku oraz część realnych zasad. Decyzje finansowe podejmuj z głową —
+najlepiej z doradcą, który zna Twoją sytuację.
 
 ## Autorstwo
 
-Projekt powstał metodą *vibe-coding*: kod napisali asystenci AI (opencode — różne modele w kolejnych sesjach) w trakcie interaktywnych sesji z właścicielem repozytorium (sequencer-pl), który pełnił rolę nadzoru merytorycznego, recenzenta i akceptanta — w jego imieniu i pod jego czujnym okiem. Wszelkie błędy modelowe są efektem wspólnych, czasem zbyt śmiałych, decyzji. :)
+Projekt powstał metodą *vibe-coding*: kod napisali asystenci AI (opencode — różne
+modele w kolejnych sesjach) w trakcie interaktywnych sesji z właścicielem
+repozytorium (sequencer-pl), który pełnił rolę nadzoru merytorycznego, recenzenta
+i akceptanta — w jego imieniu i pod jego czujnym okiem. Wszelkie błędy modelowe
+są efektem wspólnych, czasem zbyt śmiałych, decyzji. :)
 
 ## Licencja
 
