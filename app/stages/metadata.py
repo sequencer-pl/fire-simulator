@@ -546,6 +546,12 @@ STAGE_META: dict[str, dict[str, Any]] = {
                         "step": 1000,
                         "hint": FIELD_HINTS["starting_balance"],
                     },
+                    "annual_contribution": {
+                        "label": "Dopłata roczna",
+                        "type": "number",
+                        "step": 1000,
+                        "hint": FIELD_HINTS["annual_contribution"],
+                    },
                 },
             },
             "lokata": {

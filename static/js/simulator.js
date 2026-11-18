@@ -105,125 +105,246 @@ function pensionAge(config) {
 }
 
 function renderResults(data) {
-    const container = document.getElementById("results");
-    const thead = document.querySelector("#resultsTable thead");
-    const tbody = document.querySelector("#resultsTable tbody");
-    const summary = document.getElementById("summary");
+    const summaryBox = document.getElementById("summary");
     const warnings = document.getElementById("warnings");
 
-    const accounts = data.accounts || [];
-    const labelsMap = data.account_labels || {};
-    const labelOf = (a) => labelsMap[a] || accountDisplayLabel(a);
-
-    thead.innerHTML = "";
-    const headerRow = document.createElement("tr");
-    headerRow.innerHTML = `
-        <th class="col-age">Wiek</th>
-        <th class="col-stage">Etap</th>
-        ${accounts.map(a => `<th data-col="${a}">${escapeHtml(labelOf(a))}</th>`).join("")}
-        <th data-col="wealth">Majątek</th>
-        <th data-col="annual">Wypłata roczna</th>
-        <th data-col="monthly">Wypłata mies.</th>
-        <th data-col="tax">Podatek</th>
-    `;
-    thead.appendChild(headerRow);
-
-    tbody.innerHTML = "";
-
     warnings.innerHTML = "";
-    (data.warnings || []).forEach((w) => {
-        const div = document.createElement("div");
-        div.className = "banner banner-warn";
-        div.innerHTML = `${iconSvg("warning")}<div class="banner-body"></div>`;
-        div.querySelector(".banner-body").textContent = w;
-        warnings.appendChild(div);
+    window.ResultsBanners.render(warnings, data.warnings || [], {
+        variant: "warn",
+        mode: "stack",
     });
 
     const totalContrib = computeTotalUserContributions(lastInput);
     const initCap = computeInitialCapital(lastInput);
-    const totalInvested = initCap + totalContrib;
-    const multiplier = totalInvested > 0 ? (data.peak_wealth / totalInvested) : 0;
-    const multiplierBadge = multiplier > 0
-        ? `<span class="metric-note" title="Majątek szczytowy / (kapitał początkowy + wpłaty własne)">${multiplier.toFixed(1)}×</span>`
-        : "";
+    const summary = data.summary || {
+        initial_capital: initCap,
+        total_user_contributions: totalContrib,
+        peak_wealth: data.peak_wealth,
+        final_wealth: data.final_wealth,
+        final_wealth_net: data.final_wealth_net ?? data.final_wealth,
+        total_withdrawn: data.total_withdrawn,
+        total_tax: data.total_tax,
+        total_tax_refund: data.total_tax_refund,
+    };
+    const planView = { result: data, summary };
+    const metrics = [
+        window.ResultsModel.metric(planView, "totalWithdrawnPrivate"),
+        window.ResultsModel.metric(planView, "avgMonthly", { label: "Średnia wypłata mies." }),
+        window.ResultsModel.metric(planView, "minMonthly", { label: "Minimalna wypłata mies." }),
+        window.ResultsModel.metric(planView, "finalWealthNet"),
+        window.ResultsModel.metric(planView, "taxAndHealth", { label: "Podatki i składki" }),
+    ];
+    if ((planView.summary?.zus_monthly ?? 0) > 0) {
+        metrics.push(window.ResultsModel.metric(planView, "zusMonthly"));
+    } else {
+        metrics.push(window.ResultsModel.metric(planView, "peakWealth", { label: "Majątek szczytowy" }));
+    }
+    window.ResultsMetrics.render(summaryBox, metrics);
 
-    summary.innerHTML = `
-        <div class="metric-grid is-wide">
-            <div class="metric">
-                <span class="metric-label">Kapitał początkowy</span>
-                <span class="metric-value">${fmtMoney(initCap)}</span>
-            </div>
-            <div class="metric">
-                <span class="metric-label">Wpłaty własne</span>
-                <span class="metric-value">${fmtMoney(totalContrib)}</span>
-            </div>
-            <div class="metric">
-                <span class="metric-label">Szczyt majątku</span>
-                <span class="metric-value">${fmtMoney(data.peak_wealth)}${multiplierBadge}</span>
-            </div>
-            <div class="metric${data.final_wealth <= 0 ? " is-muted" : ""}">
-                <span class="metric-label">Majątek na koniec</span>
-                <span class="metric-value">${fmtMoney(data.final_wealth)}</span>
-            </div>
-            <div class="metric"
-                 title="Majątek po zapłaceniu podatku od likwidacji wszystkich kont na koniec planu (IKZE 10% po 65 r.ż. lub skala przed, broker 19% od zysku).">
-                <span class="metric-label">Po podatkach</span>
-                <span class="metric-value">${fmtMoney(data.final_wealth_net ?? data.final_wealth)}</span>
-            </div>
-            <div class="metric">
-                <span class="metric-label">Suma wypłat netto</span>
-                <span class="metric-value">${fmtMoney(data.total_withdrawn)}</span>
-            </div>
-            <div class="metric${data.total_tax < 0 ? " is-positive" : ""}">
-                <span class="metric-label">Suma podatków</span>
-                <span class="metric-value">${fmtMoney(data.total_tax)}</span>
-            </div>
-            ${(data.total_tax_refund ?? 0) > 0 ? `
-            <div class="metric is-positive" title="Suma ulg IKZE odliczonych od dochodu w całym okresie.">
-                <span class="metric-label">Zwrot IKZE</span>
-                <span class="metric-value">${fmtMoney(data.total_tax_refund)}</span>
-            </div>` : ""}
-        </div>
-    `;
+    renderSimulatorHero(data, summary);
+    renderPlanTime(data);
+    const sharedCharts = renderSharedCharts(data);
+    if (!sharedCharts) {
+        renderWealthChart(data);
+        renderWithdrawalChart(data);
+    }
+    renderSimulatorTable(data);
+    renderSimulatorDetails(data);
 
-    const total = data.years.length;
-    const hasPension = data.has_pension;
-    data.years.forEach((y, i) => {
-        const tr = document.createElement("tr");
-        if (y.annual_withdrawal > 0) tr.classList.add("highlight");
-        else tr.classList.add("stage-accum");
-
-        const balanceCells = accounts.map(a => {
-            const val = y.balances?.[a] || 0;
-            return `<td class="amount" data-col="${a}">${formatMoney(val)}</td>`;
-        }).join("");
-
-        const isLast = i === total - 1;
-        tr.innerHTML = `
-            <td class="col-age">${y.age}${isLast && hasPension ? '<span class="plus-suffix">+</span>' : ''}</td>
-            <td class="col-stage">${escapeHtml(y.stage_name || "")}</td>
-            ${balanceCells}
-            <td class="amount" data-col="wealth"><strong>${formatMoney(y.total_wealth)}</strong></td>
-            <td class="amount" data-col="annual">${formatMoney(y.annual_withdrawal)}</td>
-            <td class="amount" data-col="monthly">${formatMoney(y.monthly_withdrawal)}</td>
-            <td class="amount ${y.tax_paid < 0 ? 'text-success' : ''}" data-col="tax">${formatMoney(y.tax_paid)}</td>
-        `;
-        tbody.appendChild(tr);
-    });
-
-    renderColumnToggles(accounts);
-    applyColVisibility();
-    applyDensity();
-    renderStageSummary(data);
-    renderWealthChart(data);
-    renderWithdrawalChart(data);
-
-    /* show charts section if any chart is visible */
     const hasCharts = !document.getElementById("wealthChart").classList.contains("hidden")
         || !document.getElementById("withdrawalChart").classList.contains("hidden");
     document.getElementById("chartsSection").classList.toggle("hidden", !hasCharts);
 
     switchToResults();
+}
+
+function renderSimulatorTable(data) {
+    const box = document.getElementById("simYearTable");
+    if (!box || !window.ResultsTable) return;
+    window.ResultsTable.render(box, {
+        result: data,
+        density: 5,
+        embedded: true,
+        tableId: "resultsTable",
+    });
+}
+
+function renderSimulatorHero(data, summary) {
+    const box = document.getElementById("simHero");
+    if (!box) return;
+    const fmt = window.ResultsModel.fmtMoney;
+    const projection = data.projection;
+    const payoutPhases = (projection?.phase_metrics || []).filter(
+        (phase) => phase.cashflow === "payout"
+    );
+    const mainPayouts = payoutPhases.filter((phase) => phase.key !== "zus_only");
+    const start = mainPayouts.length
+        ? Math.min(...mainPayouts.map((phase) => phase.start_age))
+        : summary?.start_age;
+    const end = summary?.end_age ??
+        (payoutPhases.length ? Math.max(...payoutPhases.map((phase) => phase.end_age)) : null);
+    const monthly = summary?.avg_monthly || projection?.mean_monthly || projection?.min_monthly || 0;
+    const finalNet = summary?.final_wealth_net ?? data.final_wealth_net ?? 0;
+
+    if (monthly > 0 && start != null && end != null) {
+        box.innerHTML = `<div class="wz-hero-kicker">TWÓJ PLAN</div>
+            <div class="wz-hero-headline">Plan wypłaca średnio ${fmt(monthly)}/mies. netto</div>
+            <div class="wz-hero-desc">Od ${start}. do ${end}. roku życia. Na koniec zostaje <strong>${fmt(finalNet)}</strong> netto.</div>`;
+    } else {
+        box.innerHTML = `<div class="wz-hero-kicker">TWÓJ PLAN</div>
+            <div class="wz-hero-headline">Plan kończy się w wieku ${end ?? "—"}</div>
+            <div class="wz-hero-desc">Majątek końcowy netto: <strong>${fmt(finalNet)}</strong>.</div>`;
+    }
+    box.classList.remove("hidden");
+}
+
+function renderPlanTime(data) {
+    const box = document.getElementById("planTime");
+    if (!box) return;
+    if (!data.projection || !window.ResultsPlanTime) {
+        box.innerHTML = "";
+        return;
+    }
+    const stages = lastInput ? computeStageSummaries(lastInput, data) : [];
+    window.ResultsPlanTime.render(box, {
+        input: lastInput,
+        projection: data.projection,
+        summary: data.summary,
+        result: data,
+        stages,
+        labels: data.account_labels || {},
+        title: "Twój plan w czasie",
+    });
+}
+
+function renderSharedCharts(data) {
+    const projection = data.projection;
+    if (!projection?.chart || !window.ResultsCharts) return false;
+    const chart = projection.chart;
+    const labels = { ...(data.account_labels || {}), zus: "ZUS" };
+    const seriesFor = (dict) =>
+        Object.entries(dict || {})
+            .map(([key, values]) => ({
+                key,
+                label: labels[key] || key,
+                color: window.ResultsCharts.accountColor(key),
+                values,
+            }))
+            .filter((series) => series.values.some((value) => Math.abs(value) > 0.5));
+
+    const capitalSeries = seriesFor(chart.balances);
+    const withdrawalSeries = seriesFor(chart.withdrawals_net).map((series) => ({
+        ...series,
+        values: series.values.map((value) => value / 12),
+    }));
+    const order = [
+        "ike", "ikze", "oipe", "ppk", "ppe", "broker", "obligacje", "lokata",
+        "oki_inw", "oki_osk", "gotowka", "krypto", "nieruchomosc", "zus",
+    ];
+    const orderIndex = (key) => {
+        const index = order.indexOf(key);
+        return index === -1 ? order.length : index;
+    };
+    capitalSeries.sort((a, b) => orderIndex(a.key) - orderIndex(b.key));
+    withdrawalSeries.sort((a, b) => orderIndex(a.key) - orderIndex(b.key));
+    const payoutPhases = (projection.phase_metrics || []).filter(
+        (phase) => phase.cashflow === "payout"
+    );
+    const annotations = [];
+    if (payoutPhases.length) {
+        const start = Math.min(...payoutPhases.map((phase) => phase.start_age));
+        annotations.push({ age: start, label: `Start ${start}` });
+    }
+    if (chart.withdrawals_net?.zus) {
+        annotations.push({ age: 65, label: "ZUS 65" });
+    }
+
+    const wealth = document.getElementById("wealthChart");
+    const withdrawal = document.getElementById("withdrawalChart");
+    if (capitalSeries.length) {
+        wealth.classList.remove("hidden");
+        document.getElementById("wealthDetail")?.classList.add("hidden");
+        window.ResultsCharts.legend(document.getElementById("wealthLegend"), capitalSeries);
+        window.ResultsCharts.stackedArea(wealth, {
+            ages: chart.ages,
+            series: capitalSeries,
+            height: 280,
+            annotations,
+            ariaLabel: "Kapitał prywatny FIRE",
+        });
+    } else {
+        wealth.classList.add("hidden");
+    }
+
+    if (withdrawalSeries.length) {
+        withdrawal.classList.remove("hidden");
+        document.getElementById("withdrawalDetail")?.classList.add("hidden");
+        window.ResultsCharts.legend(
+            document.getElementById("withdrawalLegend"),
+            withdrawalSeries
+        );
+        window.ResultsCharts.stackedArea(withdrawal, {
+            ages: chart.ages,
+            series: withdrawalSeries,
+            height: 280,
+            annotations,
+            ariaLabel: "Wypłaty netto w czasie",
+            valueFormat: (value) => `${window.ResultsModel.fmtMoney(value)}/mies.`,
+        });
+    } else {
+        withdrawal.classList.add("hidden");
+    }
+
+    const chipBox = document.getElementById("simChartAnnotations");
+    if (chipBox) {
+        const chips = [];
+        if (payoutPhases.length) {
+            chips.push(`FIRE ${Math.min(...payoutPhases.map((phase) => phase.start_age))}`);
+        }
+        if (chart.withdrawals_net?.zus) chips.push("ZUS 65");
+        if (data.summary?.end_age != null) chips.push(`Horyzont ${data.summary.end_age}`);
+        chipBox.innerHTML = chips
+            .map((chip) => `<span class="wz-chart-annotation-chip">${window.escapeHtml(chip)}</span>`)
+            .join("");
+    }
+    return capitalSeries.length > 0 || withdrawalSeries.length > 0;
+}
+
+function renderSimulatorDetails(data) {
+    const box = document.getElementById("simDetails");
+    if (!box) return;
+    const summary = data.summary || {};
+    const fmt = window.ResultsModel.fmtMoney;
+    const pct = window.ResultsModel.fmtPct;
+    box.innerHTML = `<details class="wz-details" open>
+        <summary>Majątek, podatki i ulgi</summary>
+        <div class="wz-details-body">
+            <section class="wz-details-block">
+                <h4 class="wz-details-title">Majątek</h4>
+                <div class="wz-wealth">
+                    <div class="wz-wealth-row"><span>Majątek szczytowy</span><strong>${fmt(summary.peak_wealth ?? data.peak_wealth)}</strong></div>
+                    <div class="wz-wealth-row"><span>Na koniec — brutto</span><strong>${fmt(summary.final_wealth ?? data.final_wealth)}</strong></div>
+                    <div class="wz-wealth-row"><span>Po podatku wyjścia — netto</span><strong>${fmt(summary.final_wealth_net ?? data.final_wealth_net)}</strong></div>
+                </div>
+            </section>
+            <section class="wz-details-block">
+                <h4 class="wz-details-title">Podatki i ulgi</h4>
+                <div class="wz-fact-row">
+                    <span class="chip wz-fact">Suma podatków: ${fmt(summary.total_tax ?? data.total_tax)}</span>
+                    ${(summary.tax_efficiency ?? null) != null ? `<span class="chip wz-fact">Efektywność podatkowa: ${pct(summary.tax_efficiency)}</span>` : ""}
+                    ${(summary.total_tax_refund ?? 0) > 0 ? `<span class="chip wz-fact">Zwrot IKZE: ${fmt(summary.total_tax_refund)}</span>` : ""}
+                </div>
+                ${lastInput?.withdrawal_policy ? `<p class="wz-policy-label">Kolejność wypłat</p><p class="wz-method-policy">${escapeHtml({
+                    defer_tier: "Najpierw konta o najniższym koszcie podatkowym, potem IKZE.",
+                    early_tier: "Najpierw IKZE, potem konta o najniższym koszcie podatkowym.",
+                    defer_roi: "Najpierw konta o najwyższym ROI, potem IKZE.",
+                    early_roi: "Najpierw IKZE, potem konta o najwyższym ROI.",
+                    defer_tax: "Najpierw konta o najniższym podatku, potem IKZE.",
+                    early_tax: "Najpierw IKZE, potem konta o najniższym podatku.",
+                }[lastInput.withdrawal_policy] || "Automatyczna kolejność wypłat.")}</p>` : ""}
+            </section>
+        </div>
+    </details>`;
 }
 
 function switchToResults() {
@@ -252,7 +373,7 @@ function renderStageSummary(data) {
         return;
     }
 
-    let html = '<h3 class="section-title">Etapy</h3><div class="stage-summary">';
+    let html = window.ResultsSection.head("Etapy") + '<div class="stage-summary">';
     for (const st of stages) {
         const isAccum = st.type === "akumulacja";
         const kind = isAccum ? "accum" : "withdraw";
@@ -1319,6 +1440,7 @@ const DENSITY_KEY = "fire.density";
 
 function initResultsControls() {
     const density = document.getElementById("densitySelect");
+    if (!density) return;
     const saved = localStorage.getItem(DENSITY_KEY);
     if (saved) density.value = saved;
     density.addEventListener("change", () => {

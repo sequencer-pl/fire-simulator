@@ -51,6 +51,11 @@ const scripts = [
     "static/js/icons.js",
     "static/js/sim-metadata.js",
     "static/js/sim-utils.js",
+    "static/js/results-model.js",
+    "static/js/results-metrics.js",
+    "static/js/results-banners.js",
+    "static/js/results-section.js",
+    "static/js/results-table.js",
     "static/js/controls.js",
     "static/js/wizard.js",
 ]
@@ -264,15 +269,6 @@ const harness = `
             && !row.querySelector(".wz-cap-roi-note")
             && Boolean(row.querySelector(".wz-cap-roi-reset"));
     });
-    check("wynik: optymalizator na dole i zwinięty", () => {
-        const optimizer = document.getElementById("wzOptimizer");
-        const details = document.getElementById("wzDetails");
-        return Boolean(optimizer)
-            && optimizer.tagName === "DETAILS"
-            && !optimizer.open
-            && Boolean(details)
-            && Boolean(details.compareDocumentPosition(optimizer) & Node.DOCUMENT_POSITION_FOLLOWING);
-    });
     check("loader: bez spinnera, z paskiem postępu", () => {
         return !document.querySelector("#wzPlanLoader .spinner")
             && Boolean(document.querySelector("#wzPlanLoader .progress"));
@@ -374,19 +370,12 @@ const harness = `
         wzSelectedScenario = "realne";
         wzRenderResult(wzPlan);
         return document.getElementById("wzHeroAnswer").textContent.includes("5")
-            && document.querySelectorAll("#wzMetrics .metric").length === 3
+            && document.querySelectorAll("#wzMetrics .metric").length === 6
             && document.querySelectorAll("#wzTimeline .wz-timeline-segment").length === 2
             && document.querySelectorAll("#wzFlowsGantt .wz-gantt-row").length >= 3
             && Boolean(document.querySelector("#wzFlowsGantt .wz-gantt-transfer"))
-            && document.querySelectorAll("#wzWealthDetails .wz-wealth-row").length === 3
             && document.querySelectorAll("#wzFacts .wz-fact").length >= 1
-            && document.getElementById("wzPolicyNote").textContent.includes("Najpierw");
-    });
-    check("wynik: suma tylko z portfela, bez ZUS", () => {
-        const note = document.getElementById("wzFlowsTotal");
-        return Boolean(note)
-            && note.textContent.includes("Łączna suma wypłat z portfela prywatnego FIRE")
-            && !note.textContent.includes("Z ZUS");
+            && document.getElementById("wzPolicyTipText").textContent.includes("Najpierw");
     });
     check("wynik: tabela przepływów pod ganttem i zwinięta", () => {
         const details = document.getElementById("wzFlowsTableDetails");
@@ -451,38 +440,24 @@ const harness = `
             && document.querySelectorAll("#wzWithdrawalsLegend .wz-chart-legend-item").length > 0
             && document.querySelectorAll("#wzCapitalLegend .wz-chart-legend-item").length > 0;
     });
-    check("optymalizator: tabela wariantów i rekomendacja renderują się", () => {
-        const candidate = (age, ike, ikze, payout, final, baseline = false) => ({
-            zus_start_age: age,
-            allocations: { ike, ikze },
-            withdrawal_policy: "defer_tier",
-            payout_monthly: payout,
-            min_monthly: payout,
-            mean_monthly: payout + 100,
-            total_withdrawn: payout * 12 * 20,
-            final_wealth_net: final,
-            met: true,
-            feasible: true,
-            break_even_age: null,
-            is_baseline: baseline,
+    check("wynik: dlaczego ten plan?", () => {
+        wzRenderPlanWhy({
+            optimization: {
+                objective: "total",
+                baseline: { total_withdrawn: 1000000 },
+                recommended: {
+                    zus_start_age: 67,
+                    allocations: { ike: 30, ikze: 20, broker: 50 },
+                    total_withdrawn: 1015000,
+                    payout_monthly: 4800,
+                },
+            },
         });
-        wzRenderOptimizer({
-            objective: "payout",
-            bequest_target: 0,
-            baseline: candidate(65, 53, 47, 4000, 300000, true),
-            recommended: candidate(65, 65, 35, 4500, 0),
-            best_total: candidate(70, 100, 0, 4200, 0),
-            candidates: [
-                candidate(65, 53, 47, 4000, 300000, true),
-                candidate(65, 65, 35, 4500, 0),
-                candidate(70, 100, 0, 4200, 0),
-            ],
-            evaluated: 12,
-            warnings: [],
-        });
-        return document.querySelectorAll("#wzOptimizerResult tbody tr").length === 2
-            && !document.getElementById("wzOptimizerChip").classList.contains("hidden")
-            && document.querySelectorAll("[data-optimizer-apply]").length === 0;
+        const box = document.getElementById("wzPlanWhy");
+        return Boolean(box)
+            && !box.classList.contains("hidden")
+            && box.textContent.includes("ZUS od 67")
+            && box.textContent.includes("Dlaczego ten plan?");
     });
     check("restore: ?restore=1 odtwarza krok wyniku z zapisanego planu", () => {
         localStorage.removeItem("fire.wizardState");

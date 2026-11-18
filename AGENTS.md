@@ -59,12 +59,16 @@ Wymagania: `uv`, Python 3.12+.
 
 - `app/simulation/` — model: `engine.py` (silnik, podatki, ZUS), `planner.py`
   (wizard, budowa etapów, solvery), `optimizer.py` (alokacja i wiek ZUS),
-  `config.py` (globalny config, presety, scenariusze, limity), `schemas.py`
-  (walidacja wejścia), `zus.py`, `constants.py`.
+  `config.py` (globalny config, presety, scenariusze, limity), `summary.py`
+  (wspólne metryki wyników), `schemas.py` (walidacja wejścia), `zus.py`,
+  `constants.py`.
 - `app/stages/` — implementacje etapów (akumulacja, realizacja).
 - `app/web/` — FastAPI: `routes.py`, `limits.py`.
 - `app/core/` — helpery: podatki, PMT, ROI, inflacja.
 - `static/js`, `static/css`, `app/templates/` — front; system wizualny w `DESIGN.md`.
+  Wspólne klocki wyników: `results-model.js`, `results-metrics.js`,
+  `results-banners.js`, `results-section.js`, `results-plan-time.js`,
+  `results-table.js`, `results-charts.js`, `results.css`.
 - `qa/jsdom`, `qa/visual` — harness JS i Playwright.
 
 Zasady:
@@ -76,6 +80,9 @@ Zasady:
   kwoty, ROI). Nowe pole waliduj tam, nie w route'ach.
 - Ciężkie endpointy przechodzą przez `app/web/limits.py` (`check_limit`).
 - Nowe pliki JS/CSS dodawaj z `?v={{ version }}` (`_asset_version`).
+- Metryki wyników liczy `app/simulation/summary.py` (`ResultSummary`); front
+  nie powiela definicji `total_net_benefit`, `avg_monthly`, `tax_efficiency`
+  ani `roi_multiple`.
 - Import/eksport: plany używają schema `fire-simulation/v1`, konfiguracje
   `fire-config/v1`; stare gołe JSON-y są odrzucane.
 - `max_age` to górny limit symulacji. Etapy mogą wystawać dalej (np. ZUS do

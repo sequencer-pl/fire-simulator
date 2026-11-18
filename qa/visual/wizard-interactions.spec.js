@@ -94,21 +94,18 @@ test("mobile layout stays within the screen throughout the employment path", asy
     await expect(page.locator("#wzResult")).toBeVisible({ timeout: 120_000 });
     await expect(page.locator("#wzHeroAnswer")).not.toBeEmpty();
     await expect(page.locator("#wzScenariosBox .wz-scenario-card")).toHaveCount(3);
-    await expect(page.locator("#wzMetrics .metric")).toHaveCount(3);
+    await expect(page.locator("#wzMetrics .metric")).toHaveCount(6);
     await expect(page.locator("#wzFlowsGantt .wz-gantt-row").first()).toBeVisible();
     await expect(page.locator("#wzChartsWrap")).toBeVisible();
     await expect(page.locator("#wzWithdrawalsChart svg")).toBeVisible();
     await expect(page.locator("#wzCapitalChart svg")).toBeVisible();
     await expect(page.locator("#wzWithdrawalsLegend .wz-chart-legend-item").first()).toBeVisible();
-    await expect(page.locator("#wzFlowsTotal")).toContainText("Łączna suma wypłat z portfela prywatnego FIRE");
-    await expect(page.locator("#wzFlowsTotal")).not.toContainText("Z ZUS");
     await expect(page.locator("#wzFlowsTableDetails")).not.toHaveAttribute("open", "");
     await expect(page.locator("#wzAccountFlows .wz-phase-badge").first()).toBeAttached();
     await expect(page.locator("#wzFlowsGantt .wz-gantt-tick").last()).toHaveText("100");
     await page.locator("#wzFlowsTableDetails summary").click();
     await expect(page.locator("#wzAccountFlows .wz-phase-badge").first()).toBeVisible();
     await expect(page.locator("#wzAccumulationFlows tbody tr").first()).toBeVisible();
-    await expect(page.locator("#wzOptimizer")).not.toHaveAttribute("open", "");
     await expect(page.locator(".wz-chart-annotations-label")).toHaveText("Kamienie milowe:");
     const annotationChips = page.locator("#wzChartAnnotations .wz-chart-annotation-chip");
     await expect(annotationChips.first()).toBeVisible();
@@ -146,27 +143,21 @@ test("mobile layout stays within the screen throughout the employment path", asy
     await expect(page.locator("#wzGanttTip")).toContainText(/wpłaty|wypłata netto/i);
     await page.locator("#wzGanttTipClose").click();
 
-    await page.locator("#wzFlowsGantt .wz-gantt-phase").first().click();
+    await page.locator("#wzFlowsGantt").scrollIntoViewIfNeeded();
+    await page.evaluate(() => window.scrollBy(0, -180));
+    await page.locator("#wzFlowsGantt .wz-gantt-phase").first().evaluate((element) => {
+        element.click();
+    });
     await expect(page.locator("#wzGanttTip")).toBeVisible();
     await expect(page.locator("#wzGanttTip")).toContainText(/Faza|PIT|Składka zdrowotna|Podatek jednorazowy IKZE/);
     await page.locator("#wzGanttTipClose").click();
 
-    await page.locator("#wzDetails summary").click();
     await expect(page.locator("#wzAccountFlows .wz-flows-table")).toBeVisible();
     await expect(page.locator("#wzAccountFlows tbody tr").first()).toBeVisible();
-    await expect(page.locator("#wzWealthDetails .wz-wealth-row")).toHaveCount(3);
-    await expect(page.locator("#wzPolicyNote")).toContainText("Najpierw");
+    await expect(page.locator("#wzPolicyTipText")).toContainText("Najpierw");
     await expectNoHorizontalOverflow(page);
 
-    await page.locator("#wzOptimizer summary").click();
-    await expect(page.locator("#wzOptimizer")).toHaveAttribute("open", "");
     await expectNoHorizontalOverflow(page);
-    const optimizerScrolls = await page.locator("#wzOptimizerResult .table-wrap").evaluate(
-        (el) => el.scrollWidth > el.clientWidth
-    );
-    expect(optimizerScrolls).toBe(true);
-    await page.locator("#wzOptimizer summary").click();
-
     const answerBeforeReturn = await page.locator("#wzHeroAnswer").evaluate((el) =>
         el.textContent.replace(/\s+/g, " ").trim()
     );

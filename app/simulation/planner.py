@@ -27,11 +27,13 @@ from app.simulation.salary import (
 )
 from app.simulation.schemas import (
     AccountConfig,
+    ResultSummary,
     SimulationInput,
     SimulationResult,
     StageInput,
     YearResult,
 )
+from app.simulation.summary import build_summary
 
 SAVINGS_ACCOUNTS = ("broker", "lokata", "obligacje", "krypto")
 
@@ -396,9 +398,11 @@ class WizardPlanResult(BaseModel):
     net_monthly: float | None = None
     projection: PlanProjection
     solved: PlanSolved
+    summary: ResultSummary | None = None
     wrapper_vehicles: dict[str, str] = Field(default_factory=dict)
     asset_mix: dict[str, float] = Field(default_factory=dict)
     scenarios: dict[str, ScenarioSummary] = Field(default_factory=dict)
+    scenario_summaries: dict[str, ResultSummary] = Field(default_factory=dict)
     scenario_inputs: dict[str, SimulationInput] = Field(default_factory=dict)
     scenario_projections: dict[str, PlanProjection] = Field(default_factory=dict)
     scenario_solved: dict[str, PlanSolved] = Field(default_factory=dict)
@@ -2259,6 +2263,20 @@ def _project(
     )
 
 
+def build_projection(
+    data: SimulationInput,
+    result: SimulationResult,
+    target: float | None = None,
+    bequest: float = 0.0,
+) -> PlanProjection:
+    """Publiczny wrapper: projekcja prezentacyjna dla dowolnego wyniku.
+
+    Używany przez Symulator, żeby pokazać ten sam timeline, Gantt i wykresy
+    co Asystent, bez przechodzenia przez solver kreatora.
+    """
+    return _project(data, result, target, bequest)
+
+
 def _drawn_floor(data: SimulationInput, result: SimulationResult) -> float:
     """Lowest net monthly draw observed across the whole realization window.
 
@@ -2556,7 +2574,7 @@ def _best_policy(
 
 def _plan_single(
     path: int, a: WizardAnswers, target: float | None = None
-) -> tuple[SimulationInput, PlanProjection, PlanSolved]:
+) -> tuple[SimulationInput, PlanProjection, PlanSolved, SimulationResult]:
     if path == 1:
         data = build_stages(a)
         payout, feasible = _solve_payout(data, a.bequest_target)
@@ -2579,7 +2597,8 @@ def _plan_single(
                 f"{a.bequest_target:,.0f} zł na koniec horyzontu. "
                 "Obniż spadek, wydłuż horyzont lub zwiększ oszczędności."
             )
-        return data, proj, PlanSolved(feasible=feasible, note=note)
+        _, result = _evaluate_with_result(data, display_payout, a.bequest_target)
+        return data, proj, PlanSolved(feasible=feasible, note=note), result
 
     if target is None or target <= 0:
         raise ValueError("target_monthly jest wymagany dla tej ścieżki.")
@@ -2607,6 +2626,7 @@ def _plan_single(
                 "oszczędności — rozważ późniejsze FIRE, niższą wypłatę lub "
                 "bardziej agresywną strategię."
             )
+        _, result = _evaluate_with_result(data, target, a.bequest_target)
         return (
             data,
             proj,
@@ -2616,6 +2636,7 @@ def _plan_single(
                 feasible=feasible,
                 note=note,
             ),
+            result,
         )
 
     re, feasible = _solve_re(a, target)
@@ -2627,14 +2648,17 @@ def _plan_single(
             "pracy do pełnego wieku emerytalnego. Rozważ niższą wypłatę, "
             "większe oszczędności lub agresywniejszą strategię."
         )
+        _, result = _evaluate_with_result(data, target)
         return (
             data,
             _append_cash_warning(_evaluate(data, target), data),
             PlanSolved(feasible=False, note=note),
+            result,
         )
     data = _vary_re(a, re)
     _bake_realization_targets(data, target)
     data, proj = _best_policy(data, target, a.bequest_target)
+    _, result = _evaluate_with_result(data, target, a.bequest_target)
     return (
         data,
         proj,
@@ -2647,6 +2671,7 @@ def _plan_single(
                 else f"Wiek FIRE {re} lat (z pełnym wiekiem emerytalnym lub wcześniej)."
             ),
         ),
+        result,
     )
 
 
@@ -2686,13 +2711,15 @@ def plan(
         for wrapper in used_wrappers
         if (vehicle := _wrapper_vehicle(a, wrapper, plan_config)) is not None
     }
-    main_input, main_proj, main_solved = _plan_single(path, a, target)
+    main_input, main_proj, main_solved, main_result = _plan_single(path, a, target)
+    main_summary = build_summary(main_input, main_result)
     if extend_chart:
         main_proj = _extend_chart_to_100(
             main_input, target, a.bequest_target, main_proj
         )
 
     scenarios_out: dict[str, ScenarioSummary] = {}
+    scenario_summaries: dict[str, ResultSummary] = {}
     scenario_inputs: dict[str, SimulationInput] = {}
     scenario_projections: dict[str, PlanProjection] = {}
     scenario_solved: dict[str, PlanSolved] = {}
@@ -2700,11 +2727,16 @@ def plan(
     if scenarios:
         for key in ("konserwatywne", "realne", "optymistyczne"):
             if key == a.assumptions:
-                s_in, s_proj, s_solved = main_input, main_proj, main_solved
+                s_in, s_proj, s_solved, s_result = (
+                    main_input,
+                    main_proj,
+                    main_solved,
+                    main_result,
+                )
             else:
                 sa = a.model_copy(deep=True)
                 sa.assumptions = key  # type: ignore[assignment]
-                s_in, s_proj, s_solved = _plan_single(path, sa, target)
+                s_in, s_proj, s_solved, s_result = _plan_single(path, sa, target)
                 if extend_chart:
                     s_proj = _extend_chart_to_100(
                         s_in, target, sa.bequest_target, s_proj
@@ -2712,6 +2744,7 @@ def plan(
             scenario_inputs[key] = s_in
             scenario_projections[key] = s_proj
             scenario_solved[key] = s_solved
+            scenario_summaries[key] = build_summary(s_in, s_result)
             scenarios_out[key] = ScenarioSummary(
                 assumptions=key,  # type: ignore[arg-type]
                 label=SCENARIO_LABELS[key],
@@ -2733,9 +2766,11 @@ def plan(
         net_monthly=_answers_net_monthly(a),
         projection=main_proj,
         solved=main_solved,
+        summary=main_summary,
         wrapper_vehicles=effective_vehicles,
         asset_mix=allocation_asset_mix(a, plan_config, a.allocations),
         scenarios=scenarios_out,
+        scenario_summaries=scenario_summaries,
         scenario_inputs=scenario_inputs,
         scenario_projections=scenario_projections,
         scenario_solved=scenario_solved,

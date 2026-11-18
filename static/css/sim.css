@@ -277,14 +277,6 @@
 
 .results-toolbar { margin-bottom: var(--sp-3); }
 
-.density-control {
-    display: flex;
-    align-items: center;
-    gap: var(--sp-2);
-}
-
-.density-control .select { width: auto; min-width: 9rem; }
-
 #resultsTable th.col-age,
 #resultsTable td.col-age {
     position: sticky;
@@ -499,8 +491,6 @@
     #resultsTable td.col-stage { left: 48px; min-width: 120px; max-width: 150px; }
     #resultsTable th.col-age,
     #resultsTable td.col-age { min-width: 48px; }
-    .results-toolbar .toolbar-right { width: 100%; }
-    .density-control .select { flex: 1; }
 }
 
 @media (max-width: 640px) {

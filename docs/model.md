@@ -148,3 +148,26 @@ pasywnie z ostatnim znanym ROI (domyślnie 2%).
   za 20–30 lat.
 
 To model do myślenia „co się stanie, jeśli”, nie do wróżenia.
+
+## 15. Wspólne metryki wyników
+
+Wszystkie ekrany liczą te same metryki w `app/simulation/summary.py`:
+
+- **Łączna korzyść netto** = suma wypłat netto + majątek końcowy netto po
+  podatku wyjścia. To metryka porównawcza (Porównywarka), a nie „gotówka na
+  rękę”. W Asystencie pokazujemy ją jako osobną sumę wypłat i majątek końcowy.
+- **Suma wypłat z portfela** = wypłaty netto z kont prywatnych (bez ZUS) w
+  horyzoncie.
+- **Średnia wypłata mies.** = suma wypłat netto / 12 / liczba lat, w których
+  wystąpiła wypłata; obejmuje portfel i ZUS.
+- **Minimalna wypłata mies.** = najniższa miesięczna wypłata netto w
+  horyzoncie; to realna gwarancja, a nie średnia.
+- **ZUS mies.** = miesięczna emerytura ZUS na koniec horyzontu.
+- **Podatki i składki** = podatki plus składka zdrowotna ZUS w horyzoncie.
+- **Efektywność podatkowa** = wypłaty netto / (wypłaty netto + podatki),
+  maksymalnie 100%.
+- **Mnożnik kapitału** = łączna korzyść netto / (kapitał początkowy + wpłaty
+  własne). Wpłaty własne liczymy tylko w etapach akumulacji; obejmują też
+  dopłaty do gotówki, ale nie składki ZUS.
+- **Majątek** (szczyt, koniec, brutto) obejmuje wszystkie salda, w tym ZUS.
+  **Majątek końcowy netto** to wartość po podatku od likwidacji kont.

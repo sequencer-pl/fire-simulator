@@ -246,6 +246,9 @@ let wzLoaderLastTip = "";
 let wzStateReady = false;
 let wzRestoring = false;
 let wzStateTimer = null;
+const wzFullResults = new Map();
+let wzFullResultsSignature = "";
+let wzFullResultSeq = 0;
 
 // --- Małe helpery -----------------------------------------------------------
 
@@ -2656,12 +2659,6 @@ function wzInputHorizonAge(input) {
     return Number.isFinite(maxAge) ? maxAge + 1 : null;
 }
 
-function wzResetOptimizer() {
-    const box = wzEl("wzOptimizerResult");
-    if (box) box.innerHTML = "";
-    wzEl("wzOptimizerChip")?.classList.add("hidden");
-}
-
 function wzOptimizerMixLabel(candidate) {
     const entries = Object.entries(candidate?.allocations || {})
         .filter(([, value]) => Number(value) > 0.01)
@@ -2686,100 +2683,110 @@ function wzAssetMixLabel(mix) {
         .join(" · ");
 }
 
-function wzRenderOptimizer(data) {
-    const box = wzEl("wzOptimizerResult");
-    const chip = wzEl("wzOptimizerChip");
-    if (!box) return;
-    box.innerHTML = "";
-    if (chip) chip.classList.add("hidden");
-    if (!data) return;
-
-    const fmt = (value) => (value == null || !Number.isFinite(Number(value))
-        ? "—"
-        : Math.round(Number(value)).toLocaleString("pl-PL"));
-    const rec = data.recommended;
-    const baseline = data.baseline;
-
-    if (!rec) {
-        const warning = (data.warnings || [])[0] || "Nie znaleziono wariantu spełniającego założenia.";
-        box.innerHTML = `<div class="banner banner-warn">${iconSvg("warning")}<div class="banner-body">${escapeHtml(warning)}</div></div>`;
+function wzRenderStageSummaryFromResult(input, result, projection) {
+    const box = wzEl("wzStageSummary");
+    if (!box || !input || !result) return;
+    const stages = typeof computeStageSummaries === "function"
+        ? computeStageSummaries(input, result)
+        : [];
+    if (!stages.length) {
+        box.classList.add("hidden");
+        box.innerHTML = "";
         return;
     }
-
-    const sameAsBaseline = Boolean(baseline)
-        && rec.zus_start_age === baseline.zus_start_age
-        && Math.abs(rec.payout_monthly - baseline.payout_monthly) <= 1
-        && JSON.stringify(rec.vehicles || {}) === JSON.stringify(baseline.vehicles || {})
-        && Object.keys({ ...(rec.allocations || {}), ...(baseline.allocations || {}) })
-            .every((key) => Math.abs(
-                Number(rec.allocations?.[key] || 0) - Number(baseline.allocations?.[key] || 0)
-            ) < 0.5);
-    const totalObjective = data.objective === "total";
-    const delta = totalObjective
-        ? rec.total_withdrawn - (baseline?.total_withdrawn || 0)
-        : rec.payout_monthly - (baseline?.payout_monthly || 0);
-    if (chip) {
-        chip.textContent = (rec.is_baseline || sameAsBaseline)
-            ? "Bez zmian"
-            : delta > 1
-                ? (totalObjective ? `+${fmt(delta)} zł łącznie` : `+${fmt(delta)} zł/mies.`)
-                : "Rekomendacja";
-        chip.classList.remove("hidden");
-    }
-
-    const intro = (rec.is_baseline || sameAsBaseline)
-        ? "W sprawdzonych wariantach nie znaleźliśmy lepszego podziału niż bazowy."
-        : totalObjective
-            ? `Rekomendacja: ZUS od ${rec.zus_start_age} r.ż., ${wzOptimizerMixLabel(rec)} — ${fmt(rec.total_withdrawn)} zł łącznie (wypłata od ${fmt(rec.payout_monthly)} zł/mies.).`
-            : `Rekomendacja: ZUS od ${rec.zus_start_age} r.ż., ${wzOptimizerMixLabel(rec)} — ${fmt(rec.payout_monthly)} zł/mies. netto.`;
-    const bestTotalNote = data.best_total
-        ? `<p class="field-hint">Najwyższa suma wypłat: ZUS od ${data.best_total.zus_start_age} r.ż., ${wzOptimizerMixLabel(data.best_total)} — ${fmt(data.best_total.total_withdrawn)} zł łącznie (wypłata od ${fmt(data.best_total.payout_monthly)} zł/mies.).</p>`
-        : "";
-
-    let rowCandidates = (data.candidates || []).filter((candidate) => !candidate.is_baseline);
-    if (!rowCandidates.length) rowCandidates = [rec];
-    const rows = rowCandidates.map((candidate) => {
-        const isRec = !rec.is_baseline
-            && candidate.zus_start_age === rec.zus_start_age
-            && JSON.stringify(candidate.allocations || {}) === JSON.stringify(rec.allocations || {});
-        const badge = candidate.is_baseline
-            ? `<span class="chip">Bazowy</span>`
-            : isRec
-                ? `<span class="chip chip-primary">Rekomendacja</span>`
-                : "";
-        return `<tr class="${candidate.met ? "" : "is-muted"}">
-            <td>${candidate.zus_start_age}${badge ? ` ${badge}` : ""}</td>
-            <td>${wzOptimizerMixLabel(candidate)}</td>
-            <td class="tabular-nums">${fmt(candidate.payout_monthly)} zł</td>
-            <td class="tabular-nums">${fmt(candidate.mean_monthly)} zł</td>
-            <td class="tabular-nums">${fmt(candidate.total_withdrawn)} zł</td>
-            <td class="tabular-nums">${fmt(candidate.final_wealth_net)} zł</td>
-            <td>${candidate.break_even_age != null ? `~${Math.round(candidate.break_even_age)} lat` : "—"}</td>
-        </tr>`;
+    const rows = stages.map((stage) => {
+        const isAccum = stage.type === "akumulacja";
+        const accountKeys = (stage.accounts || []).map((account) => account.key || account);
+        const isZus = !isAccum && accountKeys.length > 0
+            && accountKeys.every((key) => key === "zus");
+        const stageClass = isAccum ? "is-accum" : isZus ? "is-zus" : "is-real";
+        const accounts = (stage.accounts || [])
+            .filter((account) => {
+                const key = account.key || account;
+                if (isAccum) {
+                    if (key === "zus") return false;
+                    return (account.monthly || 0) > 0 || (account.balance || 0) > 0;
+                }
+                return !(key === "zus" && stage.end_age <= 65 && accountKeys.length > 1);
+            })
+            .map((account) => `<span class="chip">${escapeHtml(accountDisplayLabel(account.key || account))}</span>`)
+            .join("");
+        const phase = (projection?.phase_metrics || []).find(
+            (item) => item.cashflow === "payout"
+                && item.start_age < stage.end_age
+                && item.end_age > stage.start_age
+        );
+        const monthly = isAccum
+            ? stage.total_monthly
+            : (stage.avg_withdrawal || phase?.monthly || phase?.zus_monthly || 0);
+        const finance = monthly > 0 ? `~${formatMoney(monthly)}/mies.` : "";
+        return `<div class="stage-line ${stageClass}">
+            <span class="stage-dot ${isAccum ? "accum" : "withdraw"}"></span>
+            <span class="stage-label ${isAccum ? "accum" : "withdraw"}">${escapeHtml(stage.label)}</span>
+            <span class="stage-age">${stage.start_age}→${stage.end_age} r.ż.</span>
+            ${accounts}
+            ${finance ? `<span class="stage-finance ${isAccum ? "accum" : "withdraw"}">${finance}</span>` : ""}
+        </div>`;
     }).join("");
+    box.classList.remove("hidden");
+    box.innerHTML = `<h4 class="wz-plan-subhead">Etapy</h4>${rows}`;
+}
 
-    box.innerHTML = `
-        <p class="wz-optimizer-summary">${escapeHtml(intro)}</p>
-        <p class="field-hint">Profil ryzyka: ${escapeHtml(WZ_RISK_LABELS[data.risk_profile] || data.risk_profile || "—")}${(data.binding_limits || []).length ? ` · wiążące limity: ${escapeHtml(data.binding_limits.join(", "))}` : ""}</p>
-        ${wzAssetMixLabel(data.asset_mix) ? `<p class="field-hint">Mix nowych wpłat: ${escapeHtml(wzAssetMixLabel(data.asset_mix))}.</p>` : ""}
-        ${bestTotalNote}
-        <div class="table-wrap">
-            <table class="wz-optimizer-table">
-                <thead><tr>
-                    <th>Wiek ZUS</th>
-                    <th>Podział wpłat</th>
-                    <th>Wypłata</th>
-                    <th>Średnia</th>
-                    <th>Suma</th>
-                    <th>Na koniec</th>
-                    <th>Break-even</th>
-                </tr></thead>
-                <tbody>${rows}</tbody>
-            </table>
-        </div>
-        <p class="field-hint">Kwoty netto. „Suma” to wszystkie wypłaty w horyzoncie; „Na koniec” to majątek po podatku wyjścia. Break-even dotyczy opóźnienia ZUS względem Twojego wariantu. Pozostałe konta pozostają bez zmian.</p>
-        ${(data.warnings || []).map((warning) => `<p class="field-hint">${escapeHtml(warning)}</p>`).join("")}
-    `;
+function wzRenderYearTableFromResult(result) {
+    const box = wzEl("wzYearTable");
+    if (!box || !window.ResultsTable) return;
+    window.ResultsTable.render(box, {
+        result,
+        density: 5,
+        embedded: true,
+    });
+}
+
+function wzLoadFullResult(input, scenarioKey) {
+    if (!input) return;
+    const key = scenarioKey || wzSelectedScenario;
+    if (wzPlanSignature !== wzFullResultsSignature) {
+        wzFullResults.clear();
+        wzFullResultsSignature = wzPlanSignature;
+    }
+    const cached = wzFullResults.get(key);
+    if (cached) {
+        wzRenderStageSummaryFromResult(input, cached, cached.projection);
+        wzRenderYearTableFromResult(cached);
+        return;
+    }
+    const stageBox = wzEl("wzStageSummary");
+    const tableBox = wzEl("wzYearTable");
+    if (stageBox) {
+        stageBox.classList.remove("hidden");
+        stageBox.innerHTML = '<p class="field-hint">Liczę etapy…</p>';
+    }
+    if (tableBox) {
+        tableBox.innerHTML = '<p class="field-hint">Liczę tabelę rok po roku…</p>';
+    }
+    const seq = ++wzFullResultSeq;
+    fetch("/api/simulate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+    })
+        .then((response) => {
+            if (!response.ok) throw new Error("simulate");
+            return response.json();
+        })
+        .then((result) => {
+            if (seq !== wzFullResultSeq) return;
+            wzFullResults.set(key, result);
+            wzRenderStageSummaryFromResult(input, result, result.projection);
+            wzRenderYearTableFromResult(result);
+        })
+        .catch(() => {
+            if (seq !== wzFullResultSeq) return;
+            if (stageBox) stageBox.classList.add("hidden");
+            if (tableBox) {
+                tableBox.innerHTML = '<p class="field-hint">Nie udało się wczytać tabeli rok po roku.</p>';
+            }
+        });
 }
 
 function wzRenderResult(data) {
@@ -2788,17 +2795,10 @@ function wzRenderResult(data) {
     result.classList.remove("hidden");
     wzEl("wzResultError")?.classList.add("hidden");
     const active = wzActiveScenarioData(data);
-    const optimization = data.optimization;
-    const optimizerCard = wzEl("wzOptimizer");
-    const showOptimizer = data.path === 1
-        && Boolean(optimization)
-        && wzSelectedScenario === "realne";
-    if (optimizerCard) optimizerCard.classList.toggle("hidden", !showOptimizer);
-    wzResetOptimizer();
-    if (showOptimizer) wzRenderOptimizer(optimization);
     wzRenderHero(data);
     wzRenderScenarios(data);
     wzRenderMetrics(data);
+    wzRenderPlanWhy(data);
     const warnings = (active.projection?.warnings || []).filter(
         (warning) => !(
             active.projection?.early_return_total > 0
@@ -2810,9 +2810,43 @@ function wzRenderResult(data) {
     wzRenderTimeline(active.input, active.projection);
     wzRenderAccountFlows(active.input, active.projection);
     wzRenderCharts(active.input, active.projection);
-    wzRenderWealthDetails(active.projection);
     wzRenderFacts(active.projection, data);
     wzRenderPolicy(active.projection);
+    wzLoadFullResult(active.input, wzSelectedScenario);
+}
+
+function wzRenderPlanWhy(data) {
+    const box = wzEl("wzPlanWhy");
+    if (!box) return;
+    const optimization = data.optimization;
+    if (!optimization?.recommended) {
+        box.classList.add("hidden");
+        box.innerHTML = "";
+        return;
+    }
+    const rec = optimization.recommended;
+    const baseline = optimization.baseline;
+    const totalObjective = optimization.objective === "total";
+    const delta = totalObjective
+        ? (rec.total_withdrawn || 0) - (baseline?.total_withdrawn || 0)
+        : (rec.payout_monthly || 0) - (baseline?.payout_monthly || 0);
+    const objectiveText = totalObjective
+        ? "najwyższą sumę wypłat"
+        : "najwyższą wypłatę miesięczną";
+    const mix = wzOptimizerMixLabel(rec);
+    const deltaText = delta > 1
+        ? ` o ${Math.round(delta).toLocaleString("pl-PL")} zł więcej niż wariant bazowy`
+        : "";
+    const summary = delta > 1
+        ? `ZUS od ${rec.zus_start_age} r.ż., ${mix} — ${objectiveText}${deltaText}.`
+        : `Nie znaleźliśmy lepszego wariantu niż Twój bazowy — zostaje ZUS od ${rec.zus_start_age} r.ż. i ${mix}.`;
+    const tip = tipHtml(
+        "Silnik porównał kilka wariantów wieku rozpoczęcia ZUS i podziału wpłat IKE/IKZE. "
+        + "Wybrany wariant jest najlepszy według wybranego priorytetu. "
+        + "Szczegółową tabelę wariantów pokażemy w osobnym widoku."
+    );
+    box.innerHTML = `<span class="wz-why-label">Dlaczego ten plan?</span> ${escapeHtml(summary)}${tip}`;
+    box.classList.remove("hidden");
 }
 
 function wzRenderHero(data) {
@@ -2950,126 +2984,20 @@ function wzRenderScenarios(data) {
 function wzRenderMetrics(data) {
     const box = wzEl("wzMetrics");
     if (!box) return;
-    const { projection, solved, input } = wzActiveScenarioData(data);
-    const path = data.path || wzCurrentPath();
-    const fmt = (value) => (value == null || !Number.isFinite(Number(value))
-        ? "—"
-        : Math.round(value).toLocaleString("pl-PL"));
-    const metric = (label, value, tip, unit = "") => `
-        <div class="metric">
-            <span class="metric-label">${tipLabelHtml(label, tip)}</span>
-            <span class="metric-value">${value === "—" ? value : value + unit}</span>
-        </div>`;
-
-    let html = "";
-    if (path === 1) {
-        const payoutPhases = (projection.phase_metrics || [])
-            .filter((phase) => phase.cashflow === "payout");
-        const start = solved.retire_early_age
-            ?? (payoutPhases.length ? Math.min(...payoutPhases.map((phase) => phase.start_age)) : null);
-        const end = wzInputHorizonAge(input)
-            ?? (payoutPhases.length ? Math.max(...payoutPhases.map((phase) => phase.end_age)) : null);
-        html += metric(
-            "Najniższa wypłata miesięczna",
-            fmt(projection.min_monthly),
-            "Najniższa miesięczna wypłata netto w całym okresie. Po PIT, składce zdrowotnej i ewentualnym podatku jednorazowym IKZE.",
-            " zł"
-        );
-        if (data.optimization?.objective === "total") {
-            html += metric(
-                "Suma wypłat",
-                fmt(projection.total_withdrawn),
-                "Łączna suma wypłat netto w całym horyzoncie planu.",
-                " zł"
-            );
-            html += metric(
-                "Średnia wypłata miesięczna",
-                fmt(projection.mean_monthly),
-                "Średnia miesięczna wypłata netto z lat, w których plan wypłaca pieniądze.",
-                " zł"
-            );
-        } else {
-            html += metric(
-                "Średnia wypłata miesięczna",
-                fmt(projection.mean_monthly),
-                "Średnia miesięczna wypłata netto z lat, w których plan wypłaca pieniądze.",
-                " zł"
-            );
-            html += metric(
-                "Okres wypłat",
-                start != null && end != null ? `${start}–${end}` : "—",
-                "Od wieku rozpoczęcia wypłat do końca horyzontu planu.",
-                start != null && end != null ? " lat" : ""
-            );
-        }
-    } else if (path === 2) {
-        html += metric(
-            "Odkładaj miesięcznie",
-            fmt(solved.savings_monthly),
-            "Kwota, którą trzeba odkładać co miesiąc, aby osiągnąć docelową wypłatę.",
-            " zł/mies."
-        );
-        html += metric(
-            "Wypłata docelowa",
-            fmt(projection.target_monthly),
-            "Miesięczna wypłata netto, którą ma zapewnić plan.",
-            " zł/mies."
-        );
-        html += metric(
-            "Horyzont",
-            wzInputHorizonAge(input) != null ? `do ${wzInputHorizonAge(input)}` : "—",
-            "Wiek, do którego plan ma wystarczyć.",
-            wzInputHorizonAge(input) != null ? " r.ż." : ""
-        );
-    } else {
-        html += metric(
-            "Wiek FIRE",
-            fmt(solved.retire_early_age),
-            "Najwcześniejszy wiek, w którym można przestać pracować i wypłacać docelową kwotę.",
-            solved.retire_early_age != null ? " lat" : ""
-        );
-        html += metric(
-            "Wypłata docelowa",
-            fmt(projection.target_monthly),
-            "Miesięczna wypłata netto, którą ma zapewnić plan.",
-            " zł/mies."
-        );
-        html += metric(
-            "Horyzont",
-            wzInputHorizonAge(input) != null ? `do ${wzInputHorizonAge(input)}` : "—",
-            "Wiek, do którego plan ma wystarczyć.",
-            wzInputHorizonAge(input) != null ? " r.ż." : ""
-        );
-    }
-    box.innerHTML = html;
-}
-
-function wzRenderWealthDetails(projection) {
-    const box = wzEl("wzWealthDetails");
-    if (!box) return;
-    const fmt = (value) => Math.round(value || 0).toLocaleString("pl-PL");
-    const rows = [
-        [
-            "Majątek szczytowy",
-            projection.peak_wealth,
-            "Najwyższy łączny stan wszystkich kont w trakcie planu."
-        ],
-        [
-            "Na koniec — brutto",
-            projection.final_wealth,
-            "Majątek na koniec horyzontu przed podatkiem od likwidacji kont."
-        ],
-        [
-            "Po podatku wyjścia — netto",
-            projection.final_wealth_net ?? projection.final_wealth,
-            "Majątek na koniec horyzontu po podatku od likwidacji kont."
-        ],
+    const planView = window.ResultsModel.fromWizard(data, wzSelectedScenario);
+    const metrics = [
+        window.ResultsModel.metric(planView, "totalWithdrawnPrivate"),
+        window.ResultsModel.metric(planView, "avgMonthly", { label: "Średnia wypłata mies." }),
+        window.ResultsModel.metric(planView, "minMonthly", { label: "Minimalna wypłata mies." }),
+        window.ResultsModel.metric(planView, "finalWealthNet"),
+        window.ResultsModel.metric(planView, "taxAndHealth", { label: "Podatki i składki" }),
     ];
-    box.innerHTML = rows.map(([label, value, tip]) => `
-        <div class="wz-wealth-row">
-            <span>${tipLabelHtml(label, tip)}</span>
-            <strong>${fmt(value)} zł</strong>
-        </div>`).join("");
+    if ((planView.summary?.zus_monthly ?? 0) > 0) {
+        metrics.push(window.ResultsModel.metric(planView, "zusMonthly"));
+    } else {
+        metrics.push(window.ResultsModel.metric(planView, "peakWealth", { label: "Majątek szczytowy" }));
+    }
+    window.ResultsMetrics.render(box, metrics);
 }
 
 function wzRenderFacts(projection, plan = null) {
@@ -3136,23 +3064,10 @@ function wzRenderFacts(projection, plan = null) {
 function wzRenderWarnings(list) {
     const box = wzEl("wzWarnings");
     if (!box) return;
-    box.innerHTML = "";
-    if (!list || !list.length) return;
-    const banner = document.createElement("div");
-    banner.className = "banner banner-warn";
-    banner.insertAdjacentHTML("afterbegin", iconSvg("warning"));
-    const body = document.createElement("div");
-    body.className = "banner-body";
-    const ul = document.createElement("ul");
-    ul.className = "banner-list";
-    list.forEach((warning) => {
-        const li = document.createElement("li");
-        li.textContent = warning;
-        ul.appendChild(li);
+    window.ResultsBanners.render(box, list || [], {
+        variant: "warn",
+        mode: "list",
     });
-    body.appendChild(ul);
-    banner.appendChild(body);
-    box.appendChild(banner);
 }
 
 function wzRenderTimeline(input, projection) {
@@ -3814,22 +3729,6 @@ function wzRenderAccountFlows(input, projection) {
     gantt.innerHTML = ganttHtml;
     setupGanttTips(gantt, tips);
 
-    const totalNote = wzEl("wzFlowsTotal");
-    if (totalNote) {
-        const netSum = (list) => list.reduce(
-            (sum, phase) => sum + Number(phase.total_net || 0),
-            0
-        );
-        const portfolioNet = netSum(phases.filter((phase) => phase.account !== "zus"));
-        const lines = [];
-        if (portfolioNet > 0.5) {
-            lines.push(`Łączna suma wypłat z portfela prywatnego FIRE: ${wzFmtZloty(portfolioNet)} zł netto.`);
-        }
-        totalNote.innerHTML = lines
-            .map((line) => `<span class="wz-flows-total-line">${line}</span>`)
-            .join("");
-        totalNote.hidden = !lines.length;
-    }
 
     const rows = phases.map((phase, index) => {
         const account = accountName(phase.account);
@@ -4653,7 +4552,7 @@ function wzRenderCharts(input, projection) {
 }
 
 function wzRenderPolicy(projection) {
-    const note = wzEl("wzPolicyNote");
+    const note = wzEl("wzPolicyTipText");
     if (!note) return;
     const policy = projection?.withdrawal_policy || "";
     const early = policy.startsWith("early");
@@ -4747,7 +4646,6 @@ function wzTouch() {
     wzPlan = null;
     wzPlanSignature = "";
     wzPlanBodyCache = null;
-    wzResetOptimizer();
     wzInvalidateSuggestion();
     wzUpdateSavingsHint();
     if (wzCurrentStep === "strategia") wzScheduleSuggestion();

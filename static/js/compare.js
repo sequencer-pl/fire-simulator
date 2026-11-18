@@ -35,39 +35,23 @@ function fmtSignedMoney(v) {
 /* ── data helpers ─────────────────────────────────────────────── */
 
 function finalWealthNet(sim) {
-    return (
-        sim.summary?.final_wealth_net ??
-        sim.result?.final_wealth_net ??
-        sim.summary?.final_wealth ??
-        sim.result?.final_wealth ??
-        0
-    );
+    return window.ResultsModel.metricValue(sim, "finalWealthNet");
 }
 
 function totalNetBenefit(sim) {
-    const w = sim.result?.total_withdrawn ?? sim.summary?.total_withdrawn ?? 0;
-    return w + finalWealthNet(sim);
+    return window.ResultsModel.metricValue(sim, "totalNetBenefit");
 }
 
 function avgMonthly(sim) {
-    const yrs = sim.result?.years || [];
-    const n = yrs.filter((y) => y.annual_withdrawal > 0).length;
-    return n ? sim.result.total_withdrawn / 12 / n : null;
+    return window.ResultsModel.metricValue(sim, "avgMonthly");
 }
 
 function taxEfficiency(sim) {
-    const { total_withdrawn: w, total_tax: t } = sim.result || {};
-    const denom = (w || 0) + (t || 0);
-    if (denom <= 0) return null;
-    return Math.min(100, ((w || 0) / denom) * 100);
+    return window.ResultsModel.metricValue(sim, "taxEfficiency");
 }
 
 function roiMultiple(sim) {
-    const contrib = sim.summary?.total_user_contributions || 0;
-    const initCap = sim.summary?.initial_capital || 0;
-    const totalInvested = initCap + contrib;
-    if (totalInvested <= 0) return null;
-    return totalNetBenefit(sim) / totalInvested;
+    return window.ResultsModel.metricValue(sim, "roiMultiple");
 }
 
 function valueAt(sim, age) {
@@ -211,7 +195,7 @@ async function handleJsonFiles(fileList) {
 function showError(msg) {
     const el = $("errorMsg");
     if (!el) return;
-    el.innerHTML = `${iconSvg("danger")}<div class="banner-body">${escapeHtml(msg)}</div>`;
+    window.ResultsBanners.error(el, msg);
     show("errorMsg", true);
 }
 

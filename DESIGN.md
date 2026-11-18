@@ -78,6 +78,10 @@ Przezroczystości robimy przez `color-mix()`, nie `rgba()`. Kontrast `--text`,
 - `.action-bar` (+ `-left | -center | -right`).
 - `.table-wrap` + `table`; `.tip` + `.tooltip`; `.stage-dot`, `.stage-label`,
   `.progress`.
+- Wspólne klocki wyników: `ResultsMetrics` (`.metric-grid`), `ResultsBanners`
+  (`.banner`), `ResultsSection` (`.res-section-head`), `ResultsPlanTime`
+  (timeline + Etapy + Gantt), `ResultsTable` (rok po roku). Ekrany komponują
+  je w swoich układach.
 
 ## 4. Layout i responsywność
 

@@ -453,7 +453,7 @@
 
 /* --- Krok 6: wynik --------------------------------------------------------------------------- */
 
-.wz-result { display: grid; gap: var(--sp-4); }
+.wz-result { display: grid; gap: var(--sp-6); }
 
 .wz-answer-block,
 .wz-scenarios-section,
@@ -853,7 +853,7 @@
 
 /* --- Krok 6: wypłaty z poszczególnych kont ------------------------------------------------ */
 
-.wz-flows-wrap { margin-top: var(--sp-4); min-width: 0; max-width: 100%; }
+.wz-flows-wrap { margin-top: 0; min-width: 0; max-width: 100%; }
 
 .wz-flows-gantt {
     min-width: 0;

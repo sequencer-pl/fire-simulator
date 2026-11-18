@@ -201,3 +201,38 @@ class SimulationResult(BaseModel):
     ikze_refund_allocations: dict[str, float] = Field(default_factory=dict)
     has_pension: bool = False
     warnings: list[str] = Field(default_factory=list)
+
+
+class ResultSummary(BaseModel):
+    """Wspólne metryki prezentacyjne dla wszystkich ekranów wyników.
+
+    Wartości pochodzą wyłącznie z silnika; front nie przelicza ich ponownie.
+    """
+
+    final_wealth: float
+    final_wealth_net: float
+    exit_tax: float = 0.0
+    peak_wealth: float
+    total_withdrawn: float
+    total_tax: float
+    total_health: float = 0.0
+    total_tax_refund: float = 0.0
+    total_net_benefit: float
+    total_withdrawn_private: float = 0.0
+    total_withdrawn_zus: float = 0.0
+    avg_monthly: float | None = None
+    min_monthly: float | None = None
+    max_monthly: float | None = None
+    zus_monthly: float | None = None
+    payout_years: int = 0
+    tax_efficiency: float | None = None
+    roi_multiple: float | None = None
+    initial_capital: float = 0.0
+    total_user_contributions: float = 0.0
+    years: int = 0
+    start_age: int | None = None
+    end_age: int | None = None
+    has_pension: bool = False
+    warnings_count: int = 0
+    accounts: list[str] = Field(default_factory=list)
+    account_labels: dict[str, str] = Field(default_factory=dict)
