@@ -372,6 +372,20 @@
     display: none;
 }
 
+.res-columns > summary .res-columns-chevron {
+    width: 14px;
+    height: 14px;
+    transition: transform var(--t-fast);
+}
+
+.res-columns[open] > summary .res-columns-chevron {
+    transform: rotate(180deg);
+}
+
+.res-columns > summary .res-columns-icon {
+    display: none;
+}
+
 .res-columns-popover {
     position: absolute;
     z-index: 20;
@@ -399,10 +413,11 @@
 
 @media (max-width: 760px) {
     .res-columns-popover {
-        left: auto;
-        right: 0;
+        left: 0;
+        right: auto;
         grid-template-columns: 1fr;
         min-width: 0;
+        max-width: calc(100vw - 2rem);
         max-height: 320px;
         overflow: auto;
     }
@@ -435,5 +450,23 @@
         min-width: 0;
         width: auto;
         max-width: 9rem;
+    }
+}
+
+/* Na wąskim ekranie „Kolumny” przechodzi w samą ikonę — tekst i chevron
+   są zbędne, a przycisk nie rozpycha paska. */
+@media (max-width: 480px) {
+    .res-columns > summary .res-columns-label,
+    .res-columns > summary .res-columns-chevron {
+        display: none;
+    }
+
+    .res-columns > summary .res-columns-icon {
+        display: inline-flex;
+    }
+
+    .res-columns > summary {
+        width: var(--control-h-sm);
+        padding: 0;
     }
 }

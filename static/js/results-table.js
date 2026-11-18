@@ -67,7 +67,11 @@
             <div class="toolbar results-toolbar">
                 <div class="toolbar-left">
                     <details class="res-columns">
-                        <summary class="btn btn-ghost btn-sm" aria-label="Wybierz kolumny">Kolumny</summary>
+                        <summary class="btn btn-ghost btn-sm" aria-label="Wybierz kolumny">
+                            ${window.iconSvg ? window.iconSvg("sliders", "res-columns-icon") : ""}
+                            <span class="res-columns-label">Kolumny</span>
+                            ${window.iconSvg ? window.iconSvg("chevron", "res-columns-chevron") : ""}
+                        </summary>
                         <div class="res-columns-popover">${columnOptions}</div>
                     </details>
                 </div>
