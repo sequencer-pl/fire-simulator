@@ -907,34 +907,39 @@
         <div id="wzResult" class="wz-result hidden">
             <div id="wzResultError" class="banner banner-danger hidden"></div>
 
-            <section class="wz-answer-block">
+            <section class="wz-result-card">
                 <div id="wzHeroAnswer" class="wz-hero-answer"></div>
-            </section>
-
-            <section class="wz-scenarios-section" id="wzScenariosSection">
-                <div id="wzScenariosBox" class="wz-scenarios-box"></div>
-                <div id="wzWarnings" class="wz-warnings" aria-live="polite"></div>
-            </section>
-
-            <div id="wzMetrics" class="metric-grid wz-summary"></div>
-
-            <section class="wz-plan-section">
-                <div class="wz-section-head">
-                    <h3 class="eyebrow wz-panel-title">
-                        <span class="tip-label-row">
-                            <span class="tip-label-text">Twój plan w czasie</span>
-                            <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">Górna oś pokazuje etapy życia. Pasek kont pokazuje, z których kont pochodzą wpłaty i wypłaty w danym wieku. Kliknij etap albo pasek, aby zobaczyć szczegóły.</span></span>
-                        </span>
-                    </h3>
+                <div id="wzScenariosSection" class="wz-scenarios-section">
+                    <div id="wzScenariosBox" class="wz-scenarios-box"></div>
+                    <div id="wzWarnings" class="wz-warnings" aria-live="polite"></div>
                 </div>
+            </section>
 
+            <section class="wz-result-card">
+                <h3 class="wz-section-title">Kluczowe liczby</h3>
+                <div id="wzMetrics" class="metric-grid wz-summary"></div>
+                <div id="wzFacts" class="wz-fact-row"></div>
+                <p class="wz-plan-why hidden" id="wzPlanWhy"></p>
+            </section>
+
+            <section class="wz-result-card">
+                <h3 class="wz-section-title">
+                    <span class="tip-label-row">
+                        <span class="tip-label-text">Twój plan w czasie</span>
+                        <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">Górna oś pokazuje etapy życia. Pasek kont pokazuje, z których kont pochodzą wpłaty i wypłaty w danym wieku. Kliknij etap albo pasek, aby zobaczyć szczegóły.</span></span>
+                    </span>
+                </h3>
                 <div class="wz-plan-block">
-                    <h4 class="wz-plan-subhead visually-hidden">Etapy życia</h4>
                     <div class="wz-timeline" id="wzTimeline"></div>
                 </div>
-
+                <div id="wzStageSummary" class="res-stage-summary hidden"></div>
                 <div class="wz-flows-wrap" id="wzFlowsWrap">
-                    <h4 class="wz-plan-subhead">Z czego żyjesz w kolejnych latach</h4>
+                    <h4 class="wz-plan-subhead">
+                        <span class="tip-label-row">
+                            <span class="tip-label-text">Z czego żyjesz w kolejnych latach</span>
+                            <span class="tip" tabindex="0" aria-label="Kolejność wypłat">?<span class="tooltip" id="wzPolicyTipText">Kolejność wypłat zależy od polityki planu.</span></span>
+                        </span>
+                    </h4>
                     <div class="wz-flows-gantt-scroll">
                         <div class="wz-flows-gantt" id="wzFlowsGantt"></div>
                     </div>
@@ -943,7 +948,6 @@
                         <button type="button" class="wz-gantt-tip-close" id="wzGanttTipClose" aria-label="Zamknij podpowiedź">×</button>
                         <div id="wzGanttTipBody"></div>
                     </div>
-                    <p class="wz-flows-total-note" id="wzFlowsTotal"></p>
                     <details class="wz-flows-table-details" id="wzFlowsTableDetails">
                         <summary>Tabela przepływów</summary>
                         <div id="wzAccumulationFlows"></div>
@@ -951,7 +955,10 @@
                         <div id="wzAccountFlows"></div>
                     </details>
                 </div>
+            </section>
 
+            <section class="wz-result-card">
+                <h3 class="wz-section-title">Wykresy</h3>
                 <div class="wz-charts-wrap hidden" id="wzChartsWrap">
                     <section class="wz-chart-card" aria-labelledby="wzWithdrawalsTitle">
                         <div class="wz-chart-head">
@@ -977,54 +984,17 @@
                     </div>
                     <div class="wz-chart-annotation-note hidden" id="wzChartAnnotationNote"></div>
                 </div>
-
                 <div class="wz-gantt-tip hidden" id="wzChartTip" role="tooltip">
                     <button type="button" class="wz-gantt-tip-close" id="wzChartTipClose" aria-label="Zamknij podpowiedź">×</button>
                     <div id="wzChartTipBody"></div>
                 </div>
             </section>
 
-            <details class="wz-details" id="wzDetails">
-                <summary>Dane szczegółowe</summary>
-                <div class="wz-details-body">
-                    <section class="wz-details-block">
-                        <h4 class="wz-details-title">Majątek</h4>
-                        <div class="wz-wealth" id="wzWealthDetails"></div>
-                    </section>
-                    <section class="wz-details-block">
-                        <h4 class="wz-details-title">Podatki i ulgi</h4>
-                        <div id="wzFacts" class="wz-fact-row"></div>
-                        <p class="wz-policy-label">Kolejność wypłat</p>
-                        <p class="wz-method-policy" id="wzPolicyNote"></p>
-                    </section>
-                    <section class="wz-details-block">
-                        <h4 class="wz-details-title">Jak czytać ten plan?</h4>
-                        <ul class="wz-read-list">
-                            <li><strong>Wypłata netto</strong> — kwota na rękę po PIT, składce zdrowotnej i ewentualnym podatku jednorazowym IKZE.</li>
-                            <li><strong>Portfel i ZUS</strong> — wypłata może pochodzić z obu źródeł; ich podział widać po kliknięciu etapu lub paska konta.</li>
-                            <li><strong>Majątek brutto / netto</strong> — stan kont przed podatkiem od likwidacji i po nim, na koniec horyzontu.</li>
-                            <li><strong>Po horyzoncie</strong> — portfel przestaje być liczony; pokazujemy tylko prognozę dożywotniej emerytury ZUS.</li>
-                            <li><strong>Optymalizacja</strong> — porównuje wiek ZUS i podział IKE/IKZE; niczego nie zmienia bez kliknięcia „Zastosuj”.</li>
-                            <li><strong>Scenariusze</strong> — zmieniają założenia rynkowe, nie Twoje wpłaty ani cel.</li>
-                            <li><strong>Kwoty realne</strong> — wszystkie wartości są w dzisiejszej sile nabywczej.</li>
-                        </ul>
-                        <p class="wz-disclaimer">Model edukacyjny — nie prognoza ani rekomendacja inwestycyjna.</p>
-                    </section>
-                </div>
-            </details>
-
-            <details class="card-inset wz-optimizer hidden" id="wzOptimizer">
-                <summary class="wz-optimizer-summary-head">
-                    <span class="eyebrow wz-panel-title">
-                        <span class="tip-label-row">
-                            <span class="tip-label-text">Jak dobraliśmy plan?</span>
-                            <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">Silnik porównał kilka wariantów wieku rozpoczęcia ZUS i podziału wpłat IKE/IKZE. Główny plan to rekomendacja według wybranego priorytetu. Tabela pokazuje też Twoje pierwotne ustawienia i najlepszy wariant pod kątem sumy wypłat. Wszystkie warianty mają stałą miesięczną wypłatę.</span></span>
-                        </span>
-                    </span>
-                    <span class="chip chip-primary hidden" id="wzOptimizerChip"></span>
-                </summary>
-                <div id="wzOptimizerResult"></div>
-            </details>
+            <section class="wz-result-card">
+                <h3 class="wz-section-title">Rok po roku</h3>
+                <div id="wzYearTable"></div>
+            </section>
+        </div>
         </div>
     </section>
 
@@ -1045,6 +1015,7 @@
 {% endblock %}
 {% block scripts %}
     <script src="/static/js/controls.js?v={{ version }}"></script>
+    <script src="/static/js/results-table.js?v={{ version }}"></script>
     <script src="/static/js/sim-metadata.js?v={{ version }}"></script>
     <script src="/static/js/wizard.js?v={{ version }}"></script>
 {% endblock %}

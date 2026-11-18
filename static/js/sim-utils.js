@@ -131,11 +131,12 @@ function computeTotalUserContributions(input) {
     const monthlyGross = input.monthly_gross || 0;
     let total = 0;
     for (const stage of input.stages) {
+        if (stage.stage_type !== "akumulacja") continue;
         const years = Math.max(0, (stage.end_age || 0) - (stage.start_age || 0));
         if (years <= 0) continue;
         for (const [name, cfg] of Object.entries(stage.accounts || {})) {
             const base = name === "zus:ofe" ? name : String(name).split(":")[0];
-            if (base === "gotowka" || base === "lokata" || base === "zus") continue;
+            if (base === "zus") continue;
             if (base === "ppk") {
                 total += (cfg.employee_pct || 0) * resolveBase(cfg, monthlyGross) * years * 12;
             } else {
@@ -213,6 +214,7 @@ function computeStageSummaries(input, result) {
 
         let totalMonthly = 0;
         let avgWithdrawal = 0;
+        let avgZus = 0;
         if (isAccum) {
             totalMonthly = accounts.reduce((s, a) => s + a.monthly, 0);
         } else {
@@ -225,6 +227,13 @@ function computeStageSummaries(input, result) {
                 avgWithdrawal = Math.round(
                     withW.reduce((s, y) => s + y.monthly_withdrawal, 0) / withW.length
                 );
+            }
+            const withZus = yearsInRange.filter((y) => (y.zus_monthly || 0) > 0);
+            if (withZus.length > 0) {
+                avgZus = Math.round(
+                    withZus.reduce((s, y) => s + y.zus_monthly, 0) / withZus.length
+                );
+                if (avgWithdrawal <= 0) avgWithdrawal = avgZus;
             }
         }
 
@@ -239,6 +248,7 @@ function computeStageSummaries(input, result) {
             accounts,
             total_monthly: Math.round(totalMonthly),
             avg_withdrawal: avgWithdrawal,
+            zus_monthly: avgZus,
             total_balance: Math.round(totalBalance),
         });
     }

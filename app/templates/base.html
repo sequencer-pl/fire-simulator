@@ -9,6 +9,7 @@
     <link rel="stylesheet" href="/static/css/tokens.css?v={{ version }}">
     <link rel="stylesheet" href="/static/css/base.css?v={{ version }}">
     <link rel="stylesheet" href="/static/css/components.css?v={{ version }}">
+    <link rel="stylesheet" href="/static/css/results.css?v={{ version }}">
     {% block head_extra %}{% endblock %}
 </head>
 <body data-section="{% block section %}symulacje{% endblock %}" class="{% block body_class %}{% endblock %}">
@@ -66,6 +67,10 @@
     <script src="/static/js/helpers.js?v={{ version }}"></script>
     <script src="/static/js/icons.js?v={{ version }}"></script>
     <script src="/static/js/sim-utils.js?v={{ version }}"></script>
+    <script src="/static/js/results-model.js?v={{ version }}"></script>
+    <script src="/static/js/results-metrics.js?v={{ version }}"></script>
+    <script src="/static/js/results-banners.js?v={{ version }}"></script>
+    <script src="/static/js/results-section.js?v={{ version }}"></script>
     {% block scripts %}{% endblock %}
 </body>
 </html>

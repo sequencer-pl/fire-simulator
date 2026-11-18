@@ -26,6 +26,7 @@ from app.simulation.planner import (
     WizardPlanRequest,
     WizardSuggestRequest,
     allocation_asset_mix,
+    build_projection,
     estimate_pool_monthly,
     plan,
     resolve_config,
@@ -35,6 +36,7 @@ from app.simulation.planner import (
 )
 from app.simulation.salary import salary_preview
 from app.simulation.schemas import SimulationInput, SimulationResult
+from app.simulation.summary import build_summary
 from app.stages.metadata import STAGE_META
 from app.stages.registry import get_all_stage_types
 from app.web.limits import check_limit
@@ -53,10 +55,18 @@ def _asset_version_uncached() -> str:
         for rel in (
             "css/base.css",
             "css/components.css",
+            "css/results.css",
             "css/wizard.css",
             "css/library.css",
             "css/sim.css",
             "js/sim-utils.js",
+            "js/results-model.js",
+            "js/results-metrics.js",
+            "js/results-banners.js",
+            "js/results-section.js",
+            "js/results-charts.js",
+            "js/results-plan-time.js",
+            "js/results-table.js",
             "js/sim-metadata.js",
             "js/sim-cards.js",
             "js/sim-stages.js",
@@ -74,25 +84,6 @@ def _asset_version() -> str:
     return _asset_version_uncached()
 
 
-def _summary_from_result(result: SimulationResult) -> dict:
-    years = result.years
-    return {
-        "final_wealth": result.final_wealth,
-        "final_wealth_net": result.final_wealth_net,
-        "exit_tax": result.exit_tax,
-        "total_tax_refund": result.total_tax_refund,
-        "peak_wealth": result.peak_wealth,
-        "total_withdrawn": result.total_withdrawn,
-        "total_tax": result.total_tax,
-        "accounts": result.accounts,
-        "years": len(years),
-        "warnings": len(result.warnings),
-        "start_age": years[0].age if years else None,
-        "end_age": years[-1].age if years else None,
-        "has_pension": result.has_pension,
-    }
-
-
 def _monthly_contribution(stage, monthly_gross: float = 0.0) -> float | None:
     """Employee's own monthly investment cost for an accumulation stage."""
     total_annual = 0.0
@@ -107,39 +98,6 @@ def _monthly_contribution(stage, monthly_gross: float = 0.0) -> float | None:
         else:
             total_annual += cfg.annual_contribution
     return round(total_annual / 12, 2) if total_annual > 0 else None
-
-
-def _total_user_contributions(input_data: SimulationInput) -> float:
-    """Total employee contributions across all stages (lifetime)."""
-    total = 0.0
-    for stage in input_data.stages:
-        years = max(0, (stage.end_age or 0) - (stage.start_age or 0))
-        if years <= 0:
-            continue
-        for name, cfg in stage.accounts.items():
-            base_name = base_account_key(name)
-            if base_name in ("gotowka", "zus"):
-                continue
-            if base_name == "ppk":
-                base_annual = resolve_base(cfg.model_dump(), input_data.monthly_gross) * 12
-                total += cfg.employee_pct * base_annual * years
-            elif base_name == "ppe":
-                total += cfg.annual_contribution * years
-            else:
-                total += cfg.annual_contribution * years
-    return round(total, 2)
-
-
-def _initial_capital(input_data: SimulationInput) -> float:
-    """Sum of starting_balance for each unique account (first occurrence only)."""
-    seen: set[str] = set()
-    total = 0.0
-    for stage in sorted(input_data.stages, key=lambda s: s.start_age or 0):
-        for name, cfg in stage.accounts.items():
-            if name not in seen and cfg.starting_balance > 0:
-                total += cfg.starting_balance
-                seen.add(name)
-    return round(total, 2)
 
 
 def _stages_summary(
@@ -343,7 +301,10 @@ def api_simulate(input_data: SimulationInput, request: Request):
         result = simulate(input_data)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
-    return result
+    payload = result.model_dump()
+    payload["summary"] = build_summary(input_data, result).model_dump()
+    payload["projection"] = build_projection(input_data, result).model_dump()
+    return payload
 
 
 @router.get("/api/stage-types")
@@ -394,10 +355,9 @@ def api_compare_evaluate(payload: CompareEvaluatePayload, request: Request):
             raise HTTPException(
                 status_code=400, detail=f"{item.name}: {e}"
             ) from e
-        summary = _summary_from_result(result)
+        summary = build_summary(item.input, result).model_dump()
+        summary["warnings"] = summary["warnings_count"]
         summary["stages"] = _stages_summary(item.input, result)
-        summary["total_user_contributions"] = _total_user_contributions(item.input)
-        summary["initial_capital"] = _initial_capital(item.input)
         items.append(
             {
                 "id": None,
