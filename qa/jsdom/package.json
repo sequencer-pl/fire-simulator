@@ -8,6 +8,6 @@
     "test": "node wizard-repro.mjs"
   },
   "dependencies": {
-    "jsdom": "^31.0.0"
+    "jsdom": "^31.0.1"
   }
 }
