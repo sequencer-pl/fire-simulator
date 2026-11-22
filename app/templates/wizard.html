@@ -891,8 +891,8 @@
     </section>
 
     <!-- KROK: WYNIK -->
-    <section class="card wz-step hidden" data-step-id="wynik">
-        <h2>Twój plan niezależności finansowej</h2>
+    <section class="wz-step wz-result-step hidden" data-step-id="wynik" aria-labelledby="wzResultTitle">
+        <h2 id="wzResultTitle" class="visually-hidden">Twój plan niezależności finansowej</h2>
 
         <div class="loader card-inset hidden" id="wzPlanLoader" role="status" aria-live="polite">
             <div class="loader-body">
@@ -909,9 +909,12 @@
 
             <section class="wz-result-card">
                 <div id="wzHeroAnswer" class="wz-hero-answer"></div>
+                <div id="wzWarnings" class="wz-warnings" aria-live="polite"></div>
+            </section>
+
+            <section class="wz-result-card">
                 <div id="wzScenariosSection" class="wz-scenarios-section">
                     <div id="wzScenariosBox" class="wz-scenarios-box"></div>
-                    <div id="wzWarnings" class="wz-warnings" aria-live="polite"></div>
                 </div>
             </section>
 
@@ -948,7 +951,7 @@
                         <button type="button" class="wz-gantt-tip-close" id="wzGanttTipClose" aria-label="Zamknij podpowiedź">×</button>
                         <div id="wzGanttTipBody"></div>
                     </div>
-                    <details class="wz-flows-table-details" id="wzFlowsTableDetails">
+                    <details class="wz-flows-table-details" id="wzFlowsTableDetails" open>
                         <summary>Tabela przepływów</summary>
                         <div id="wzAccumulationFlows"></div>
                         <div id="wzTransferFlows"></div>
@@ -958,7 +961,13 @@
             </section>
 
             <section class="wz-result-card">
-                <h3 class="wz-section-title">Wykresy</h3>
+                <div class="wz-section-head">
+                    <h3 class="wz-section-title">Wykresy</h3>
+                    <button type="button" class="pill-toggle hidden" id="wzChartMilestonesToggle" aria-pressed="true">
+                        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg>
+                        <span id="wzChartMilestonesToggleLabel">Ukryj kamienie milowe</span>
+                    </button>
+                </div>
                 <div class="wz-charts-wrap hidden" id="wzChartsWrap">
                     <section class="wz-chart-card" aria-labelledby="wzWithdrawalsTitle">
                         <div class="wz-chart-head">
@@ -978,15 +987,14 @@
                         </div>
                         <div class="wz-chart" id="wzCapitalChart"></div>
                     </section>
-                    <div class="wz-chart-annotations-row">
-                        <span class="wz-chart-annotations-label">Kamienie milowe:</span>
-                        <div class="wz-chart-annotations" id="wzChartAnnotations"></div>
-                    </div>
-                    <div class="wz-chart-annotation-note hidden" id="wzChartAnnotationNote"></div>
                 </div>
                 <div class="wz-gantt-tip hidden" id="wzChartTip" role="tooltip">
                     <button type="button" class="wz-gantt-tip-close" id="wzChartTipClose" aria-label="Zamknij podpowiedź">×</button>
                     <div id="wzChartTipBody"></div>
+                </div>
+                <div class="wz-gantt-tip wz-chart-milestone-tip hidden" id="wzChartMilestoneTip" role="tooltip">
+                    <button type="button" class="wz-gantt-tip-close" id="wzChartMilestoneTipClose" aria-label="Zamknij opis kamienia milowego">×</button>
+                    <div id="wzChartMilestoneTipBody"></div>
                 </div>
             </section>
 

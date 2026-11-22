@@ -729,6 +729,7 @@ function wzShowStep(stepId, focus = false) {
     document.querySelectorAll(".wz-step").forEach((el) => {
         el.classList.toggle("hidden", el.dataset.stepId !== id);
     });
+    if (id !== "wynik") wzMilestoneTipHide();
 
     const index = order.indexOf(id);
     const progress = wzEl("wzProgressBar");
@@ -2546,6 +2547,7 @@ function wzShowLoader(showLoader) {
     const loader = wzEl("wzPlanLoader");
     loader?.classList.toggle("hidden", !showLoader);
     if (showLoader) {
+        wzMilestoneTipHide();
         wzUpdateLoaderText();
         clearInterval(wzLoaderTimer);
         wzLoaderTimer = setInterval(wzUpdateLoaderText, 6000);
@@ -2732,13 +2734,40 @@ function wzRenderStageSummaryFromResult(input, result, projection) {
     box.innerHTML = `<h4 class="wz-plan-subhead">Etapy</h4>${rows}`;
 }
 
-function wzRenderYearTableFromResult(result) {
+function wzZusEndAge(input) {
+    const stages = input?.stages || [];
+    const ends = stages
+        .filter((stage) => stage.stage_type === "realizacja" && (stage.accounts || {}).zus)
+        .map((stage) => Number(stage.end_age))
+        .filter((age) => Number.isFinite(age));
+    return ends.length ? Math.max(...ends) : null;
+}
+
+function wzPostHorizonRow(input, result) {
+    const summary = result?.summary || {};
+    if (!summary.has_pension) return null;
+    const lastAge = Number(summary.end_age);
+    const zusEndAge = wzZusEndAge(input);
+    const monthly = Number(summary.zus_monthly) || 0;
+    if (!Number.isFinite(lastAge) || zusEndAge == null || lastAge + 1 > zusEndAge) return null;
+    if (monthly <= 0.5) return null;
+    return {
+        ageLabel: `${lastAge + 1}+`,
+        stageName: "Tylko ZUS (po horyzoncie)",
+        monthly,
+        annual: monthly * 12,
+        title: `Po horyzoncie planu pokazujemy samą emeryturę ZUS. Kwota netto miesięcznie: ${wzFmtZloty(monthly)} zł.`,
+    };
+}
+
+function wzRenderYearTableFromResult(result, input) {
     const box = wzEl("wzYearTable");
     if (!box || !window.ResultsTable) return;
     window.ResultsTable.render(box, {
         result,
         density: 5,
         embedded: true,
+        postHorizon: wzPostHorizonRow(input, result),
     });
 }
 
@@ -2752,7 +2781,7 @@ function wzLoadFullResult(input, scenarioKey) {
     const cached = wzFullResults.get(key);
     if (cached) {
         wzRenderStageSummaryFromResult(input, cached, cached.projection);
-        wzRenderYearTableFromResult(cached);
+        wzRenderYearTableFromResult(cached, input);
         return;
     }
     const stageBox = wzEl("wzStageSummary");
@@ -2778,7 +2807,7 @@ function wzLoadFullResult(input, scenarioKey) {
             if (seq !== wzFullResultSeq) return;
             wzFullResults.set(key, result);
             wzRenderStageSummaryFromResult(input, result, result.projection);
-            wzRenderYearTableFromResult(result);
+            wzRenderYearTableFromResult(result, input);
         })
         .catch(() => {
             if (seq !== wzFullResultSeq) return;
@@ -2945,7 +2974,7 @@ function wzRenderScenarios(data) {
     };
     const path = data.path || wzCurrentPath();
 
-    let html = `<h3 class="eyebrow wz-panel-title">${tipLabelHtml("Scenariusze rynkowe", "Kryzys / bessa: wyższa inflacja, niższe ROI — na krypto nawet ujemne — i słabsza waloryzacja ZUS. Realne: Twoja konfiguracja bazowa. Hossa: niższa inflacja, wyższe ROI i mocniejsza waloryzacja. Kliknij kartę, aby ustawić scenariusz główny.")}</h3>
+    let html = `<h3 class="wz-section-title">${tipLabelHtml("Scenariusze rynkowe", "Kryzys / bessa: wyższa inflacja, niższe ROI — na krypto nawet ujemne — i słabsza waloryzacja ZUS. Realne: Twoja konfiguracja bazowa. Hossa: niższa inflacja, wyższe ROI i mocniejsza waloryzacja. Kliknij kartę, aby ustawić scenariusz główny.")}</h3>
         <div class="wz-scenarios-grid">`;
     keys.forEach((key) => {
         const scenario = scenarios[key];
@@ -3278,6 +3307,7 @@ function wzDetailShow(anchor, html, pin = false) {
     const tip = wzEl("wzGanttTip");
     const body = wzEl("wzGanttTipBody");
     if (!html || !tip || !body) return;
+    if (wzActiveChartMilestone) wzMilestoneTipHide();
     wzChartTipHide(true);
     wzGanttTipCancelShow();
     body.innerHTML = html;
@@ -3934,6 +3964,13 @@ function wzChartCompact(value) {
     return rounded;
 }
 
+function wzChartAxisNumber(value) {
+    const text = value.toLocaleString("pl-PL", { maximumFractionDigits: 2 });
+    const [integer, fraction] = text.split(",");
+    const grouped = integer.replace(/\B(?=(\d{3})+(?!\d))/g, "\u00a0");
+    return fraction ? `${grouped},${fraction}` : grouped;
+}
+
 function wzNiceStep(value, targetTicks) {
     if (!(value > 0)) return 1;
     const raw = value / Math.max(1, targetTicks);
@@ -3984,19 +4021,92 @@ function wzChartGradientId(kind, index) {
     return `wz-chart-grad-${kind}-${index}`;
 }
 
+function wzChartReferences(model) {
+    if (model.kind === "withdrawals") {
+        const positive = model.totals.filter((value) => value > 0.5);
+        const fallbackAvg = positive.length
+            ? positive.reduce((sum, value) => sum + value, 0) / positive.length
+            : null;
+        const fallbackMin = positive.length ? Math.min(...positive) : null;
+        const avg = Number(model.references?.avgMonthly);
+        const min = Number(model.references?.minMonthly);
+        const refs = [];
+        if (Number.isFinite(avg) && avg > 0.5) {
+            refs.push({ key: "avg", label: "średnia", value: avg });
+        } else if (fallbackAvg) {
+            refs.push({ key: "avg", label: "średnia", value: fallbackAvg });
+        }
+        if (Number.isFinite(min) && min > 0.5) {
+            refs.push({ key: "min", label: "min", value: min });
+        } else if (fallbackMin) {
+            refs.push({ key: "min", label: "min", value: fallbackMin });
+        }
+        return refs;
+    }
+    const peak = Math.max(...model.totals);
+    if (!(peak > 0.5)) return [];
+    const index = model.totals.indexOf(peak);
+    return [{
+        key: "peak",
+        label: "szczyt",
+        value: peak,
+        age: model.ages[index],
+        index,
+    }];
+}
+
+function wzChartReferenceSvg(model, refs, geometry) {
+    const {
+        x, y, margin, plotW, yMax,
+    } = geometry;
+    const avg = refs.find((ref) => ref.key === "avg");
+    const visible = refs.filter((ref) => {
+        if (!(ref.value > 0) || ref.value > yMax * 1.001) return false;
+        if (ref.key === "min" && avg && avg.value - ref.value < yMax * 0.08) return false;
+        return true;
+    });
+    if (!visible.length) return "";
+    const labels = visible.map((ref) => {
+        const lineY = y(ref.value);
+        const labelY = lineY < margin.top + 18 ? lineY + 14 : lineY - 5;
+        const amount = model.kind === "withdrawals"
+            ? wzChartAxisNumber(Math.round(ref.value))
+            : wzChartCompact(ref.value);
+        const label = model.kind === "withdrawals"
+            ? `${ref.label} ${amount} zł/mies.`
+            : `${ref.label} ${wzChartCompact(ref.value)} zł · ${ref.age} r.ż.`;
+        const dot = ref.key === "peak"
+            ? `<circle class="wz-chart-reference-dot" cx="${x(ref.index).toFixed(2)}" cy="${lineY.toFixed(2)}" r="4"/>`
+            : "";
+        return `<line class="wz-chart-reference-line is-${ref.key}" x1="${margin.left}" y1="${lineY.toFixed(2)}" x2="${margin.left + plotW}" y2="${lineY.toFixed(2)}"/>
+            ${dot}
+            <text class="wz-chart-reference-label is-${ref.key}" x="${margin.left + plotW - 4}" y="${labelY.toFixed(2)}" text-anchor="end">${escapeHtml(label)}</text>`;
+    }).join("");
+    return `<g class="wz-chart-reference-layer" aria-hidden="true">${labels}</g>`;
+}
+
 function wzChartSummary(model) {
     const first = model.ages[0];
     const last = model.ages[model.ages.length - 1];
     const peak = Math.max(...model.totals);
     if (model.kind === "withdrawals") {
         const total = model.totals.reduce((sum, value) => sum + value, 0) * 12;
-        return `Wykres miesięcznych wypłat netto według kont, wiek ${first}–${last}. Łącznie w horyzoncie ${wzFmtZloty(total)} zł netto. Użyj strzałek, aby czytać szczegóły.`;
+        const refs = wzChartReferences(model);
+        const avg = refs.find((ref) => ref.key === "avg");
+        const min = refs.find((ref) => ref.key === "min");
+        const extra = [];
+        if (avg) extra.push(`Średnia wypłata ${wzChartAxisNumber(Math.round(avg.value))} zł/mies.`);
+        if (min) extra.push(`Minimalna wypłata ${wzChartAxisNumber(Math.round(min.value))} zł/mies.`);
+        return `Wykres miesięcznych wypłat netto według kont, wiek ${first}–${last}. Łącznie w horyzoncie ${wzFmtZloty(total)} zł netto. ${extra.join(" ")} Użyj strzałek, aby czytać szczegóły.`;
     }
-    return `Wykres kapitału prywatnego według kont, wiek ${first}–${last}. Kapitał szczytowy ${wzFmtZloty(peak)} zł. Użyj strzałek, aby czytać szczegóły.`;
+    const peakIndex = model.totals.indexOf(peak);
+    return `Wykres kapitału prywatnego według kont, wiek ${first}–${last}. Kapitał szczytowy ${wzFmtZloty(peak)} zł w wieku ${model.ages[peakIndex]}. Użyj strzałek, aby czytać szczegóły.`;
 }
 
-let wzChartAnnotations = [];
-let wzActiveChartAnnotation = null;
+let wzChartMilestones = [];
+let wzChartMilestonesVisible = true;
+let wzActiveChartMilestone = null;
+let wzMilestoneAnchor = null;
 
 function wzChartAnnotationsFor(input, projection) {
     const ages = (projection?.chart?.ages || []).map(Number);
@@ -4021,10 +4131,17 @@ function wzChartAnnotationsFor(input, projection) {
     const horizonAge = wzInputHorizonAge(input);
     const annotations = [];
 
-    const add = (kind, label, age, text) => {
+    const add = (kind, label, age, text, short = label) => {
         const numeric = Number(age);
         if (!Number.isFinite(numeric) || numeric < minAge || numeric > maxAge) return;
-        annotations.push({ id: `${kind}-${numeric}`, kind, label, age: numeric, text });
+        annotations.push({
+            id: `${kind}-${numeric}`,
+            kind,
+            label,
+            short,
+            age: numeric,
+            text,
+        });
     };
 
     if (fireStage?.start_age != null) {
@@ -4040,7 +4157,8 @@ function wzChartAnnotationsFor(input, projection) {
             "ikze",
             "Zwrot IKZE",
             projection.early_return_age,
-            `W wieku ${projection.early_return_age} r.ż. IKZE zostało zamknięte: ${fmtMoney(projection.early_return_total)} netto przeniesione do kont docelowych po podatku ${fmtMoney(projection.early_return_tax_total)}. Pionowa linia oznacza ten transfer.`
+            `W wieku ${projection.early_return_age} r.ż. IKZE zostało zamknięte: ${fmtMoney(projection.early_return_total)} netto przeniesione do kont docelowych po podatku ${fmtMoney(projection.early_return_tax_total)}. Pionowa linia oznacza ten transfer.`,
+            "IKZE"
         );
     }
     if (zusStage?.start_age != null) {
@@ -4071,60 +4189,235 @@ function wzChartAnnotationsFor(input, projection) {
     return annotations;
 }
 
-function wzRenderChartAnnotations(annotations) {
-    wzChartAnnotations = annotations || [];
-    if (
-        wzActiveChartAnnotation
-        && !wzChartAnnotations.some((annotation) => annotation.id === wzActiveChartAnnotation)
-    ) {
-        wzActiveChartAnnotation = null;
-    }
-    const box = wzEl("wzChartAnnotations");
-    if (box) {
-        box.innerHTML = wzChartAnnotations.map((annotation) => `
-            <button type="button" class="wz-chart-annotation-chip is-${annotation.kind}"
-                    data-annotation="${annotation.id}"
-                    aria-expanded="${annotation.id === wzActiveChartAnnotation}">
-                <span>${escapeHtml(annotation.label)}</span>
-                <span class="wz-chart-annotation-age">${annotation.age}</span>
-            </button>`).join("");
-        box.classList.toggle("hidden", !wzChartAnnotations.length);
-    }
-    wzUpdateChartAnnotationState();
+function wzUpdateMilestoneToggle() {
+    const button = wzEl("wzChartMilestonesToggle");
+    const label = wzEl("wzChartMilestonesToggleLabel");
+    if (!button || !label) return;
+    const hasMilestones = wzChartMilestones.length > 0;
+    button.classList.toggle("hidden", !hasMilestones);
+    button.setAttribute("aria-pressed", String(wzChartMilestonesVisible));
+    label.textContent = wzChartMilestonesVisible
+        ? "Ukryj kamienie milowe"
+        : "Pokaż kamienie milowe";
 }
 
-function wzUpdateChartAnnotationState() {
-    const active = wzChartAnnotations.find(
-        (annotation) => annotation.id === wzActiveChartAnnotation
-    );
-    const note = wzEl("wzChartAnnotationNote");
-    document.querySelectorAll("#wzChartAnnotations .wz-chart-annotation-chip").forEach((chip) => {
-        const isActive = chip.dataset.annotation === wzActiveChartAnnotation;
-        chip.classList.toggle("is-active", isActive);
-        chip.setAttribute("aria-expanded", String(isActive));
-    });
-    document.querySelectorAll(".wz-chart-annotation-line").forEach((line) => {
-        line.classList.toggle(
-            "is-visible",
-            line.dataset.annotationId === wzActiveChartAnnotation
+function wzMilestoneLayout(model, geom) {
+    const compact = geom.width < 560;
+    const laneHeight = compact ? 28 : 30;
+    const railWidth = geom.actualWidth || geom.width;
+    const scale = railWidth / Math.max(1, geom.width);
+    const items = [];
+    (model.annotations || []).forEach((annotation) => {
+        const index = model.ages.indexOf(Number(annotation.age));
+        if (index < 0) return;
+        const lineX = geom.x(index) + (annotation.offset || 0);
+        const x = lineX * scale;
+        const text = `${annotation.short || annotation.label} ${annotation.age}`;
+        const width = Math.min(
+            Math.max(40, railWidth - 8),
+            Math.max(56, Math.ceil(text.length * 6.4 + 26))
         );
+        const left = Math.max(4, Math.min(x - width / 2, railWidth - width - 4));
+        items.push({ annotation, lineX, x, text, width, left, top: 0 });
     });
-    if (note) {
-        if (active) {
-            note.textContent = active.text;
-            note.hidden = false;
-            note.classList.remove("hidden");
-        } else {
-            note.hidden = true;
-            note.classList.add("hidden");
-            note.textContent = "";
+    items.sort((a, b) => a.left - b.left);
+    const laneRight = [];
+    items.forEach((item) => {
+        let lane = 0;
+        while (lane < laneRight.length && item.left < laneRight[lane] + 6) {
+            lane += 1;
         }
-    }
+        item.lane = lane;
+        item.top = lane * laneHeight;
+        laneRight[lane] = item.left + item.width;
+    });
+    return {
+        items,
+        height: Math.max(24, laneRight.length * laneHeight),
+    };
 }
 
-function wzSelectChartAnnotation(id) {
-    wzActiveChartAnnotation = wzActiveChartAnnotation === id ? null : id;
-    wzUpdateChartAnnotationState();
+function wzUpdateMilestoneState() {
+    document.querySelectorAll(".wz-chart-milestone").forEach((button) => {
+        const isActive = button.dataset.annotationId === wzActiveChartMilestone;
+        button.classList.toggle("is-active", isActive);
+        button.setAttribute("aria-expanded", String(isActive));
+        if (isActive) button.setAttribute("aria-describedby", "wzChartMilestoneTipBody");
+        else button.removeAttribute("aria-describedby");
+    });
+    document.querySelectorAll(".wz-chart-milestone-line, .wz-chart-milestone-band").forEach((node) => {
+        node.classList.toggle("is-active", node.dataset.annotationId === wzActiveChartMilestone);
+    });
+}
+
+function wzMilestoneTipHide() {
+    const tip = wzEl("wzChartMilestoneTip");
+    const anchor = wzMilestoneAnchor;
+    const hadActive = Boolean(wzActiveChartMilestone)
+        || Boolean(tip && !tip.classList.contains("hidden"));
+    const focusInside = Boolean(tip && tip.contains(document.activeElement));
+    tip?.classList.add("hidden");
+    wzActiveChartMilestone = null;
+    wzMilestoneAnchor = null;
+    if (hadActive) wzUpdateMilestoneState();
+    if (focusInside && anchor?.isConnected) anchor.focus({ preventScroll: true });
+}
+
+function wzMilestoneBottomInset() {
+    let inset = 8;
+    const actionBar = document.querySelector(".action-bar");
+    if (actionBar) {
+        const rect = actionBar.getBoundingClientRect();
+        if (rect.height > 0) inset = Math.max(inset, window.innerHeight - rect.top + 8);
+    }
+    const tabbar = document.querySelector(".tabbar");
+    if (tabbar) {
+        const rect = tabbar.getBoundingClientRect();
+        if (rect.height > 0) inset = Math.max(inset, window.innerHeight - rect.top + 8);
+    }
+    return inset;
+}
+
+function wzMilestoneTipPlace(anchor) {
+    const tip = wzEl("wzChartMilestoneTip");
+    if (!tip || !anchor) return;
+    const rect = anchor.getBoundingClientRect();
+    const width = tip.offsetWidth;
+    const height = tip.offsetHeight;
+    const margin = 8;
+    const bottomLimit = window.innerHeight - wzMilestoneBottomInset();
+    let left = rect.left + rect.width / 2 - width / 2;
+    left = Math.max(margin, Math.min(left, window.innerWidth - width - margin));
+    const spaceBelow = bottomLimit - rect.bottom;
+    const spaceAbove = rect.top;
+    const placeBelow = spaceBelow >= height + margin || spaceBelow >= spaceAbove;
+    let top = placeBelow ? rect.bottom + margin : rect.top - height - margin;
+    top = Math.max(margin, Math.min(top, Math.max(margin, bottomLimit - height - margin)));
+    tip.style.left = `${left}px`;
+    tip.style.top = `${top}px`;
+}
+
+function wzMilestoneTipShow(annotation, anchor) {
+    const tip = wzEl("wzChartMilestoneTip");
+    const body = wzEl("wzChartMilestoneTipBody");
+    if (!tip || !body || !anchor) return;
+    wzChartTipHide(true);
+    wzGanttTipHide(true);
+    body.innerHTML = `<div class="wz-gantt-tip-title wz-chart-milestone-tip-title">
+            <span class="wz-chart-milestone-dot is-${annotation.kind}" aria-hidden="true"></span>
+            <span>${escapeHtml(annotation.label)} · ${annotation.age} r.ż.</span>
+        </div>
+        <p class="wz-chart-milestone-tip-text">${escapeHtml(annotation.text)}</p>`;
+    tip.classList.remove("hidden");
+    wzActiveChartMilestone = annotation.id;
+    wzMilestoneAnchor = anchor;
+    wzUpdateMilestoneState();
+    requestAnimationFrame(() => wzMilestoneTipPlace(anchor));
+}
+
+function wzMilestoneTipOnScroll() {
+    if (!wzMilestoneAnchor) return;
+    if (!wzMilestoneAnchor.isConnected) {
+        wzMilestoneTipHide();
+        return;
+    }
+    const rect = wzMilestoneAnchor.getBoundingClientRect();
+    if (rect.bottom < 0 || rect.top > window.innerHeight) {
+        wzMilestoneTipHide();
+        return;
+    }
+    requestAnimationFrame(() => wzMilestoneTipPlace(wzMilestoneAnchor));
+}
+
+function wzToggleMilestone(annotationId, anchor) {
+    if (wzActiveChartMilestone === annotationId && wzMilestoneAnchor === anchor) {
+        wzMilestoneTipHide();
+        return;
+    }
+    const annotation = wzChartMilestones.find((item) => item.id === annotationId);
+    if (annotation) wzMilestoneTipShow(annotation, anchor);
+}
+
+function wzToggleMilestonesVisibility() {
+    wzChartMilestonesVisible = !wzChartMilestonesVisible;
+    wzMilestoneTipHide();
+    wzUpdateMilestoneToggle();
+    Object.entries(wzChartModels).forEach(([kind, model]) => {
+        const container = kind === "withdrawals"
+            ? wzEl("wzWithdrawalsChart")
+            : wzEl("wzCapitalChart");
+        if (container) wzRenderMilestoneLayer(container, model);
+    });
+}
+
+function wzRenderMilestoneLayer(container, model) {
+    if (!container) return;
+    const geom = wzChartGeom[model.kind];
+    if (!geom) return;
+    container.querySelector(".wz-chart-milestones")?.remove();
+    geom.svg.querySelector(".wz-chart-milestone-layer")?.remove();
+    if (!wzChartMilestonesVisible || !model.annotations?.length) return;
+
+    const layout = wzMilestoneLayout(model, geom);
+    if (!layout.items.length) return;
+
+    const rail = document.createElement("div");
+    rail.className = "wz-chart-milestones";
+    rail.style.height = `${layout.height}px`;
+    rail.setAttribute("role", "group");
+    rail.setAttribute(
+        "aria-label",
+        `Kamienie milowe — ${model.kind === "withdrawals" ? "wypłaty netto" : "kapitał prywatny"}`
+    );
+    layout.items.forEach(({ annotation, left, top, width }) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = `wz-chart-milestone is-${annotation.kind}`;
+        button.dataset.annotationId = annotation.id;
+        button.style.left = `${left}px`;
+        button.style.top = `${top}px`;
+        button.style.width = `${width}px`;
+        button.setAttribute("aria-expanded", "false");
+        button.setAttribute("aria-controls", "wzChartMilestoneTip");
+        button.setAttribute(
+            "aria-label",
+            `${annotation.label}, ${annotation.age} r.ż. — pokaż szczegóły`
+        );
+        button.innerHTML = `<span class="wz-chart-milestone-dot" aria-hidden="true"></span>
+            <span class="wz-chart-milestone-label">${escapeHtml(annotation.short || annotation.label)}</span>
+            <span class="wz-chart-milestone-age">${annotation.age}</span>`;
+        rail.appendChild(button);
+    });
+    container.insertBefore(rail, container.firstChild);
+
+    const NS = "http://www.w3.org/2000/svg";
+    const layer = document.createElementNS(NS, "g");
+    layer.setAttribute("class", "wz-chart-milestone-layer");
+    layer.setAttribute("aria-hidden", "true");
+    layout.items.forEach(({ annotation, lineX }) => {
+        const band = document.createElementNS(NS, "rect");
+        band.setAttribute("class", `wz-chart-milestone-band is-${annotation.kind}`);
+        band.setAttribute("data-annotation-id", annotation.id);
+        band.setAttribute("x", String(lineX - 7));
+        band.setAttribute("y", String(geom.top));
+        band.setAttribute("width", "14");
+        band.setAttribute("height", String(geom.plotH));
+        band.setAttribute("rx", "4");
+        layer.appendChild(band);
+
+        const line = document.createElementNS(NS, "line");
+        line.setAttribute("class", `wz-chart-milestone-line is-${annotation.kind}`);
+        line.setAttribute("data-annotation-id", annotation.id);
+        line.setAttribute("x1", String(lineX));
+        line.setAttribute("x2", String(lineX));
+        line.setAttribute("y1", String(lineX < geom.left + 56 ? geom.top : 0));
+        line.setAttribute("y2", String(geom.top + geom.plotH));
+        layer.appendChild(line);
+    });
+    const hover = geom.svg.querySelector(".wz-chart-hover");
+    if (hover) geom.svg.insertBefore(layer, hover);
+    else geom.svg.appendChild(layer);
+    wzUpdateMilestoneState();
 }
 
 function wzChartIndexFromEvent(svg, event) {
@@ -4241,6 +4534,7 @@ function wzChartTipShow(key, index, event, pin = false) {
     const tip = wzEl("wzChartTip");
     const body = wzEl("wzChartTipBody");
     if (!model || !tip || !body) return;
+    if (wzActiveChartMilestone) wzMilestoneTipHide();
     wzGanttTipHide(true);
     body.innerHTML = wzChartTooltipHtml(model, index);
     tip.classList.remove("hidden");
@@ -4270,12 +4564,28 @@ function wzChartTipScheduleHide() {
 function wzBindChartGlobalEvents() {
     if (wzChartBound) return;
     wzChartBound = true;
-    const legend = wzEl("wzChartAnnotations");
-    legend?.addEventListener("click", (event) => {
-        const chip = event.target.closest?.(".wz-chart-annotation-chip");
-        if (!chip) return;
+    wzEl("wzChartMilestonesToggle")?.addEventListener("click", wzToggleMilestonesVisibility);
+    const chartsWrap = wzEl("wzChartsWrap");
+    chartsWrap?.addEventListener("click", (event) => {
+        const button = event.target.closest?.(".wz-chart-milestone");
+        if (!button) return;
         event.preventDefault();
-        wzSelectChartAnnotation(chip.dataset.annotation);
+        event.stopPropagation();
+        wzToggleMilestone(button.dataset.annotationId, button);
+    });
+    const milestoneTip = wzEl("wzChartMilestoneTip");
+    const milestoneClose = wzEl("wzChartMilestoneTipClose");
+    if (milestoneTip) {
+        milestoneTip.addEventListener("pointerdown", (event) => event.stopPropagation());
+    }
+    if (milestoneClose) milestoneClose.addEventListener("click", wzMilestoneTipHide);
+    document.addEventListener("pointerdown", (event) => {
+        if (!wzActiveChartMilestone) return;
+        if (event.target.closest?.(".wz-chart-milestone, #wzChartMilestoneTip")) return;
+        wzMilestoneTipHide();
+    });
+    document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") wzMilestoneTipHide();
     });
     const tip = wzEl("wzChartTip");
     const close = wzEl("wzChartTipClose");
@@ -4293,11 +4603,13 @@ function wzBindChartGlobalEvents() {
         if (event.key === "Escape") wzChartTipHide(true);
     });
     window.addEventListener("scroll", () => {
+        wzMilestoneTipOnScroll();
         // Auto-scroll tuż po kliknięciu nie może od razu zamykać przypiętego dymku.
         if (wzChartPinned && Date.now() - wzChartPinnedAt < 500) return;
         wzChartTipHide(true);
     }, true);
     window.addEventListener("resize", () => {
+        wzMilestoneTipHide();
         wzChartTipHide(true);
         clearTimeout(wzChartResizeTimer);
         wzChartResizeTimer = setTimeout(() => {
@@ -4317,6 +4629,18 @@ function wzRenderChartSvg(container, model) {
     const maxTotal = Math.max(0, ...model.totals);
     const step = wzNiceStep(Math.max(1, maxTotal * 1.08), 5);
     const yMax = Math.max(step, Math.ceil((maxTotal * 1.08) / step) * step);
+    const capitalInThousands = model.kind === "capital" && yMax >= 10_000;
+    const axisUnit = model.kind === "withdrawals"
+        ? "zł/mies."
+        : (capitalInThousands ? "tys. zł" : "zł");
+    const axisLabel = (value) => {
+        if (capitalInThousands) {
+            const thousands = value / 1000;
+            const digits = Math.abs(thousands) < 10 ? 2 : 0;
+            return wzChartAxisNumber(Number(thousands.toFixed(digits)));
+        }
+        return wzChartAxisNumber(Math.round(value));
+    };
     const x = (index) => margin.left + (count <= 1 ? plotW / 2 : (index / (count - 1)) * plotW);
     const y = (value) => margin.top + plotH - (Math.max(0, value) / yMax) * plotH;
     const upperBounds = [];
@@ -4352,16 +4676,8 @@ function wzRenderChartSvg(container, model) {
         const value = tick * step;
         const yPos = y(value);
         svg += `<line class="wz-chart-grid" x1="${margin.left}" y1="${yPos.toFixed(2)}" x2="${margin.left + plotW}" y2="${yPos.toFixed(2)}"/>`;
-        svg += `<text class="wz-chart-axis-text" x="${margin.left - 8}" y="${yPos.toFixed(2)}" text-anchor="end">${wzChartCompact(value)}</text>`;
+        svg += `<text class="wz-chart-axis-text wz-chart-axis-y" x="${margin.left - 8}" y="${yPos.toFixed(2)}" text-anchor="end">${axisLabel(value)}</text>`;
     }
-
-    (model.annotations || []).forEach((annotation) => {
-        const index = model.ages.indexOf(Number(annotation.age));
-        if (index < 0) return;
-        const lineX = x(index) + (annotation.offset || 0);
-        const activeClass = annotation.id === wzActiveChartAnnotation ? " is-visible" : "";
-        svg += `<line class="wz-chart-annotation-line is-${annotation.kind}${activeClass}" data-annotation-id="${annotation.id}" x1="${lineX.toFixed(2)}" y1="${margin.top}" x2="${lineX.toFixed(2)}" y2="${margin.top + plotH}"/>`;
-    });
 
     const span = count > 1 ? model.ages[count - 1] - model.ages[0] : 1;
     let ageStep = span <= 12 ? 1 : span <= 24 ? 2 : 5;
@@ -4376,7 +4692,7 @@ function wzRenderChartSvg(container, model) {
         svg += `<text class="wz-chart-axis-text" x="${xPos.toFixed(2)}" y="${height - 8}" text-anchor="${anchor}">${age}</text>`;
     }
 
-    svg += `<text class="wz-chart-unit" x="${margin.left}" y="11">${model.kind === "withdrawals" ? "zł/mies." : "zł"}</text>`;
+    svg += `<text class="wz-chart-unit" x="${margin.left}" y="11">${axisUnit}</text>`;
 
     model.groups.forEach((group, index) => {
         const upper = upperBounds[index];
@@ -4391,6 +4707,9 @@ function wzRenderChartSvg(container, model) {
         }
     });
     svg += `<path class="wz-chart-total" d="${wzChartLinePath(x, y, model.totals)}"/>`;
+    svg += wzChartReferenceSvg(model, wzChartReferences(model), {
+        x, y, margin, plotW, yMax,
+    });
 
     svg += `<g class="wz-chart-hover" aria-hidden="true">`;
     svg += `<rect class="wz-chart-hover-band" x="${margin.left}" y="${margin.top}" width="0" height="${plotH}" rx="4"/>`;
@@ -4407,6 +4726,7 @@ function wzRenderChartSvg(container, model) {
     const geom = {
         key: model.kind,
         width,
+        actualWidth: container.clientWidth || width,
         height,
         left: margin.left,
         top: margin.top,
@@ -4429,6 +4749,7 @@ function wzRenderChartSvg(container, model) {
     wzChartGeom[model.kind] = geom;
 
     svgEl.addEventListener("pointermove", (event) => {
+        if (wzActiveChartMilestone) return;
         if (wzChartPinned || event.pointerType === "touch") return;
         wzChartTipShow(model.kind, wzChartIndexFromEvent(svgEl, event), event, false);
     });
@@ -4468,6 +4789,8 @@ function wzRenderChartSvg(container, model) {
         wzChartFocusIndex[model.kind] = next;
         wzChartTipShow(model.kind, next, null, false);
     });
+
+    wzRenderMilestoneLayer(container, model);
 }
 
 function wzRenderCharts(input, projection) {
@@ -4477,7 +4800,9 @@ function wzRenderCharts(input, projection) {
     const ages = Array.isArray(chart?.ages) ? chart.ages.map(Number) : [];
     if (!ages.length) {
         wrap.classList.add("hidden");
-        wzRenderChartAnnotations([]);
+        wzChartMilestones = [];
+        wzMilestoneTipHide();
+        wzUpdateMilestoneToggle();
         wzChartData = null;
         wzChartTipHide(true);
         return;
@@ -4494,7 +4819,9 @@ function wzRenderCharts(input, projection) {
     );
     if (!withdrawalGroups.length && !capitalGroups.length) {
         wrap.classList.add("hidden");
-        wzRenderChartAnnotations([]);
+        wzChartMilestones = [];
+        wzMilestoneTipHide();
+        wzUpdateMilestoneToggle();
         wzChartData = null;
         wzChartTipHide(true);
         return;
@@ -4502,12 +4829,21 @@ function wzRenderCharts(input, projection) {
 
     wrap.classList.remove("hidden");
     const annotations = wzChartAnnotationsFor(input, projection);
+    const references = {
+        avgMonthly: Number(projection?.mean_monthly) || null,
+        minMonthly: Number(projection?.min_monthly) || null,
+        peakWealth: Number(projection?.peak_wealth) || null,
+    };
+    wzChartMilestones = annotations;
+    wzMilestoneTipHide();
+    wzUpdateMilestoneToggle();
     wzChartData = { input, projection };
     wzChartModels = {
         withdrawals: {
             kind: "withdrawals",
             ages,
             annotations,
+            references,
             groups: withdrawalGroups,
             totals: wzChartTotals(withdrawalGroups, ages.length),
         },
@@ -4515,11 +4851,11 @@ function wzRenderCharts(input, projection) {
             kind: "capital",
             ages,
             annotations,
+            references,
             groups: capitalGroups,
             totals: wzChartTotals(capitalGroups, ages.length),
         },
     };
-    wzRenderChartAnnotations(annotations);
     wzChartTipHide(true);
 
     const withdrawalLegend = wzEl("wzWithdrawalsLegend");
@@ -4547,7 +4883,6 @@ function wzRenderCharts(input, projection) {
         }
     }
 
-    wzUpdateChartAnnotationState();
     wzBindChartGlobalEvents();
 }
 

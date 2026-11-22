@@ -377,42 +377,169 @@ const harness = `
             && document.querySelectorAll("#wzFacts .wz-fact").length >= 1
             && document.getElementById("wzPolicyTipText").textContent.includes("Najpierw");
     });
-    check("wynik: tabela przepływów pod ganttem i zwinięta", () => {
+    check("rok po roku: wiersz po horyzoncie pokazuje sam ZUS", () => {
+        const row = wzPostHorizonRow(
+            {
+                max_age: 80,
+                stages: [
+                    { stage_type: "realizacja", start_age: 65, end_age: 100, accounts: { zus: {} } },
+                ],
+            },
+            {
+                summary: {
+                    has_pension: true,
+                    end_age: 80,
+                    zus_monthly: 1841.69,
+                },
+            }
+        );
+        const beyond = wzPostHorizonRow(
+            {
+                max_age: 100,
+                stages: [
+                    { stage_type: "realizacja", start_age: 65, end_age: 100, accounts: { zus: {} } },
+                ],
+            },
+            {
+                summary: {
+                    has_pension: true,
+                    end_age: 100,
+                    zus_monthly: 1841.69,
+                },
+            }
+        );
+        return Boolean(row)
+            && row.ageLabel === "81+"
+            && row.stageName.includes("Tylko ZUS")
+            && Math.round(row.monthly) === 1842
+            && Math.round(row.annual) === 22100
+            && beyond == null;
+    });
+    check("rok po roku: kluczowe kolumny są pierwsze i miesięczna wypłata jest wyróżniona", () => {
+        const host = document.createElement("div");
+        document.body.appendChild(host);
+        window.ResultsTable.render(host, {
+            result: {
+                accounts: ["ike"],
+                account_labels: { ike: "IKE" },
+                years: [
+                    {
+                        age: 40,
+                        stage_name: "Akumulacja",
+                        balances: { ike: 1000 },
+                        total_wealth: 1000,
+                        annual_withdrawal: 0,
+                        monthly_withdrawal: 0,
+                        tax_paid: 0,
+                    },
+                    {
+                        age: 41,
+                        stage_name: "Realizacja",
+                        balances: { ike: 900 },
+                        total_wealth: 900,
+                        annual_withdrawal: 60000,
+                        monthly_withdrawal: 5000,
+                        tax_paid: 100,
+                    },
+                ],
+            },
+            embedded: true,
+            postHorizon: {
+                ageLabel: "42+",
+                stageName: "Tylko ZUS",
+                monthly: 2000,
+                annual: 24000,
+                title: "test",
+            },
+        });
+        const headers = [...host.querySelectorAll("thead th")].map((th) => th.textContent.trim());
+        const firstRow = host.querySelector("tbody tr");
+        const monthlyCell = firstRow?.querySelector("td.col-monthly");
+        const monthlyHeader = host.querySelector("th.col-monthly");
+        const post = host.querySelector("tr.post-horizon");
+        const ok = headers.slice(0, 6).join("|")
+                === "Wiek|Etap|Wypłata mies.|Majątek|Wypłata roczna|Podatek"
+            && Boolean(monthlyCell)
+            && Boolean(monthlyHeader)
+            && firstRow.querySelectorAll("td")[2] === monthlyCell
+            && Boolean(post?.querySelector("td.col-monthly"))
+            && post?.dataset.keep === "true"
+            && !firstRow.querySelector("strong");
+        host.remove();
+        return ok;
+    });
+    check("wynik: scenariusze są osobną sekcją pod hero", () => {
+        const hero = document.getElementById("wzHeroAnswer");
+        const scenarios = document.getElementById("wzScenariosSection");
+        const warnings = document.getElementById("wzWarnings");
+        const heroCard = hero?.closest(".wz-result-card");
+        const scenarioCard = scenarios?.closest(".wz-result-card");
+        return Boolean(heroCard && scenarioCard)
+            && heroCard !== scenarioCard
+            && warnings?.closest(".wz-result-card") === heroCard
+            && Boolean(scenarios.querySelector("#wzScenariosBox"));
+    });
+    check("wynik: tabela przepływów pod ganttem i rozwinięta", () => {
         const details = document.getElementById("wzFlowsTableDetails");
         return Boolean(details)
             && details.tagName === "DETAILS"
-            && !details.open
+            && details.open
             && Boolean(details.closest("#wzFlowsWrap"))
             && Boolean(details.querySelector("#wzAccountFlows"))
             && details.querySelectorAll(".wz-phase-badge").length > 0
             && document.querySelectorAll("#wzAccumulationFlows tbody tr").length > 0
             && document.querySelectorAll("#wzTransferFlows tbody tr").length > 0;
     });
-    check("wynik: wspólna legenda adnotacji", () => {
-        return document.querySelectorAll("#wzChartAnnotations .wz-chart-annotation-chip").length > 0
-            && document.querySelector(".wz-chart-annotations-label")?.textContent.trim()
-                === "Kamienie milowe:"
-            && !document.getElementById("wzWithdrawalsAnnotationsToggle");
+    check("wynik: kamienie milowe domyślnie widoczne", () => {
+        const toggle = document.getElementById("wzChartMilestonesToggle");
+        const labels = document.querySelectorAll(".wz-chart-milestone");
+        const lines = document.querySelectorAll(".wz-chart-milestone-line");
+        return Boolean(toggle)
+            && !toggle.classList.contains("hidden")
+            && toggle.getAttribute("aria-pressed") === "true"
+            && toggle.textContent.includes("Ukryj kamienie milowe")
+            && labels.length > 0
+            && lines.length === labels.length;
     });
-    check("wynik: aktywna adnotacja pokazuje linię i opis", () => {
-        const chips = [...document.querySelectorAll("#wzChartAnnotations .wz-chart-annotation-chip")];
-        const note = document.getElementById("wzChartAnnotationNote");
-        if (chips.length < 2 || !note) return false;
-        const visibleLines = () => document.querySelectorAll(
-            ".wz-chart-annotation-line.is-visible"
-        ).length;
-        const initial = note.hidden && visibleLines() === 0;
-        chips[0].click();
-        const first = !note.hidden
-            && visibleLines() === 2
-            && chips[0].classList.contains("is-active");
-        chips[1].click();
-        const second = visibleLines() === 2
-            && chips[1].classList.contains("is-active")
-            && !chips[0].classList.contains("is-active");
-        chips[1].click();
-        const off = note.hidden && visibleLines() === 0;
-        return initial && first && second && off;
+    check("wynik: wyłączenie chowa adnotacje", () => {
+        const toggle = document.getElementById("wzChartMilestonesToggle");
+        toggle.click();
+        return toggle.getAttribute("aria-pressed") === "false"
+            && toggle.textContent.includes("Pokaż kamienie milowe")
+            && document.querySelectorAll(".wz-chart-milestone").length === 0
+            && document.querySelectorAll(".wz-chart-milestone-line").length === 0
+            && document.getElementById("wzChartMilestoneTip").classList.contains("hidden");
+    });
+    check("wynik: ponowne włączenie pokazuje adnotacje na obu wykresach", () => {
+        const toggle = document.getElementById("wzChartMilestonesToggle");
+        toggle.click();
+        const labels = document.querySelectorAll(".wz-chart-milestone");
+        const lines = document.querySelectorAll(".wz-chart-milestone-line");
+        return toggle.getAttribute("aria-pressed") === "true"
+            && toggle.textContent.includes("Ukryj kamienie milowe")
+            && labels.length > 0
+            && lines.length === labels.length
+            && document.querySelectorAll(".wz-chart-milestone-line.is-active").length === 0;
+    });
+    check("wynik: kliknięcie kamienia pokazuje opis w popoverze", () => {
+        const labels = [...document.querySelectorAll(".wz-chart-milestone")];
+        const tip = document.getElementById("wzChartMilestoneTip");
+        const body = document.getElementById("wzChartMilestoneTipBody");
+        if (labels.length < 2 || !tip || !body) return false;
+        labels[0].click();
+        const first = !tip.classList.contains("hidden")
+            && body.textContent.trim().length > 0
+            && labels[0].getAttribute("aria-expanded") === "true"
+            && document.querySelectorAll(".wz-chart-milestone.is-active").length === 2;
+        labels[1].click();
+        const second = !tip.classList.contains("hidden")
+            && labels[1].getAttribute("aria-expanded") === "true"
+            && labels[0].getAttribute("aria-expanded") === "false"
+            && document.querySelectorAll(".wz-chart-milestone.is-active").length === 2;
+        labels[1].click();
+        const off = tip.classList.contains("hidden")
+            && document.querySelectorAll(".wz-chart-milestone.is-active").length === 0;
+        return first && second && off;
     });
     check("adnotacja ZUS bierze etap realizacji, nie akumulacji", () => {
         const input = {
@@ -439,6 +566,34 @@ const harness = `
             && Boolean(document.querySelector("#wzCapitalChart svg"))
             && document.querySelectorAll("#wzWithdrawalsLegend .wz-chart-legend-item").length > 0
             && document.querySelectorAll("#wzCapitalLegend .wz-chart-legend-item").length > 0;
+    });
+    check("wynik: wykresy mają czytelne etykiety osi Y", () => {
+        const axisLabels = (id) => [...document.querySelectorAll("#" + id + " .wz-chart-axis-y")]
+            .map((el) => el.textContent);
+        const withdrawals = axisLabels("wzWithdrawalsChart");
+        const capital = axisLabels("wzCapitalChart");
+        return withdrawals.length > 0
+            && new Set(withdrawals).size === withdrawals.length
+            && !withdrawals.some((label) => label.includes("tys."))
+            && capital.length > 0
+            && new Set(capital).size === capital.length
+            && document.querySelector("#wzCapitalChart .wz-chart-unit")
+                ?.textContent.includes("tys. zł");
+    });
+    check("wynik: wykresy pokazują kluczowe wartości", () => {
+        const capitalLabel = document.querySelector("#wzCapitalChart .wz-chart-reference-label");
+        const peakDot = document.querySelector("#wzCapitalChart .wz-chart-reference-dot");
+        const refs = wzChartReferences({
+            kind: "withdrawals",
+            ages: [40, 41],
+            totals: [5000, 6000],
+            references: { avgMonthly: 5500, minMonthly: 5000 },
+        });
+        return Boolean(capitalLabel)
+            && capitalLabel.textContent.includes("szczyt")
+            && Boolean(peakDot)
+            && refs.some((ref) => ref.key === "avg")
+            && refs.some((ref) => ref.key === "min");
     });
     check("wynik: dlaczego ten plan?", () => {
         wzRenderPlanWhy({

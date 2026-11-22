@@ -27,6 +27,10 @@
 
 .wz-step { min-width: 0; }
 
+/* Krok wyniku nie jest kartą: sekcje wewnątrz mają własne powierzchnie,
+   a brak paddingu oddaje szerokość wykresom i tabelom. */
+.wz-step.wz-result-step { padding: 0; }
+
 /* Container query potrzebny tylko w kroku strategii. Containment na całym
    kroku wyniku tworzył stacking context i chował tooltipy pod paskiem akcji. */
 .wz-step[data-step-id="strategia"] { container-type: inline-size; }
@@ -466,12 +470,13 @@
 .wz-section-head {
     display: flex;
     flex-wrap: wrap;
-    align-items: baseline;
+    align-items: center;
     justify-content: space-between;
     gap: var(--sp-2) var(--sp-4);
 }
 
-.wz-section-head .wz-panel-title { margin-bottom: 0; }
+.wz-section-head .wz-panel-title,
+.wz-section-head .wz-section-title { margin-bottom: 0; }
 
 .wz-summary {
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -2101,6 +2106,46 @@
     vector-effect: non-scaling-stroke;
 }
 
+.wz-chart-reference-line {
+    stroke: var(--text-3);
+    stroke-width: 1;
+    stroke-dasharray: 4 4;
+    opacity: 0.7;
+    vector-effect: non-scaling-stroke;
+    pointer-events: none;
+}
+
+.wz-chart-reference-line.is-min {
+    stroke: var(--text-2);
+    stroke-dasharray: 2 4;
+    opacity: 0.55;
+}
+
+.wz-chart-reference-line.is-peak {
+    stroke: var(--text-2);
+    opacity: 0.65;
+}
+
+.wz-chart-reference-dot {
+    fill: var(--text);
+    stroke: var(--surface-2);
+    stroke-width: 2;
+    pointer-events: none;
+}
+
+.wz-chart-reference-label {
+    fill: var(--text);
+    stroke: var(--surface-2);
+    stroke-width: 3px;
+    stroke-linejoin: round;
+    paint-order: stroke;
+    font-family: var(--font);
+    font-size: var(--fs-xs);
+    font-weight: 650;
+    font-variant-numeric: tabular-nums;
+    pointer-events: none;
+}
+
 .wz-chart-hover-band {
     fill: var(--surface-hover);
     opacity: 0;
@@ -2402,32 +2447,132 @@
     color: var(--text);
 }
 
-.wz-chart-annotation-age {
-    font-weight: 700;
-    color: var(--text);
+/* --- Kamienie milowe na wykresach Asystenta ------------------------------- */
+
+.wz-chart-milestones {
+    position: relative;
+    min-width: 0;
+    margin: 2px 0 4px;
 }
 
-.wz-chart-annotation-note {
-    margin: var(--sp-3) 0 0;
-    padding: var(--sp-2) var(--sp-3);
-    border: 1px solid var(--border);
-    border-radius: var(--r-md);
-    background: var(--surface-2);
+.wz-chart-milestone {
+    --milestone-color: var(--text-2);
+    position: absolute;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    height: 24px;
+    padding: 0 8px;
+    border: 1px solid color-mix(in srgb, var(--milestone-color) 45%, var(--border));
+    border-radius: var(--r-pill);
+    background: color-mix(in srgb, var(--milestone-color) 7%, var(--surface-2));
+    color: var(--text);
+    font: inherit;
+    font-size: var(--fs-xs);
+    font-weight: 650;
+    line-height: 1;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background var(--t-fast), border-color var(--t-fast);
+}
+
+.wz-chart-milestone:hover {
+    border-color: var(--milestone-color);
+    background: color-mix(in srgb, var(--milestone-color) 14%, var(--surface-2));
+}
+
+.wz-chart-milestone.is-active {
+    border-color: var(--milestone-color);
+    background: color-mix(in srgb, var(--milestone-color) 20%, var(--surface-2));
+}
+
+.wz-chart-milestone:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+}
+
+.wz-chart-milestone-dot {
+    width: 6px;
+    height: 6px;
+    flex: 0 0 auto;
+    border-radius: 50%;
+    background: var(--milestone-color, var(--text-2));
+}
+
+.wz-chart-milestone-label { font-weight: 650; }
+
+.wz-chart-milestone-age {
+    color: var(--text-2);
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.wz-chart-milestone.is-active .wz-chart-milestone-age { color: var(--text); }
+
+.wz-chart-milestone.is-fire,
+.wz-chart-milestone-line.is-fire,
+.wz-chart-milestone-band.is-fire,
+.wz-chart-milestone-dot.is-fire { --milestone-color: var(--stage-real); }
+
+.wz-chart-milestone.is-zus,
+.wz-chart-milestone-line.is-zus,
+.wz-chart-milestone-band.is-zus,
+.wz-chart-milestone-dot.is-zus { --milestone-color: var(--acct-zus); }
+
+.wz-chart-milestone.is-ikze,
+.wz-chart-milestone-line.is-ikze,
+.wz-chart-milestone-band.is-ikze,
+.wz-chart-milestone-dot.is-ikze { --milestone-color: var(--acct-ikze); }
+
+.wz-chart-milestone.is-horizon,
+.wz-chart-milestone-line.is-horizon,
+.wz-chart-milestone-band.is-horizon,
+.wz-chart-milestone-dot.is-horizon { --milestone-color: var(--text-2); }
+
+.wz-chart-milestone-line {
+    stroke: var(--milestone-color);
+    stroke-width: 1.25;
+    stroke-dasharray: 3 4;
+    opacity: 0.5;
+    vector-effect: non-scaling-stroke;
+    pointer-events: none;
+}
+
+.wz-chart-milestone-line.is-active {
+    stroke-width: 1.75;
+    stroke-dasharray: 4 3;
+    opacity: 0.95;
+}
+
+.wz-chart-milestone-band {
+    fill: var(--milestone-color);
+    opacity: 0;
+    pointer-events: none;
+}
+
+.wz-chart-milestone-band.is-active { opacity: 0.08; }
+
+.wz-chart-milestone-tip {
+    max-width: min(340px, calc(100vw - 16px));
+}
+
+.wz-chart-milestone-tip-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.wz-chart-milestone-tip-title .wz-chart-milestone-dot {
+    width: 8px;
+    height: 8px;
+}
+
+.wz-chart-milestone-tip-text {
+    margin: var(--sp-2) 0 0;
     color: var(--text-2);
     font-size: var(--fs-sm);
-    line-height: 1.45;
-}
-
-.wz-chart-annotation-line {
-    stroke: var(--primary);
-    stroke-width: 1.5;
-    stroke-dasharray: 4 4;
-    opacity: 0.9;
-    display: none;
-}
-
-.wz-chart-annotation-line.is-visible {
-    display: block;
+    line-height: 1.5;
 }
 
 .wz-flows-table-details {

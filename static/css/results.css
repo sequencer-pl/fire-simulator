@@ -342,6 +342,27 @@
     background: color-mix(in srgb, var(--stage-real) 6%, transparent);
 }
 
+.res-year-table tbody tr.post-horizon {
+    background: color-mix(in srgb, var(--acct-zus) 8%, var(--surface-2));
+}
+
+.res-year-table tbody tr.post-horizon td {
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+    background: color-mix(in srgb, var(--acct-zus) 8%, var(--surface-2));
+    border-top: 1px dashed color-mix(in srgb, var(--acct-zus) 55%, var(--border));
+    font-weight: 650;
+}
+
+.res-year-table tbody tr.post-horizon .col-stage {
+    color: var(--text);
+}
+
+.res-year-table tbody tr.post-horizon td.col-monthly {
+    font-weight: 700;
+}
+
 .res-year-table tbody tr:hover {
     background: var(--surface-hover);
 }
@@ -349,6 +370,21 @@
 .res-year-table td.col-stage {
     color: var(--text-2);
     font-weight: 600;
+}
+
+.res-year-table th.col-monthly {
+    color: var(--text-2);
+}
+
+.res-year-table td.col-monthly {
+    color: var(--text);
+    font-weight: 700;
+}
+
+@media (max-width: 760px) {
+    .res-year-table td.col-stage {
+        max-width: 130px;
+    }
 }
 
 .res-year-table tr.stage-accum td.col-stage {

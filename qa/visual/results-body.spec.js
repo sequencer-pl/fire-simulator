@@ -25,6 +25,31 @@ test("Asystent pokazuje wspólne Etapy i tabelę rok po roku", async ({ page }) 
     });
     await expect(page.locator("#wzYearTable tbody tr")).not.toHaveCount(0);
     await expect(page.locator("#wzYearTable .density-control")).toBeVisible();
+    const postHorizon = page.locator("#wzYearTable tr.post-horizon");
+    await expect(postHorizon).toHaveCount(1);
+    await expect(postHorizon.locator(".col-age")).toHaveText("96+");
+    await expect(postHorizon.locator(".col-stage")).toContainText("Tylko ZUS");
+    const headers = page.locator("#wzYearTable thead th");
+    await expect(headers.nth(2)).toHaveText("Wypłata mies.");
+    await expect(headers.nth(3)).toHaveText("Majątek");
+    await expect(headers.nth(4)).toHaveText("Wypłata roczna");
+    await expect(headers.nth(5)).toHaveText("Podatek");
+    await expect(page.locator("#wzYearTable tbody tr").first().locator("td.col-monthly"))
+        .toHaveCSS("font-weight", "700");
+    await expect(postHorizon.locator("td.col-monthly")).toHaveCSS("font-weight", "700");
+
+    await expect(page.locator("#wzWithdrawalsChart .wz-chart-reference-label").first())
+        .toContainText("średnia");
+    await expect(page.locator("#wzCapitalChart .wz-chart-reference-label")).toContainText("szczyt");
+    await expect(page.locator("#wzCapitalChart .wz-chart-reference-dot")).toHaveCount(1);
+
+    const withdrawalAxis = await page.locator("#wzWithdrawalsChart .wz-chart-axis-y").allTextContents();
+    const capitalAxis = await page.locator("#wzCapitalChart .wz-chart-axis-y").allTextContents();
+    expect(new Set(withdrawalAxis).size).toBe(withdrawalAxis.length);
+    expect(withdrawalAxis.some((label) => label.includes("tys."))).toBe(false);
+    await expect(page.locator("#wzCapitalChart .wz-chart-unit")).toHaveText("tys. zł");
+    expect(new Set(capitalAxis).size).toBe(capitalAxis.length);
+    expect(capitalAxis.some((label) => label.includes("tys."))).toBe(false);
 });
 
 test("Symulator pokazuje wspólne planowanie i wykresy SVG", async ({ page }) => {

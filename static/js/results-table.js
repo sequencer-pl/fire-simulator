@@ -16,6 +16,7 @@
             open = false,
             embedded = false,
             tableId = "",
+            postHorizon = null,
         } = options;
 
         counter += 1;
@@ -29,33 +30,68 @@
         }
 
         const columns = [
-            ...accounts.map((account) => ({ key: account, label: labels[account] || account })),
+            { key: "monthly", label: "Wypłata mies." },
             { key: "wealth", label: "Majątek" },
             { key: "annual", label: "Wypłata roczna" },
-            { key: "monthly", label: "Wypłata mies." },
             { key: "tax", label: "Podatek" },
+            ...accounts.map((account) => ({
+                key: account,
+                label: labels[account] || account,
+                account: true,
+            })),
         ];
 
         const header = columns.map((column) => {
-            const isAccount = accounts.includes(column.key);
-            return `<th data-col="${window.escapeHtml(column.key)}"${isAccount ? "" : ' class="amount"'}>${window.escapeHtml(column.label)}</th>`;
+            const classes = ["amount"];
+            if (column.key === "monthly") classes.push("col-monthly");
+            return `<th data-col="${window.escapeHtml(column.key)}" class="${classes.join(" ")}">${window.escapeHtml(column.label)}</th>`;
         }).join("");
 
-        const rows = years.map((year) => {
-            const cells = accounts.map((account) => {
-                const value = year.balances?.[account] || 0;
-                return `<td class="amount" data-col="${window.escapeHtml(account)}">${money(value)}</td>`;
-            }).join("");
-            return `<tr class="${year.monthly_withdrawal > 0 ? "highlight" : "stage-accum"}" data-age="${year.age}">
-                <td class="col-age">${year.age}</td>
+        const valueFor = (column, year) => {
+            if (column.account) return money(year.balances?.[column.key] || 0);
+            if (column.key === "monthly") return money(year.monthly_withdrawal);
+            if (column.key === "wealth") return money(year.total_wealth);
+            if (column.key === "annual") return money(year.annual_withdrawal);
+            if (column.key === "tax") return money(year.tax_paid);
+            return money(0);
+        };
+
+        const cellFor = (column, year) => {
+            const classes = ["amount"];
+            if (column.key === "monthly") classes.push("col-monthly");
+            if (column.key === "tax" && (year.tax_paid || 0) < 0) classes.push("text-success");
+            return `<td class="${classes.join(" ")}" data-col="${window.escapeHtml(column.key)}">${valueFor(column, year)}</td>`;
+        };
+
+        const rowHtml = (year, index, isPost = false) => {
+            const cells = columns.map((column) => cellFor(column, year)).join("");
+            const rowClass = isPost
+                ? "highlight post-horizon"
+                : (year.monthly_withdrawal > 0 ? "highlight" : "stage-accum");
+            const keep = isPost || index === years.length - 1;
+            const title = isPost
+                ? ` title="${window.escapeHtml(postHorizon.title || "")}"`
+                : "";
+            return `<tr class="${rowClass}" data-age="${window.escapeHtml(String(year.age))}" data-keep="${keep}"${title}>
+                <td class="col-age">${window.escapeHtml(String(year.age))}</td>
                 <td class="col-stage">${window.escapeHtml(year.stage_name || "")}</td>
                 ${cells}
-                <td class="amount" data-col="wealth"><strong>${money(year.total_wealth)}</strong></td>
-                <td class="amount" data-col="annual">${money(year.annual_withdrawal)}</td>
-                <td class="amount" data-col="monthly">${money(year.monthly_withdrawal)}</td>
-                <td class="amount ${year.tax_paid < 0 ? "text-success" : ""}" data-col="tax">${money(year.tax_paid)}</td>
             </tr>`;
-        }).join("");
+        };
+
+        const postYear = postHorizon && postHorizon.monthly > 0.5
+            ? {
+                age: postHorizon.ageLabel,
+                stage_name: postHorizon.stageName || "Tylko ZUS",
+                balances: {},
+                total_wealth: 0,
+                annual_withdrawal: postHorizon.annual,
+                monthly_withdrawal: postHorizon.monthly,
+                tax_paid: 0,
+            }
+            : null;
+        const rows = years.map((year, index) => rowHtml(year, index)).join("")
+            + (postYear ? rowHtml(postYear, years.length, true) : "");
 
         const columnOptions = columns.map((column) => `
             <label class="res-columns-option">
@@ -107,9 +143,10 @@
             const rows = table?.querySelectorAll("tbody tr") || [];
             rows.forEach((row, index) => {
                 const isLast = index === rows.length - 1;
+                const isKept = row.dataset.keep === "true";
                 row.classList.toggle(
                     "density-hidden",
-                    value > 1 && !isLast && index % value !== 0
+                    value > 1 && !isLast && !isKept && index % value !== 0
                 );
             });
         };
