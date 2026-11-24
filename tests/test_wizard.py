@@ -263,15 +263,20 @@ def test_mortgage_redirect_splits_accumulation_at_payoff_age():
     assert stages[1].end_age == 55
 
 
-def test_landing_notes_precede_nav_cards(client):
+def test_landing_orders_value_before_caveats(client):
     resp = client.get("/")
     assert resp.status_code == 200
     text = resp.text
-    hero = text.index("Zaplanuj swoją drogę")
-    notes = text.index("Zanim zaczniesz planować")
-    nav = text.index("Dostępne sekcje")
-    assert hero < notes < nav
-    assert "Sześć pytań" not in text
-    assert "Krótkie pytania dopasowane do Twojej sytuacji" in text
+    hero = text.index("Ile wystarczy odkładać")
+    how = text.index("Jak to działa")
+    model = text.index("Co model liczy")
+    modes = text.index("Wybierz tryb")
+    trust = text.index("Model, nie wróżba")
+    assert hero < how < model < modes < trust
+    assert "Zbuduj plan z Asystentem" in text
+    assert "Wiek FIRE" in text
+    assert "1 z 3 scenariuszy" in text
+    assert "Czy wiesz, że" not in text
+    assert "Zanim zaczniesz planować" not in text
     assert "Porównywarka" in text
     assert "Moje symulacje" not in text

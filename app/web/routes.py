@@ -56,6 +56,7 @@ def _asset_version_uncached() -> str:
             "css/base.css",
             "css/components.css",
             "css/results.css",
+            "css/landing.css",
             "css/wizard.css",
             "css/library.css",
             "css/sim.css",

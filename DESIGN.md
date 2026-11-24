@@ -139,6 +139,8 @@ wynikach i eksporcie. Definicje są krótkie i pisane językiem użytkownika.
 
 - **FIRE** — niezależność finansowa i możliwość wcześniejszego zakończenia pracy.
 - **Full FIRE / Pełne FIRE** — całkowite zakończenie pracy w wybranym wieku.
+- **Brydż do emerytury** — okres między zakończeniem pracy a emeryturą ZUS,
+  finansowany z portfela.
 - **Częściowe FIRE** — wspólna nazwa etapów Coast i Barista, w których praca
   na część etatu współfinansuje życie przed pełnym FIRE. Na osiach i Gancie
   używamy tej etykiety zbiorczej; szczegóły wyjaśnia tooltip etapu.

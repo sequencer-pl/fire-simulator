@@ -1032,14 +1032,32 @@ tbody tr.table-group:hover td { background: var(--surface-2); }
     cursor: help;
     vertical-align: middle;
     flex-shrink: 0;
+    padding: 0;
+    background: none;
+    font-family: inherit;
+    appearance: none;
+    -webkit-appearance: none;
     outline: none;
     transition: color var(--t-fast), border-color var(--t-fast);
+}
+
+/* Większy cel dotykowy bez zmiany rozmiaru widocznego znaku. */
+.tip::before {
+    content: "";
+    position: absolute;
+    inset: -5px;
+    border-radius: 50%;
 }
 
 .tip:hover,
 .tip:focus {
     color: var(--primary-text);
     border-color: var(--primary);
+}
+
+.tip:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
 }
 
 .tip .tooltip {
