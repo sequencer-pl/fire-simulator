@@ -436,7 +436,6 @@ def _refine_candidate(
     candidate_answers = a.model_copy(
         update={
             "zus_start_age": candidate.zus_start_age,
-            "retirement_age": candidate.zus_start_age,
             "allocations": candidate.allocations,
             "wrapper_vehicles": candidate.vehicles,
         },
@@ -475,7 +474,6 @@ def _evaluate_weights(
     candidate_answers = a.model_copy(
         update={
             "zus_start_age": age,
-            "retirement_age": age,
             "allocations": weights,
             "wrapper_vehicles": vehicles,
         },
@@ -810,7 +808,6 @@ def plan_optimized(
         chosen = a.model_copy(
             update={
                 "zus_start_age": recommended.zus_start_age,
-                "retirement_age": recommended.zus_start_age,
                 "allocations": recommended.allocations,
                 "wrapper_vehicles": recommended.vehicles,
             },

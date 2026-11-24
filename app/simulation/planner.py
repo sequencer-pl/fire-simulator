@@ -1,6 +1,6 @@
 from typing import Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.core.tax import scale_tax
 from app.simulation.config import (
@@ -8,12 +8,12 @@ from app.simulation.config import (
     WRAPPER_VEHICLE_KEYS,
     ScenarioModifier,
     TaxConfig,
+    backfill_tax_config,
     base_account_key,
     default_config,
 )
 from app.simulation.constants import MONTHS_PER_YEAR, PPE_ZUS_FRACTION
 from app.simulation.engine import (
-    _compute_monthly_gross_dochod,
     _init_state,
     _run_year,
     simulate,
@@ -22,6 +22,7 @@ from app.simulation.salary import (
     b2b_gross_from_net,
     b2b_net_from_gross,
     b2b_zus_base_and_social,
+    etat_taxable_income,
     gross_from_net,
     net_from_gross,
 )
@@ -193,12 +194,24 @@ class WizardAnswers(BaseModel):
     # Rodzaj inwestycji wewnątrz IKE/IKZE/OIPE (jeden na wrapper).
     wrapper_vehicles: dict[str, str] = Field(default_factory=dict)
 
+    @field_validator("base_config", mode="before")
+    @classmethod
+    def _backfill_saved_config(cls, value):
+        if isinstance(value, dict):
+            return backfill_tax_config(dict(value))
+        return value
+
     @model_validator(mode="after")
     def validate_allocations(self) -> "WizardAnswers":
         share_sum = 0.0
         for name, weight in self.allocations.items():
             if base_account_key(name) not in ALLOCATABLE_ACCOUNTS:
                 raise ValueError(f"Nieznane konto w podziale oszczędności: {name}")
+            if base_account_key(name) in WRAPPER_ACCOUNTS and name != base_account_key(name):
+                raise ValueError(
+                    "IKE, IKZE i OIPE są pojedynczymi opakowaniami — "
+                    "nie można tworzyć ich instancji."
+                )
             if weight < 0:
                 raise ValueError(f"Udział {name} nie może być ujemny.")
             share_sum += weight
@@ -239,6 +252,13 @@ class SalaryPreviewRequest(BaseModel):
     # Anonymous wizard sessions send their locally saved config here.
     base_config: TaxConfig | None = None
 
+    @field_validator("base_config", mode="before")
+    @classmethod
+    def _backfill_saved_config(cls, value):
+        if isinstance(value, dict):
+            return backfill_tax_config(dict(value))
+        return value
+
 
 class StageMetric(BaseModel):
     """Approximate monthly cash flow for one stage.
@@ -263,9 +283,10 @@ class PhaseMetric(BaseModel):
     net payout during realization. ``portfolio_monthly`` and ``zus_monthly``
     split the payout into its two sources so the retirement phase can show a
     combined total while the stage metrics still expose the overlapping stages.
+    ``part_time_monthly`` pokazuje dochód z części etatu w fazie Barista.
     """
 
-    key: Literal["accumulation", "bridge", "retirement_topup", "zus_only"]
+    key: Literal["accumulation", "bridge", "partial_fire", "retirement_topup", "zus_only"]
     name: str
     cashflow: Literal["contribution", "payout"]
     start_age: int
@@ -273,6 +294,8 @@ class PhaseMetric(BaseModel):
     monthly: float = 0.0
     portfolio_monthly: float = 0.0
     zus_monthly: float = 0.0
+    part_time_monthly: float = 0.0
+    mortgage_monthly: float = 0.0
 
 
 class AccountPhase(BaseModel):
@@ -474,7 +497,7 @@ def estimate_pool_monthly(
         na = a.model_copy(deep=True)
         if not na.allocations:
             na.allocations = suggest_allocations(
-                na, default_config(), max(12_000.0, target_monthly * 12.0)
+                na, _config_for_answers(na), max(12_000.0, target_monthly * 12.0)
             )
         amount, _ = _solve_savings(na, target_monthly)
         return round(amount, 2)
@@ -619,12 +642,13 @@ def _with_basis(name: str) -> bool:
 
 
 def _shelter_cap(a: WizardAnswers, config, name: str) -> float:
+    base = base_account_key(name)
     limits = config.limits
-    if name == "ikze":
+    if base == "ikze":
         return limits.ikze_annual_self_employed if a.employment == "b2b" else limits.ikze_annual
-    if name == "ike":
+    if base == "ike":
         return limits.ike_annual
-    if name == "oipe":
+    if base == "oipe":
         return limits.oipe_annual
     return 0.0
 
@@ -641,12 +665,17 @@ def _resolve_allocation(a: WizardAnswers, config, annual_pool: float) -> dict[st
     „2 zł/rok w gotówce”.
     """
     alloc: dict[str, float] = {}
+    used_by_base: dict[str, float] = {}
     for inst, weight in a.allocations.items():
         target = annual_pool * weight / 100.0
+        base = base_account_key(inst)
         cap = _shelter_cap(a, config, inst)
+        if cap:
+            cap = max(0.0, cap - used_by_base.get(base, 0.0))
         contrib = min(target, cap) if cap else target
         if contrib > 1e-6:
             alloc[inst] = round(contrib, 2)
+            used_by_base[base] = used_by_base.get(base, 0.0) + contrib
     used = sum(alloc.values())
     overflow = max(0.0, annual_pool - used)
     if overflow > TINY_CASH_ANNUAL:
@@ -659,6 +688,21 @@ def _resolve_allocation(a: WizardAnswers, config, annual_pool: float) -> dict[st
     return alloc
 
 
+def _ikze_taxable_income(a: WizardAnswers, config: TaxConfig, gross: float) -> float:
+    """Roczny dochód do ulgi IKZE (skala PIT) dla etatu/B2B."""
+    gross = max(0.0, gross)
+    if gross <= 0:
+        return 0.0
+    if a.employment == "etat":
+        return etat_taxable_income(gross, config)
+    if a.employment == "b2b" and a.b2b_tax_form == "skala":
+        _base, social_m = b2b_zus_base_and_social(
+            a.b2b_zus_mode, config, a.b2b_custom_zus_base
+        )
+        return max(0.0, gross * MONTHS_PER_YEAR - social_m * MONTHS_PER_YEAR)
+    return 0.0
+
+
 def _ikze_deduction_rate(a: WizardAnswers, config: TaxConfig) -> float:
     """Średnia ulga PIT od wpłaty IKZE (0–1) — do progu IKZE vs IKE."""
     gross = max(0.0, a.gross_monthly)
@@ -668,22 +712,7 @@ def _ikze_deduction_rate(a: WizardAnswers, config: TaxConfig) -> float:
         return 0.19
     if a.employment == "b2b" and a.b2b_tax_form == "ryczalt":
         return max(0.0, a.b2b_lump_rate)
-    if a.employment == "b2b" and a.b2b_tax_form == "skala":
-        base, social_m = b2b_zus_base_and_social(
-            a.b2b_zus_mode, config, a.b2b_custom_zus_base
-        )
-        income = max(0.0, (gross - social_m) * MONTHS_PER_YEAR)
-        limit = (
-            config.limits.ikze_annual_self_employed
-            if a.employment == "b2b"
-            else config.limits.ikze_annual
-        )
-        if income <= 0 or limit <= 0:
-            return 0.0
-        before = scale_tax(income, **config.scale_kwargs())
-        after = scale_tax(max(0.0, income - limit), **config.scale_kwargs())
-        return max(0.0, before - after) / limit
-    income = _compute_monthly_gross_dochod(gross, config)
+    income = _ikze_taxable_income(a, config, gross)
     limit = (
         config.limits.ikze_annual_self_employed
         if a.employment == "b2b"
@@ -790,7 +819,7 @@ def _add_taxable_market(
     share: float,
     annual_pool: float,
     profile,
-    oki_room: float = 0.0,
+    oki_rooms: dict[str, float] | None = None,
 ) -> None:
     if share <= 1e-6:
         return
@@ -798,6 +827,7 @@ def _add_taxable_market(
         amounts["broker"] = amounts.get("broker", 0.0) + share
         return
     single_cap = max(0.0, profile.max_single_taxable * 100.0)
+    oki_room = (oki_rooms or {}).get("total", 0.0)
     oki_cap = min(
         single_cap,
         oki_room / annual_pool * 100.0 if annual_pool > 0 else 0.0,
@@ -810,23 +840,30 @@ def _add_taxable_market(
         amounts["broker"] = amounts.get("broker", 0.0) + broker
     if oki > 1e-6:
         amounts["oki_inw"] = amounts.get("oki_inw", 0.0) + oki
+        if oki_rooms is not None:
+            oki_rooms["total"] = max(
+                0.0, oki_rooms.get("total", 0.0) - oki / 100.0 * annual_pool
+            )
     if rest > 1e-6:
-        # Oba konta rynkowe mają własne capy; resztę trzymamy w brokerze,
-        # żeby pula nie znikała. Optimizer i tak sprawdzi limity.
-        amounts["broker"] = amounts.get("broker", 0.0) + rest
+        # Profil ogranicza pojedyncze konto taxable. Reszta, której nie da się
+        # ulokować w OKI, trafia do gotówki (widoczny, bezpieczny sink), a nie
+        # ponad limit brokera.
+        amounts["gotowka"] = amounts.get("gotowka", 0.0) + rest
 
 
 def _add_taxable_safe(
     amounts: dict[str, float],
     share: float,
     annual_pool: float,
-    oki_room: float = 0.0,
+    oki_rooms: dict[str, float] | None = None,
 ) -> None:
     if share <= 1e-6:
         return
     if annual_pool * share / 100.0 < MIX_MIN_ANNUAL:
         amounts["obligacje"] = amounts.get("obligacje", 0.0) + share
         return
+    rooms = oki_rooms or {}
+    oki_room = min(rooms.get("total", 0.0), rooms.get("savings", 0.0))
     oki_share = min(
         share * 20.0 / 100.0,
         oki_room / annual_pool * 100.0 if annual_pool > 0 else 0.0,
@@ -838,6 +875,12 @@ def _add_taxable_safe(
             amounts[name] = amounts.get(name, 0.0) + part
     if oki_share > 1e-6:
         amounts["oki_osk"] = amounts.get("oki_osk", 0.0) + oki_share
+        if oki_rooms is not None:
+            amount = oki_share / 100.0 * annual_pool
+            oki_rooms["total"] = max(0.0, oki_rooms.get("total", 0.0) - amount)
+            oki_rooms["savings"] = max(
+                0.0, oki_rooms.get("savings", 0.0) - amount
+            )
 
 
 def suggest_allocation_plan(
@@ -857,6 +900,7 @@ def suggest_allocation_plan(
     profile = config.risk_profiles.get(a.risk_profile) or config.risk_profiles["zrownowazony"]
     safe_target, market_target, high_target = _target_asset_mix(a, config)
     oki_total_room, oki_savings_room = _oki_exemption_room(a, config)
+    oki_rooms = {"total": oki_total_room, "savings": oki_savings_room}
 
     if annual_pool < MIX_MIN_ANNUAL:
         active = {n for n in ALLOCATABLE_ACCOUNTS if _account_present(a, n, {})}
@@ -971,10 +1015,10 @@ def suggest_allocation_plan(
         amounts["krypto"] = amounts.get("krypto", 0.0) + high_target
     if market_left > 1e-6:
         _add_taxable_market(
-            amounts, market_left, annual_pool, profile, oki_total_room
+            amounts, market_left, annual_pool, profile, oki_rooms
         )
     if safe_left > 1e-6:
-        _add_taxable_safe(amounts, safe_left, annual_pool, oki_savings_room)
+        _add_taxable_safe(amounts, safe_left, annual_pool, oki_rooms)
 
     total = sum(amounts.values())
     if total <= 0:
@@ -1059,6 +1103,7 @@ def _build_accum_stage_accounts(
     gross: float,
     zus_base_override: float | None = None,
     include_starting: bool = True,
+    payroll_contributions: bool = True,
 ) -> dict[str, AccountConfig]:
     accum_accounts: dict[str, AccountConfig] = {}
     regime, lump_rate = _ikze_regime_for_answers(a)
@@ -1072,6 +1117,8 @@ def _build_accum_stage_accounts(
             cfg["monthly_base"] = gross
             cfg["ikze_tax_regime"] = regime
             cfg["ikze_lump_sum_rate"] = lump_rate
+            if regime == "scale":
+                cfg["ikze_income_annual"] = _ikze_taxable_income(a, config, gross)
         accum_accounts[name] = AccountConfig(**cfg)
     if a.use_nieruchomosc or a.capital.get("nieruchomosc", 0.0) > 0:
         re_start = a.capital.get("nieruchomosc", 0.0) if include_starting else 0.0
@@ -1085,7 +1132,7 @@ def _build_accum_stage_accounts(
             annual_contribution=alloc.get("gotowka", 0.0),
             roi=0.0,
         )
-    ppk_active = employed and a.use_ppk and a.ppk_contributions
+    ppk_active = employed and payroll_contributions and a.use_ppk and a.ppk_contributions
     ppk_present = a.use_ppk or a.capital.get("ppk", 0.0) > 0
     if ppk_present and (
         ppk_active or (include_starting and a.capital.get("ppk", 0.0) > 0)
@@ -1098,7 +1145,7 @@ def _build_accum_stage_accounts(
             state_topups=a.ppk_state_topups if ppk_active else False,
             roi=_roi(a, "ppk", config),
         )
-    ppe_active = employed and a.use_ppe and a.ppe_contributions
+    ppe_active = employed and payroll_contributions and a.use_ppe and a.ppe_contributions
     ppe_present = a.use_ppe or a.capital.get("ppe", 0.0) > 0
     if ppe_present and (
         ppe_active or (include_starting and a.capital.get("ppe", 0.0) > 0)
@@ -1295,6 +1342,7 @@ def build_stages(a: WizardAnswers) -> SimulationInput:
                     a, config, inv_names, coast_alloc, cash_present,
                     employed and coast_gross > 0, coast_gross,
                     zus_base_override=coast_zus, include_starting=False,
+                    payroll_contributions=False,
                 )
                 if acc2:
                     stages.append(
@@ -1318,6 +1366,7 @@ def build_stages(a: WizardAnswers) -> SimulationInput:
                     a, config, inv_names, boosted_coast_alloc, cash_present,
                     employed and coast_gross > 0, coast_gross,
                     zus_base_override=coast_zus, include_starting=False,
+                    payroll_contributions=False,
                 )
                 if acc2b:
                     stages.append(
@@ -1334,6 +1383,7 @@ def build_stages(a: WizardAnswers) -> SimulationInput:
                     a, config, inv_names, coast_alloc, cash_present,
                     employed and coast_gross > 0, coast_gross,
                     zus_base_override=coast_zus, include_starting=False,
+                    payroll_contributions=False,
                 )
                 if acc2:
                     stages.append(
@@ -1450,6 +1500,19 @@ def build_stages(a: WizardAnswers) -> SimulationInput:
                     else 0.0
                 )
             )
+            if a.employment == "b2b" and a.semi_fire_net_monthly > 0 and a.b2b_tax_form:
+                pt_gross = b2b_gross_from_net(
+                    a.semi_fire_net_monthly,
+                    config,
+                    tax_form=a.b2b_tax_form,
+                    lump_rate=a.b2b_lump_rate,
+                    zus_mode=a.b2b_zus_mode,
+                    custom_zus_base=a.b2b_custom_zus_base,
+                )
+            elif a.employment == "etat" and a.semi_fire_net_monthly > 0:
+                pt_gross = gross_from_net(a.semi_fire_net_monthly, config)
+            else:
+                pt_gross = a.semi_fire_net_monthly
             stages.append(
                 StageInput(
                     stage_type="realizacja",
@@ -1457,6 +1520,7 @@ def build_stages(a: WizardAnswers) -> SimulationInput:
                     start_age=semi_age,
                     end_age=re,
                     part_time_net_monthly=a.semi_fire_net_monthly,
+                    part_time_gross_monthly=pt_gross,
                     part_time_zus_base=pt_zus if a.use_zus else 0.0,
                     accounts={
                         k: v.model_copy(deep=True) for k, v in bridge_accounts.items()
@@ -1568,7 +1632,14 @@ def _monthly_contribution(
     if name == "ppk":
         total = cfg.monthly_base * (cfg.employee_pct + cfg.employer_pct)
         if cfg.state_topups:
-            total += config.ppk.state_annual / MONTHS_PER_YEAR
+            threshold = (
+                config.ppk.min_wage
+                * config.ppk.state_topup_min_wage_multiple
+                * config.ppk.state_topup_min_rate
+            )
+            annual_basic = total * MONTHS_PER_YEAR
+            if annual_basic >= threshold:
+                total += config.ppk.state_annual / MONTHS_PER_YEAR
         return total
     if name == "ppe":
         total = cfg.monthly_base * cfg.employer_pct * (1.0 - PPE_ZUS_FRACTION)
@@ -1640,6 +1711,27 @@ def _payout_averages(
     return monthly, portfolio, zus
 
 
+def _lifestyle_averages(
+    data: SimulationInput, result: SimulationResult, start_age: int, end_age: int
+) -> tuple[float, float, float, float]:
+    """Średni budżet netto, portfel, ZUS i praca w oknie wiekowym."""
+    years = [year for year in result.years if start_age <= year.age < end_age]
+    if not years:
+        return 0.0, 0.0, 0.0, 0.0
+    lifestyle = _average([_year_lifestyle_net_monthly(data, year) for year in years])
+    monthly, portfolio, zus = _payout_averages(result, start_age, end_age)
+    part_time = 0.0
+    for si in data.stages:
+        if (
+            si.stage_type == "realizacja"
+            and si.part_time_net_monthly > 0
+            and si.start_age < end_age
+            and si.end_age > start_age
+        ):
+            part_time = max(part_time, si.part_time_net_monthly)
+    return lifestyle, portfolio, zus, part_time
+
+
 def _zus_indexation(data: SimulationInput, zus_stage: StageInput | None) -> float:
     if zus_stage is not None:
         override = zus_stage.accounts["zus"].waloryzacja_swiadczenia
@@ -1678,6 +1770,14 @@ def _projected_zus_values(
         if age >= start_age:
             projected.append(value)
     return actual + projected
+
+
+def _mortgage_in_window(data: SimulationInput, start_age: int, end_age: int) -> float:
+    if data.mortgage_monthly <= 0 or data.mortgage_end_age is None:
+        return 0.0
+    if start_age < data.mortgage_end_age and end_age > start_age:
+        return float(data.mortgage_monthly)
+    return 0.0
 
 
 def _phase_metrics(
@@ -1739,8 +1839,39 @@ def _phase_metrics(
         retirement = re
     retirement = max(re, retirement)
 
+    partial_stage = next(
+        (
+            stage
+            for stage in portfolio_stages
+            if stage.part_time_net_monthly > 0 and stage.start_age < retirement
+        ),
+        None,
+    )
+    if partial_stage is not None and partial_stage.start_age >= re:
+        part_end = min(partial_stage.end_age, retirement)
+        lifestyle, portfolio, zus, part_time = _lifestyle_averages(
+            data, result, partial_stage.start_age, part_end
+        )
+        phases.append(
+            PhaseMetric(
+                key="partial_fire",
+                name=partial_stage.name or "Częściowe FIRE",
+                cashflow="payout",
+                start_age=partial_stage.start_age,
+                end_age=part_end,
+                monthly=round(lifestyle, 2),
+                portfolio_monthly=round(portfolio, 2),
+                zus_monthly=round(zus, 2),
+                part_time_monthly=round(part_time, 2),
+                mortgage_monthly=round(
+                    _mortgage_in_window(data, partial_stage.start_age, part_end), 2
+                ),
+            )
+        )
+        re = max(re, part_end)
+
     if re < retirement:
-        monthly, portfolio, zus = _payout_averages(result, re, retirement)
+        monthly, portfolio, zus, _part = _lifestyle_averages(data, result, re, retirement)
         phases.append(
             PhaseMetric(
                 key="bridge",
@@ -1751,6 +1882,7 @@ def _phase_metrics(
                 monthly=round(monthly, 2),
                 portfolio_monthly=round(portfolio, 2),
                 zus_monthly=round(zus, 2),
+                mortgage_monthly=round(_mortgage_in_window(data, re, retirement), 2),
             )
         )
 
@@ -1759,7 +1891,9 @@ def _phase_metrics(
         for stage in portfolio_stages
     )
     if retirement < plan_end and has_portfolio_retirement:
-        monthly, portfolio, zus = _payout_averages(result, retirement, plan_end)
+        monthly, portfolio, zus, _part = _lifestyle_averages(
+            data, result, retirement, plan_end
+        )
         if portfolio <= 0 and zus_stage is not None:
             values = _projected_zus_values(
                 result,
@@ -1794,6 +1928,9 @@ def _phase_metrics(
                 monthly=round(monthly, 2),
                 portfolio_monthly=round(portfolio, 2),
                 zus_monthly=round(zus, 2),
+                mortgage_monthly=round(
+                    _mortgage_in_window(data, retirement, plan_end), 2
+                ),
             )
         )
     elif retirement < plan_end and zus_stage is not None:
@@ -1877,7 +2014,12 @@ def _accumulation_phases(
             monthly = _monthly_contribution(name, cfg, data.monthly_gross, data.config)
             annual = monthly * MONTHS_PER_YEAR
             total = annual * stage_years
-            if base == "ppk" and cfg.state_topups and stage.start_age == first_accum_start:
+            if (
+                base == "ppk"
+                and cfg.state_topups
+                and cfg.starting_balance <= 0
+                and stage.start_age == first_accum_start
+            ):
                 total += data.config.ppk.state_welcoming
             start_year = years_by_age.get(stage.start_age - 1)
             starting = (
@@ -1973,7 +2115,7 @@ def _account_phases(
                 )
                 accum_years = max(0, stage.end_age - stage.start_age)
                 accum_total = accum_annual * accum_years
-                if acc == "ppk" and cfg.state_topups:
+                if acc == "ppk" and cfg.state_topups and cfg.starting_balance <= 0:
                     accum_total += data.config.ppk.state_welcoming
                 accum_end_balance = next(
                     (
@@ -2412,6 +2554,71 @@ def _append_cash_warning(proj: PlanProjection, data: SimulationInput) -> PlanPro
     return proj
 
 
+def _append_semi_warning(
+    proj: PlanProjection, a: WizardAnswers, data: SimulationInput
+) -> PlanProjection:
+    """Ostrzega, gdy wybrane Coast/Barista nie zmieściło się przed FIRE."""
+    if not a.semi_fire_enabled:
+        return proj
+    if a.semi_fire_mode == "coast":
+        has_part_time = any(
+            si.stage_type == "akumulacja" and si.name.startswith("Coast FIRE")
+            for si in data.stages
+        )
+    else:
+        has_part_time = any(
+            si.stage_type == "realizacja" and si.part_time_net_monthly > 0
+            for si in data.stages
+        )
+    if not has_part_time:
+        proj.warnings.append(
+            "Coast/Barista FIRE nie został uwzględniony: wiek części etatu musi być "
+            "wcześniejszy niż wiek pełnego FIRE. Podnieś wiek FIRE albo obniż wiek "
+            "przejścia na część etatu."
+        )
+    return proj
+
+
+def _append_b2b_warning(proj: PlanProjection, a: WizardAnswers) -> PlanProjection:
+    if a.employment != "b2b":
+        return proj
+    if a.b2b_zus_mode == "ulga":
+        proj.warnings.append(
+            "B2B: ulga na start trwa 6 miesięcy, a model liczy ją przez cały plan. "
+            "Po tym okresie pojawi się co najmniej preferencyjny, a potem pełny ZUS."
+        )
+    elif a.b2b_zus_mode == "maly":
+        proj.warnings.append(
+            "B2B: mały/preferencyjny ZUS trwa 24 miesiące, a model liczy go przez "
+            "cały plan. Po tym okresie składka wzrośnie do pełnego ZUS."
+        )
+    return proj
+
+
+def _append_coast_warning(
+    proj: PlanProjection,
+    a: WizardAnswers,
+    target: float | None,
+) -> PlanProjection:
+    """Coast nie wypłaca z portfela — pensja musi pokryć życie."""
+    if not a.semi_fire_enabled or a.semi_fire_mode != "coast":
+        return proj
+    reference = target if target and target > 0 else proj.min_monthly
+    if reference and reference > 0 and a.semi_fire_net_monthly < reference - 1:
+        proj.warnings.append(
+            "Coast FIRE zakłada, że pensja z części etatu pokrywa całe życie. "
+            f"Zadeklarowana pensja ({a.semi_fire_net_monthly:,.0f} zł/mies.) jest "
+            f"niższa od celu ({reference:,.0f} zł/mies.) — plan może być zbyt "
+            "optymistyczny; różnicę trzeba by dopłacać z portfela."
+        )
+    if a.semi_fire_savings_monthly > a.semi_fire_net_monthly + 1:
+        proj.warnings.append(
+            "Oszczędności w okresie Coast FIRE przekraczają pensję z części etatu. "
+            "Zmniejsz kwotę odkładaną albo zwiększ pensję."
+        )
+    return proj
+
+
 def _vary_savings(a: WizardAnswers, amount: float) -> SimulationInput:
     na = a.model_copy(deep=True)
     na.savings = amount
@@ -2431,7 +2638,7 @@ def _savings_upper_bound(a: WizardAnswers, target: float) -> float:
     taxes, so a hit on this cap is never a salary artifact. Balance-proportional
     taxes (OKI) can still make the cap unreachable — ``_solve_savings`` walks
     down from it in that case. The 2x factor absorbs taxes and drag on withdrawal."""
-    config = default_config()
+    config = _config_for_answers(a)
     retirement = _retirement_age(a, config)
     re = float(a.retire_early_age if a.retire_early_age is not None else retirement)
     horizon = max(1.0, float(a.plan_end_age) - re)
@@ -2486,9 +2693,14 @@ def _solve_savings(a: WizardAnswers, target: float) -> tuple[float, bool]:
 
 def _solve_re(a: WizardAnswers, target: float) -> tuple[int | None, bool]:
     """Earliest FIRE age whose projected payout meets target (binary search)."""
-    retirement = _retirement_age(a, default_config())
     low = a.age_now + 1
-    high = max(retirement, low)
+    if a.semi_fire_enabled and a.semi_fire_age is not None:
+        # Częściowe FIRE kończy się przed pełnym FIRE — nie szukamy re, przy
+        # którym etap Barista/Coast zostałby po cichu pominięty.
+        low = max(low, int(a.semi_fire_age) + 1)
+    high = max(int(a.plan_end_age) - 1, low)
+    if high < low:
+        return None, False
     if not _evaluate(_vary_re(a, high), target, a.bequest_target).met:
         return None, False
     while low < high:
@@ -2668,7 +2880,10 @@ def _plan_single(
             note=(
                 f"Najwcześniejszy wiek FIRE z gwarancją wypłaty {target:,.0f} zł/mies. to {re} lat."
                 if re <= _retirement_age(a, _config_for_answers(a))
-                else f"Wiek FIRE {re} lat (z pełnym wiekiem emerytalnym lub wcześniej)."
+                else (
+                    f"Wiek FIRE {re} lat — po ustawowym wieku emerytalnym; "
+                    "ZUS startuje z końcem pracy."
+                )
             ),
         ),
         result,
@@ -2712,6 +2927,9 @@ def plan(
         if (vehicle := _wrapper_vehicle(a, wrapper, plan_config)) is not None
     }
     main_input, main_proj, main_solved, main_result = _plan_single(path, a, target)
+    main_proj = _append_semi_warning(main_proj, a, main_input)
+    main_proj = _append_coast_warning(main_proj, a, target)
+    main_proj = _append_b2b_warning(main_proj, a)
     main_summary = build_summary(main_input, main_result)
     if extend_chart:
         main_proj = _extend_chart_to_100(
@@ -2737,6 +2955,9 @@ def plan(
                 sa = a.model_copy(deep=True)
                 sa.assumptions = key  # type: ignore[assignment]
                 s_in, s_proj, s_solved, s_result = _plan_single(path, sa, target)
+                s_proj = _append_semi_warning(s_proj, sa, s_in)
+                s_proj = _append_coast_warning(s_proj, sa, target)
+                s_proj = _append_b2b_warning(s_proj, sa)
                 if extend_chart:
                     s_proj = _extend_chart_to_100(
                         s_in, target, sa.bequest_target, s_proj

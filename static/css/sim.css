@@ -177,6 +177,14 @@
 
 .sim-config-section.collapsed { display: none; }
 
+.sim-mortgage-panel {
+    margin-bottom: var(--sp-4);
+}
+
+.sim-mortgage-panel .wz-grid {
+    margin-top: var(--sp-3);
+}
+
 .stages-head {
     display: flex;
     align-items: center;

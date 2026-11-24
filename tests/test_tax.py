@@ -407,7 +407,7 @@ def test_ikze_refund_goes_to_selected_target_not_auto_broker():
     assert result.total_tax_refund == pytest.approx(90_432, rel=1e-3)
 
 
-def test_ikze_refund_auto_prefers_broker():
+def test_ikze_refund_auto_prefers_safe_before_broker():
     accounts = {
         "ikze": acc(annual_contribution=11_304, roi=0.05),
         "broker": acc(roi=0.05),
@@ -415,8 +415,8 @@ def test_ikze_refund_auto_prefers_broker():
     }
     result = ikze_growth(accounts)
     last = result.years[-1].balances
-    assert last["broker"] > 0
-    assert last["lokata"] == 0
+    assert last["lokata"] > 0
+    assert last["broker"] == 0
 
 
 def test_ikze_refund_target_none_only_lowers_tax():
@@ -650,3 +650,89 @@ def test_early_roi_order_preserves_high_roi_account():
     roi_broker = next(y for y in roi.years if y.age == 65).balances.get("broker", 0)
     assert roi_broker > tier_broker
     assert roi.total_tax < tier.total_tax
+
+
+def test_ikze_relief_is_capped_at_annual_limit():
+    # Wpłata 20 000 zł nie może dać ulgi od całej kwoty — limit etatu to
+    # 11 304 zł, więc przy 12% ulga wynosi 1 356,48 zł.
+    result = simulate(
+        SimulationInput(
+            stages=[
+                accumulation_stage(
+                    {
+                        "ikze": acc(
+                            annual_contribution=20_000,
+                            monthly_base=8_000,
+                            roi=0.0,
+                        )
+                    },
+                    start=40,
+                    end=41,
+                )
+            ],
+            max_age=40,
+            monthly_gross=8_000,
+            config=CFG_NOINFL,
+        )
+    )
+    assert result.total_tax_refund == pytest.approx(1_356.48, abs=0.02)
+
+
+def test_ikze_relief_uses_employee_zus_not_full_pension_rate():
+    # Przy dochodzie blisko progu 32% ulga ma być liczona po 13,71%, a nie
+    # po 19,52%. Dla 13 000 zł/mies. różnica jest odczuwalna.
+    from app.simulation.salary import etat_taxable_income
+
+    income = etat_taxable_income(13_000, CFG_NOINFL)
+    result = simulate(
+        SimulationInput(
+            stages=[
+                accumulation_stage(
+                    {
+                        "ikze": acc(
+                            annual_contribution=11_304,
+                            monthly_base=13_000,
+                            roi=0.0,
+                        )
+                    },
+                    start=40,
+                    end=41,
+                )
+            ],
+            max_age=40,
+            monthly_gross=13_000,
+            config=CFG_NOINFL,
+        )
+    )
+    from app.core.tax import scale_tax
+
+    expected = scale_tax(income, **CFG_NOINFL.scale_kwargs()) - scale_tax(
+        max(0.0, income - 11_304), **CFG_NOINFL.scale_kwargs()
+    )
+    assert result.total_tax_refund == pytest.approx(expected, abs=0.05)
+
+
+def test_ikze_self_employed_limit_is_used():
+    result = simulate(
+        SimulationInput(
+            stages=[
+                accumulation_stage(
+                    {
+                        "ikze": acc(
+                            annual_contribution=20_000,
+                            monthly_base=8_000,
+                            ikze_limit="self_employed",
+                            roi=0.0,
+                        )
+                    },
+                    start=40,
+                    end=41,
+                )
+            ],
+            max_age=40,
+            monthly_gross=8_000,
+            config=CFG_NOINFL,
+        )
+    )
+    # 16 956 × 12% (nie 11 304 × 12%).
+    assert result.total_tax_refund == pytest.approx(2_034.72, abs=0.05)

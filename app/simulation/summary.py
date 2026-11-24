@@ -47,6 +47,16 @@ def initial_capital(input_data: SimulationInput) -> float:
     return round(total, 2)
 
 
+def _has_part_time_income(input_data: SimulationInput, age: int) -> bool:
+    """Czy w danym roku działa etap części etatu (Barista)."""
+    return any(
+        stage.stage_type == "realizacja"
+        and stage.part_time_net_monthly > 0
+        and stage.start_age <= age < stage.end_age
+        for stage in input_data.stages
+    )
+
+
 def build_summary(
     input_data: SimulationInput, result: SimulationResult
 ) -> ResultSummary:
@@ -56,10 +66,37 @@ def build_summary(
     monthly_values = [
         year.monthly_withdrawal for year in payout_years if year.monthly_withdrawal > 0
     ]
+    # Minimum liczymy po całym oknie realizacji, także po latach z zerem
+    # (wyczerpanie portfela). Inaczej karta „minimalna wypłata” kłamie przy
+    # nieosiągalnym celu.
+    realization_ages = [
+        age
+        for stage in input_data.stages
+        if stage.stage_type == "realizacja"
+        for age in range(stage.start_age, stage.end_age)
+    ]
+    if realization_ages:
+        first_age, last_age = min(realization_ages), max(realization_ages)
+        window_values = [
+            year.monthly_withdrawal
+            for year in years
+            if first_age <= year.age <= last_age
+            and not _has_part_time_income(input_data, year.age)
+        ]
+    elif payout_years:
+        first_age = min(year.age for year in payout_years)
+        last_age = max(year.age for year in payout_years)
+        window_values = [
+            year.monthly_withdrawal
+            for year in years
+            if first_age <= year.age <= last_age
+        ]
+    else:
+        window_values = []
     avg_monthly = (
         result.total_withdrawn / 12 / len(payout_years) if payout_years else None
     )
-    min_monthly = min(monthly_values) if monthly_values else None
+    min_monthly = min(window_values) if window_values else None
     max_monthly = max(monthly_values) if monthly_values else None
     zus_total = sum((year.zus_monthly or 0.0) * 12 for year in years)
     private_total = max(0.0, result.total_withdrawn - zus_total)
@@ -69,7 +106,7 @@ def build_summary(
     )
     total_net_benefit = result.total_withdrawn + result.final_wealth_net
 
-    tax_denominator = result.total_withdrawn + result.total_tax
+    tax_denominator = result.total_withdrawn + result.total_tax + result.total_health
     tax_efficiency = (
         min(100.0, result.total_withdrawn / tax_denominator * 100)
         if tax_denominator > 0

@@ -35,7 +35,7 @@ def test_zus_skladka_19_52_from_monthly_base():
 
 
 def test_zus_skladka_capped_at_30x_base():
-    # podstawa 40 000 zł/mies. -> 480 000 zł/rok > limit 270 000 -> składka z 270 000
+    # podstawa 40 000 zł/mies. -> 480 000 zł/rok > limit 282 600 -> składka z 282 600
     stages = [
         accumulation_stage(
             {"zus": acc(base_override_enabled=True, monthly_base=40000, ofe_member=False)}
@@ -43,7 +43,7 @@ def test_zus_skladka_capped_at_30x_base():
     ]
     result = simulate(SimulationInput(stages=stages, max_age=41, config=CFG_NOINFL))
     y = result.years[1]
-    assert y.balances["zus"] == pytest.approx(270000 * 0.1952)
+    assert y.balances["zus"] == pytest.approx(282600 * 0.1952)
 
 
 def test_zus_ofe_split_two_growth_rates():

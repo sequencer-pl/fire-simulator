@@ -58,6 +58,7 @@
         svg.setAttribute("width", "100%");
         svg.setAttribute("height", String(height));
         svg.setAttribute("role", "img");
+        svg.setAttribute("tabindex", "0");
         svg.classList.add("res-chart-svg");
         return svg;
     }
@@ -132,26 +133,21 @@
         });
         svg.appendChild(hover);
 
-        const show = (clientX) => {
-            const rect = svg.getBoundingClientRect();
-            const ratio = (clientX - rect.left) / Math.max(1, rect.width);
-            const x = ratio * geometry.width;
-            const index = Math.max(
-                0,
-                Math.min(
-                    spec.ages.length - 1,
-                    Math.round(
-                        ((x - geometry.left) / Math.max(1, geometry.plotWidth)) *
-                            (spec.ages.length - 1)
-                    )
-                )
-            );
-            const px = geometry.left + (index / Math.max(1, spec.ages.length - 1)) * geometry.plotWidth;
+        let activeIndex = spec.ages.findIndex((_, index) =>
+            spec.series.some((item) => Math.abs(item.values[index] || 0) > 0.5)
+        );
+        if (activeIndex < 0) activeIndex = 0;
+
+        const showIndex = (index) => {
+            const safeIndex = Math.max(0, Math.min(spec.ages.length - 1, index));
+            activeIndex = safeIndex;
+            const px = geometry.left +
+                (safeIndex / Math.max(1, spec.ages.length - 1)) * geometry.plotWidth;
             hover.setAttribute("x1", px);
             hover.setAttribute("x2", px);
             hover.setAttribute("opacity", 0.55);
-            const values = spec.series.map((item) => item.values[index] || 0);
-            tip.innerHTML = tipHtml(spec.ages[index], spec.series, values, spec, mode);
+            const values = spec.series.map((item) => item.values[safeIndex] || 0);
+            tip.innerHTML = tipHtml(spec.ages[safeIndex], spec.series, values, spec, mode);
             tip.classList.add("is-visible");
             const tipWidth = tip.offsetWidth || 190;
             const left = Math.max(8, Math.min(px + 14, geometry.width - tipWidth - 8));
@@ -159,10 +155,40 @@
             tip.style.top = "10px";
         };
 
-        svg.addEventListener("mousemove", (event) => show(event.clientX));
-        svg.addEventListener("mouseleave", () => {
+        const show = (clientX) => {
+            const rect = svg.getBoundingClientRect();
+            const ratio = (clientX - rect.left) / Math.max(1, rect.width);
+            const x = ratio * geometry.width;
+            const index = Math.round(
+                ((x - geometry.left) / Math.max(1, geometry.plotWidth)) *
+                    (spec.ages.length - 1)
+            );
+            showIndex(index);
+        };
+
+        const hide = () => {
             tip.classList.remove("is-visible");
             hover.setAttribute("opacity", 0);
+        };
+
+        svg.addEventListener("mousemove", (event) => show(event.clientX));
+        svg.addEventListener("mouseleave", hide);
+        svg.addEventListener("focus", () => showIndex(activeIndex));
+        svg.addEventListener("blur", hide);
+        svg.addEventListener("keydown", (event) => {
+            let next = null;
+            if (event.key === "ArrowRight") next = activeIndex + 1;
+            else if (event.key === "ArrowLeft") next = activeIndex - 1;
+            else if (event.key === "Home") next = 0;
+            else if (event.key === "End") next = spec.ages.length - 1;
+            else if (event.key === "Escape") {
+                hide();
+                return;
+            } else {
+                return;
+            }
+            event.preventDefault();
+            showIndex(next);
         });
         svg.addEventListener("touchstart", (event) => {
             const touch = event.touches[0];
@@ -272,7 +298,7 @@
         const y = (value) => PAD.top + plotHeight - (value / maxValue) * plotHeight;
 
         const svg = makeSvg(width, height);
-        svg.setAttribute("aria-label", spec.ariaLabel || "Wykres warstwowy");
+        svg.setAttribute("aria-label", `${spec.ariaLabel || "Wykres warstwowy"} Użyj strzałek, aby czytać wartości.`);
         drawAxes(svg, spec, geometry);
         drawAnnotations(svg, spec, geometry);
 
@@ -353,7 +379,7 @@
         const y = (value) => PAD.top + plotHeight - (value / maxValue) * plotHeight;
 
         const svg = makeSvg(width, height);
-        svg.setAttribute("aria-label", spec.ariaLabel || "Wykres porównawczy");
+        svg.setAttribute("aria-label", `${spec.ariaLabel || "Wykres porównawczy"} Użyj strzałek, aby czytać wartości.`);
         drawAxes(svg, spec, geometry);
         drawAnnotations(svg, spec, geometry);
 
@@ -378,16 +404,23 @@
 
     function observe(container, spec, mode) {
         if (typeof ResizeObserver === "undefined") return;
+        const state = instances.get(container) || {};
+        state.observer?.disconnect();
+        state.width = container.clientWidth || 0;
         let timer = null;
         const observer = new ResizeObserver(() => {
             clearTimeout(timer);
             timer = setTimeout(() => {
-                if (mode === "stacked") stackedArea(container, spec);
-                else multiLine(container, spec);
+                const width = container.clientWidth || 0;
+                if (width === state.width) return;
+                // Pełny render odtwarza obserwator po clear() — bez tego
+                // ResizeObserver zostawał rozłączony po pierwszej zmianie.
+                render(container, spec, mode);
             }, 80);
         });
         observer.observe(container);
-        instances.set(container, { observer });
+        state.observer = observer;
+        instances.set(container, state);
     }
 
     function render(container, spec, mode = "stacked") {

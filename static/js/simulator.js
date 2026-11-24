@@ -24,6 +24,12 @@ let loadedWithdrawalPolicy = "defer_tier";
 // Horyzont z wczytanego planu (np. draftu Asystenta). Zachowujemy go, bo etap
 // ZUS może wystawać do 100 r.ż., a portfel ma się kończyć na plan_end.
 let loadedMaxAge = null;
+// Skalary z draftu/importu, których nie ma w edytorze etapów.
+let loadedStartYear = null;
+let loadedInflation = null;
+let loadedMonthlyGross = null;
+let loadedMortgageMonthly = 0;
+let loadedMortgageEndAge = null;
 
 function gatherFormData() {
     const stages = [];
@@ -65,19 +71,30 @@ function gatherFormData() {
             accounts: accounts,
             withdrawal_target_gross_monthly: parseFloat(block.dataset.withdrawalTargetGrossMonthly) || 0,
             part_time_net_monthly: parseFloat(block.dataset.partTimeNetMonthly) || 0,
+            part_time_gross_monthly: parseFloat(block.dataset.partTimeGrossMonthly) || 0,
             part_time_zus_base: parseFloat(block.dataset.partTimeZusBase) || 0,
         });
     });
 
     const lastStageAge = Math.max(...stages.map((s) => s.end_age), 0) - 1;
+    const mortgageMonthly = parseFloat(document.getElementById("simMortgageMonthly")?.value) || 0;
+    const mortgageEndRaw = parseInt(document.getElementById("simMortgageEndAge")?.value, 10);
+    const horizonRaw = parseInt(document.getElementById("simHorizonAge")?.value, 10);
     return {
         stages: stages,
-        max_age: loadedMaxAge != null
-            ? Math.min(120, Math.max(0, loadedMaxAge))
-            : Math.min(120, Math.max(0, lastStageAge)),
+        max_age: Number.isFinite(horizonRaw) && horizonRaw > 0
+            ? Math.min(120, Math.max(0, horizonRaw - 1))
+            : (loadedMaxAge != null
+                ? Math.min(120, Math.max(0, loadedMaxAge))
+                : Math.min(120, Math.max(0, lastStageAge))),
         gender: currentGender(),
-        monthly_gross: 0,
-        inflation: null,
+        monthly_gross: loadedMonthlyGross ?? 0,
+        start_year: loadedStartYear,
+        inflation: loadedInflation,
+        mortgage_monthly: mortgageMonthly,
+        mortgage_end_age: Number.isFinite(mortgageEndRaw) && mortgageEndRaw > 0
+            ? mortgageEndRaw
+            : null,
         withdrawal_policy: loadedWithdrawalPolicy,
         config: CONFIG,
     };
@@ -126,11 +143,14 @@ function renderResults(data) {
         total_tax: data.total_tax,
         total_tax_refund: data.total_tax_refund,
     };
-    const planView = { result: data, summary };
+    const planView = { result: data, summary, projection: data.projection || null };
     const metrics = [
         window.ResultsModel.metric(planView, "totalWithdrawnPrivate"),
         window.ResultsModel.metric(planView, "avgMonthly", { label: "Średnia wypłata mies." }),
         window.ResultsModel.metric(planView, "minMonthly", { label: "Minimalna wypłata mies." }),
+        window.ResultsModel.metric(planView, "portfolioMinMonthly", {
+            label: "Minimalna wypłata z portfela",
+        }),
         window.ResultsModel.metric(planView, "finalWealthNet"),
         window.ResultsModel.metric(planView, "taxAndHealth", { label: "Podatki i składki" }),
     ];
@@ -173,27 +193,38 @@ function renderSimulatorHero(data, summary) {
     const box = document.getElementById("simHero");
     if (!box) return;
     const fmt = window.ResultsModel.fmtMoney;
-    const projection = data.projection;
-    const payoutPhases = (projection?.phase_metrics || []).filter(
+    const projection = data.projection || {};
+    const payoutPhases = (projection.phase_metrics || []).filter(
         (phase) => phase.cashflow === "payout"
     );
     const mainPayouts = payoutPhases.filter((phase) => phase.key !== "zus_only");
-    const start = mainPayouts.length
-        ? Math.min(...mainPayouts.map((phase) => phase.start_age))
-        : summary?.start_age;
-    const end = summary?.end_age ??
-        (payoutPhases.length ? Math.max(...payoutPhases.map((phase) => phase.end_age)) : null);
-    const monthly = summary?.avg_monthly || projection?.mean_monthly || projection?.min_monthly || 0;
+    // Start liczymy z faktycznych wypłat, nie z pierwszego roku symulacji.
+    const payoutStart = payoutPhases.length
+        ? Math.min(...payoutPhases.map((phase) => phase.start_age))
+        : null;
+    const start = payoutStart ?? summary?.start_age;
+    const phaseEnd = payoutPhases.length
+        ? Math.max(...payoutPhases.map((phase) => phase.end_age))
+        : null;
+    const end = summary?.end_age ?? phaseEnd;
+    // Hero pokazuje lifestyle: budżet netto łącznie z ZUS, częścią etatu i kredytem.
+    const monthly = projection.mean_monthly
+        || projection.min_monthly
+        || summary?.avg_monthly
+        || 0;
     const finalNet = summary?.final_wealth_net ?? data.final_wealth_net ?? 0;
+    const zusOnlyNote = payoutPhases.length && !mainPayouts.length
+        ? " Wypłaty pochodzą wyłącznie z ZUS."
+        : "";
 
     if (monthly > 0 && start != null && end != null) {
         box.innerHTML = `<div class="wz-hero-kicker">TWÓJ PLAN</div>
             <div class="wz-hero-headline">Plan wypłaca średnio ${fmt(monthly)}/mies. netto</div>
-            <div class="wz-hero-desc">Od ${start}. do ${end}. roku życia. Na koniec zostaje <strong>${fmt(finalNet)}</strong> netto.</div>`;
+            <div class="wz-hero-desc">Od ${start}. do ${end}. roku życia. Na koniec zostaje <strong>${fmt(finalNet)}</strong> netto.${zusOnlyNote}</div>`;
     } else {
         box.innerHTML = `<div class="wz-hero-kicker">TWÓJ PLAN</div>
             <div class="wz-hero-headline">Plan kończy się w wieku ${end ?? "—"}</div>
-            <div class="wz-hero-desc">Majątek końcowy netto: <strong>${fmt(finalNet)}</strong>.</div>`;
+            <div class="wz-hero-desc">Majątek końcowy netto: <strong>${fmt(finalNet)}</strong>.${zusOnlyNote}</div>`;
     }
     box.classList.remove("hidden");
 }
@@ -255,8 +286,12 @@ function renderSharedCharts(data) {
         const start = Math.min(...payoutPhases.map((phase) => phase.start_age));
         annotations.push({ age: start, label: `Start ${start}` });
     }
-    if (chart.withdrawals_net?.zus) {
-        annotations.push({ age: 65, label: "ZUS 65" });
+    // ZUS startuje w wieku z etapu/phase metrics, nie w ustawowym 65.
+    const zusStartAge = (data.years || []).find((year) => year.zus_monthly > 0)?.age
+        ?? payoutPhases.find((phase) => phase.key === "zus_only")?.start_age
+        ?? null;
+    if (zusStartAge != null && chart.withdrawals_net?.zus) {
+        annotations.push({ age: zusStartAge, label: `ZUS ${zusStartAge}` });
     }
 
     const wealth = document.getElementById("wealthChart");
@@ -301,7 +336,7 @@ function renderSharedCharts(data) {
         if (payoutPhases.length) {
             chips.push(`FIRE ${Math.min(...payoutPhases.map((phase) => phase.start_age))}`);
         }
-        if (chart.withdrawals_net?.zus) chips.push("ZUS 65");
+        if (zusStartAge != null && chart.withdrawals_net?.zus) chips.push(`ZUS ${zusStartAge}`);
         if (data.summary?.end_age != null) chips.push(`Horyzont ${data.summary.end_age}`);
         chipBox.innerHTML = chips
             .map((chip) => `<span class="wz-chart-annotation-chip">${window.escapeHtml(chip)}</span>`)
@@ -424,12 +459,22 @@ document.addEventListener("DOMContentLoaded", () => {
     if (configContent) {
         initNumControls(configContent, guardedNumberInputStep);
     }
+    const mortgagePanel = document.getElementById("simMortgagePanel");
+    if (mortgagePanel) initNumControls(mortgagePanel);
+    const horizonPanel = document.getElementById("simHorizonPanel");
+    if (horizonPanel) initNumControls(horizonPanel);
 
     const draftApplied = applyWizardDraftIfPresent();
     updateStageButtons(container);
     updateStageHints(container);
     refreshRealizationToggles(container);
     if (draftApplied) {
+        // Draft zostaje, żeby F5/back-forward nie gubiły planu. Czyścimy go
+        // dopiero przy pierwszej edycji etapów albo po eksporcie.
+        container.addEventListener("input", () => clearWizardDraft(), { once: true });
+        container.addEventListener("click", (event) => {
+            if (event.target.closest?.(".stage-block")) clearWizardDraft();
+        }, { once: true });
         // Plan z Asystenta jest już policzony — pokaż wynik od razu,
         // zamiast zmuszać użytkownika do drugiego kliknięcia „Symuluj”.
         document.getElementById("simForm")?.requestSubmit();
@@ -468,9 +513,18 @@ function applyWizardDraftIfPresent() {
     if (!raw || !container) return false;
     try {
         const draft = JSON.parse(raw);
-        if (!draft || !Array.isArray(draft.stages) || !draft.stages.length) return false;
-        loadedWithdrawalPolicy = draft.withdrawal_policy || "defer_tier";
-        populateStages(draft);
+        if (draft?.version != null && Number(draft.version) !== 2) {
+            localStorage.removeItem(WIZARD_DRAFT_KEY);
+            return false;
+        }
+        const input = draft?.input && Array.isArray(draft.input.stages)
+            ? draft.input
+            : draft;
+        if (!input || !Array.isArray(input.stages) || !input.stages.length) return false;
+        loadedWithdrawalPolicy = input.withdrawal_policy
+            || draft.withdrawal_policy
+            || "defer_tier";
+        populateStages(input);
         showWizardDraftBanner();
         return true;
     } catch (err) {
@@ -584,8 +638,11 @@ function normalizePresetName(name) {
 
 function backfillConfig(config) {
     if (!DEFAULT_CONFIG) return config;
+    const year = Number(config?.year);
+    const presetName = Number.isFinite(year) ? `Domyślny ${year}` : "";
+    const baseDefaults = (presetName && SERVER_PRESETS[presetName]) || DEFAULT_CONFIG;
     const out = {};
-    for (const [section, defaults] of Object.entries(DEFAULT_CONFIG)) {
+    for (const [section, defaults] of Object.entries(baseDefaults)) {
         const loaded = config[section];
         if (loaded && typeof defaults === "object" && defaults !== null && !Array.isArray(defaults)) {
             out[section] = { ...defaults, ...loaded };
@@ -733,7 +790,7 @@ function renderConfigView() {
     root.appendChild(configSection("Rodzaje inwestycji w IKE/IKZE/OIPE", vehicleFields));
 
     root.appendChild(configSection("PPK — parametry", [
-        configPercentField("ppk.employee_pct", "Wpłata pracownika", USER_CONFIG.ppk.employee_pct, "Ustawowo min. 2% wynagrodzenia; można obniżyć do 0,5%."),
+        configPercentField("ppk.employee_pct", "Wpłata pracownika", USER_CONFIG.ppk.employee_pct, "Domyślną stawkę pracownika ustawia Konfiguracja; ustawowe minima i limity zależą od przepisów."),
         configPercentField("ppk.employer_pct", "Wpłata pracodawcy", USER_CONFIG.ppk.employer_pct, "Ustawowo min. 1,5%, max 4% wynagrodzenia."),
         configPercentField("ppk.max_total_pct", "Limit sumy wpłat", USER_CONFIG.ppk.max_total_pct, "Ustawowy limit łącznej sumy wpłat pracownika i pracodawcy (8%)."),
         configNumberField("ppk.state_welcoming", "Dopłata powitalna", USER_CONFIG.ppk.state_welcoming, "Jednorazowa dopłata państwa w pierwszym roku akumulacji (250 zł)."),
@@ -1039,7 +1096,7 @@ function renderAccountRulesCard(key, rules) {
     body.appendChild(configNumberField("accounts." + key + ".min_withdrawal_age", "Wiek zmiany reżimu", rules.min_withdrawal_age, "Wiek, od którego wypłaty nie są już objęte reżimem „przed wiekiem” (np. 60 dla IKE, 65 dla IKZE)."));
     body.appendChild(configSelect("accounts." + key + ".early_tax_model", "Model przed wiekiem", rules.early_tax_model, TAX_MODEL_LABELS, "Opodatkowanie wypłat przed osiągnięciem docelowego wieku (np. skala PIT dla IKZE)."));
     body.appendChild(configPercentField("accounts." + key + ".early_tax_rate", "Stawka przed wiekiem", rules.early_tax_rate, "Stawka podatku obowiązująca przed osiągnięciem docelowego wieku."));
-    body.appendChild(configPercentField("accounts." + key + ".asset_tax_rate", "Podatek od wartości aktywów", rules.asset_tax_rate, "Roczny podatek od wartości aktywów ponad próg zwolnienia (OKI: 0,85%)."));
+    body.appendChild(configPercentField("accounts." + key + ".asset_tax_rate", "Podatek od wartości aktywów", rules.asset_tax_rate, "Stawka bazowa. Dla OKI: 0,85% w 2027, od 2028 19% stopy referencyjnej NBP (bez górnego limitu)."));
     body.appendChild(configNumberField("accounts." + key + ".asset_exemption", "Próg zwolnienia aktywów", rules.asset_exemption, "Kwota, poniżej której aktywa nie podlegają corocznemu podatkowi od wartości."));
 
     return card;
@@ -1382,6 +1439,9 @@ function initSimulationIO() {
             a.download = simulationFileName(name);
             a.click();
             URL.revokeObjectURL(a.href);
+            // Eksport oznacza, że plan został zachowany — draft nie może już
+            // nadpisywać dalszej pracy na Symulatorze. Banner zostaje.
+            clearWizardDraft();
         });
     }
 
@@ -1414,11 +1474,44 @@ function migrateLegacyAccounts(stage) {
     stage.accounts[target] = rest;
 }
 
+function applyMortgagePanel() {
+    const monthly = document.getElementById("simMortgageMonthly");
+    const endAge = document.getElementById("simMortgageEndAge");
+    const horizon = document.getElementById("simHorizonAge");
+    if (monthly) monthly.value = String(Math.round(loadedMortgageMonthly || 0));
+    if (endAge) {
+        endAge.value = loadedMortgageEndAge != null
+            ? String(loadedMortgageEndAge)
+            : "";
+    }
+    if (horizon) {
+        horizon.value = loadedMaxAge != null ? String(loadedMaxAge + 1) : "";
+    }
+}
+
 function populateStages(inputData) {
     const container = document.getElementById("stages-container");
     loadedMaxAge = Number.isFinite(Number(inputData.max_age))
         ? Number(inputData.max_age)
         : null;
+    loadedStartYear = Number.isFinite(Number(inputData.start_year))
+        ? Number(inputData.start_year)
+        : null;
+    loadedInflation = inputData.inflation != null && inputData.inflation !== ""
+        ? Number(inputData.inflation)
+        : null;
+    if (loadedInflation != null && !Number.isFinite(loadedInflation)) {
+        loadedInflation = null;
+    }
+    loadedMonthlyGross = Number.isFinite(Number(inputData.monthly_gross))
+        ? Number(inputData.monthly_gross)
+        : null;
+    loadedMortgageMonthly = Number(inputData.mortgage_monthly) || 0;
+    loadedMortgageEndAge = Number.isFinite(Number(inputData.mortgage_end_age))
+        && Number(inputData.mortgage_end_age) > 0
+        ? Number(inputData.mortgage_end_age)
+        : null;
+    applyMortgagePanel();
     if (inputData.config) CONFIG = backfillConfig(inputData.config);
     if (inputData.gender) setGender(inputData.gender);
     resetStartingBalanceValues();

@@ -2690,3 +2690,12 @@
 .wz-flows-subtitle:first-child {
     margin-top: 0;
 }
+
+.wz-gantt-horizon {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    border-left: 1px dashed var(--warning);
+    pointer-events: none;
+    z-index: 2;
+}

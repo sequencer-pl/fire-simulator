@@ -107,3 +107,90 @@ def test_simulate_exposes_projection_for_shared_result_body(client):
         body["summary"]["total_withdrawn"] + body["summary"]["final_wealth_net"],
         abs=0.05,
     )
+
+
+def test_summary_min_includes_zero_payout_years():
+    from app.simulation.config import default_config
+    from app.simulation.schemas import AccountConfig, SimulationInput, StageInput
+
+    cfg = default_config()
+    cfg.inflation = 0.0
+    cfg.prog_indexation = None
+    data = SimulationInput(
+        stages=[
+            StageInput(
+                stage_type="realizacja",
+                name="Realizacja",
+                start_age=45,
+                end_age=50,
+                accounts={"gotowka": AccountConfig(starting_balance=10_000, roi=0.0)},
+            )
+        ],
+        max_age=49,
+        config=cfg,
+    )
+    result = simulate(data, 100_000)
+    summary = build_summary(data, result)
+    assert summary.min_monthly == 0.0
+    assert summary.avg_monthly is not None and summary.avg_monthly > 0
+
+
+def test_tax_efficiency_includes_health_contribution():
+    result = plan(1, WizardAnswers(**BASE), scenarios=False, extend_chart=False)
+    summary = result.summary
+    expected = (
+        summary.total_withdrawn
+        / (summary.total_withdrawn + summary.total_tax + summary.total_health)
+        * 100
+    )
+    assert summary.tax_efficiency == pytest.approx(min(100.0, expected), abs=0.01)
+
+
+def test_barista_portfolio_min_ignores_part_time_zero_years():
+    a = WizardAnswers(
+        gender="m",
+        age_now=40,
+        employment="etat",
+        gross_monthly=12_000,
+        capital={"broker": 500_000},
+        savings=3_000,
+        use_broker=True,
+        semi_fire_enabled=True,
+        semi_fire_mode="barista",
+        semi_fire_age=45,
+        semi_fire_net_monthly=4_500,
+        retire_early_age=55,
+        retirement_age=65,
+        plan_end_age=85,
+        allocations={"broker": 100},
+    )
+    result = plan(1, a, scenarios=False, extend_chart=False)
+    assert result.summary.min_monthly is not None
+    assert result.summary.min_monthly > 0
+    assert result.projection.min_monthly == pytest.approx(4_500, abs=5)
+
+
+def test_phase_metrics_partial_fire_is_contiguous():
+    a = WizardAnswers(
+        gender="m",
+        age_now=40,
+        employment="etat",
+        gross_monthly=12_000,
+        capital={"broker": 500_000},
+        savings=3_000,
+        use_broker=True,
+        semi_fire_enabled=True,
+        semi_fire_mode="barista",
+        semi_fire_age=45,
+        semi_fire_net_monthly=4_500,
+        retire_early_age=55,
+        retirement_age=65,
+        plan_end_age=85,
+        allocations={"broker": 100},
+    )
+    phases = plan(1, a, scenarios=False, extend_chart=False).projection.phase_metrics
+    partial = next(phase for phase in phases if phase.key == "partial_fire")
+    assert (partial.start_age, partial.end_age) == (45, 55)
+    ordered = sorted(phases, key=lambda phase: phase.start_age)
+    for left, right in zip(ordered, ordered[1:], strict=False):
+        assert left.end_age == right.start_age

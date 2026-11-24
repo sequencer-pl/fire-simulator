@@ -5,7 +5,12 @@ from app.simulation.config import TaxConfig, default_config
 from app.simulation.engine import simulate
 from app.simulation.schemas import SimulationInput
 
-CFG_NOINFL = TaxConfig(inflation=0.0, prog_indexation=None)
+CFG_NOINFL = TaxConfig(
+    year=2027,
+    inflation=0.0,
+    prog_indexation=None,
+    oki_rate_from_2028=0.0085,
+)
 
 # --- OKI: osobne konta inwestycyjne i oszczędnościowe (2027), brak Belki w limicie ---
 
@@ -180,3 +185,45 @@ def test_oki_mix_25k_osk_75k_inw_exactly_at_limit():
     ]
     result = simulate(SimulationInput(stages=stages, max_age=40, config=CFG_NOINFL))
     assert result.total_tax == 0.0
+
+
+def test_oki_no_tax_before_2027():
+    cfg = TaxConfig(year=2026, inflation=0.0, prog_indexation=None)
+    stages = [
+        accumulation_stage({"oki_inw": acc(starting_balance=200000, roi=0.02)}, start=40, end=41)
+    ]
+    result = simulate(SimulationInput(stages=stages, max_age=40, config=cfg))
+    assert result.total_tax == 0.0
+
+
+def test_oki_rate_from_2028_uses_nbp_formula():
+    cfg = TaxConfig(
+        year=2027,
+        inflation=0.0,
+        prog_indexation=None,
+        oki_nbp_reference_rate=0.05,
+        oki_rate_from_2028=None,
+    )
+    assert cfg.oki_rate_at(2026) == 0.0
+    assert cfg.oki_rate_at(2027) == pytest.approx(0.0085)
+    assert cfg.oki_rate_at(2028) == pytest.approx(0.0095)
+
+
+def test_oki_full_simulation_2026_2027_2028():
+    cfg = TaxConfig(
+        year=2026,
+        inflation=0.0,
+        prog_indexation=None,
+        oki_rate_from_2028=0.0095,
+    )
+    stages = [
+        accumulation_stage(
+            {"oki_inw": acc(starting_balance=200_000, roi=0.0)},
+            start=40,
+            end=43,
+        )
+    ]
+    result = simulate(SimulationInput(stages=stages, max_age=42, config=cfg))
+    assert result.years[0].tax_paid == 0.0
+    assert result.years[1].tax_paid == pytest.approx(100_000 * 0.0085, abs=0.01)
+    assert result.years[2].tax_paid == pytest.approx(941.92, abs=2.0)

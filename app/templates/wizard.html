@@ -106,8 +106,8 @@
                 <label class="wz-path">
                     <input type="radio" name="wzEmployment" value="niepracujacy">
                     <span class="wz-path-check" aria-hidden="true"></span>
-                    <span class="wz-path-title">Nie pracuję obecnie zarobkowo</span>
-                    <span class="wz-path-desc">Żyję ze zgromadzonego kapitału, mam przerwę w karierze lub inwestuję środki z innych źródeł.</span>
+                    <span class="wz-path-title">Nie pracuję zarobkowo, ale mam inne źródło utrzymania</span>
+                    <span class="wz-path-desc">Renta, najem, partner albo oszczędności poza portfelem. Wpłaty pochodzą spoza modelowanego portfela; kapitał rośnie.</span>
                 </label>
             </div>
         </div>
@@ -211,7 +211,7 @@
             <h3 class="eyebrow wz-panel-title">
                 <span class="tip-label-row">
                     <span class="tip-label-text">1. Jak rozliczasz podatek dochodowy?</span>
-                    <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">Forma opodatkowania wpływa na wyliczenie kwoty „na rękę” oraz na zwrot podatku z wpłat na IKZE (limit dla B2B to aż 16 956 zł/rok!). Na liniowym odliczasz 19%, na ryczałcie — swoją stawkę ryczałtu, a na skali — 12% lub 32%.</span></span>
+                    <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">Forma opodatkowania wpływa na wyliczenie kwoty „na rękę” oraz na zwrot podatku z wpłat na IKZE (limit dla B2B: <span id="wzB2bIkzeLimit">zgodnie z Konfiguracją</span>). Na liniowym odliczasz 19%, na ryczałcie — swoją stawkę ryczałtu, a na skali — 12% lub 32%.</span></span>
                 </span>
             </h3>
             <div class="segmented segmented-stack gender-options">
@@ -241,12 +241,12 @@
             <h3 class="eyebrow wz-panel-title">
                 <span class="tip-label-row">
                     <span class="tip-label-text">2. Jaką składkę ZUS obecnie płacisz?</span>
-                    <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">Na B2B składka emerytalna ZUS (19,52%) liczona jest od zadeklarowanej podstawy, a nie od całego przychodu. Przy „Dużym ZUS” podstawa to 5 652 zł/mies., więc do ZUS trafia ok. 1 103 zł/mies. — dlatego prywatny portfel FIRE jest na B2B szczególnie ważny!</span></span>
+                    <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">Na B2B składka emerytalna ZUS liczona jest od zadeklarowanej podstawy, a nie od całego przychodu. Przy „Dużym ZUS” podstawa to <span id="wzB2bZusBase">wartość z Konfiguracji</span>, więc do ZUS trafia ok. <span id="wzB2bZusContribution">wartość z Konfiguracji</span> miesięcznie — dlatego prywatny portfel FIRE jest na B2B szczególnie ważny!</span></span>
                 </span>
             </h3>
             <div class="segmented segmented-stack gender-options">
-                <label class="seg-option gender-option"><input type="radio" name="wzB2bZusMode" value="duzy" checked /> <span class="wz-b2b-zus-label">Duży ZUS (podstawa 5 652 zł)</span></label>
-                <label class="seg-option gender-option"><input type="radio" name="wzB2bZusMode" value="maly" /> Mały / Preferencyjny ZUS (podstawa 1 442 zł)</label>
+                <label class="seg-option gender-option"><input type="radio" name="wzB2bZusMode" value="duzy" checked /> <span class="wz-b2b-zus-label">Duży ZUS</span></label>
+                <label class="seg-option gender-option"><input type="radio" name="wzB2bZusMode" value="maly" /> <span class="wz-b2b-zus-small-label">Mały / Preferencyjny ZUS (podstawa <span id="wzB2bPreferentialBase">wartość z Konfiguracji</span>)</span></label>
                 <label class="seg-option gender-option"><input type="radio" name="wzB2bZusMode" value="ulga" /> Ulga na start (0 zł społecznych)</label>
                 <label class="seg-option gender-option"><input type="radio" name="wzB2bZusMode" value="custom" /> Własna podstawa</label>
             </div>
@@ -257,10 +257,10 @@
                     <div class="wz-slider">
                         <div class="num-control">
                             <button type="button" class="stepper stepper-down" tabindex="-1">&minus;</button>
-                            <input type="number" id="wzB2bCustomZus" class="acc-field" value="5652" min="0" max="25000" step="100">
+                            <input type="number" id="wzB2bCustomZus" class="acc-field" value="0" min="0" max="25000" step="100">
                             <button type="button" class="stepper stepper-up" tabindex="-1">+</button>
                         </div>
-                        <input type="range" id="wzB2bCustomZusRange" min="0" max="25000" step="100" value="5652" aria-label="Podstawa ZUS B2B">
+                        <input type="range" id="wzB2bCustomZusRange" min="0" max="25000" step="100" value="0" aria-label="Podstawa ZUS B2B">
                     </div>
                 </div>
             </div>
@@ -696,6 +696,10 @@
                         </div>
                     </div>
                 </div>
+                <div class="banner banner-info">
+                    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>
+                    <div class="banner-body">W okresie części etatu nie modelujemy nowych wpłat PPK/PPE; istniejące salda rosną z ROI. ZUS z części etatu jest uwzględniony.</div>
+                </div>
             </div>
         </div>
 
@@ -794,7 +798,7 @@
                         <input type="radio" name="wzRiskProfile" value="zrownowazony" checked>
                         <span class="wz-path-check" aria-hidden="true"></span>
                         <span class="wz-path-title">Rynkowy</span>
-                        <span class="wz-path-desc">100% aktywów rynkowych: akcje/ETF, fundusze i ich warianty w IKE/IKZE/OIPE. Zero krypto i zero bezpiecznego bufora.</span>
+                        <span class="wz-path-desc">100% aktywów rynkowych: akcje/ETF, fundusze i ich warianty w IKE/IKZE/OIPE. Zero krypto i zero bezpiecznego bufora. Nadwyżka ponad limity pojedynczych kont trafia do gotówki.</span>
                     </label>
                     <label class="wz-path">
                         <input type="radio" name="wzRiskProfile" value="dynamiczny">
@@ -823,7 +827,7 @@
                         <input type="radio" name="wzPriority" value="total">
                         <span class="wz-path-check" aria-hidden="true"></span>
                         <span class="wz-path-title">Wyższa suma</span>
-                        <span class="wz-path-desc">Silnik maksymalizuje sumę wypłat w całym horyzoncie. Miesięczna kwota może być niższa w niektórych latach, ale łącznie wypłacisz więcej.</span>
+                        <span class="wz-path-desc">Silnik wybiera wariant alokacji i wieku ZUS z największą sumą wypłat w horyzoncie. Miesięczna kwota pozostaje stałym celem — zmienia się głównie struktura portfela i moment startu ZUS.</span>
                     </label>
                 </div>
             </div>
@@ -844,7 +848,7 @@
                     </button>
                     <button type="button" class="wz-path wz-profile-seed" data-profile-seed="zrownowazony">
                         <span class="wz-path-title">Rynkowy</span>
-                        <span class="wz-path-desc">100% aktywów rynkowych: akcje/ETF, fundusze i ich warianty w IKE/IKZE/OIPE. Zero krypto i zero bezpiecznego bufora.</span>
+                        <span class="wz-path-desc">100% aktywów rynkowych: akcje/ETF, fundusze i ich warianty w IKE/IKZE/OIPE. Zero krypto i zero bezpiecznego bufora. Nadwyżka ponad limity pojedynczych kont trafia do gotówki.</span>
                     </button>
                     <button type="button" class="wz-path wz-profile-seed" data-profile-seed="dynamiczny">
                         <span class="wz-path-title">Dynamiczny</span>
@@ -1005,6 +1009,8 @@
         </div>
         </div>
     </section>
+
+    <div id="wzValidationError" class="banner banner-danger hidden" role="alert" aria-live="assertive" aria-atomic="true"></div>
 
     <nav class="action-bar wz-footer" id="wzFooter" aria-label="Nawigacja asystenta">
         <div class="action-bar-left wz-footer-left">

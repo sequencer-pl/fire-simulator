@@ -89,9 +89,15 @@
                     0
                 );
             case "avgMonthly":
-                return summary.avg_monthly ?? projection.mean_monthly ?? null;
+                // Preferujemy projekcję: to budżet na życie netto (z pracą na
+                // część etatu i ratą kredytu), a nie sama wypłata z portfela.
+                return projection.mean_monthly ?? summary.avg_monthly ?? null;
             case "minMonthly":
-                return summary.min_monthly ?? projection.min_monthly ?? null;
+                return projection.min_monthly ?? summary.min_monthly ?? null;
+            case "portfolioAvgMonthly":
+                return summary.avg_monthly ?? null;
+            case "portfolioMinMonthly":
+                return summary.min_monthly ?? null;
             case "zusMonthly":
                 return summary.zus_monthly ?? null;
             case "taxAndHealth":
@@ -167,7 +173,19 @@
         },
         minMonthly: {
             label: "Minimalna wypłata mies.",
-            tip: "Najniższa miesięczna wypłata netto w horyzoncie planu. To jest realna gwarancja, a nie średnia.",
+            tip: "Najniższy miesięczny budżet na życie netto w horyzoncie planu: wypłata z portfela i ZUS, powiększone o pracę na część etatu i pomniejszone o ratę kredytu. To realna gwarancja, a nie średnia.",
+            kind: "money",
+            suffix: "/mies.",
+        },
+        portfolioMinMonthly: {
+            label: "Minimalna wypłata z portfela",
+            tip: "Najniższa miesięczna wypłata netto z portfela i ZUS w horyzoncie planu, z latami zerowymi poza okresem części etatu. 0 oznacza brak wypłat z portfela w danym roku (np. ZUS albo praca pokrywają życie) lub wyczerpanie portfela.",
+            kind: "money",
+            suffix: "/mies.",
+        },
+        portfolioAvgMonthly: {
+            label: "Średnia wypłata z portfela",
+            tip: "Średnia miesięczna wypłata netto z portfela i ZUS w latach z wypłatą. Bez pracy na część etatu i bez korekty kredytu.",
             kind: "money",
             suffix: "/mies.",
         },
@@ -184,7 +202,7 @@
         },
         avgMonthly: {
             label: "Średnia wypłata mies.",
-            tip: "Średnia miesięczna wypłata netto w latach, w których plan wypłaca pieniądze.",
+            tip: "Średni miesięczny budżet na życie netto w latach z wypłatą: portfel i ZUS plus praca na część etatu, minus rata kredytu.",
             kind: "money",
             suffix: "/mies.",
         },
@@ -220,7 +238,7 @@
         },
         taxEfficiency: {
             label: "Efektywność podatkowa",
-            tip: "Udział wypłat netto w sumie wypłat brutto. Im wyższy, tym mniej oddajesz fiskusowi.",
+            tip: "Udział wypłat netto w wypłatach netto, podatkach i składce zdrowotnej. Im wyższy, tym mniej oddajesz fiskusowi.",
             kind: "percent",
         },
         initialCapital: {

@@ -13,6 +13,7 @@ from app.simulation.config import (
     base_account_key,
 )
 from app.simulation.constants import DEFAULT_ROI, MONTHS_PER_YEAR, PPE_ZUS_FRACTION
+from app.simulation.salary import etat_annual_social
 from app.simulation.schemas import (
     AccountConfig,
     SimulationInput,
@@ -82,21 +83,27 @@ def _compute_ikze_tax_saving(
     tax_regime: str = "scale",
     lump_sum_rate: float = 0.12,
     years: int = 0,
+    limit: float | None = None,
 ) -> float:
     """Tax saving from IKZE contribution (odliczenie od dochodu/przychodu).
 
     Supports PIT scale (12%/32%), flat 19% (B2B liniowy), and lump-sum (B2B ryczałt).
+    ``limit`` (annual IKZE cap) ogranicza kwotę, od której wolno odliczyć ulgę.
     """
     if ikze_contribution <= 0 or annual_income <= 0:
         return 0.0
     deductible = min(ikze_contribution, annual_income)
+    if limit is not None:
+        deductible = min(deductible, max(0.0, limit))
+    if deductible <= 0:
+        return 0.0
     if tax_regime == "flat_19":
         return max(0.0, deductible * 0.19)
     if tax_regime == "lump_sum":
         return max(0.0, deductible * max(0.0, lump_sum_rate))
     kwargs = config.scale_kwargs(years)
     tax_without = scale_tax(annual_income, **kwargs)
-    tax_with = scale_tax(max(0.0, annual_income - ikze_contribution), **kwargs)
+    tax_with = scale_tax(max(0.0, annual_income - deductible), **kwargs)
     return max(0.0, tax_without - tax_with)
 
 
@@ -106,11 +113,11 @@ _resolve_base = resolve_base
 def _compute_monthly_gross_dochod(
     monthly_gross: float, config: TaxConfig, years: int = 0
 ) -> float:
-    """Annual dochód (after ZUS contributions and KUP) from monthly gross."""
+    """Annual dochód (after employee ZUS and KUP) from monthly gross."""
     annual = monthly_gross * MONTHS_PER_YEAR
-    skladki = annual * config.zus.skladka_rate
+    pension_rent, sickness = etat_annual_social(monthly_gross, config)
     kup = config.kup_at(years)
-    return max(0.0, annual - skladki - kup)
+    return max(0.0, annual - pension_rent - sickness - kup)
 
 
 def _years_since_start(state: SimulationState | None, age: int | None) -> int:
@@ -538,9 +545,13 @@ def _process_stages(
             and stage_target is not None
             and stage_target > 0
         ):
+            part_time_gross = stage_input.part_time_gross_monthly
+            if part_time_gross <= 0:
+                # Legacy: stare plany nie miały pola brutto.
+                part_time_gross = stage_input.part_time_net_monthly
             eff_monthly_target = max(
                 0.0,
-                stage_target - stage_input.part_time_net_monthly + mortgage_extra_monthly,
+                stage_target - part_time_gross + mortgage_extra_monthly,
             )
             desired_withdrawal = max(
                 0.0, eff_monthly_target * MONTHS_PER_YEAR - zus_net_pension
@@ -1061,11 +1072,10 @@ def _assemble_years(
 _IKZE_REINVEST_ORDER = (
     "ike",
     "oipe",
-    "broker",
-    "oki_inw",
     "obligacje",
     "lokata",
     "oki_osk",
+    "broker",
     "gotowka",
 )
 
@@ -1155,9 +1165,9 @@ def _reinvest_early_return(
 ) -> None:
     """Reinwestuje netto z wcześniejszego zwrotu IKZE w konto docelowe.
 
-    Kolejność jak przy zwrocie ulgi IKZE (IKE/OIPE do limitu, potem broker,
-    obligacje, lokata, gotówka). Kwota jest już po podatku; zwiększa basis,
-    więc przyszła Belka liczy się tylko od zysku.
+    Kolejność jak przy zwrocie ulgi IKZE (IKE/OIPE do limitu, potem obligacje,
+    lokata, OKI oszczędnościowe, broker, gotówka). Kwota jest już po podatku;
+    zwiększa basis, więc przyszła Belka liczy się tylko od zysku.
     """
     if amount <= 1e-9:
         return
@@ -1221,10 +1231,17 @@ def _apply_ikze_savings(
             if base <= 0:
                 continue
             years = _years_since_start(state, age)
-            if cfg.ikze_tax_regime in ("flat_19", "lump_sum"):
+            if cfg.ikze_income_annual is not None:
+                annual_income = cfg.ikze_income_annual
+            elif cfg.ikze_tax_regime in ("flat_19", "lump_sum"):
                 annual_income = base * MONTHS_PER_YEAR
             else:
                 annual_income = _compute_monthly_gross_dochod(base, state.config, years)
+            limit = (
+                state.config.limits.ikze_annual_self_employed
+                if cfg.ikze_limit == "self_employed"
+                else state.config.limits.ikze_annual
+            )
             saving = _compute_ikze_tax_saving(
                 contribution,
                 annual_income,
@@ -1232,6 +1249,7 @@ def _apply_ikze_savings(
                 tax_regime=cfg.ikze_tax_regime,
                 lump_sum_rate=cfg.ikze_lump_sum_rate,
                 years=years,
+                limit=limit,
             )
             if saving <= 0:
                 continue
@@ -1287,6 +1305,7 @@ def _run_year(
             state=state,
             year_start_balances=year_start_balances,
             merged_tax=merged_tax,
+            calendar_year=state.start_year + (age - state.start_age),
         )
         state.computed[age] = {
             "starting_balances": year_start_balances,
@@ -1404,7 +1423,12 @@ def _run_year(
     # cały rok wpłaty.
     _apply_ikze_savings(state, active_stages, monthly_gross, merged_tax, age)
 
-    _apply_asset_tax(state=state, year_start_balances=year_start_balances, merged_tax=merged_tax)
+    _apply_asset_tax(
+        state=state,
+        year_start_balances=year_start_balances,
+        merged_tax=merged_tax,
+        calendar_year=state.start_year + (age - state.start_age),
+    )
 
     zus_withdrawal = merged_withdrawal.get("zus", 0.0)
     health: dict[str, float] = (
@@ -1607,8 +1631,20 @@ def _accumulate_ppk(
     employer_contrib = base_annual * employer_pct
     state_topup = 0.0
     if cfg.get("state_topups", True):
-        state_topup += ppk_cfg.state_annual
-        if "ppk" not in welcomed:
+        threshold = (
+            ppk_cfg.min_wage
+            * ppk_cfg.state_topup_min_wage_multiple
+            * ppk_cfg.state_topup_min_rate
+        )
+        if emp_contrib + employer_contrib >= threshold:
+            state_topup += ppk_cfg.state_annual
+        # Powitalna przysługuje przy pierwszym przystąpieniu; jeśli konto ma
+        # już saldo (np. z byłej pracy), nie dublujemy jej w modelu.
+        if (
+            "ppk" not in welcomed
+            and cfg.get("starting_balance", 0.0) <= 0
+            and (emp_contrib > 0 or employer_contrib > 0)
+        ):
             state_topup += ppk_cfg.state_welcoming
             welcomed.add("ppk")
     total = emp_contrib + employer_contrib + state_topup
@@ -1667,6 +1703,7 @@ def _apply_asset_tax(
     asset_exemptions: dict[str, float] | None = None,
     config: TaxConfig | None = None,
     state: SimulationState | None = None,
+    calendar_year: int | None = None,
 ) -> None:
     """Annual asset value tax (OKI) above the exemption threshold.
 
@@ -1717,6 +1754,10 @@ def _apply_asset_tax(
             ),
             default=0.0,
         )
+        if calendar_year is not None:
+            config_rate = config.oki_rate_at(calendar_year)
+            if config_rate >= 0:
+                rate = config_rate
 
         def _avg(account: str) -> float:
             return (year_start_balances.get(account, 0.0) + balances[account]) / 2.0
@@ -2063,8 +2104,8 @@ def _collect_warnings(
                     ):
                         warnings.append(
                             "IKZE: zwrot podatku nie jest reinwestowany — w etapie nie ma "
-                            "konta docelowego (IKE, OIPE, broker, OKI, obligacje, "
-                            "lokata, krypto, gotówka)."
+                            "konta docelowego (IKE, OIPE, obligacje, lokata, OKI "
+                            "oszczędnościowe, broker, gotówka)."
                         )
                     elif refund_target in ("ike", "oipe"):
                         target_cfg = si.accounts.get(refund_target)

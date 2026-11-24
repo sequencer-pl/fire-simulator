@@ -268,6 +268,9 @@ function createStageBlock(defaults) {
     if (defaults?.part_time_net_monthly > 0) {
         block.dataset.partTimeNetMonthly = String(defaults.part_time_net_monthly);
     }
+    if (defaults?.part_time_gross_monthly > 0) {
+        block.dataset.partTimeGrossMonthly = String(defaults.part_time_gross_monthly);
+    }
     if (defaults?.part_time_zus_base > 0) {
         block.dataset.partTimeZusBase = String(defaults.part_time_zus_base);
     }
@@ -992,6 +995,12 @@ function initStageEventHandlers(container) {
         if (!confirm("Na pewno wyczyścić wszystkie etapy?")) return;
         container.querySelectorAll(".stage-block").forEach((b) => b.remove());
         if (typeof loadedMaxAge !== "undefined") loadedMaxAge = null;
+        if (typeof loadedStartYear !== "undefined") loadedStartYear = null;
+        if (typeof loadedInflation !== "undefined") loadedInflation = null;
+        if (typeof loadedMonthlyGross !== "undefined") loadedMonthlyGross = null;
+        if (typeof loadedMortgageMonthly !== "undefined") loadedMortgageMonthly = 0;
+        if (typeof loadedMortgageEndAge !== "undefined") loadedMortgageEndAge = null;
+        if (typeof applyMortgagePanel === "function") applyMortgagePanel();
         if (typeof switchToConfig === "function") switchToConfig();
         if (typeof clearWizardDraft === "function") clearWizardDraft();
         updateStageButtons(container);
@@ -1025,6 +1034,23 @@ function initStageEventHandlers(container) {
         if (!validateStageOrder(container)) {
             alert("Uzupełnij brakujące ustawienia etapów (wiek, kolejność lub cel zwrotu IKZE).");
             return;
+        }
+        const mortgageRate = parseFloat(document.getElementById("simMortgageMonthly")?.value) || 0;
+        const mortgageEnd = parseInt(document.getElementById("simMortgageEndAge")?.value, 10);
+        if (mortgageRate > 0) {
+            if (!Number.isFinite(mortgageEnd) || mortgageEnd <= 0) {
+                alert("Podaj wiek końca spłaty kredytu, jeśli rata jest większa od zera.");
+                return;
+            }
+            const firstAge = Math.min(
+                ...([...container.querySelectorAll(".start-age")]
+                    .map((input) => parseInt(input.value, 10))
+                    .filter(Number.isFinite))
+            );
+            if (Number.isFinite(firstAge) && mortgageEnd <= firstAge) {
+                alert("Wiek końca spłaty kredytu musi być późniejszy niż początek planu.");
+                return;
+            }
         }
         const data = gatherFormData();
 

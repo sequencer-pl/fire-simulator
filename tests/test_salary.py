@@ -205,3 +205,41 @@ def test_salary_endpoint_b2b_net(client, tax_form, lump_rate):
     body = resp.json()
     assert body["net_monthly"] == pytest.approx(net, abs=0.02)
     assert body["gross_monthly"] == pytest.approx(20_000, rel=1e-5)
+
+
+def test_etat_net_respects_annual_zus_cap():
+    no_cap = CFG.model_copy(deep=True)
+    no_cap.zus.limit_base_annual = 0
+    capped = net_from_gross(30_000, CFG)
+    uncapped = net_from_gross(30_000, no_cap)
+    # Po przekroczeniu 30× emerytalna+rentowa przestają schodzić; różnica
+    # netto to ok. 429 zł/mies. (składka + zdrowotna + PIT).
+    assert capped - uncapped == pytest.approx(428.7, abs=1.5)
+
+
+def test_b2b_social_base_respects_annual_cap():
+    from app.simulation.salary import b2b_zus_base_and_social
+
+    base, social = b2b_zus_base_and_social("custom", CFG, 25_000)
+    assert base == pytest.approx(25_000)
+    assert social < 25_000 * CFG.b2b.social_rate_full
+
+
+def test_b2b_2027_constants_are_in_config():
+    from app.simulation.config import default_config as dc
+
+    cfg = dc(2027)
+    assert cfg.zus.limit_base_annual == pytest.approx(300_990)
+    assert cfg.zus.b2b_base_monthly == pytest.approx(6_019.80)
+    assert cfg.b2b.preferential_base_monthly == pytest.approx(1_485)
+    assert cfg.b2b.min_health_monthly == pytest.approx(445.50)
+    assert cfg.b2b.linear_health_deduction_annual == pytest.approx(15_100)
+
+
+def test_backfill_uses_year_specific_defaults():
+    from app.simulation.config import backfill_tax_config
+
+    data = {"year": 2027}
+    filled = backfill_tax_config(data)
+    assert filled["b2b"]["preferential_base_monthly"] == pytest.approx(1_485)
+    assert filled["zus"]["b2b_base_monthly"] == pytest.approx(6_019.80)
