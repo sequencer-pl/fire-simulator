@@ -66,39 +66,8 @@
             </form>
 
             <div id="results" class="results-section" style="display:none;">
-                <div class="page-head">
-                    <h2 class="page-title">Wyniki symulacji</h2>
-                    <p class="page-lead">Kwoty netto, w dzisiejszej sile nabywczej.</p>
-                </div>
-                <div id="warnings" class="stack-sm"></div>
-                <div id="simHero" class="wz-hero-answer hidden"></div>
-                <div id="summary" class="wz-summary"></div>
-                <div id="planTime"></div>
-                <div class="charts-section hidden" id="chartsSection">
-                    <div class="card chart-card">
-                        <div class="wz-chart-head">
-                            <h4 class="chart-title">Kapitał prywatny FIRE</h4>
-                            <div class="res-chart-legend" id="wealthLegend"></div>
-                        </div>
-                        <div id="wealthChart" class="chart-wrap hidden"></div>
-                        <div id="wealthDetail" class="chart-detail hidden"></div>
-                    </div>
-                    <div class="card chart-card">
-                        <div class="wz-chart-head">
-                            <h4 class="chart-title">Wypłaty netto w czasie</h4>
-                            <div class="res-chart-legend" id="withdrawalLegend"></div>
-                        </div>
-                        <div id="withdrawalChart" class="chart-wrap hidden"></div>
-                        <div id="withdrawalDetail" class="chart-detail hidden"></div>
-                    </div>
-                    <div class="wz-chart-annotations-row">
-                        <span class="wz-chart-annotations-label">Kamienie milowe:</span>
-                        <div class="wz-chart-annotations" id="simChartAnnotations"></div>
-                    </div>
-                </div>
-                <h3 class="section-title">Rok po roku<span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">Majątek prywatny: suma sald na koniec roku bez ZUS i OFE; ZUS pokazujemy w osobnej kolumnie. Kwoty są brutto — majątek końcowy netto jest po podatku wyjścia.</span></span></h3>
-                <div id="simYearTable"></div>
-                <div id="simDetails"></div>
+                <h2 class="visually-hidden">Wyniki symulacji</h2>
+                <div id="simResultBody"></div>
             </div>
 
             <div class="action-bar form-actions" id="formActions">

@@ -70,10 +70,14 @@ test("Symulator pokazuje wspólne planowanie i wykresy SVG", async ({ page }) =>
     await page.goto("/sim?wizard=1", { waitUntil: "networkidle" });
 
     await expect(page.locator("#results")).toBeVisible({ timeout: 30_000 });
-    await expect(page.locator("#simHero")).not.toBeEmpty();
-    await expect(page.locator("#planTime .wz-gantt-row")).not.toHaveCount(0);
-    await expect(page.locator("#planTime .stage-line")).not.toHaveCount(0);
-    await expect(page.locator("#wealthChart svg")).toBeVisible();
-    await expect(page.locator("#withdrawalChart svg")).toBeVisible();
-    await expect(page.locator("#simDetails details")).toBeVisible();
+    await expect(page.locator("#wzHeroAnswer")).not.toBeEmpty();
+    await expect(page.locator("#wzMetrics .metric")).toHaveCount(7);
+    await expect(page.locator("[data-results-plan-time] .wz-gantt-row")).not.toHaveCount(0);
+    await expect(page.locator("[data-results-plan-time] .stage-line")).not.toHaveCount(0);
+    await expect(page.locator("#wzAccountFlows tbody tr")).not.toHaveCount(0);
+    await expect(page.locator("#wzWithdrawalsChart svg")).toBeVisible();
+    await expect(page.locator("#wzCapitalChart svg")).toBeVisible();
+    await expect(page.locator("#wzChartMilestonesToggle")).toBeVisible();
+    await expect(page.locator("#wzYearTable tr.post-horizon")).toHaveCount(1);
+    await expect(page.locator("#wzFacts .chip")).not.toHaveCount(0);
 });

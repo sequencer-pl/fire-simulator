@@ -36,17 +36,46 @@
         );
     }
 
+    function zusEndAge(input) {
+        const stages = input?.stages || [];
+        const ends = stages
+            .filter((stage) => stage.stage_type === "realizacja" && (stage.accounts || {}).zus)
+            .map((stage) => Number(stage.end_age))
+            .filter((age) => Number.isFinite(age));
+        return ends.length ? Math.max(...ends) : null;
+    }
+
+    function postHorizonFor(input, result) {
+        const summary = result?.summary || {};
+        if (!summary.has_pension) return null;
+        const lastAge = Number(summary.end_age);
+        const pensionEnd = zusEndAge(input);
+        const monthly = Number(summary.zus_monthly) || 0;
+        if (!Number.isFinite(lastAge) || pensionEnd == null || lastAge + 1 > pensionEnd) return null;
+        if (monthly <= 0.5) return null;
+        return {
+            ageLabel: `${lastAge + 1}+`,
+            stageName: "Tylko ZUS (po horyzoncie)",
+            monthly,
+            annual: monthly * 12,
+            title: `Po horyzoncie planu pokazujemy samą emeryturę ZUS. Kwota netto miesięcznie: ${window.ResultsModel.fmtMoney(monthly)}.`,
+        };
+    }
+
     function render(container, options = {}) {
         if (!container) return;
         const {
             result,
+            input = null,
             title = "Rok po roku",
             density = 5,
             open = false,
             embedded = false,
             tableId = "",
-            postHorizon = null,
         } = options;
+        const postHorizon = Object.prototype.hasOwnProperty.call(options, "postHorizon")
+            ? options.postHorizon
+            : postHorizonFor(input, result);
 
         counter += 1;
         const uid = `res-year-table-${counter}`;
@@ -208,5 +237,5 @@
         });
     }
 
-    window.ResultsTable = { render };
+    window.ResultsTable = { render, postHorizonFor };
 })();

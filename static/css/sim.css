@@ -218,73 +218,6 @@
 
 .results-section { margin-top: var(--sp-6); }
 
-#warnings:not(:empty) { margin-bottom: var(--sp-4); }
-
-#summary { margin-bottom: var(--sp-6); }
-
-#stageSummary { margin-bottom: var(--sp-6); }
-
-.charts-section {
-    display: grid;
-    gap: var(--sp-4);
-    margin-bottom: var(--sp-8);
-}
-
-.chart-card { padding: var(--sp-4) var(--sp-5); }
-
-.chart-wrap { position: relative; }
-.chart-wrap.hidden { display: none; }
-
-.chart-svg .wealth-line { stroke: var(--primary); }
-.chart-svg .wealth-area { fill: var(--primary); }
-.chart-svg .chart-dot-wealth { fill: var(--primary); }
-.chart-svg .withdrawal-line { stroke: var(--stage-real); }
-.chart-svg .withdrawal-area { fill: var(--stage-real); }
-.chart-svg .chart-dot-green { fill: var(--stage-real); }
-
-.chart-detail {
-    margin-top: var(--sp-3);
-    padding: var(--sp-3) var(--sp-4);
-    background: var(--surface-2);
-    border: 1px solid var(--border);
-    border-radius: var(--r-md);
-}
-
-.chart-detail .detail-header {
-    font-size: var(--fs-sm);
-    color: var(--text-2);
-    margin-bottom: var(--sp-2);
-}
-
-.chart-detail .detail-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-    gap: var(--sp-2) var(--sp-4);
-}
-
-.chart-detail .detail-item { display: flex; flex-direction: column; }
-
-.chart-detail .detail-label {
-    font-size: var(--fs-xs);
-    font-weight: 600;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-    color: var(--text-3);
-}
-
-.chart-detail .detail-value {
-    font-weight: 650;
-    font-variant-numeric: tabular-nums;
-}
-
-.chart-detail .detail-balances {
-    margin-top: var(--sp-3);
-    padding-top: var(--sp-3);
-    border-top: 1px solid var(--border);
-}
-
-.results-toolbar { margin-bottom: var(--sp-3); }
-
 #resultsTable th.col-age,
 #resultsTable td.col-age {
     position: sticky;
@@ -320,8 +253,6 @@
 #resultsTable td.col-hidden,
 #resultsTable th.col-hidden,
 #resultsTable tr.density-hidden { display: none; }
-
-.plus-suffix { color: var(--text-3); margin-left: 2px; }
 
 /* --- Konfiguracja --------------------------------------------------------------------- */
 

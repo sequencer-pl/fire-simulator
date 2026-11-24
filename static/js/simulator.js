@@ -121,16 +121,15 @@ function pensionAge(config) {
     return z.wiek_emerytalny_m ?? z.wiek_emerytalny ?? 65;
 }
 
+let simResultsRoot = null;
+
 function renderResults(data) {
-    const summaryBox = document.getElementById("summary");
-    const warnings = document.getElementById("warnings");
-
-    warnings.innerHTML = "";
-    window.ResultsBanners.render(warnings, data.warnings || [], {
-        variant: "warn",
-        mode: "stack",
-    });
-
+    const body = document.getElementById("simResultBody");
+    if (!body) return;
+    if (!simResultsRoot || !body.contains(simResultsRoot)) {
+        simResultsRoot = window.ResultsView.mount(body, { scenarios: false });
+    }
+    const root = simResultsRoot;
     const totalContrib = computeTotalUserContributions(lastInput);
     const initCap = computeInitialCapital(lastInput);
     const summary = data.summary || {
@@ -144,54 +143,26 @@ function renderResults(data) {
         total_tax_refund: data.total_tax_refund,
     };
     const planView = { result: data, summary, projection: data.projection || null };
-    const metrics = [
-        window.ResultsModel.metric(planView, "totalWithdrawnPrivate"),
-        window.ResultsModel.metric(planView, "avgMonthly", { label: "Średnia wypłata mies." }),
-        window.ResultsModel.metric(planView, "minMonthly", { label: "Minimalna wypłata mies." }),
-        window.ResultsModel.metric(planView, "portfolioMinMonthly", {
-            label: "Minimalna wypłata z portfela",
-        }),
-        window.ResultsModel.metric(planView, "finalWealthNet"),
-        window.ResultsModel.metric(planView, "taxAndHealth", { label: "Podatki i składki" }),
-    ];
-    if ((planView.summary?.zus_monthly ?? 0) > 0) {
-        metrics.push(window.ResultsModel.metric(planView, "zusMonthly"));
-    } else {
-        metrics.push(window.ResultsModel.metric(planView, "peakWealth", { label: "Majątek szczytowy" }));
-    }
-    window.ResultsMetrics.render(summaryBox, metrics);
 
-    renderSimulatorHero(data, summary);
-    renderPlanTime(data);
-    const sharedCharts = renderSharedCharts(data);
-    if (!sharedCharts) {
-        renderWealthChart(data);
-        renderWithdrawalChart(data);
-    }
-    renderSimulatorTable(data);
-    renderSimulatorDetails(data);
+    window.ResultsSummary.render(root, {
+        hero: simulatorHero(data, summary),
+        warnings: data.warnings || [],
+        metrics: window.ResultsSummary.metricsFor(planView),
+        facts: window.ResultsSummary.factsForSimulator(
+            lastInput,
+            data.projection || null,
+            summary
+        ),
+    });
 
-    const hasCharts = !document.getElementById("wealthChart").classList.contains("hidden")
-        || !document.getElementById("withdrawalChart").classList.contains("hidden");
-    document.getElementById("chartsSection").classList.toggle("hidden", !hasCharts);
+    renderPlanTime(root, data);
+    renderSharedCharts(root, data);
+    renderSimulatorTable(root, data);
 
     switchToResults();
 }
 
-function renderSimulatorTable(data) {
-    const box = document.getElementById("simYearTable");
-    if (!box || !window.ResultsTable) return;
-    window.ResultsTable.render(box, {
-        result: data,
-        density: 5,
-        embedded: true,
-        tableId: "resultsTable",
-    });
-}
-
-function renderSimulatorHero(data, summary) {
-    const box = document.getElementById("simHero");
-    if (!box) return;
+function simulatorHero(data, summary) {
     const fmt = window.ResultsModel.fmtMoney;
     const projection = data.projection || {};
     const payoutPhases = (projection.phase_metrics || []).filter(
@@ -218,168 +189,61 @@ function renderSimulatorHero(data, summary) {
         : "";
 
     if (monthly > 0 && start != null && end != null) {
-        box.innerHTML = `<div class="wz-hero-kicker">TWÓJ PLAN</div>
-            <div class="wz-hero-headline">Plan wypłaca średnio ${fmt(monthly)}/mies. netto</div>
-            <div class="wz-hero-desc">Od ${start}. do ${end}. roku życia. Na koniec zostaje <strong>${fmt(finalNet)}</strong> netto.${zusOnlyNote}</div>`;
-    } else {
-        box.innerHTML = `<div class="wz-hero-kicker">TWÓJ PLAN</div>
-            <div class="wz-hero-headline">Plan kończy się w wieku ${end ?? "—"}</div>
-            <div class="wz-hero-desc">Majątek końcowy netto: <strong>${fmt(finalNet)}</strong>.${zusOnlyNote}</div>`;
+        return {
+            kicker: "TWÓJ PLAN",
+            headline: `Plan wypłaca średnio ${fmt(monthly)}/mies. netto`,
+            desc: `Od ${start}. do ${end}. roku życia. Na koniec zostaje <strong>${fmt(finalNet)}</strong> netto.${zusOnlyNote}`,
+        };
     }
-    box.classList.remove("hidden");
+    return {
+        kicker: "TWÓJ PLAN",
+        warn: true,
+        headline: `Plan kończy się w wieku ${end ?? "—"}`,
+        desc: `Majątek końcowy netto: <strong>${fmt(finalNet)}</strong>.${zusOnlyNote}`,
+    };
 }
 
-function renderPlanTime(data) {
-    const box = document.getElementById("planTime");
+function renderSimulatorTable(root, data) {
+    const box = root?.querySelector("[data-results-year-table]");
+    if (!box || !window.ResultsTable) return;
+    window.ResultsTable.render(box, {
+        result: data,
+        input: lastInput,
+        density: 5,
+        embedded: true,
+        tableId: "resultsTable",
+    });
+}
+
+function renderPlanTime(root, data) {
+    const box = root?.querySelector("[data-results-plan-time]");
     if (!box) return;
     if (!data.projection || !window.ResultsPlanTime) {
         box.innerHTML = "";
         return;
     }
-    const stages = lastInput ? computeStageSummaries(lastInput, data) : [];
     window.ResultsPlanTime.render(box, {
         input: lastInput,
         projection: data.projection,
         summary: data.summary,
         result: data,
-        stages,
-        labels: data.account_labels || {},
-        title: "Twój plan w czasie",
     });
 }
 
-function renderSharedCharts(data) {
+function renderSharedCharts(root, data) {
+    const section = root?.querySelector('[data-results-section="charts"]');
     const projection = data.projection;
-    if (!projection?.chart || !window.ResultsCharts) return false;
-    const chart = projection.chart;
-    const labels = { ...(data.account_labels || {}), zus: "ZUS" };
-    const seriesFor = (dict) =>
-        Object.entries(dict || {})
-            .map(([key, values]) => ({
-                key,
-                label: labels[key] || key,
-                color: window.ResultsCharts.accountColor(key),
-                values,
-            }))
-            .filter((series) => series.values.some((value) => Math.abs(value) > 0.5));
-
-    const capitalSeries = seriesFor(chart.balances);
-    const withdrawalSeries = seriesFor(chart.withdrawals_net).map((series) => ({
-        ...series,
-        values: series.values.map((value) => value / 12),
-    }));
-    const order = [
-        "ike", "ikze", "oipe", "ppk", "ppe", "broker", "obligacje", "lokata",
-        "oki_inw", "oki_osk", "gotowka", "krypto", "nieruchomosc", "zus",
-    ];
-    const orderIndex = (key) => {
-        const index = order.indexOf(key);
-        return index === -1 ? order.length : index;
-    };
-    capitalSeries.sort((a, b) => orderIndex(a.key) - orderIndex(b.key));
-    withdrawalSeries.sort((a, b) => orderIndex(a.key) - orderIndex(b.key));
-    const payoutPhases = (projection.phase_metrics || []).filter(
-        (phase) => phase.cashflow === "payout"
-    );
-    const annotations = [];
-    if (payoutPhases.length) {
-        const start = Math.min(...payoutPhases.map((phase) => phase.start_age));
-        annotations.push({ age: start, label: `Start ${start}` });
+    if (!projection?.chart?.ages?.length || !window.ResultsCharts) {
+        section?.classList.add("hidden");
+        return false;
     }
-    // ZUS startuje w wieku z etapu/phase metrics, nie w ustawowym 65.
-    const zusStartAge = (data.years || []).find((year) => year.zus_monthly > 0)?.age
-        ?? payoutPhases.find((phase) => phase.key === "zus_only")?.start_age
-        ?? null;
-    if (zusStartAge != null && chart.withdrawals_net?.zus) {
-        annotations.push({ age: zusStartAge, label: `ZUS ${zusStartAge}` });
-    }
-
-    const wealth = document.getElementById("wealthChart");
-    const withdrawal = document.getElementById("withdrawalChart");
-    if (capitalSeries.length) {
-        wealth.classList.remove("hidden");
-        document.getElementById("wealthDetail")?.classList.add("hidden");
-        window.ResultsCharts.legend(document.getElementById("wealthLegend"), capitalSeries);
-        window.ResultsCharts.stackedArea(wealth, {
-            ages: chart.ages,
-            series: capitalSeries,
-            height: 280,
-            annotations,
-            ariaLabel: "Kapitał prywatny FIRE",
-        });
-    } else {
-        wealth.classList.add("hidden");
-    }
-
-    if (withdrawalSeries.length) {
-        withdrawal.classList.remove("hidden");
-        document.getElementById("withdrawalDetail")?.classList.add("hidden");
-        window.ResultsCharts.legend(
-            document.getElementById("withdrawalLegend"),
-            withdrawalSeries
-        );
-        window.ResultsCharts.stackedArea(withdrawal, {
-            ages: chart.ages,
-            series: withdrawalSeries,
-            height: 280,
-            annotations,
-            ariaLabel: "Wypłaty netto w czasie",
-            valueFormat: (value) => `${window.ResultsModel.fmtMoney(value)}/mies.`,
-        });
-    } else {
-        withdrawal.classList.add("hidden");
-    }
-
-    const chipBox = document.getElementById("simChartAnnotations");
-    if (chipBox) {
-        const chips = [];
-        if (payoutPhases.length) {
-            chips.push(`FIRE ${Math.min(...payoutPhases.map((phase) => phase.start_age))}`);
-        }
-        if (zusStartAge != null && chart.withdrawals_net?.zus) chips.push(`ZUS ${zusStartAge}`);
-        if (data.summary?.end_age != null) chips.push(`Horyzont ${data.summary.end_age}`);
-        chipBox.innerHTML = chips
-            .map((chip) => `<span class="wz-chart-annotation-chip">${window.escapeHtml(chip)}</span>`)
-            .join("");
-    }
-    return capitalSeries.length > 0 || withdrawalSeries.length > 0;
-}
-
-function renderSimulatorDetails(data) {
-    const box = document.getElementById("simDetails");
-    if (!box) return;
-    const summary = data.summary || {};
-    const fmt = window.ResultsModel.fmtMoney;
-    const pct = window.ResultsModel.fmtPct;
-    box.innerHTML = `<details class="wz-details" open>
-        <summary>Majątek, podatki i ulgi</summary>
-        <div class="wz-details-body">
-            <section class="wz-details-block">
-                <h4 class="wz-details-title">Majątek</h4>
-                <div class="wz-wealth">
-                    <div class="wz-wealth-row"><span>Majątek szczytowy</span><strong>${fmt(summary.peak_wealth ?? data.peak_wealth)}</strong></div>
-                    <div class="wz-wealth-row"><span>Na koniec — brutto</span><strong>${fmt(summary.final_wealth ?? data.final_wealth)}</strong></div>
-                    <div class="wz-wealth-row"><span>Po podatku wyjścia — netto</span><strong>${fmt(summary.final_wealth_net ?? data.final_wealth_net)}</strong></div>
-                </div>
-            </section>
-            <section class="wz-details-block">
-                <h4 class="wz-details-title">Podatki i ulgi</h4>
-                <div class="wz-fact-row">
-                    <span class="chip wz-fact">Suma podatków: ${fmt(summary.total_tax ?? data.total_tax)}</span>
-                    ${(summary.tax_efficiency ?? null) != null ? `<span class="chip wz-fact">Efektywność podatkowa: ${pct(summary.tax_efficiency)}</span>` : ""}
-                    ${(summary.total_tax_refund ?? 0) > 0 ? `<span class="chip wz-fact">Zwrot IKZE: ${fmt(summary.total_tax_refund)}</span>` : ""}
-                </div>
-                ${lastInput?.withdrawal_policy ? `<p class="wz-policy-label">Kolejność wypłat</p><p class="wz-method-policy">${escapeHtml({
-                    defer_tier: "Najpierw konta o najniższym koszcie podatkowym, potem IKZE.",
-                    early_tier: "Najpierw IKZE, potem konta o najniższym koszcie podatkowym.",
-                    defer_roi: "Najpierw konta o najwyższym ROI, potem IKZE.",
-                    early_roi: "Najpierw IKZE, potem konta o najwyższym ROI.",
-                    defer_tax: "Najpierw konta o najniższym podatku, potem IKZE.",
-                    early_tax: "Najpierw IKZE, potem konta o najniższym podatku.",
-                }[lastInput.withdrawal_policy] || "Automatyczna kolejność wypłat.")}</p>` : ""}
-            </section>
-        </div>
-    </details>`;
+    window.ResultsCharts.render({
+        input: lastInput,
+        projection,
+        summary: data.summary || {},
+    });
+    section?.classList.remove("hidden");
+    return true;
 }
 
 function switchToResults() {
@@ -396,46 +260,6 @@ function switchToConfig() {
     document.getElementById("simConfigSection").scrollIntoView({ behavior: "smooth" });
 }
 
-function renderStageSummary(data) {
-    const el = document.getElementById("stageSummary");
-    if (!lastInput || !lastInput.stages) {
-        el.innerHTML = "";
-        return;
-    }
-    const stages = computeStageSummaries(lastInput, data);
-    if (stages.length === 0) {
-        el.innerHTML = "";
-        return;
-    }
-
-    let html = window.ResultsSection.head("Etapy") + '<div class="stage-summary">';
-    for (const st of stages) {
-        const isAccum = st.type === "akumulacja";
-        const kind = isAccum ? "accum" : "withdraw";
-
-        const accounts = st.accounts
-            .map((a) => `<span class="chip">${escapeHtml(data.account_labels?.[a.key] || accountDisplayLabel(a.key))}</span>`)
-            .join("");
-
-        let finance = "";
-        if (isAccum && st.total_monthly > 0) {
-            finance = `<span class="stage-finance ${kind}">~${formatMoney(st.total_monthly)}/mies.</span>`;
-        } else if (!isAccum && st.avg_withdrawal > 0) {
-            finance = `<span class="stage-finance ${kind}">~${formatMoney(st.avg_withdrawal)}/mies.</span>`;
-        }
-
-        html += `
-            <div class="stage-line">
-                <span class="stage-dot ${kind}"></span>
-                <span class="stage-label ${kind}">${escapeHtml(st.label)}</span>
-                <span class="stage-age">${st.start_age}→${st.end_age} r.ż.</span>
-                ${accounts}
-                ${finance}
-            </div>`;
-    }
-    el.innerHTML = html + "</div>";
-}
-
 // --- Init ---
 document.addEventListener("DOMContentLoaded", () => {
     const container = document.getElementById("stages-container");
@@ -444,7 +268,6 @@ document.addEventListener("DOMContentLoaded", () => {
     if (params.get("view") === "config") switchMode("config");
     initConfig();
     initSimulationIO();
-    initResultsControls();
     initStageEventHandlers(container);
     initTipAnchoring();
 
@@ -1525,324 +1348,3 @@ function populateStages(inputData) {
 }
 
 // --- Czytelność wyników: kolumny, gęstość, wykres ---
-
-const COLUMN_TOGGLES_KEY = "fire.columnToggles";
-const DENSITY_KEY = "fire.density";
-
-function initResultsControls() {
-    const density = document.getElementById("densitySelect");
-    if (!density) return;
-    const saved = localStorage.getItem(DENSITY_KEY);
-    if (saved) density.value = saved;
-    density.addEventListener("change", () => {
-        localStorage.setItem(DENSITY_KEY, density.value);
-        applyDensity();
-    });
-}
-
-function renderColumnToggles(accounts) {
-    const container = document.getElementById("columnToggles");
-    container.innerHTML = "";
-    const hidden = new Set(JSON.parse(localStorage.getItem(COLUMN_TOGGLES_KEY) || "[]"));
-    const labelsMap = lastResult?.account_labels || {};
-
-    const cols = accounts.map((a) => ({ col: a, label: labelsMap[a] || accountDisplayLabel(a) }));
-    cols.push(
-        { col: "wealth", label: "Majątek" },
-        { col: "annual", label: "Wypłata roczna" },
-        { col: "monthly", label: "Wypłata mies." },
-        { col: "tax", label: "Podatek" }
-    );
-
-    cols.forEach(({ col, label }) => {
-        const toggle = document.createElement("button");
-        toggle.type = "button";
-        toggle.className = "pill-toggle col-toggle" + (hidden.has(col) ? "" : " is-active");
-        toggle.setAttribute("aria-pressed", String(!hidden.has(col)));
-        toggle.dataset.col = col;
-        toggle.innerHTML = `${iconSvg(hidden.has(col) ? "plus" : "check")}<span>${escapeHtml(label)}</span>`;
-        toggle.addEventListener("click", () => {
-            const nowHidden = !hidden.has(col);
-            if (nowHidden) hidden.add(col);
-            else hidden.delete(col);
-            localStorage.setItem(COLUMN_TOGGLES_KEY, JSON.stringify([...hidden]));
-            toggle.classList.toggle("is-active", !nowHidden);
-            toggle.setAttribute("aria-pressed", String(!nowHidden));
-            toggle.querySelector(".icon").outerHTML = iconSvg(nowHidden ? "plus" : "check");
-            applyColVisibility();
-        });
-        container.appendChild(toggle);
-    });
-}
-
-function applyColVisibility() {
-    const hidden = new Set(JSON.parse(localStorage.getItem(COLUMN_TOGGLES_KEY) || "[]"));
-    document.querySelectorAll("#resultsTable [data-col]").forEach((cell) => {
-        cell.classList.toggle("col-hidden", hidden.has(cell.dataset.col));
-    });
-}
-
-function applyDensity() {
-    const tbody = document.querySelector("#resultsTable tbody");
-    if (!tbody) return;
-    const rows = tbody.querySelectorAll("tr");
-    const density = parseInt(document.getElementById("densitySelect").value, 10) || 1;
-    rows.forEach((tr, i) => {
-        const isLast = i === rows.length - 1;
-        tr.classList.toggle("density-hidden", density > 1 && !isLast && i % density !== 0);
-    });
-}
-
-function renderWealthChart(data) {
-    const container = document.getElementById("wealthChart");
-    const detail = document.getElementById("wealthDetail");
-    const years = data.years || [];
-    if (years.length < 2) {
-        container.classList.add("hidden");
-        detail.classList.add("hidden");
-        container.innerHTML = "";
-        detail.innerHTML = "";
-        return;
-    }
-
-    const W = 1000;
-    const H = 320;
-    const padX = 50;
-    const padY = 26;
-    const padBottom = 36;
-    const innerW = W - padX * 2;
-    const innerH = H - padY - padBottom;
-
-    const minAge = years[0].age;
-    // Ostatni punkt roku to saldo na jego początku — dokładamy punkt „koniec
-    // planu” (wiek + 1), żeby linia dochodziła do final_wealth.
-    const lastYear = years[years.length - 1];
-    const endAge = lastYear.age + 1;
-    const endWealth = data.final_wealth ?? lastYear.total_wealth;
-    const maxAge = endAge;
-    const rawMax = Math.max(endWealth, ...years.map((y) => y.total_wealth));
-    const maxWealth = rawMax > 0 ? rawMax * 1.1 : 1;
-    const x = (age) => padX + ((age - minAge) / Math.max(1, maxAge - minAge)) * innerW;
-    const y = (val) => H - padBottom - (val / Math.max(1, maxWealth)) * innerH;
-
-    let svg = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" class="chart-svg" id="wealthSvg">`;
-
-    /* grid lines + y-axis */
-    svg += `<g class="grid-lines">`;
-    const ySteps = 5;
-    for (let i = 0; i <= ySteps; i++) {
-        const gy = padY + (innerH * i) / ySteps;
-        const val = maxWealth * (1 - i / ySteps);
-        svg += `<line x1="${padX}" y1="${gy}" x2="${W - padX}" y2="${gy}"/>`;
-        svg += `<text x="${padX - 6}" y="${gy + 4}" class="axis-text" text-anchor="end">${Math.round(val / 1000).toLocaleString("pl-PL")}k</text>`;
-    }
-
-    /* x-axis ticks — always step 5 */
-    const ageRange = maxAge - minAge;
-    const step = ageRange <= 15 ? 1 : 5;
-    for (let a = Math.ceil(minAge / step) * step; a <= maxAge; a += step) {
-        const tx = x(a);
-        svg += `<line x1="${tx}" y1="${H - padBottom}" x2="${tx}" y2="${H - padBottom + 5}" stroke="var(--text-dim)" stroke-width="1"/>`;
-        svg += `<text x="${tx}" y="${H - padBottom - 6}" class="axis-text" text-anchor="middle">${a}</text>`;
-    }
-    svg += `<text x="${padX - 6}" y="${padY - 8}" class="axis-text" text-anchor="end">zł</text>`;
-    svg += `<text x="${W / 2}" y="${H - 4}" class="axis-text" text-anchor="middle">Wiek (r.ż.)</text>`;
-    svg += "</g>";
-
-    /* area + line */
-    const points = years
-        .map((yr) => `${x(yr.age).toFixed(1)},${y(yr.total_wealth).toFixed(1)}`)
-        .concat(`${x(endAge).toFixed(1)},${y(endWealth).toFixed(1)}`);
-    const baseY = (H - padBottom).toFixed(1);
-    svg += `<polygon class="chart-area wealth-area" points="${x(minAge).toFixed(1)},${baseY} ${points.join(" ")} ${x(maxAge).toFixed(1)},${baseY}"/>`;
-    svg += `<polyline class="chart-line wealth-line" fill="none" points="${points.join(" ")}"/>`;
-
-    /* clickable dots — sample if too many years */
-    const maxDots = 30;
-    const dotYears = years.length <= maxDots ? years : years.filter((_, i) => i % Math.ceil(years.length / maxDots) === 0 || i === years.length - 1);
-    dotYears.forEach((yr, i) => {
-        const cls = i === 0 ? "chart-dot chart-dot-wealth active" : "chart-dot chart-dot-wealth";
-        svg += `<circle class="${cls}" cx="${x(yr.age).toFixed(1)}" cy="${y(yr.total_wealth).toFixed(1)}" r="4" data-age="${yr.age}"/>`;
-    });
-
-    svg += "</svg>";
-    container.innerHTML = svg;
-    container.classList.remove("hidden");
-
-    /* click handler on dots */
-    container.querySelectorAll(".chart-dot-wealth").forEach((dot) => {
-        dot.addEventListener("click", (e) => {
-            const age = parseInt(e.target.dataset.age, 10);
-            const yr = years.find((y) => y.age === age);
-            if (!yr) return;
-            container.querySelectorAll(".chart-dot-wealth").forEach((d) => d.classList.remove("active"));
-            e.target.classList.add("active");
-            renderWealthDetail(yr, detail);
-        });
-    });
-
-    /* auto-select first dot */
-    renderWealthDetail(years[0], detail);
-}
-
-function renderWealthDetail(yr, container) {
-    const fmt = formatMoney;
-
-    /* find the active stage for this age and determine pill class */
-    let pillClass = "";
-    const stageAccounts = new Set();
-    if (lastInput && lastInput.stages) {
-        for (const stage of lastInput.stages) {
-            if (yr.age >= stage.start_age && yr.age < stage.end_age) {
-                for (const name of Object.keys(stage.accounts || {})) {
-                    stageAccounts.add(name);
-                }
-                pillClass = stage.stage_type === "realizacja" ? "pill-active" : "pill-accum";
-                break;
-            }
-        }
-    }
-
-    const balEntries = Object.entries(yr.balances || {}).filter(([, v]) => v > 0);
-    const labelsMap = lastResult?.account_labels || {};
-    const balHtml = balEntries.map(([k, v]) => {
-        const match = stageAccounts.has(k);
-        const chipKind = match ? (pillClass === "pill-active" ? " chip-real" : " chip-accum") : "";
-        return `<span class="chip${chipKind}">${escapeHtml(labelsMap[k] || accountDisplayLabel(k))}: ${fmt(v)}</span>`;
-    }).join("");
-
-    container.innerHTML = `
-        <div class="detail-header">
-            <strong>${yr.age} r.ż.</strong> — ${escapeHtml(yr.stage_name || "")}
-        </div>
-        <div class="detail-grid">
-            <div class="detail-item"><span class="detail-label">Majątek łącznie</span><span class="detail-value">${fmt(yr.total_wealth)}</span></div>
-            <div class="detail-item"><span class="detail-label">Wypłata mies.</span><span class="detail-value">${fmt(yr.monthly_withdrawal)}</span></div>
-            <div class="detail-item"><span class="detail-label">Wypłata roczna</span><span class="detail-value">${fmt(yr.annual_withdrawal)}</span></div>
-            <div class="detail-item"><span class="detail-label">Podatek</span><span class="detail-value${yr.tax_paid < 0 ? ' text-success' : ''}">${fmt(yr.tax_paid)}</span></div>
-        </div>
-        ${balHtml ? `<div class="detail-balances chip-row">${balHtml}</div>` : ""}
-    `;
-    container.classList.remove("hidden");
-}
-
-function renderWithdrawalChart(data) {
-    const container = document.getElementById("withdrawalChart");
-    const detail = document.getElementById("withdrawalDetail");
-    const years = data.years || [];
-    const withWithdrawals = years.filter((y) => y.monthly_withdrawal > 0);
-    if (withWithdrawals.length < 2) {
-        container.classList.add("hidden");
-        detail.classList.add("hidden");
-        container.innerHTML = "";
-        detail.innerHTML = "";
-        return;
-    }
-
-    const W = 1000;
-    const H = 320;
-    const padX = 50;
-    const padY = 26;
-    const padBottom = 36;
-    const innerW = W - padX * 2;
-    const innerH = H - padY - padBottom;
-
-    const minAge = withWithdrawals[0].age;
-    const maxAge = withWithdrawals[withWithdrawals.length - 1].age;
-    const maxWithdrawal = Math.max(...withWithdrawals.map((y) => y.monthly_withdrawal));
-    const x = (age) => padX + ((age - minAge) / Math.max(1, maxAge - minAge)) * innerW;
-    const y = (val) => H - padBottom - (val / Math.max(1, maxWithdrawal)) * innerH;
-
-    let svg = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" class="chart-svg" id="withdrawalSvg">`;
-
-    /* grid lines */
-    svg += `<g class="grid-lines">`;
-    const ySteps = 5;
-    for (let i = 0; i <= ySteps; i++) {
-        const gy = padY + (innerH * i) / ySteps;
-        const val = maxWithdrawal * (1 - i / ySteps);
-        svg += `<line x1="${padX}" y1="${gy}" x2="${W - padX}" y2="${gy}"/>`;
-        svg += `<text x="${padX - 6}" y="${gy + 4}" class="axis-text" text-anchor="end">${Math.round(val).toLocaleString("pl-PL")}</text>`;
-    }
-
-    /* x-axis ticks — always step 5 */
-    const ageRange = maxAge - minAge;
-    const step = ageRange <= 15 ? 1 : 5;
-    for (let a = Math.ceil(minAge / step) * step; a <= maxAge; a += step) {
-        const tx = x(a);
-        svg += `<line x1="${tx}" y1="${H - padBottom}" x2="${tx}" y2="${H - padBottom + 5}" stroke="var(--text-dim)" stroke-width="1"/>`;
-        svg += `<text x="${tx}" y="${H - padBottom - 6}" class="axis-text" text-anchor="middle">${a}</text>`;
-    }
-    svg += `<text x="${padX - 6}" y="${padY - 8}" class="axis-text" text-anchor="end">zł/mies.</text>`;
-    svg += `<text x="${W / 2}" y="${H - 4}" class="axis-text" text-anchor="middle">Wiek (r.ż.)</text>`;
-    svg += "</g>";
-
-    /* area + line */
-    const points = withWithdrawals.map((yr) => `${x(yr.age).toFixed(1)},${y(yr.monthly_withdrawal).toFixed(1)}`);
-    const baseY = (H - padBottom).toFixed(1);
-    svg += `<polygon class="chart-area withdrawal-area" points="${x(minAge).toFixed(1)},${baseY} ${points.join(" ")} ${x(maxAge).toFixed(1)},${baseY}"/>`;
-    svg += `<polyline class="chart-line withdrawal-line" fill="none" points="${points.join(" ")}"/>`;
-
-    /* clickable dots */
-    withWithdrawals.forEach((yr, i) => {
-        const cls = i === 0 ? "chart-dot chart-dot-green active" : "chart-dot chart-dot-green";
-        svg += `<circle class="${cls}" cx="${x(yr.age).toFixed(1)}" cy="${y(yr.monthly_withdrawal).toFixed(1)}" r="4" data-age="${yr.age}"/>`;
-    });
-
-    svg += "</svg>";
-    container.innerHTML = svg;
-    container.classList.remove("hidden");
-
-    /* click handler on dots */
-    container.querySelectorAll(".chart-dot-green").forEach((dot) => {
-        dot.addEventListener("click", (e) => {
-            const age = parseInt(e.target.dataset.age, 10);
-            const yr = years.find((y) => y.age === age);
-            if (!yr) return;
-            container.querySelectorAll(".chart-dot-green").forEach((d) => d.classList.remove("active"));
-            e.target.classList.add("active");
-            renderWithdrawalDetail(yr, detail);
-        });
-    });
-
-    /* auto-select first dot */
-    const firstYr = withWithdrawals[0];
-    renderWithdrawalDetail(firstYr, detail);
-}
-
-function renderWithdrawalDetail(yr, container) {
-    const fmt = formatMoney;
-
-    /* find which accounts belong to the active stage */
-    const activeAccounts = new Set();
-    if (lastInput && lastInput.stages) {
-        for (const stage of lastInput.stages) {
-            if (stage.stage_type === "realizacja" && yr.age >= stage.start_age && yr.age < stage.end_age) {
-                for (const name of Object.keys(stage.accounts || {})) {
-                    activeAccounts.add(name);
-                }
-            }
-        }
-    }
-
-    const balEntries = Object.entries(yr.balances || {}).filter(([, v]) => v > 0);
-    const labelsMap = lastResult?.account_labels || {};
-    const balHtml = balEntries.map(([k, v]) => {
-        const isActive = activeAccounts.has(k);
-        return `<span class="chip${isActive ? " chip-real" : ""}">${escapeHtml(labelsMap[k] || accountDisplayLabel(k))}: ${fmt(v)}</span>`;
-    }).join("");
-
-    container.innerHTML = `
-        <div class="detail-header">
-            <strong>${yr.age} r.ż.</strong> — ${escapeHtml(yr.stage_name || "")}
-        </div>
-        <div class="detail-grid">
-            <div class="detail-item"><span class="detail-label">Majątek łącznie</span><span class="detail-value">${fmt(yr.total_wealth)}</span></div>
-            <div class="detail-item"><span class="detail-label">Wypłata mies.</span><span class="detail-value">${fmt(yr.monthly_withdrawal)}</span></div>
-            <div class="detail-item"><span class="detail-label">Wypłata roczna</span><span class="detail-value">${fmt(yr.annual_withdrawal)}</span></div>
-            <div class="detail-item"><span class="detail-label">Podatek</span><span class="detail-value${yr.tax_paid < 0 ? ' text-success' : ''}">${fmt(yr.tax_paid)}</span></div>
-        </div>
-        ${balHtml ? `<div class="detail-balances chip-row">${balHtml}</div>` : ""}
-    `;
-    container.classList.remove("hidden");
-}

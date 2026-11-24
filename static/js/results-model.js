@@ -56,6 +56,13 @@
         return Math.round(number).toLocaleString("pl-PL");
     }
 
+    function horizonAge(input, summary = null) {
+        const maxAge = Number(input?.max_age);
+        if (Number.isFinite(maxAge)) return maxAge + 1;
+        const endAge = Number(summary?.end_age);
+        return Number.isFinite(endAge) ? endAge + 1 : null;
+    }
+
     function summaryOf(plan) {
         if (!plan) return {};
         return plan.summary || plan.projection?.summary || {};
@@ -356,6 +363,7 @@
         fmtPct,
         fmtMultiple,
         fmtNumber,
+        horizonAge,
         summaryOf,
         metricValue,
         metric,

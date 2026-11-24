@@ -910,103 +910,7 @@
 
         <div id="wzResult" class="wz-result hidden">
             <div id="wzResultError" class="banner banner-danger hidden"></div>
-
-            <section class="wz-result-card">
-                <div id="wzHeroAnswer" class="wz-hero-answer"></div>
-                <div id="wzWarnings" class="wz-warnings" aria-live="polite"></div>
-            </section>
-
-            <section class="wz-result-card">
-                <div id="wzScenariosSection" class="wz-scenarios-section">
-                    <div id="wzScenariosBox" class="wz-scenarios-box"></div>
-                </div>
-            </section>
-
-            <section class="wz-result-card">
-                <h3 class="wz-section-title">Kluczowe liczby</h3>
-                <div id="wzMetrics" class="metric-grid wz-summary"></div>
-                <div id="wzFacts" class="wz-fact-row"></div>
-                <p class="wz-plan-why hidden" id="wzPlanWhy"></p>
-            </section>
-
-            <section class="wz-result-card">
-                <h3 class="wz-section-title">
-                    <span class="tip-label-row">
-                        <span class="tip-label-text">Twój plan w czasie</span>
-                        <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">Górna oś pokazuje etapy życia. Pasek kont pokazuje, z których kont pochodzą wpłaty i wypłaty w danym wieku. Kliknij etap albo pasek, aby zobaczyć szczegóły.</span></span>
-                    </span>
-                </h3>
-                <div class="wz-plan-block">
-                    <div class="wz-timeline" id="wzTimeline"></div>
-                </div>
-                <div id="wzStageSummary" class="res-stage-summary hidden"></div>
-                <div class="wz-flows-wrap" id="wzFlowsWrap">
-                    <h4 class="wz-plan-subhead">
-                        <span class="tip-label-row">
-                            <span class="tip-label-text">Z czego żyjesz w kolejnych latach</span>
-                            <span class="tip" tabindex="0" aria-label="Kolejność wypłat">?<span class="tooltip" id="wzPolicyTipText">Kolejność wypłat zależy od polityki planu.</span></span>
-                        </span>
-                    </h4>
-                    <div class="wz-flows-gantt-scroll">
-                        <div class="wz-flows-gantt" id="wzFlowsGantt"></div>
-                    </div>
-                    <p class="field-hint wz-flows-scroll-hint">Przewiń w poziomie, aby zobaczyć cały horyzont.</p>
-                    <div class="wz-gantt-tip hidden" id="wzGanttTip" role="tooltip">
-                        <button type="button" class="wz-gantt-tip-close" id="wzGanttTipClose" aria-label="Zamknij podpowiedź">×</button>
-                        <div id="wzGanttTipBody"></div>
-                    </div>
-                    <details class="wz-flows-table-details" id="wzFlowsTableDetails" open>
-                        <summary>Tabela przepływów</summary>
-                        <div id="wzAccumulationFlows"></div>
-                        <div id="wzTransferFlows"></div>
-                        <div id="wzAccountFlows"></div>
-                    </details>
-                </div>
-            </section>
-
-            <section class="wz-result-card">
-                <div class="wz-section-head">
-                    <h3 class="wz-section-title">Wykresy</h3>
-                    <button type="button" class="pill-toggle hidden" id="wzChartMilestonesToggle" aria-pressed="true">
-                        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg>
-                        <span id="wzChartMilestonesToggleLabel">Ukryj kamienie milowe</span>
-                    </button>
-                </div>
-                <div class="wz-charts-wrap hidden" id="wzChartsWrap">
-                    <section class="wz-chart-card" aria-labelledby="wzWithdrawalsTitle">
-                        <div class="wz-chart-head">
-                            <h4 class="wz-plan-subhead" id="wzWithdrawalsTitle">Wypłaty netto w czasie</h4>
-                            <div class="wz-chart-head-actions">
-                                <div class="wz-chart-legend" id="wzWithdrawalsLegend"></div>
-                            </div>
-                        </div>
-                        <div class="wz-chart" id="wzWithdrawalsChart"></div>
-                    </section>
-                    <section class="wz-chart-card" aria-labelledby="wzCapitalTitle">
-                        <div class="wz-chart-head">
-                            <h4 class="wz-plan-subhead" id="wzCapitalTitle">Kapitał prywatny FIRE</h4>
-                            <div class="wz-chart-head-actions">
-                                <div class="wz-chart-legend" id="wzCapitalLegend"></div>
-                            </div>
-                        </div>
-                        <div class="wz-chart" id="wzCapitalChart"></div>
-                    </section>
-                </div>
-                <div class="wz-gantt-tip hidden" id="wzChartTip" role="tooltip">
-                    <button type="button" class="wz-gantt-tip-close" id="wzChartTipClose" aria-label="Zamknij podpowiedź">×</button>
-                    <div id="wzChartTipBody"></div>
-                </div>
-                <div class="wz-gantt-tip wz-chart-milestone-tip hidden" id="wzChartMilestoneTip" role="tooltip">
-                    <button type="button" class="wz-gantt-tip-close" id="wzChartMilestoneTipClose" aria-label="Zamknij opis kamienia milowego">×</button>
-                    <div id="wzChartMilestoneTipBody"></div>
-                </div>
-            </section>
-
-            <section class="wz-result-card">
-                <h3 class="wz-section-title">Rok po roku<span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">Majątek prywatny: suma sald na koniec roku bez ZUS i OFE; ZUS pokazujemy w osobnej kolumnie. Kwoty są brutto — majątek końcowy netto jest po podatku wyjścia. Wiersz po horyzoncie pokazuje tylko ZUS — majątek prywatny jest poza modelem.</span></span></h3>
-                <div id="wzYearTable"></div>
-            </section>
-        </div>
+            <div id="wzResultBody"></div>
         </div>
     </section>
 
@@ -1029,6 +933,8 @@
 {% endblock %}
 {% block scripts %}
     <script src="/static/js/controls.js?v={{ version }}"></script>
+    <script src="/static/js/results-charts.js?v={{ version }}"></script>
+    <script src="/static/js/results-plan-time.js?v={{ version }}"></script>
     <script src="/static/js/results-table.js?v={{ version }}"></script>
     <script src="/static/js/sim-metadata.js?v={{ version }}"></script>
     <script src="/static/js/wizard.js?v={{ version }}"></script>

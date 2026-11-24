@@ -66,9 +66,11 @@ Wymagania: `uv`, Python 3.12+.
 - `app/web/` — FastAPI: `routes.py`, `limits.py`.
 - `app/core/` — helpery: podatki, PMT, ROI, inflacja.
 - `static/js`, `static/css`, `app/templates/` — front; system wizualny w `DESIGN.md`.
-  Wspólne klocki wyników: `results-model.js`, `results-metrics.js`,
-  `results-banners.js`, `results-section.js`, `results-plan-time.js`,
-  `results-table.js`, `results-charts.js`, `results.css`.
+  Wspólne klocki wyników: `results-view.js` (szkielet kart), `results-summary.js`
+  (hero, metryki, fakty), `results-model.js`, `results-metrics.js`,
+  `results-banners.js`, `results-plan-time.js`,
+  `results-table.js`, `results-charts.js`, `results.css`. Asystent i Symulator
+  korzystają z tych samych sekcji i nie duplikują ich renderowania.
 - `qa/jsdom`, `qa/visual` — harness JS i Playwright.
 
 Zasady:

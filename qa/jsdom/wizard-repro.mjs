@@ -54,7 +54,10 @@ const scripts = [
     "static/js/results-model.js",
     "static/js/results-metrics.js",
     "static/js/results-banners.js",
-    "static/js/results-section.js",
+    "static/js/results-view.js",
+    "static/js/results-summary.js",
+    "static/js/results-plan-time.js",
+    "static/js/results-charts.js",
     "static/js/results-table.js",
     "static/js/controls.js",
     "static/js/wizard.js",
@@ -442,7 +445,7 @@ const harness = `
             && portfolio.textContent.includes("100");
     });
     check("rok po roku: wiersz po horyzoncie pokazuje sam ZUS", () => {
-        const row = wzPostHorizonRow(
+        const row = ResultsTable.postHorizonFor(
             {
                 max_age: 80,
                 stages: [
@@ -457,7 +460,7 @@ const harness = `
                 },
             }
         );
-        const beyond = wzPostHorizonRow(
+        const beyond = ResultsTable.postHorizonFor(
             {
                 max_age: 100,
                 stages: [
@@ -637,7 +640,7 @@ const harness = `
             chart: { ages: Array.from({ length: 61 }, (_, index) => 40 + index) },
             early_return_total: 0,
         };
-        const zus = wzChartAnnotationsFor(input, projection)
+        const zus = ResultsCharts.annotationsFor(input, projection)
             .find((annotation) => annotation.kind === "zus");
         return Boolean(zus)
             && zus.age === 65
@@ -666,7 +669,7 @@ const harness = `
     check("wynik: wykresy pokazują kluczowe wartości", () => {
         const capitalLabel = document.querySelector("#wzCapitalChart .wz-chart-reference-label");
         const peakDot = document.querySelector("#wzCapitalChart .wz-chart-reference-dot");
-        const refs = wzChartReferences({
+        const refs = ResultsCharts.references({
             kind: "withdrawals",
             ages: [40, 41],
             totals: [5000, 6000],
@@ -679,7 +682,7 @@ const harness = `
             && refs.some((ref) => ref.key === "min");
     });
     check("wynik: dlaczego ten plan?", () => {
-        wzRenderPlanWhy({
+        ResultsSummary.renderWhy(document.getElementById("wzPlanWhy"), wzPlanWhyHtml({
             optimization: {
                 objective: "total",
                 baseline: { total_withdrawn: 1000000 },
@@ -690,7 +693,7 @@ const harness = `
                     payout_monthly: 4800,
                 },
             },
-        });
+        }));
         const box = document.getElementById("wzPlanWhy");
         return Boolean(box)
             && !box.classList.contains("hidden")
