@@ -25,8 +25,8 @@
     function metricsFor(planView) {
         const metrics = [
             window.ResultsModel.metric(planView, "totalWithdrawnPrivate"),
-            window.ResultsModel.metric(planView, "avgMonthly", { label: "Średnia wypłata mies." }),
-            window.ResultsModel.metric(planView, "minMonthly", { label: "Minimalna wypłata mies." }),
+            window.ResultsModel.metric(planView, "avgIncome"),
+            window.ResultsModel.metric(planView, "minIncome"),
             window.ResultsModel.metric(planView, "portfolioMinMonthly", {
                 label: "Minimalna wypłata z portfela",
             }),
@@ -146,8 +146,47 @@
         return facts;
     }
 
+    function obligationsFor(input) {
+        if (Array.isArray(input?.obligations) && input.obligations.length) {
+            return input.obligations;
+        }
+        if (Number(input?.mortgage_monthly) > 0 && input?.mortgage_end_age != null) {
+            return [{
+                name: "Kredyt hipoteczny",
+                monthly: Number(input.mortgage_monthly),
+                start_age: 0,
+                end_age: Number(input.mortgage_end_age),
+            }];
+        }
+        return [];
+    }
+
+    function obligationFacts(input) {
+        const obligations = obligationsFor(input);
+        if (!obligations.length) return [];
+        const total = obligations.reduce((sum, item) => sum + (Number(item.monthly) || 0), 0);
+        const details = obligations.map((item) => {
+            const from = Number(item.start_age) || 0;
+            const to = Number(item.end_age) || 0;
+            return `${item.name || "Zobowiązanie"}: ${money(item.monthly)}/mies. od ${from} do ${to} r.ż.`;
+        }).join(" ");
+        const endAges = obligations.map((item) => Number(item.end_age)).filter(Number.isFinite);
+        const endLabel = endAges.length ? ` do ${Math.max(...endAges)} r.ż.` : "";
+        return [
+            `<span class="chip wz-fact">Zobowiązania: ${money(total)}/mies.${endLabel}${tip(`Aktywne zobowiązania czasowe odejmujemy od miesięcznego budżetu na życie. ${details}`)}</span>`
+        ];
+    }
+
     function factsForSimulator(input, projection, summary) {
-        const facts = ikzeFacts(projection);
+        const obligationChips = obligationFacts(input);
+        const facts = ikzeFacts(projection).concat(obligationChips);
+        if (obligationChips.length
+            && summary?.avg_monthly != null
+            && Number(summary.avg_monthly) < Number(summary.avg_income ?? summary.avg_monthly) - 0.5) {
+            facts.push(
+                `<span class="chip wz-fact">Budżet na życie: ${money(summary.avg_monthly)}/mies.${tip("Średni miesięczny budżet po odjęciu aktywnych zobowiązań czasowych. Wypłata netto z planu to osobna metryka.")}</span>`
+            );
+        }
         const peak = Number(summary?.peak_wealth);
         if (Number.isFinite(peak) && peak > 0 && (summary?.zus_monthly ?? 0) > 0) {
             facts.push(
@@ -199,6 +238,7 @@
     window.ResultsSummary = {
         metricsFor,
         factsForSimulator,
+        obligationFacts,
         ikzeFacts,
         policyText,
         render,

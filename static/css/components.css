@@ -1280,3 +1280,74 @@ tbody tr.table-group:hover td { background: var(--surface-2); }
     .empty-state::before,
     .auth-panel::before { display: none; }
 }
+
+/* --- Zobowiązania czasowe ------------------------------------------------------------- */
+
+.sim-obligations-panel { margin-bottom: var(--sp-4); }
+
+.sim-obligations-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sp-3);
+    flex-wrap: wrap;
+}
+
+.obligations-list {
+    display: grid;
+    gap: var(--sp-3);
+    margin-top: var(--sp-3);
+}
+
+.obligation-row {
+    display: grid;
+    gap: var(--sp-2);
+    padding: var(--sp-3);
+    border: 1px solid var(--border);
+    border-radius: var(--r-md);
+    background: var(--surface-2);
+}
+
+.obligation-main {
+    display: grid;
+    grid-template-columns: minmax(0, 1.6fr) repeat(3, minmax(120px, 0.8fr));
+    gap: var(--sp-3);
+    align-items: end;
+}
+
+.obligation-label {
+    display: block;
+    margin-bottom: var(--sp-1);
+    color: var(--text-2);
+    font-size: var(--fs-sm);
+    font-weight: 600;
+}
+
+.obligation-name-field .input {
+    width: 100%;
+    height: var(--control-h-sm);
+    font-size: var(--fs-sm);
+}
+
+.obligation-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--sp-3);
+    flex-wrap: wrap;
+}
+
+.obligation-redirect-label {
+    color: var(--text-2);
+    font-size: var(--fs-sm);
+}
+
+.obligation-remove { flex: 0 0 auto; }
+
+@media (max-width: 900px) {
+    .obligation-main { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 640px) {
+    .obligation-main { grid-template-columns: minmax(0, 1fr); }
+}

@@ -69,6 +69,9 @@ test("Symulator pokazuje wspólne planowanie i wykresy SVG", async ({ page }) =>
     }, input);
     await page.goto("/sim?wizard=1", { waitUntil: "networkidle" });
 
+    await expect(page.locator(".stage-block").first()).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator("#results")).toBeHidden();
+    await page.locator("#simulateBtn").click();
     await expect(page.locator("#results")).toBeVisible({ timeout: 30_000 });
     await expect(page.locator("#wzHeroAnswer")).not.toBeEmpty();
     await expect(page.locator("#wzMetrics .metric")).toHaveCount(7);
@@ -80,4 +83,15 @@ test("Symulator pokazuje wspólne planowanie i wykresy SVG", async ({ page }) =>
     await expect(page.locator("#wzChartMilestonesToggle")).toBeVisible();
     await expect(page.locator("#wzYearTable tr.post-horizon")).toHaveCount(1);
     await expect(page.locator("#wzFacts .chip")).not.toHaveCount(0);
+    await expect(page.locator("#wzWithdrawalsChart .wz-chart-axis-text").last()).toHaveText("100");
+    const chartGeometry = await page.locator("#wzWithdrawalsChart").evaluate((container) => {
+        const svg = container.querySelector("svg");
+        return {
+            clientWidth: container.clientWidth,
+            viewBoxWidth: svg?.viewBox?.baseVal?.width || 0,
+            height: Math.round(svg?.getBoundingClientRect().height || 0),
+        };
+    });
+    expect(Math.abs(chartGeometry.viewBoxWidth - chartGeometry.clientWidth)).toBeLessThan(2);
+    expect(chartGeometry.height).toBeLessThan(300);
 });

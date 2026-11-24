@@ -46,6 +46,10 @@ function avgMonthly(sim) {
     return window.ResultsModel.metricValue(sim, "avgMonthly");
 }
 
+function avgIncome(sim) {
+    return window.ResultsModel.metricValue(sim, "avgIncome");
+}
+
 function taxEfficiency(sim) {
     return window.ResultsModel.metricValue(sim, "taxEfficiency");
 }
@@ -435,11 +439,18 @@ const METRIC_GROUPS = [
                 hint: "Łączna kwota wypłacona na rękę (po podatku i składce zdrowotnej ZUS) ze wszystkich kont.",
             },
             {
-                key: "avg_monthly",
-                label: "Średnia miesięcznie",
+                key: "avg_income",
+                label: "Średni dochód netto",
                 money: true,
                 better: "max",
-                hint: "Średnia miesięczna wypłata netto w latach, w których realizowane były wypłaty.",
+                hint: "Średni miesięczny dochód netto z planu (portfel + ZUS + praca) przed zobowiązaniami czasowymi.",
+            },
+            {
+                key: "avg_monthly",
+                label: "Średni budżet na życie",
+                money: true,
+                better: "max",
+                hint: "Średni miesięczny budżet po odjęciu zobowiązań czasowych.",
             },
         ],
     },
@@ -532,6 +543,7 @@ const METRIC_GROUPS = [
 
 function metricValue(s, m) {
     if (m.key === "total_net_benefit") return totalNetBenefit(s);
+    if (m.key === "avg_income") return avgIncome(s);
     if (m.key === "avg_monthly") return avgMonthly(s);
     if (m.key === "tax_eff") return taxEfficiency(s);
     if (m.key === "roi_mult") return roiMultiple(s);

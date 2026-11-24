@@ -100,6 +100,12 @@
                 return summary.avg_monthly ?? null;
             case "minMonthly":
                 return summary.min_monthly ?? null;
+            case "avgIncome":
+                return summary.avg_income ?? summary.avg_monthly ?? null;
+            case "minIncome":
+                return summary.min_income ?? summary.min_monthly ?? null;
+            case "avgObligations":
+                return summary.avg_obligations ?? 0;
             case "portfolioAvgMonthly":
                 return summary.avg_monthly_portfolio ?? null;
             case "portfolioMinMonthly":
@@ -178,8 +184,26 @@
             kind: "money",
         },
         minMonthly: {
-            label: "Minimalna wypłata mies.",
-            tip: "Najniższy miesięczny budżet na życie netto w horyzoncie planu: wypłata z portfela i ZUS, powiększone o pracę na część etatu i pomniejszone o ratę kredytu. To realna gwarancja, a nie średnia.",
+            label: "Minimalny budżet na życie",
+            tip: "Najniższy miesięczny budżet na życie netto po zobowiązaniach: dochód z portfela, ZUS i pracy minus aktywne zobowiązania czasowe. To realna gwarancja, a nie średnia.",
+            kind: "money",
+            suffix: "/mies.",
+        },
+        minIncome: {
+            label: "Minimalna wypłata netto",
+            tip: "Najniższy łączny miesięczny dochód netto z planu (portfel + ZUS + praca) przed zobowiązaniami czasowymi.",
+            kind: "money",
+            suffix: "/mies.",
+        },
+        avgIncome: {
+            label: "Średnia wypłata netto",
+            tip: "Średni łączny miesięczny dochód netto z planu (portfel + ZUS + praca) przed zobowiązaniami czasowymi.",
+            kind: "money",
+            suffix: "/mies.",
+        },
+        avgObligations: {
+            label: "Zobowiązania mies.",
+            tip: "Średnia miesięczna kwota aktywnych zobowiązań czasowych w horyzoncie planu.",
             kind: "money",
             suffix: "/mies.",
         },
@@ -207,8 +231,8 @@
             kind: "money",
         },
         avgMonthly: {
-            label: "Średnia wypłata mies.",
-            tip: "Średni miesięczny budżet na życie netto w latach z wypłatą: portfel i ZUS plus praca na część etatu, minus rata kredytu.",
+            label: "Średni budżet na życie",
+            tip: "Średni miesięczny budżet na życie netto po zobowiązaniach: portfel i ZUS plus praca na część etatu, minus aktywne zobowiązania czasowe.",
             kind: "money",
             suffix: "/mies.",
         },

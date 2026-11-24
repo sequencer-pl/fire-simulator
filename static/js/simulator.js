@@ -28,8 +28,6 @@ let loadedMaxAge = null;
 let loadedStartYear = null;
 let loadedInflation = null;
 let loadedMonthlyGross = null;
-let loadedMortgageMonthly = 0;
-let loadedMortgageEndAge = null;
 
 function gatherFormData() {
     const stages = [];
@@ -76,25 +74,16 @@ function gatherFormData() {
         });
     });
 
-    const lastStageAge = Math.max(...stages.map((s) => s.end_age), 0) - 1;
-    const mortgageMonthly = parseFloat(document.getElementById("simMortgageMonthly")?.value) || 0;
-    const mortgageEndRaw = parseInt(document.getElementById("simMortgageEndAge")?.value, 10);
-    const horizonRaw = parseInt(document.getElementById("simHorizonAge")?.value, 10);
+    const obligations = gatherObligations();
+    const adjustedStages = applyObligationStages(stages, obligations);
     return {
-        stages: stages,
-        max_age: Number.isFinite(horizonRaw) && horizonRaw > 0
-            ? Math.min(120, Math.max(0, horizonRaw - 1))
-            : (loadedMaxAge != null
-                ? Math.min(120, Math.max(0, loadedMaxAge))
-                : Math.min(120, Math.max(0, lastStageAge))),
+        stages: adjustedStages,
+        obligations,
+        max_age: derivedMaxAgeInfo(adjustedStages).maxAge,
         gender: currentGender(),
         monthly_gross: loadedMonthlyGross ?? 0,
         start_year: loadedStartYear,
         inflation: loadedInflation,
-        mortgage_monthly: mortgageMonthly,
-        mortgage_end_age: Number.isFinite(mortgageEndRaw) && mortgageEndRaw > 0
-            ? mortgageEndRaw
-            : null,
         withdrawal_policy: loadedWithdrawalPolicy,
         config: CONFIG,
     };
@@ -110,6 +99,59 @@ function currentGender() {
 function setGender(value) {
     const radio = document.querySelector(`.account-card[data-account="zus"] input[type="radio"][value="${value}"]`);
     if (radio) radio.checked = true;
+}
+
+function clampAge(value) {
+    return Math.min(120, Math.max(0, Math.round(value)));
+}
+
+function latestByEndAge(stages) {
+    if (!stages.length) return null;
+    return stages.reduce((best, stage) => (
+        Number(stage.end_age) > Number(best.end_age) ? stage : best
+    ));
+}
+
+function derivedMaxAgeInfo(stages) {
+    const all = Array.isArray(stages) ? stages : [];
+    const realization = all.filter((stage) => stage.stage_type === "realizacja");
+    const portfolio = realization.filter((stage) =>
+        Object.keys(stage.accounts || {}).some((account) => baseAccountKey(account) !== "zus")
+    );
+    const portfolioStage = latestByEndAge(portfolio);
+    if (portfolioStage) {
+        return {
+            maxAge: clampAge(Number(portfolioStage.end_age) - 1),
+            stageName: portfolioStage.name || "Realizacja",
+        };
+    }
+    if (loadedMaxAge != null && Number.isFinite(Number(loadedMaxAge))) {
+        return { maxAge: clampAge(Number(loadedMaxAge)), stageName: null };
+    }
+    const lastStage = latestByEndAge(all);
+    if (lastStage) {
+        return {
+            maxAge: clampAge(Number(lastStage.end_age) - 1),
+            stageName: lastStage.name || "Etap",
+        };
+    }
+    return { maxAge: 100, stageName: null };
+}
+
+function updateHorizonHint() {
+    const hint = document.getElementById("simHorizonHint");
+    if (!hint) return;
+    const blocks = document.querySelectorAll("#stages-container .stage-block");
+    if (!blocks.length) {
+        hint.hidden = true;
+        hint.textContent = "";
+        return;
+    }
+    const { maxAge, stageName } = derivedMaxAgeInfo(gatherFormData().stages);
+    hint.hidden = false;
+    hint.textContent = stageName
+        ? `Horyzont planu: do ${maxAge} r.ż. — wynika z etapu „${stageName}”.`
+        : `Horyzont planu: do ${maxAge} r.ż.`;
 }
 
 function pensionAge(config) {
@@ -130,6 +172,10 @@ function renderResults(data) {
         simResultsRoot = window.ResultsView.mount(body, { scenarios: false });
     }
     const root = simResultsRoot;
+    // Wykresy liczą szerokość z żywego DOM. Najpierw pokazujemy wyniki,
+    // dopiero potem renderujemy sekcje — inaczej SVG dostaje fallback 640 px
+    // i po pokazaniu sekcji jest rozciągany do rzeczywistej szerokości.
+    showResults();
     const totalContrib = computeTotalUserContributions(lastInput);
     const initCap = computeInitialCapital(lastInput);
     const summary = data.summary || {
@@ -159,7 +205,7 @@ function renderResults(data) {
     renderSharedCharts(root, data);
     renderSimulatorTable(root, data);
 
-    switchToResults();
+    scrollToResults();
 }
 
 function simulatorHero(data, summary) {
@@ -181,18 +227,25 @@ function simulatorHero(data, summary) {
     // Hero pokazuje lifestyle: budżet netto łącznie z ZUS, częścią etatu i kredytem.
     const monthly = projection.mean_monthly
         || projection.min_monthly
+        || summary?.avg_income
         || summary?.avg_monthly
         || 0;
+    const lifestyle = projection.mean_lifestyle_monthly
+        || summary?.avg_monthly
+        || null;
     const finalNet = summary?.final_wealth_net ?? data.final_wealth_net ?? 0;
     const zusOnlyNote = payoutPhases.length && !mainPayouts.length
         ? " Wypłaty pochodzą wyłącznie z ZUS."
         : "";
 
     if (monthly > 0 && start != null && end != null) {
+        const lifestyleNote = lifestyle != null && lifestyle < monthly - 1
+            ? ` Po zobowiązaniach zostaje średnio <strong>${fmt(lifestyle)}/mies.</strong>`
+            : "";
         return {
             kicker: "TWÓJ PLAN",
             headline: `Plan wypłaca średnio ${fmt(monthly)}/mies. netto`,
-            desc: `Od ${start}. do ${end}. roku życia. Na koniec zostaje <strong>${fmt(finalNet)}</strong> netto.${zusOnlyNote}`,
+            desc: `Od ${start}. do ${end}. roku życia. Na koniec zostaje <strong>${fmt(finalNet)}</strong> netto.${lifestyleNote}${zusOnlyNote}`,
         };
     }
     return {
@@ -246,10 +299,13 @@ function renderSharedCharts(root, data) {
     return true;
 }
 
-function switchToResults() {
+function showResults() {
     document.getElementById("simConfigSection").classList.add("collapsed");
     document.getElementById("results").style.display = "block";
     document.querySelector(".form-actions")?.classList.add("config-collapsed");
+}
+
+function scrollToResults() {
     document.getElementById("results").scrollIntoView({ behavior: "smooth" });
 }
 
@@ -282,15 +338,19 @@ document.addEventListener("DOMContentLoaded", () => {
     if (configContent) {
         initNumControls(configContent, guardedNumberInputStep);
     }
-    const mortgagePanel = document.getElementById("simMortgagePanel");
-    if (mortgagePanel) initNumControls(mortgagePanel);
-    const horizonPanel = document.getElementById("simHorizonPanel");
-    if (horizonPanel) initNumControls(horizonPanel);
+    const obligationsPanel = document.getElementById("simObligationsPanel");
+    if (obligationsPanel) initNumControls(obligationsPanel);
+    document.getElementById("addObligationBtn")?.addEventListener("click", () => {
+        addObligationRow({});
+    });
 
     const draftApplied = applyWizardDraftIfPresent();
     updateStageButtons(container);
     updateStageHints(container);
     refreshRealizationToggles(container);
+    updateHorizonHint();
+    container.addEventListener("input", updateHorizonHint);
+    container.addEventListener("change", updateHorizonHint);
     if (draftApplied) {
         // Draft zostaje, żeby F5/back-forward nie gubiły planu. Czyścimy go
         // dopiero przy pierwszej edycji etapów albo po eksporcie.
@@ -298,9 +358,8 @@ document.addEventListener("DOMContentLoaded", () => {
         container.addEventListener("click", (event) => {
             if (event.target.closest?.(".stage-block")) clearWizardDraft();
         }, { once: true });
-        // Plan z Asystenta jest już policzony — pokaż wynik od razu,
-        // zamiast zmuszać użytkownika do drugiego kliknięcia „Symuluj”.
-        document.getElementById("simForm")?.requestSubmit();
+        // „Dostosuj w symulatorze” ma otwierać edytor etapów, a nie wynik.
+        // Użytkownik klika „Symuluj”, kiedy jest gotowy.
     }
 
     document.querySelectorAll(".topnav a[data-nav], .tabbar a[data-nav]").forEach((a) => {
@@ -316,7 +375,10 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     updateEmptyState();
-    new MutationObserver(updateEmptyState).observe(container, { childList: true });
+    new MutationObserver(() => {
+        updateEmptyState();
+        updateHorizonHint();
+    }).observe(container, { childList: true });
 });
 
 function updateEmptyState() {
@@ -1295,19 +1357,186 @@ function migrateLegacyAccounts(stage) {
     stage.accounts[target] = rest;
 }
 
-function applyMortgagePanel() {
-    const monthly = document.getElementById("simMortgageMonthly");
-    const endAge = document.getElementById("simMortgageEndAge");
-    const horizon = document.getElementById("simHorizonAge");
-    if (monthly) monthly.value = String(Math.round(loadedMortgageMonthly || 0));
-    if (endAge) {
-        endAge.value = loadedMortgageEndAge != null
-            ? String(loadedMortgageEndAge)
-            : "";
+function defaultObligationAges() {
+    const firstStart = parseInt(
+        document.querySelector("#stages-container .stage-block .start-age")?.value,
+        10
+    );
+    const start = Number.isFinite(firstStart) ? firstStart : 40;
+    return { start, end: Math.min(120, start + 5) };
+}
+
+function createObligationRow(data = {}) {
+    const ages = defaultObligationAges();
+    const row = document.createElement("div");
+    row.className = "obligation-row";
+    row.dataset.obligation = "true";
+    row.innerHTML = `
+        <div class="obligation-main">
+            <label class="field obligation-name-field">
+                <span class="obligation-label">Nazwa</span>
+                <input type="text" class="input obligation-name" maxlength="200"
+                       value="${escapeHtml(data.name || "Zobowiązanie")}"
+                       aria-label="Nazwa zobowiązania">
+            </label>
+            <div class="field">
+                <span class="obligation-label">Kwota mies. (zł)</span>
+                ${numControlsHtml({
+                    value: String(Math.round(Number(data.monthly) || 0)),
+                    min: "0", max: "100000", step: "100",
+                    fieldClass: "obligation-monthly",
+                    aria: "kwota zobowiązania",
+                })}
+            </div>
+            <div class="field">
+                <span class="obligation-label">Od wieku</span>
+                ${numControlsHtml({
+                    value: String(Number.isFinite(Number(data.start_age)) ? Number(data.start_age) : ages.start),
+                    min: "0", max: "120", step: "1",
+                    fieldClass: "obligation-start",
+                    aria: "wiek start zobowiązania",
+                })}
+            </div>
+            <div class="field">
+                <span class="obligation-label">Do wieku</span>
+                ${numControlsHtml({
+                    value: String(Number.isFinite(Number(data.end_age)) ? Number(data.end_age) : ages.end),
+                    min: "1", max: "120", step: "1",
+                    fieldClass: "obligation-end",
+                    aria: "wiek końca zobowiązania",
+                })}
+            </div>
+        </div>
+        <div class="obligation-actions">
+            <label class="field-checkbox obligation-redirect-label">
+                <input type="checkbox" class="obligation-redirect" ${data.redirect_to_savings !== false ? "checked" : ""}>
+                <span>Po zakończeniu przekieruj na oszczędności</span>
+            </label>
+            <button type="button" class="btn btn-ghost btn-icon btn-sm obligation-remove"
+                    title="Usuń zobowiązanie" aria-label="Usuń zobowiązanie">${iconSvg("x")}</button>
+        </div>`;
+    row.querySelector(".obligation-remove").addEventListener("click", () => row.remove());
+    return row;
+}
+
+function addObligationRow(data = {}) {
+    const list = document.getElementById("obligationsList");
+    if (!list) return;
+    list.appendChild(createObligationRow(data));
+}
+
+function renderObligations(list = []) {
+    const box = document.getElementById("obligationsList");
+    if (!box) return;
+    box.innerHTML = "";
+    list.filter((item) => Number(item.monthly) > 0).forEach((item) => addObligationRow(item));
+}
+
+function gatherObligations() {
+    return [...document.querySelectorAll("#obligationsList .obligation-row")]
+        .map((row) => {
+            const name = row.querySelector(".obligation-name")?.value.trim() || "Zobowiązanie";
+            const monthly = parseFloat(row.querySelector(".obligation-monthly")?.value) || 0;
+            const startAge = parseInt(row.querySelector(".obligation-start")?.value, 10);
+            const endAge = parseInt(row.querySelector(".obligation-end")?.value, 10);
+            return {
+                name,
+                monthly,
+                start_age: Number.isFinite(startAge) ? startAge : 0,
+                end_age: Number.isFinite(endAge) ? endAge : 0,
+                redirect_to_savings: Boolean(row.querySelector(".obligation-redirect")?.checked),
+            };
+        })
+        .filter((item) => item.monthly > 0 && item.end_age > item.start_age);
+}
+
+function applyObligationsFromInput(inputData) {
+    const explicit = Array.isArray(inputData?.obligations) ? inputData.obligations : [];
+    if (explicit.length) {
+        renderObligations(explicit);
+        return;
     }
-    if (horizon) {
-        horizon.value = loadedMaxAge != null ? String(loadedMaxAge + 1) : "";
+    const monthly = Number(inputData?.mortgage_monthly) || 0;
+    const endAge = Number(inputData?.mortgage_end_age);
+    if (monthly > 0 && Number.isFinite(endAge) && endAge > 0) {
+        renderObligations([{
+            name: "Kredyt hipoteczny",
+            monthly,
+            start_age: 0,
+            end_age: endAge,
+            redirect_to_savings: inputData.redirect_mortgage_to_savings !== false,
+        }]);
+    } else {
+        renderObligations([]);
     }
+}
+
+function boostStageAccounts(stage, extraMonthly) {
+    if (!stage?.accounts || extraMonthly <= 0) return;
+    const eligible = Object.entries(stage.accounts).filter(([key, cfg]) => (
+        !["ppk", "ppe", "zus"].includes(baseAccountKey(key))
+        && (Number(cfg.annual_contribution) || 0) > 0
+    ));
+    const total = eligible.reduce(
+        (sum, [, cfg]) => sum + (Number(cfg.annual_contribution) || 0),
+        0
+    );
+    if (total <= 0) {
+        const cash = stage.accounts.gotowka || { starting_balance: 0, roi: 0 };
+        cash.annual_contribution = (Number(cash.annual_contribution) || 0) + extraMonthly * 12;
+        stage.accounts.gotowka = cash;
+        return;
+    }
+    eligible.forEach(([, cfg]) => {
+        const share = (Number(cfg.annual_contribution) || 0) / total;
+        cfg.annual_contribution = (Number(cfg.annual_contribution) || 0) + extraMonthly * 12 * share;
+    });
+}
+
+function applyObligationStages(stages, obligations) {
+    const out = stages.map((stage) => structuredClone(stage));
+    const firstStart = Math.min(...out.map((stage) => Number(stage.start_age) || 0), 120);
+    const firstReal = Math.min(
+        ...out
+            .filter((stage) => stage.stage_type === "realizacja")
+            .map((stage) => Number(stage.start_age) || 0),
+        120
+    );
+    [...(obligations || [])]
+        .filter((item) => item.redirect_to_savings
+            && Number(item.monthly) > 0
+            && firstStart < Number(item.end_age)
+            && Number(item.end_age) < firstReal)
+        .sort((a, b) => Number(a.end_age) - Number(b.end_age))
+        .forEach((obligation) => {
+            const endAge = Number(obligation.end_age);
+            for (let index = 0; index < out.length; index += 1) {
+                const stage = out[index];
+                if (stage.stage_type !== "akumulacja") continue;
+                if (Number(stage.start_age) === endAge) {
+                    boostStageAccounts(stage, Number(obligation.monthly));
+                    break;
+                }
+                if (Number(stage.start_age) < endAge && endAge < Number(stage.end_age)) {
+                    const first = structuredClone(stage);
+                    first.end_age = endAge;
+                    first.name = `${stage.name} (z zobowiązaniem)`;
+                    const second = structuredClone(stage);
+                    second.start_age = endAge;
+                    second.name = `${stage.name} (po zobowiązaniu: ${obligation.name})`;
+                    boostStageAccounts(second, Number(obligation.monthly));
+                    out.splice(index, 1, first, second);
+                    break;
+                }
+                if (Number(stage.end_age) === endAge) {
+                    const following = out.slice(index + 1)
+                        .find((item) => item.stage_type === "akumulacja");
+                    if (following) boostStageAccounts(following, Number(obligation.monthly));
+                    break;
+                }
+            }
+        });
+    return out;
 }
 
 function populateStages(inputData) {
@@ -1327,12 +1556,7 @@ function populateStages(inputData) {
     loadedMonthlyGross = Number.isFinite(Number(inputData.monthly_gross))
         ? Number(inputData.monthly_gross)
         : null;
-    loadedMortgageMonthly = Number(inputData.mortgage_monthly) || 0;
-    loadedMortgageEndAge = Number.isFinite(Number(inputData.mortgage_end_age))
-        && Number(inputData.mortgage_end_age) > 0
-        ? Number(inputData.mortgage_end_age)
-        : null;
-    applyMortgagePanel();
+    applyObligationsFromInput(inputData);
     if (inputData.config) CONFIG = backfillConfig(inputData.config);
     if (inputData.gender) setGender(inputData.gender);
     resetStartingBalanceValues();

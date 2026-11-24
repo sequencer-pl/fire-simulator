@@ -430,11 +430,11 @@ const harness = `
             && document.querySelectorAll("#wzFacts .wz-fact").length >= 1
             && document.getElementById("wzPolicyTipText").textContent.includes("Najpierw");
     });
-    check("metryki: min/średnia to lifestyle, portfel osobno z summary", () => {
+    check("metryki: min/średnia to dochód netto, portfel osobno z summary", () => {
         const metricByLabel = (label) => [...document.querySelectorAll("#wzMetrics .metric")]
             .find((node) => node.textContent.includes(label));
-        const min = metricByLabel("Minimalna wypłata mies.");
-        const avg = metricByLabel("Średnia wypłata mies.");
+        const min = metricByLabel("Minimalna wypłata netto");
+        const avg = metricByLabel("Średnia wypłata netto");
         const portfolio = metricByLabel("Minimalna wypłata z portfela");
         return Boolean(min && avg && portfolio)
             && min.textContent.includes("5")

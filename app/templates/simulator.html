@@ -10,7 +10,7 @@
         <div id="simulatorView">
             <div id="wizardDraftBar" class="banner banner-info hidden">
                 <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg>
-                <div class="banner-body">Konfiguracja wczytana z Asystenta. Symulacja jest już wyliczona — <a href="/wizard?restore=1" id="wizardDraftBackLink">wróć do Asystenta</a>, aby zmienić dane, albo zapisz ją, żeby zachować.</div>
+                <div class="banner-body">Konfiguracja wczytana z Asystenta. Sprawdź etapy i kliknij „Symuluj”, żeby zobaczyć wyniki — albo <a href="/wizard?restore=1" id="wizardDraftBackLink">wróć do Asystenta</a>, aby zmienić dane.</div>
             </div>
             <div id="emptyState" class="empty-state">
                 <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 3a2.83 2.83 0 0 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
@@ -23,40 +23,15 @@
             </div>
             <form id="simForm" novalidate>
                 <div id="simConfigSection" class="sim-config-section">
-                    <div class="card-inset sim-mortgage-panel" id="simHorizonPanel">
-                        <h3 class="eyebrow">Horyzont planu</h3>
-                        <p class="field-hint">Ostatni pełny rok to podany wiek minus jeden. Metryki i podatek wyjścia kończą się razem z horyzontem; etap ZUS może wystawać dalej (do 100 r.ż.).</p>
-                        <div class="field">
-                            <label for="simHorizonAge">Horyzont planu (wiek)</label>
-                            <div class="num-control">
-                                <button type="button" class="stepper stepper-down" tabindex="-1" aria-label="Zmniejsz horyzont">&minus;</button>
-                                <input type="number" id="simHorizonAge" class="acc-field" value="" min="18" max="120" step="1" placeholder="np. 85" aria-label="Horyzont planu">
-                                <button type="button" class="stepper stepper-up" tabindex="-1" aria-label="Zwiększ horyzont">+</button>
-                            </div>
+                    <div class="card-inset sim-obligations-panel" id="simObligationsPanel">
+                        <div class="sim-obligations-head">
+                            <h3 class="eyebrow">Zobowiązania czasowe</h3>
+                            <button type="button" class="btn btn-secondary btn-sm" id="addObligationBtn">Dodaj zobowiązanie</button>
                         </div>
+                        <p class="field-hint">Kredyt, alimenty, czynsz, czesne — kwota jest odejmowana od miesięcznego budżetu na życie do wieku końca. Wpłaty w akumulacji podajesz już po opłaceniu zobowiązań. Po zakończeniu możesz przekierować uwolnioną kwotę na oszczędności.</p>
+                        <div id="obligationsList" class="obligations-list"></div>
                     </div>
-                    <div class="card-inset sim-mortgage-panel" id="simMortgagePanel">
-                        <h3 class="eyebrow">Kredyt hipoteczny</h3>
-                        <p class="field-hint">Rata obniża miesięczny budżet na życie do wieku końca spłaty. Wpisz 0 zł, jeśli nie masz kredytu.</p>
-                        <div class="wz-grid">
-                            <div class="field">
-                                <label for="simMortgageMonthly">Miesięczna rata (zł)</label>
-                                <div class="num-control">
-                                    <button type="button" class="stepper stepper-down" tabindex="-1" aria-label="Zmniejsz miesięczną ratę">&minus;</button>
-                                    <input type="number" id="simMortgageMonthly" class="acc-field" value="0" min="0" max="100000" step="100" aria-label="Miesięczna rata kredytu">
-                                    <button type="button" class="stepper stepper-up" tabindex="-1" aria-label="Zwiększ miesięczną ratę">+</button>
-                                </div>
-                            </div>
-                            <div class="field">
-                                <label for="simMortgageEndAge">Wiek końca spłaty</label>
-                                <div class="num-control">
-                                    <button type="button" class="stepper stepper-down" tabindex="-1" aria-label="Zmniejsz wiek końca spłaty">&minus;</button>
-                                    <input type="number" id="simMortgageEndAge" class="acc-field" value="" min="0" max="120" step="1" placeholder="np. 55" data-empty="55" aria-label="Wiek końca spłaty kredytu">
-                                    <button type="button" class="stepper stepper-up" tabindex="-1" aria-label="Zwiększ wiek końca spłaty">+</button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+                    <p id="simHorizonHint" class="field-hint sim-horizon-hint" hidden></p>
                     <div id="stagesHead" class="stages-head hidden">
                         <h3 class="section-title">Etapy</h3>
                         <button type="button" id="clearStagesBtn" class="btn btn-ghost btn-sm" title="Usuń wszystkie etapy">Wyczyść</button>

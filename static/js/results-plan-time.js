@@ -184,7 +184,7 @@ function wzTimelineTipHtml(phase) {
         ));
         return wzGanttTipPanel(phase.name, "Akumulacja", rows);
     }
-    rows.push(wzGanttTipRow("Wypłata netto", `${wzFmtZloty(phase.monthly)} zł/mies.`));
+    rows.push(wzGanttTipRow("Dochód netto", `${wzFmtZloty(phase.monthly)} zł/mies.`));
     rows.push(wzGanttTipRow("Okres", period, wzFormatYears(years)));
     if (phase.portfolio_monthly > 0.5) {
         rows.push(wzGanttTipRow("Portfel", `${wzFmtZloty(phase.portfolio_monthly)} zł/mies.`));
@@ -198,14 +198,18 @@ function wzTimelineTipHtml(phase) {
             `${wzFmtZloty(phase.part_time_monthly)} zł/mies.`
         ));
     }
-    if (phase.mortgage_monthly > 0.5) {
+    if (phase.obligations_monthly > 0.5) {
         rows.push(wzGanttTipRow(
-            "Rata kredytu",
-            `−${wzFmtZloty(phase.mortgage_monthly)} zł/mies.`
+            "Zobowiązania",
+            `−${wzFmtZloty(phase.obligations_monthly)} zł/mies.`
+        ));
+        rows.push(wzGanttTipRow(
+            "Na życie",
+            `${wzFmtZloty(phase.lifestyle_monthly || 0)} zł/mies.`
         ));
     }
     rows.push(wzGanttTipRow(
-        "Razem netto (≈)",
+        "Razem dochód (≈)",
         `${wzFmtZloty(phase.monthly * years * 12)} zł`
     ));
     return wzGanttTipPanel(
@@ -532,7 +536,7 @@ function wzPhaseTipHtml(phase, accountLabel, phaseLabel) {
 function wzTotalTipHtml(phase) {
     const years = Math.max(0, phase.end_age - phase.start_age);
     const rows = [];
-    rows.push(wzGanttTipRow("Miesięcznie netto", `${wzFmtZloty(phase.monthly || 0)} zł`));
+    rows.push(wzGanttTipRow("Dochód netto", `${wzFmtZloty(phase.monthly || 0)} zł`));
     rows.push(wzGanttTipRow("Okres", `${phase.start_age}–${phase.end_age} r.ż.`, wzFormatYears(years)));
     if (phase.portfolio_monthly > 0.5) {
         rows.push(wzGanttTipRow("Portfel", `${wzFmtZloty(phase.portfolio_monthly)} zł/mies.`));
@@ -546,14 +550,18 @@ function wzTotalTipHtml(phase) {
             `${wzFmtZloty(phase.part_time_monthly)} zł/mies.`
         ));
     }
-    if (phase.mortgage_monthly > 0.5) {
+    if (phase.obligations_monthly > 0.5) {
         rows.push(wzGanttTipRow(
-            "Rata kredytu",
-            `−${wzFmtZloty(phase.mortgage_monthly)} zł/mies.`
+            "Zobowiązania",
+            `−${wzFmtZloty(phase.obligations_monthly)} zł/mies.`
+        ));
+        rows.push(wzGanttTipRow(
+            "Na życie",
+            `${wzFmtZloty(phase.lifestyle_monthly || 0)} zł/mies.`
         ));
     }
     rows.push(wzGanttTipRow(
-        "Razem netto (≈)",
+        "Razem dochód (≈)",
         `${wzFmtZloty((phase.monthly || 0) * years * 12)} zł`
     ));
     return wzGanttTipPanel(

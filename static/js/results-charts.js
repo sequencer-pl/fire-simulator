@@ -1083,8 +1083,8 @@ function wzRenderCharts(input, projection, summary = {}) {
     const references = {
         // Linie referencyjne to wypłata z portfela i ZUS, nie lifestyle
         // (mean/min z projekcji zawierają część etatu i kredyt).
-        avgMonthly: Number(summary?.avg_monthly) || null,
-        minMonthly: Number(summary?.min_monthly) || null,
+        avgMonthly: Number(summary?.avg_income ?? summary?.avg_monthly) || null,
+        minMonthly: Number(summary?.min_income ?? summary?.min_monthly) || null,
         peakWealth: Number(projection?.peak_wealth) || null,
     };
     wzChartMilestones = annotations;

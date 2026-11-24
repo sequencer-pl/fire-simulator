@@ -163,6 +163,9 @@ test("mobile layout stays within the screen throughout the employment path", asy
     );
     await page.locator("#wzNextBtn").click();
     await page.waitForURL("**/sim?wizard=1");
+    await expect(page.locator(".stage-block").first()).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator("#results")).toBeHidden();
+    await page.locator("#simulateBtn").click();
     await expect(page.locator("#results")).toBeVisible({ timeout: 30_000 });
     await page.locator("#backToWizardBtn").click();
     await page.waitForURL("**/wizard?restore=1");

@@ -364,7 +364,7 @@
     <!-- KROK: MIESIĘCZNE OSZCZĘDNOŚCI I KREDYT HIPOTECZNY -->
     <section class="card wz-step hidden" data-step-id="oszczednosci">
         <h2>Oszczędności i zobowiązania</h2>
-        <p class="subtitle">Określ, ile odkładasz co miesiąc oraz czy spłacasz kredyt hipoteczny, który w przyszłości uwolni dodatkowe środki w Twoim budżecie.</p>
+        <p class="subtitle">Określ, ile odkładasz co miesiąc oraz jakie masz czasowe zobowiązania — kredyt, alimenty, czynsz. Po ich zakończeniu możesz uwolnić dodatkowe środki w budżecie.</p>
 
         <div class="card-inset wz-panel" id="wzSavingsPanel">
             <h3 class="eyebrow wz-panel-title">
@@ -392,58 +392,18 @@
             </div>
         </div>
 
-        <div class="card-inset wz-panel">
-            <h3 class="eyebrow wz-panel-title">
-                <span class="tip-label-row">
-                    <span class="tip-label-text">Czy spłacasz kredyt hipoteczny na mieszkanie, w którym mieszkasz?</span>
-                    <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">Mieszkania, w którym mieszkasz, nie dodajemy jako „konta do wypłat”, ale rata kredytu ma ogromny wpływ na FIRE! Jeśli spłacisz kredyt przed FIRE, uwolniona rata może przyspieszyć inwestycje. Jeśli przejdziesz na FIRE przed końcem kredytu, portfel pokryje ratę tylko do wieku zakończenia spłaty.</span></span>
-                </span>
-            </h3>
-            <div class="segmented is-auto gender-options">
-                <label class="seg-option gender-option"><input type="radio" name="wzHasMortgage" value="no" checked /> Nie mam kredytu hipotecznego</label>
-                <label class="seg-option gender-option"><input type="radio" name="wzHasMortgage" value="yes" /> Tak, spłacam kredyt hipoteczny</label>
+        <div class="card-inset wz-panel" id="wzObligationsPanel">
+            <div class="wz-section-head">
+                <h3 class="eyebrow wz-panel-title">
+                    <span class="tip-label-row">
+                        <span class="tip-label-text">Zobowiązania czasowe</span>
+                        <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">Kredyt, alimenty, czynsz, czesne — kwota jest odejmowana od miesięcznego budżetu na życie do wieku końca. Nie zwiększa wypłat z portfela: po prostu zmniejsza to, ile z dochodu zostaje na życie. Po zakończeniu zobowiązania budżet rośnie. Jeśli zobowiązanie kończy się przed FIRE i zaznaczysz przekierowanie, planner doda etap akumulacji z uwolnioną kwotą.</span></span>
+                    </span>
+                </h3>
+                <button type="button" class="btn btn-secondary btn-sm" id="wzAddObligationBtn">Dodaj zobowiązanie</button>
             </div>
-
-            <div id="wzMortgageBox" class="wz-subpanel hidden">
-                <div class="wz-grid wz-balanced-grid">
-                    <div class="field wz-field-block">
-                        <label class="field-label-lg" for="wzMortgageMonthly">
-                            <span class="tip-label-row">
-                                <span class="tip-label-text">Miesięczna rata kredytu (zł/mies.)</span>
-                                <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">Kwota miesięcznej raty kredytu. Jeśli przejdziesz na FIRE przed końcem kredytu, portfel będzie wypłacał tę kwotę dodatkowo aż do wieku całkowitej spłaty.</span></span>
-                            </span>
-                        </label>
-                        <div class="wz-slider">
-                            <div class="num-control">
-                                <button type="button" class="stepper stepper-down" tabindex="-1">&minus;</button>
-                                <input type="number" id="wzMortgageMonthly" class="acc-field" value="3000" min="0" max="30000" step="100">
-                                <button type="button" class="stepper stepper-up" tabindex="-1">+</button>
-                            </div>
-                            <input type="range" id="wzMortgageMonthlyRange" min="0" max="15000" step="100" value="3000" aria-label="Rata kredytu">
-                        </div>
-                    </div>
-                    <div class="field wz-field-block">
-                        <label class="field-label-lg" for="wzMortgageEndAge">
-                            <span class="tip-label-row">
-                                <span class="tip-label-text">W jakim wieku kończysz spłatę kredytu?</span>
-                                <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">Wiek, w którym zapłacisz ostatnią ratę kredytu hipotecznego.</span></span>
-                            </span>
-                        </label>
-                        <div class="wz-slider">
-                            <div class="num-control">
-                                <button type="button" class="stepper stepper-down" tabindex="-1">&minus;</button>
-                                <input type="number" id="wzMortgageEndAge" class="acc-field" value="50" min="18" max="100" step="1">
-                                <button type="button" class="stepper stepper-up" tabindex="-1">+</button>
-                            </div>
-                            <input type="range" id="wzMortgageEndAgeRange" min="20" max="85" step="1" value="50" aria-label="Wiek spłaty kredytu">
-                        </div>
-                    </div>
-                </div>
-                <label class="wz-checkbox-row">
-                    <input type="checkbox" class="checkbox" id="wzRedirectMortgage" checked>
-                    <span>Jeśli spłacę kredyt jeszcze w trakcie pracy, przekieruj uwolnioną ratę na inwestycje</span>
-                </label>
-            </div>
+            <p class="field-hint">Wpłaty podajesz już po opłaceniu zobowiązań. Po zakończeniu możesz przekierować uwolnioną kwotę na oszczędności — wtedy powstanie dodatkowy etap akumulacji.</p>
+            <div id="wzObligationsList" class="obligations-list"></div>
         </div>
     </section>
 
@@ -608,8 +568,8 @@
             <div class="field wz-field-block">
                 <label class="field-label-lg" for="wzTarget">
                     <span class="tip-label-row">
-                        <span class="tip-label-text">Ile potrzebujesz miesięcznie na życie (na rękę, w dzisiejszych zł)?</span>
-                        <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">Twoje docelowe miesięczne wydatki na utrzymanie (w dzisiejszej sile nabywczej, po podatkach). Jeśli spłacasz kredyt hipoteczny, podaj tu kwotę na życie BEZ raty kredytu — ratę z poprzedniego kroku silnik doliczy automatycznie tylko do momentu spłaty kredytu!</span></span>
+                        <span class="tip-label-text">Jaki dochód netto miesięcznie ma dawać plan (w dzisiejszych zł)?</span>
+                        <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">Łączny miesięczny dochód netto z planu: portfel, ZUS i ewentualna praca. Zobowiązania czasowe (kredyt, alimenty, czynsz) odejmujemy od tej kwoty, żeby pokazać budżet na życie — nie dodajemy ich do wypłat z portfela.</span></span>
                     </span>
                 </label>
                 <div class="wz-slider">
@@ -618,7 +578,7 @@
                         <input type="number" id="wzTarget" class="acc-field" value="6000" min="500" max="60000" step="250">
                         <button type="button" class="stepper stepper-up" tabindex="-1">+</button>
                     </div>
-                    <input type="range" id="wzTargetRange" min="1000" max="30000" step="250" value="6000" aria-label="Cel wypłaty miesięcznej netto">
+                    <input type="range" id="wzTargetRange" min="1000" max="30000" step="250" value="6000" aria-label="Docelowy dochód netto miesięcznie">
                 </div>
             </div>
         </div>
@@ -821,7 +781,7 @@
                         <input type="radio" name="wzPriority" value="payout" checked>
                         <span class="wz-path-check" aria-hidden="true"></span>
                         <span class="wz-path-title">Stała wypłata</span>
-                        <span class="wz-path-desc">Silnik maksymalizuje najniższą miesięczną wypłatę. Plan jest bardziej równy i bezpieczny; część kapitału może zostać na koniec horyzontu.</span>
+                        <span class="wz-path-desc">Silnik maksymalizuje najniższy miesięczny dochód netto. Plan jest bardziej równy i bezpieczny; część kapitału może zostać na koniec horyzontu.</span>
                     </label>
                     <label class="wz-path">
                         <input type="radio" name="wzPriority" value="total">
