@@ -4,7 +4,8 @@ import pytest
 
 from app.simulation.engine import simulate
 from app.simulation.planner import WizardAnswers, plan
-from app.simulation.summary import build_summary
+from app.simulation.schemas import TemporaryObligation
+from app.simulation.summary import build_summary, lifestyle_monthly_net
 
 BASE = dict(
     gender="m",
@@ -58,6 +59,49 @@ def test_summary_derived_metrics_are_consistent():
     assert summary.avg_monthly is not None and summary.avg_monthly > 0
     assert summary.tax_efficiency is not None
     assert summary.roi_multiple is not None
+
+
+def test_summary_separates_income_from_lifestyle_after_obligations():
+    result = plan(1, WizardAnswers(**BASE), scenarios=False, extend_chart=False)
+    obligation = TemporaryObligation(
+        name="Alimenty", monthly=2_000, start_age=55, end_age=70
+    )
+    input_data = result.input.model_copy(
+        update={"obligations": [obligation]}, deep=True
+    )
+    simulation = simulate(input_data)
+    summary = build_summary(input_data, simulation)
+
+    assert summary.avg_income is not None
+    assert summary.avg_monthly is not None
+    assert summary.avg_obligations is not None
+    assert summary.avg_obligations > 0
+    assert summary.avg_income > summary.avg_monthly
+
+    year = next(year for year in simulation.years if year.age == 60)
+    assert lifestyle_monthly_net(input_data, year) == pytest.approx(
+        year.monthly_withdrawal - 2_000, abs=0.02
+    )
+
+
+def test_legacy_mortgage_maps_to_one_obligation():
+    result = plan(
+        1,
+        WizardAnswers(
+            **{
+                **BASE,
+                "mortgage_monthly": 2_000,
+                "mortgage_end_age": 60,
+            }
+        ),
+        scenarios=False,
+        extend_chart=False,
+    )
+    obligations = result.input.effective_obligations()
+    assert len(obligations) == 1
+    assert obligations[0].name == "Kredyt hipoteczny"
+    assert obligations[0].monthly == pytest.approx(2_000)
+    assert obligations[0].end_age == 60
 
 
 def test_summary_reports_no_payout_metrics_gracefully():

@@ -32,8 +32,15 @@ from app.simulation.schemas import (
     SimulationInput,
     SimulationResult,
     StageInput,
+    TemporaryObligation,
 )
-from app.simulation.summary import build_summary, lifestyle_monthly_net, realization_window
+from app.simulation.summary import (
+    build_summary,
+    lifestyle_monthly_net,
+    obligations_monthly,
+    realization_window,
+    total_net_income_monthly,
+)
 
 SAVINGS_ACCOUNTS = ("broker", "lokata", "obligacje", "krypto")
 
@@ -150,7 +157,8 @@ class WizardAnswers(BaseModel):
     semi_fire_net_monthly: float = Field(default=0.0, ge=0.0, le=1e8)
     semi_fire_savings_monthly: float = Field(default=0.0, ge=0.0, le=1e8)
 
-    # Kredyt hipoteczny (mieszkanie własne) i Nieruchomość inwestycyjna:
+    # Zobowiązania czasowe (kredyt, alimenty, czynsz) i Nieruchomość inwestycyjna:
+    obligations: list[TemporaryObligation] = Field(default_factory=list, max_length=20)
     mortgage_monthly: float = Field(default=0.0, ge=0.0, le=1e7)
     mortgage_end_age: int | None = Field(default=None, ge=0, le=120)
     redirect_mortgage_to_savings: bool = True
@@ -222,6 +230,21 @@ class WizardAnswers(BaseModel):
                 raise ValueError(f"Nieznany rodzaj inwestycji: {vehicle}")
         return self
 
+    def effective_obligations(self) -> list[TemporaryObligation]:
+        if self.obligations:
+            return list(self.obligations)
+        if self.mortgage_monthly > 0 and self.mortgage_end_age is not None:
+            return [
+                TemporaryObligation(
+                    name="Kredyt hipoteczny",
+                    monthly=self.mortgage_monthly,
+                    start_age=0,
+                    end_age=self.mortgage_end_age,
+                    redirect_to_savings=self.redirect_mortgage_to_savings,
+                )
+            ]
+        return []
+
 
 class WizardPlanRequest(BaseModel):
     path: Literal[1, 2, 3]
@@ -290,6 +313,8 @@ class PhaseMetric(BaseModel):
     start_age: int
     end_age: int
     monthly: float = 0.0
+    lifestyle_monthly: float = 0.0
+    obligations_monthly: float = 0.0
     portfolio_monthly: float = 0.0
     zus_monthly: float = 0.0
     part_time_monthly: float = 0.0
@@ -366,6 +391,9 @@ class PlanProjection(BaseModel):
     target_monthly: float | None = None
     min_monthly: float = 0.0
     mean_monthly: float = 0.0
+    min_lifestyle_monthly: float = 0.0
+    mean_lifestyle_monthly: float = 0.0
+    avg_obligations_monthly: float = 0.0
     final_wealth: float = 0.0
     final_wealth_net: float = 0.0
     total_withdrawn: float = 0.0
@@ -1191,8 +1219,114 @@ def _build_accum_stage_accounts(
     return accum_accounts
 
 
+def _boost_stage_contributions(
+    stage: StageInput,
+    extra_monthly: float,
+    config: TaxConfig,
+    gross: float,
+) -> StageInput:
+    """Dodaj uwolnioną kwotę do wpłat etapu, proporcjonalnie do obecnych wpłat."""
+    boosted = stage.model_copy(deep=True)
+    if extra_monthly <= 0:
+        return boosted
+    weights: dict[str, float] = {}
+    for name, cfg in boosted.accounts.items():
+        base = base_account_key(name)
+        if base in ("ppk", "ppe", "zus"):
+            continue
+        monthly = _monthly_contribution(name, cfg, gross, config)
+        if monthly > 0:
+            weights[name] = monthly
+    total = sum(weights.values())
+    if total <= 0:
+        # Brak zwykłych wpłat — uwolniona kwota trafia do gotówki.
+        cash = boosted.accounts.get("gotowka")
+        if cash is None:
+            boosted.accounts["gotowka"] = AccountConfig(
+                annual_contribution=round(extra_monthly * 12.0, 2),
+                roi=0.0,
+            )
+        else:
+            cash.annual_contribution = round(
+                cash.annual_contribution + extra_monthly * 12.0, 2
+            )
+        return boosted
+    for name, weight in weights.items():
+        share = extra_monthly * (weight / total)
+        cfg = boosted.accounts[name]
+        cfg.annual_contribution = round(cfg.annual_contribution + share * 12.0, 2)
+    return boosted
+
+
+def _apply_obligation_savings(
+    stages: list[StageInput],
+    obligations: list[TemporaryObligation],
+    a: WizardAnswers,
+    config: TaxConfig,
+    gross: float,
+    retirement_age: int,
+) -> list[StageInput]:
+    """Podziel akumulację po zakończeniu zobowiązań i podnieś wpłaty.
+
+    Zobowiązania działają w budżecie na życie; dodatkowy etap akumulacji
+    pojawia się tylko wtedy, gdy użytkownik chce przekierować uwolnioną kwotę
+    i zobowiązanie kończy się jeszcze przed etapem realizacji.
+    """
+    result = list(stages)
+    relevant = sorted(
+        (
+            obligation
+            for obligation in obligations
+            if obligation.redirect_to_savings
+            and obligation.monthly > 0
+            and a.age_now < obligation.end_age < retirement_age
+        ),
+        key=lambda obligation: obligation.end_age,
+    )
+    for obligation in relevant:
+        end_age = obligation.end_age
+        for index, stage in enumerate(result):
+            if stage.stage_type != "akumulacja":
+                continue
+            if stage.start_age == end_age:
+                result[index] = _boost_stage_contributions(
+                    stage, obligation.monthly, config, gross
+                )
+                break
+            if stage.start_age < end_age < stage.end_age:
+                first = stage.model_copy(deep=True)
+                first.end_age = end_age
+                first.name = f"{stage.name} (z zobowiązaniem)"
+                second = _boost_stage_contributions(
+                    stage, obligation.monthly, config, gross
+                )
+                second.start_age = end_age
+                second.name = f"{stage.name} (po zobowiązaniu: {obligation.name})"
+                result[index:index + 1] = [first, second]
+                break
+            if stage.end_age == end_age:
+                for following in range(index + 1, len(result)):
+                    if result[following].stage_type == "akumulacja":
+                        result[following] = _boost_stage_contributions(
+                            result[following], obligation.monthly, config, gross
+                        )
+                        break
+                break
+    return result
+
+
 def build_stages(a: WizardAnswers) -> SimulationInput:
     a = _normalize_salary(a)
+    obligations = a.effective_obligations()
+    # Zobowiązania są teraz generyczne. Zerujemy stare pola kredytu, żeby
+    # nie uruchamiały dwóch równoległych ścieżek podziału akumulacji.
+    a = a.model_copy(
+        update={
+            "mortgage_monthly": 0.0,
+            "mortgage_end_age": None,
+            "redirect_mortgage_to_savings": False,
+        }
+    )
     config = _config_for_answers(a)
     gross = max(0.0, a.gross_monthly)
     employed = a.employment in ("etat", "b2b") and gross > 0
@@ -1590,13 +1724,15 @@ def build_stages(a: WizardAnswers) -> SimulationInput:
             )
         )
 
+    stages = _apply_obligation_savings(
+        stages, obligations, a, config, gross, retirement_age=re
+    )
     return SimulationInput(
         stages=stages,
+        obligations=obligations,
         max_age=plan_end - 1,
         gender=a.gender,
         monthly_gross=gross,
-        mortgage_monthly=a.mortgage_monthly,
-        mortgage_end_age=a.mortgage_end_age,
         config=config,
     )
 
@@ -1704,13 +1840,17 @@ def _payout_averages(
 
 def _lifestyle_averages(
     data: SimulationInput, result: SimulationResult, start_age: int, end_age: int
-) -> tuple[float, float, float, float]:
-    """Średni budżet netto, portfel, ZUS i praca w oknie wiekowym."""
+) -> tuple[float, float, float, float, float, float]:
+    """Średni dochód netto, budżet, portfel, ZUS, praca i zobowiązania."""
     years = [year for year in result.years if start_age <= year.age < end_age]
     if not years:
-        return 0.0, 0.0, 0.0, 0.0
+        return 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
+    income = _average([total_net_income_monthly(data, year) for year in years])
     lifestyle = _average([lifestyle_monthly_net(data, year) for year in years])
-    monthly, portfolio, zus = _payout_averages(result, start_age, end_age)
+    obligations = _average([
+        obligations_monthly(data, year.age) for year in years
+    ])
+    _monthly, portfolio, zus = _payout_averages(result, start_age, end_age)
     part_time = 0.0
     for si in data.stages:
         if (
@@ -1720,7 +1860,14 @@ def _lifestyle_averages(
             and si.end_age > start_age
         ):
             part_time = max(part_time, si.part_time_net_monthly)
-    return lifestyle, portfolio, zus, part_time
+    return income, lifestyle, portfolio, zus, part_time, obligations
+
+
+def _average_obligations(
+    data: SimulationInput, start_age: int, end_age: int
+) -> float:
+    ages = range(max(0, start_age), max(0, end_age))
+    return _average([obligations_monthly(data, age) for age in ages])
 
 
 def _zus_indexation(data: SimulationInput, zus_stage: StageInput | None) -> float:
@@ -1843,7 +1990,7 @@ def _phase_metrics(
     )
     if partial_stage is not None and partial_stage.start_age >= re:
         part_end = min(partial_stage.end_age, retirement)
-        lifestyle, portfolio, zus, part_time = _lifestyle_averages(
+        income, lifestyle, portfolio, zus, part_time, obligations = _lifestyle_averages(
             data, result, partial_stage.start_age, part_end
         )
         phases.append(
@@ -1853,19 +2000,20 @@ def _phase_metrics(
                 cashflow="payout",
                 start_age=partial_stage.start_age,
                 end_age=part_end,
-                monthly=round(lifestyle, 2),
+                monthly=round(income, 2),
+                lifestyle_monthly=round(lifestyle, 2),
+                obligations_monthly=round(obligations, 2),
                 portfolio_monthly=round(portfolio, 2),
                 zus_monthly=round(zus, 2),
                 part_time_monthly=round(part_time, 2),
-                mortgage_monthly=round(
-                    _mortgage_in_window(data, partial_stage.start_age, part_end), 2
-                ),
             )
         )
         re = max(re, part_end)
 
     if re < retirement:
-        monthly, portfolio, zus, _part = _lifestyle_averages(data, result, re, retirement)
+        income, lifestyle, portfolio, zus, _part, obligations = _lifestyle_averages(
+            data, result, re, retirement
+        )
         phases.append(
             PhaseMetric(
                 key="bridge",
@@ -1873,10 +2021,11 @@ def _phase_metrics(
                 cashflow="payout",
                 start_age=re,
                 end_age=retirement,
-                monthly=round(monthly, 2),
+                monthly=round(income, 2),
+                lifestyle_monthly=round(lifestyle, 2),
+                obligations_monthly=round(obligations, 2),
                 portfolio_monthly=round(portfolio, 2),
                 zus_monthly=round(zus, 2),
-                mortgage_monthly=round(_mortgage_in_window(data, re, retirement), 2),
             )
         )
 
@@ -1885,7 +2034,7 @@ def _phase_metrics(
         for stage in portfolio_stages
     )
     if retirement < plan_end and has_portfolio_retirement:
-        monthly, portfolio, zus, _part = _lifestyle_averages(
+        income, lifestyle, portfolio, zus, _part, obligations = _lifestyle_averages(
             data, result, retirement, plan_end
         )
         if portfolio <= 0 and zus_stage is not None:
@@ -1904,6 +2053,19 @@ def _phase_metrics(
                     start_age=retirement,
                     end_age=zus_stage.end_age,
                     monthly=round(zus_monthly, 2),
+                    lifestyle_monthly=round(
+                        max(
+                            0.0,
+                            zus_monthly
+                            - _average_obligations(
+                                data, retirement, zus_stage.end_age
+                            ),
+                        ),
+                        2,
+                    ),
+                    obligations_monthly=round(
+                        _average_obligations(data, retirement, zus_stage.end_age), 2
+                    ),
                     zus_monthly=round(zus_monthly, 2),
                 )
             )
@@ -1919,12 +2081,11 @@ def _phase_metrics(
                 cashflow="payout",
                 start_age=retirement,
                 end_age=plan_end,
-                monthly=round(monthly, 2),
+                monthly=round(income, 2),
+                lifestyle_monthly=round(lifestyle, 2),
+                obligations_monthly=round(obligations, 2),
                 portfolio_monthly=round(portfolio, 2),
                 zus_monthly=round(zus, 2),
-                mortgage_monthly=round(
-                    _mortgage_in_window(data, retirement, plan_end), 2
-                ),
             )
         )
     elif retirement < plan_end and zus_stage is not None:
@@ -1944,6 +2105,13 @@ def _phase_metrics(
                 start_age=retirement,
                 end_age=zus_end,
                 monthly=round(monthly, 2),
+                lifestyle_monthly=round(
+                    max(0.0, monthly - _average_obligations(data, retirement, zus_end)),
+                    2,
+                ),
+                obligations_monthly=round(
+                    _average_obligations(data, retirement, zus_end), 2
+                ),
                 zus_monthly=round(monthly, 2),
             )
         )
@@ -1969,6 +2137,19 @@ def _phase_metrics(
                 start_age=plan_end,
                 end_age=zus_stage.end_age,
                 monthly=round(monthly, 2),
+                lifestyle_monthly=round(
+                    max(
+                        0.0,
+                        monthly
+                        - _average_obligations(
+                            data, plan_end, zus_stage.end_age
+                        ),
+                    ),
+                    2,
+                ),
+                obligations_monthly=round(
+                    _average_obligations(data, plan_end, zus_stage.end_age), 2
+                ),
                 zus_monthly=round(monthly, 2),
             )
         )
@@ -2289,7 +2470,9 @@ def _extend_chart_to_100(
             )
         )
 
-    chart_target = target if target and target > 0 else projection.target_monthly
+    # None zachowuje cele etapów (Symulator). Dodatni target to solver
+    # Asystenta, który nadpisuje cele etapów jedną wartością.
+    chart_target = target if target and target > 0 else None
     try:
         _, chart_result = _evaluate_with_result(
             chart_data, chart_target, bequest
@@ -2308,13 +2491,23 @@ def _project(
 ) -> PlanProjection:
     start, end = realization_window(data)
     months = [
-        (year.age, lifestyle_monthly_net(data, year))
+        (year.age, total_net_income_monthly(data, year))
         for year in result.years
         if start <= year.age < end
     ]
     values = [m for _, m in months]
     min_m = min(values) if values else 0.0
     mean_m = sum(values) / len(values) if values else 0.0
+    lifestyle_values = [
+        lifestyle_monthly_net(data, year)
+        for year in result.years
+        if start <= year.age < end
+    ]
+    obligations_values = [
+        obligations_monthly(data, year.age)
+        for year in result.years
+        if start <= year.age < end
+    ]
     # A draw below the target is a miss: the gross-up scales so the year-min
     # nets to the target, so the guarantee "you always get at least target"
     # holds for every year — met fails only when the portfolio depletes.
@@ -2351,6 +2544,15 @@ def _project(
         target_monthly=target,
         min_monthly=round(min_m, 2),
         mean_monthly=round(mean_m, 2),
+        min_lifestyle_monthly=round(min(lifestyle_values), 2) if lifestyle_values else 0.0,
+        mean_lifestyle_monthly=(
+            round(sum(lifestyle_values) / len(lifestyle_values), 2)
+            if lifestyle_values else 0.0
+        ),
+        avg_obligations_monthly=(
+            round(sum(obligations_values) / len(obligations_values), 2)
+            if obligations_values else 0.0
+        ),
         final_wealth=round(result.final_wealth, 2),
         final_wealth_net=round(result.final_wealth_net, 2),
         total_withdrawn=round(result.total_withdrawn, 2),
@@ -2376,6 +2578,36 @@ def _project(
     )
 
 
+def _extend_chart_for_simulator(
+    data: SimulationInput, projection: PlanProjection, *, max_age: int = 100
+) -> PlanProjection:
+    """Dograj sam ZUS po horyzoncie, jeśli etap ZUS wystaje poza symulację.
+
+    Symulator liczy metryki do ``max_age``, ale Gantt pokazuje ZUS do 100.
+    Bez tej dogrywki wykres wypłat kończył się wcześniej niż w Asystencie.
+    """
+    if data.max_age >= max_age:
+        return projection
+    zus_ends = [
+        stage.end_age
+        for stage in data.stages
+        if stage.stage_type == "realizacja" and "zus" in stage.accounts
+    ]
+    if not zus_ends or max(zus_ends) <= data.max_age + 1:
+        return projection
+    # Nie przedłużaj wykresu, jeśli po horyzoncie działa jeszcze etap
+    # z portfelem — wtedy limity/cele mogłyby się różnić od oryginału.
+    portfolio_after = any(
+        stage.stage_type == "realizacja"
+        and stage.end_age > data.max_age + 1
+        and any(base_account_key(account) != "zus" for account in stage.accounts)
+        for stage in data.stages
+    )
+    if portfolio_after:
+        return projection
+    return _extend_chart_to_100(data, None, 0.0, projection, max_age=max_age)
+
+
 def build_projection(
     data: SimulationInput,
     result: SimulationResult,
@@ -2387,7 +2619,10 @@ def build_projection(
     Używany przez Symulator, żeby pokazać ten sam timeline, Gantt i wykresy
     co Asystent, bez przechodzenia przez solver kreatora.
     """
-    return _project(data, result, target, bequest)
+    projection = _project(data, result, target, bequest)
+    if target is None or target <= 0:
+        projection = _extend_chart_for_simulator(data, projection)
+    return projection
 
 
 def _drawn_floor(data: SimulationInput, result: SimulationResult) -> float:
@@ -2400,7 +2635,7 @@ def _drawn_floor(data: SimulationInput, result: SimulationResult) -> float:
     """
     start, end = realization_window(data)
     nets = [
-        lifestyle_monthly_net(data, year)
+        total_net_income_monthly(data, year)
         for year in result.years
         if start <= year.age < end
     ]
@@ -2705,8 +2940,6 @@ def _bake_realization_targets(data: SimulationInput, target_net: float | None) -
             data.monthly_gross,
             data.stages,
             gross_target,
-            mortgage_monthly=data.mortgage_monthly,
-            mortgage_end_age=data.mortgage_end_age,
         )
 
     for si in data.stages:

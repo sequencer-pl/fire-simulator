@@ -7,6 +7,7 @@ import pytest
 from app.simulation.config import default_config
 from app.simulation.planner import WizardAnswers, build_stages
 from app.simulation.salary import b2b_net_from_gross
+from app.simulation.schemas import TemporaryObligation
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -246,6 +247,39 @@ def test_ppe_balance_survives_without_current_employment():
     assert ppe_stage.accounts["ppe"].employer_pct == 0
 
 
+def test_temporary_obligations_split_accumulation_only_when_redirected():
+    a = answers(
+        obligations=[
+            TemporaryObligation(
+                name="Alimenty",
+                monthly=1_500,
+                start_age=35,
+                end_age=45,
+                redirect_to_savings=True,
+            ),
+            TemporaryObligation(
+                name="Czynsz",
+                monthly=800,
+                start_age=35,
+                end_age=50,
+                redirect_to_savings=False,
+            ),
+        ],
+        mortgage_monthly=0,
+        mortgage_end_age=None,
+    )
+    stages = accumulation_stages(a)
+    assert [(stage.start_age, stage.end_age) for stage in stages] == [
+        (35, 45),
+        (45, 55),
+    ]
+    assert stages[0].name == "Akumulacja do emerytury (z zobowiązaniem)"
+    assert stages[1].name == "Akumulacja do emerytury (po zobowiązaniu: Alimenty)"
+    assert sum(cfg.annual_contribution for cfg in stages[1].accounts.values()) > sum(
+        cfg.annual_contribution for cfg in stages[0].accounts.values()
+    )
+
+
 def test_mortgage_redirect_splits_accumulation_at_payoff_age():
     a = answers(
         mortgage_monthly=3_000,
@@ -254,8 +288,8 @@ def test_mortgage_redirect_splits_accumulation_at_payoff_age():
     )
     stages = accumulation_stages(a)
     assert [stage.name for stage in stages] == [
-        "Akumulacja (z kredytem)",
-        "Akumulacja (po spłacie kredytu)",
+        "Akumulacja do emerytury (z zobowiązaniem)",
+        "Akumulacja do emerytury (po zobowiązaniu: Kredyt hipoteczny)",
     ]
     assert stages[0].start_age == 35
     assert stages[0].end_age == 45

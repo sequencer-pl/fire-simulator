@@ -107,9 +107,15 @@ Nie zmieniaj ich bez uzgodnienia. Wartości liczbowe pochodzą z `config.py`,
 - **Długowieczność** modelujemy liniowo: `longevity.growth_months_per_year`
   wydłuża tabelę ŚDTŻ i domyślny horyzont Asystenta.
 - **Etapy:** `akumulacja` i `realizacja`; „Brydż do emerytury” to realizacja.
-  Edytor/legacy używa PMT, Asystent — stałego celu netto; nie mieszaj trybów.
-  ZUS liczy engine (waloryzacja, ŚDTŻ, renta netto po PIT i 9% zdrowotnej),
-  a etap ZUS zawiera tylko `zus` — nie powielaj go w wielu etapach.
+  Edytor/legacy używa PMT, Asystent — stałego celu dochodu netto; nie mieszaj
+  trybów. ZUS liczy engine (waloryzacja, ŚDTŻ, renta netto po PIT i 9%
+  zdrowotnej), a etap ZUS zawiera tylko `zus` — nie powielaj go w wielu etapach.
+- **Zobowiązania czasowe:** lista `TemporaryObligation` (nazwa, kwota, wiek
+  start/koniec, przekierowanie na oszczędności). Nie zwiększają wypłat
+  z portfela — odejmujemy je od łącznego dochodu netto, żeby pokazać budżet
+  na życie. Dodatkowy etap akumulacji powstaje tylko wtedy, gdy zobowiązanie
+  kończy się przed realizacją i ma włączone przekierowanie. Stare pola
+  `mortgage_*` są tylko zgodnością wsteczną i mapują się na jeden wpis.
 - **IKZE:** ulga obniża podatek w roku wpłaty; zwrot trafia na
   `ikze_refund_target` (auto: IKE/OIPE do limitu → obligacje → lokata →
   OKI oszcz. → broker → gotówka; **nigdy krypto**). Wcześniejszy zwrot przed 65:

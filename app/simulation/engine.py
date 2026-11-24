@@ -493,7 +493,6 @@ def _process_stages(
     zus_net_pension: float = 0.0,
     all_stages: list[StageInput] | None = None,
     year_start_balances: dict[str, float] | None = None,
-    mortgage_extra_monthly: float = 0.0,
 ) -> tuple[dict[str, float], list[str], dict[str, float]]:
     if state is not None:
         balances = state.balances
@@ -549,10 +548,7 @@ def _process_stages(
             if part_time_gross <= 0:
                 # Legacy: stare plany nie miały pola brutto.
                 part_time_gross = stage_input.part_time_net_monthly
-            eff_monthly_target = max(
-                0.0,
-                stage_target - part_time_gross + mortgage_extra_monthly,
-            )
+            eff_monthly_target = max(0.0, stage_target - part_time_gross)
             desired_withdrawal = max(
                 0.0, eff_monthly_target * MONTHS_PER_YEAR - zus_net_pension
             )
@@ -1286,8 +1282,6 @@ def _run_year(
     monthly_gross: float,
     all_stages: list[StageInput],
     target: float | None = None,
-    mortgage_monthly: float = 0.0,
-    mortgage_end_age: int | None = None,
 ) -> None:
     active_stages = [si for si in all_stages if si.start_age <= age < si.end_age]
     year_start_balances = dict(state.balances)
@@ -1381,12 +1375,6 @@ def _run_year(
             zus_pension - zus_share - zus_pension * state.config.health_rate,
         )
 
-    mortgage_extra = (
-        mortgage_monthly
-        if (mortgage_monthly > 0 and mortgage_end_age is not None and age < mortgage_end_age)
-        else 0.0
-    )
-
     merged_withdrawal, stage_label_parts, periodic_tax = _process_stages(
         state=state,
         active_stages=active_stages,
@@ -1397,7 +1385,6 @@ def _run_year(
         zus_net_pension=zus_net_pension,
         all_stages=all_stages,
         year_start_balances=year_start_balances,
-        mortgage_extra_monthly=mortgage_extra,
     )
 
     merged_tax = _apply_tax(
@@ -1593,8 +1580,6 @@ def simulate(data: SimulationInput, target: float | None = None) -> SimulationRe
             data.monthly_gross,
             data.stages,
             target,
-            mortgage_monthly=data.mortgage_monthly,
-            mortgage_end_age=data.mortgage_end_age,
         )
 
     return _finalize_result(data, state, target)

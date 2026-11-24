@@ -124,8 +124,25 @@ class StageInput(BaseModel):
         return self
 
 
+class TemporaryObligation(BaseModel):
+    """Czasowe zobowiązanie poza portfelem (kredyt, alimenty, czynsz)."""
+
+    name: str = Field(default="Zobowiązanie", max_length=200)
+    monthly: float = Field(default=0.0, ge=0.0, le=1e7)
+    start_age: int = Field(default=0, ge=0, le=120)
+    end_age: int = Field(default=1, ge=1, le=120)
+    redirect_to_savings: bool = False
+
+    @model_validator(mode="after")
+    def _validate_age_range(self) -> "TemporaryObligation":
+        if self.end_age <= self.start_age:
+            raise ValueError("Wiek końca zobowiązania musi być większy niż wiek start.")
+        return self
+
+
 class SimulationInput(BaseModel):
     stages: list[StageInput] = Field(default_factory=list, max_length=20)
+    obligations: list[TemporaryObligation] = Field(default_factory=list, max_length=20)
     max_age: int = Field(
         default=100,
         ge=0,
@@ -180,6 +197,21 @@ class SimulationInput(BaseModel):
         if isinstance(value, dict):
             return backfill_tax_config(dict(value))
         return value
+
+    def effective_obligations(self) -> list[TemporaryObligation]:
+        """Zobowiązania planu; stare pola kredytu działają jako fallback."""
+        if self.obligations:
+            return list(self.obligations)
+        if self.mortgage_monthly > 0 and self.mortgage_end_age is not None:
+            return [
+                TemporaryObligation(
+                    name="Kredyt hipoteczny",
+                    monthly=self.mortgage_monthly,
+                    start_age=0,
+                    end_age=self.mortgage_end_age,
+                )
+            ]
+        return []
 
     @model_validator(mode="after")
     def _validate_mortgage(self) -> "SimulationInput":
@@ -257,6 +289,10 @@ class ResultSummary(BaseModel):
     avg_monthly: float | None = None
     min_monthly: float | None = None
     max_monthly: float | None = None
+    avg_income: float | None = None
+    min_income: float | None = None
+    max_income: float | None = None
+    avg_obligations: float | None = None
     avg_monthly_portfolio: float | None = None
     min_monthly_portfolio: float | None = None
     zus_monthly: float | None = None

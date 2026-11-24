@@ -164,16 +164,21 @@ Wszystkie ekrany liczą te same metryki w `app/simulation/summary.py`:
   rękę”. W Asystencie pokazujemy ją jako osobną sumę wypłat i majątek końcowy.
 - **Suma wypłat z portfela** = wypłaty netto z kont prywatnych (bez ZUS) w
   horyzoncie.
-- **Średnia wypłata mies.** = średni miesięczny budżet na życie w oknie
-  realizacji planu: wypłata z portfela i ZUS plus część etatu, minus rata
-  kredytu. Uwzględniamy wszystkie lata tego okna, także te bez wypłaty.
-- **Minimalna wypłata mies.** = najniższy miesięczny budżet na życie w oknie
-  realizacji (portfel i ZUS plus część etatu, minus rata kredytu). Minimum
-  obejmuje lata z zerową wypłatą — wtedy pokazuje ewentualny dochód z części
-  etatu albo 0, uczciwie sygnalizując wyczerpanie portfela. Osobne pola
-  **Średnia/Minimalna wypłata z portfela** liczą tylko wypłaty z portfela i
-  ZUS, bez części etatu i korekty kredytu. Wszystkie cztery liczy
-  `summary.py`; front i eksport czytają gotowe wartości.
+- **Średni/Minimalny dochód netto** = łączny miesięczny dochód z planu:
+  portfel, ZUS i ewentualna praca, **przed** zobowiązaniami czasowymi.
+  To jest X, od którego odejmujemy kredyt, alimenty, czynsz itd.
+- **Średni/Minimalny budżet na życie** = X minus aktywne zobowiązania
+  czasowe w danym roku. Uwzględniamy wszystkie lata okna realizacji, także
+  te bez wypłaty. Minimum może pokazać 0, uczciwie sygnalizując wyczerpanie
+  portfela.
+- **Średnia/Minimalna wypłata z portfela** = tylko wypłaty z portfela i ZUS,
+  bez części etatu i bez zobowiązań.
+- **Zobowiązania czasowe** to lista `TemporaryObligation` (nazwa, kwota,
+  wiek start/koniec, przekierowanie na oszczędności). Nie zwiększają wypłat
+  z portfela — są odejmowane od budżetu na życie. Jeśli zobowiązanie kończy
+  się przed realizacją i ma włączone przekierowanie, planner dodaje etap
+  akumulacji z uwolnioną kwotą. Wszystkie metryki liczy `summary.py`; front
+  i eksport czytają gotowe wartości.
 - **ZUS mies.** = miesięczna emerytura ZUS na koniec horyzontu.
 - **Podatki i składki** = podatki plus składka zdrowotna ZUS w horyzoncie.
 - **Efektywność podatkowa** = wypłaty netto / (wypłaty netto + podatki +

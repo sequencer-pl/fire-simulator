@@ -67,8 +67,8 @@ def realization_window(input_data: SimulationInput) -> tuple[int, int]:
     return 0, 0
 
 
-def lifestyle_monthly_net(input_data: SimulationInput, year: YearResult) -> float:
-    """Miesięczny budżet na życie: wypłata + część etatu − rata kredytu."""
+def extra_income_monthly(input_data: SimulationInput, year: YearResult) -> float:
+    """Dochód z pracy na część etatu w danym roku."""
     extra_income = 0.0
     for stage in input_data.stages:
         if (
@@ -78,16 +78,30 @@ def lifestyle_monthly_net(input_data: SimulationInput, year: YearResult) -> floa
             and stage.part_time_net_monthly > 0
         ):
             extra_income = max(extra_income, stage.part_time_net_monthly)
-    mortgage = (
-        input_data.mortgage_monthly
-        if (
-            input_data.mortgage_monthly > 0
-            and input_data.mortgage_end_age is not None
-            and year.age < input_data.mortgage_end_age
-        )
-        else 0.0
+    return extra_income
+
+
+def obligations_monthly(input_data: SimulationInput, age: int) -> float:
+    """Suma aktywnych zobowiązań czasowych w danym wieku."""
+    return sum(
+        obligation.monthly
+        for obligation in input_data.effective_obligations()
+        if obligation.start_age <= age < obligation.end_age
     )
-    return max(0.0, year.monthly_withdrawal + extra_income - mortgage)
+
+
+def total_net_income_monthly(input_data: SimulationInput, year: YearResult) -> float:
+    """Łączny dochód netto przed zobowiązaniami: portfel + ZUS + praca."""
+    return year.monthly_withdrawal + extra_income_monthly(input_data, year)
+
+
+def lifestyle_monthly_net(input_data: SimulationInput, year: YearResult) -> float:
+    """Budżet na życie: łączny dochód netto minus aktywne zobowiązania."""
+    return max(
+        0.0,
+        total_net_income_monthly(input_data, year)
+        - obligations_monthly(input_data, year.age),
+    )
 
 
 def build_summary(
@@ -103,14 +117,21 @@ def build_summary(
     window_years = [
         year for year in years if first_age <= year.age < last_age
     ] or payout_years
-    # Główne metryki opisują budżet na życie: wypłata z portfela i ZUS plus
-    # część etatu, minus rata kredytu. Warianty „z portfela” trzymamy obok,
-    # żeby tooling nie musiał przeliczać ich samodzielnie.
+    # X = łączny dochód netto przed zobowiązaniami. Budżet na życie to X minus
+    # aktywne zobowiązania; obie serie liczy backend, front tylko je pokazuje.
+    income_values = [total_net_income_monthly(input_data, year) for year in window_years]
     lifestyle_values = [lifestyle_monthly_net(input_data, year) for year in window_years]
+    obligation_values = [obligations_monthly(input_data, year.age) for year in window_years]
     portfolio_values = [year.monthly_withdrawal for year in window_years]
+    avg_income = sum(income_values) / len(income_values) if income_values else None
+    min_income = min(income_values) if income_values else None
+    max_income = max(income_values) if income_values else None
     avg_monthly = sum(lifestyle_values) / len(lifestyle_values) if lifestyle_values else None
     min_monthly = min(lifestyle_values) if lifestyle_values else None
     max_monthly = max(lifestyle_values) if lifestyle_values else None
+    avg_obligations = (
+        sum(obligation_values) / len(obligation_values) if obligation_values else None
+    )
     avg_monthly_portfolio = (
         sum(portfolio_values) / len(portfolio_values) if portfolio_values else None
     )
@@ -150,6 +171,12 @@ def build_summary(
         avg_monthly=round(avg_monthly, 2) if avg_monthly is not None else None,
         min_monthly=round(min_monthly, 2) if min_monthly is not None else None,
         max_monthly=round(max_monthly, 2) if max_monthly is not None else None,
+        avg_income=round(avg_income, 2) if avg_income is not None else None,
+        min_income=round(min_income, 2) if min_income is not None else None,
+        max_income=round(max_income, 2) if max_income is not None else None,
+        avg_obligations=(
+            round(avg_obligations, 2) if avg_obligations is not None else None
+        ),
         avg_monthly_portfolio=(
             round(avg_monthly_portfolio, 2) if avg_monthly_portfolio is not None else None
         ),

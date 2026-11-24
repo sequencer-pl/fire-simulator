@@ -1,5 +1,11 @@
 from app.simulation.engine import simulate
-from app.simulation.schemas import AccountConfig, SimulationInput, StageInput
+from app.simulation.schemas import (
+    AccountConfig,
+    SimulationInput,
+    StageInput,
+    TemporaryObligation,
+)
+from app.simulation.summary import lifestyle_monthly_net
 
 
 def test_multiple_lokata_and_broker_instances_with_custom_names():
@@ -156,10 +162,16 @@ def test_b2b_ikze_tax_regimes():
     assert round(refund_lump_85, 2) == round(16_956 * 0.085, 2)
 
 
-def test_barista_fire_and_mortgage_in_realization():
+def test_barista_fire_and_obligation_in_realization():
     inp = SimulationInput(
-        mortgage_monthly=2_000,
-        mortgage_end_age=52,
+        obligations=[
+            TemporaryObligation(
+                name="Kredyt hipoteczny",
+                monthly=2_000,
+                start_age=0,
+                end_age=52,
+            )
+        ],
         stages=[
             StageInput(
                 stage_type="akumulacja",
@@ -184,10 +196,12 @@ def test_barista_fire_and_mortgage_in_realization():
         ],
     )
     res = simulate(inp)
-    # W wieku 50 i 51 r.ż. jest praca na pół etatu (3 000 zł) i kredyt (2 000 zł):
-    # potrzebna wypłata z portfela = 6 000 - 3 000 + 2 000 = 5 000 zł/mies.
+    # Zobowiązanie nie zwiększa wypłaty z portfela. Dochód z planu to
+    # 6 000 zł: 3 000 zł z pracy i 3 000 zł z portfela.
     y50 = next(y for y in res.years if y.age == 50)
-    assert round(y50.monthly_withdrawal, 2) == 5_000.0
-    # Od wieku 52 r.ż. kredyt spłacony: potrzebna wypłata = 6 000 - 3 000 = 3 000 zł/mies.
+    assert round(y50.monthly_withdrawal, 2) == 3_000.0
+    assert round(lifestyle_monthly_net(inp, y50), 2) == 4_000.0
+    # Po spłacie kredytu budżet na życie rośnie do pełnych 6 000 zł.
     y52 = next(y for y in res.years if y.age == 52)
     assert round(y52.monthly_withdrawal, 2) == 3_000.0
+    assert round(lifestyle_monthly_net(inp, y52), 2) == 6_000.0

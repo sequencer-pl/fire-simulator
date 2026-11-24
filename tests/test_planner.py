@@ -601,8 +601,8 @@ def test_phase_metrics_keep_all_accumulation_stages_before_bridge():
         (50, 55),
     ]
     assert [phase.name for phase in accumulations] == [
-        "Akumulacja (z kredytem)",
-        "Akumulacja (po spłacie kredytu)",
+        "Akumulacja do emerytury (z zobowiązaniem)",
+        "Akumulacja do emerytury (po zobowiązaniu: Kredyt hipoteczny)",
     ]
     assert all(phase.monthly > 0 for phase in accumulations)
     assert bridge.start_age == 55
@@ -1464,6 +1464,18 @@ def test_result_chart_extends_to_100_beyond_horizon():
     base = plan(1, a, scenarios=False)
     assert r.projection.final_wealth == base.projection.final_wealth
     assert r.projection.final_wealth_net == base.projection.final_wealth_net
+
+
+def test_simulator_projection_extends_zus_chart_to_100():
+    a = answers(plan_end_age=85, use_zus=True)
+    r = plan(1, a, scenarios=False)
+    simulation = simulate(r.input)
+    projection = P.build_projection(r.input, simulation)
+
+    assert max(year.age for year in simulation.years) == r.input.max_age
+    assert projection.chart.ages[-1] == 100
+    assert projection.chart.withdrawals_net["zus"][-1] > 0
+    assert projection.final_wealth == pytest.approx(simulation.final_wealth)
 
 
 def test_suggest_small_dynamic_prefers_ike_market_over_oipe():
