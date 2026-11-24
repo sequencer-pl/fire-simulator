@@ -19,6 +19,7 @@ from app.simulation.planner import (
     plan as _plan,
 )
 from app.simulation.schemas import SimulationInput
+from app.simulation.summary import lifestyle_monthly_net
 
 _PLAN_CACHE: dict[tuple, P.WizardPlanResult] = {}
 
@@ -1491,11 +1492,11 @@ def test_suggest_large_balanced_uses_market_wrappers():
 
 
 def _lifestyle_series(result, data):
-    from app.simulation.planner import _realization_window, _year_lifestyle_net_monthly
+    from app.simulation.summary import lifestyle_monthly_net, realization_window
 
-    start, end = _realization_window(data)
+    start, end = realization_window(data)
     return [
-        _year_lifestyle_net_monthly(data, year)
+        lifestyle_monthly_net(data, year)
         for year in simulate(data).years
         if start <= year.age < end
     ]
@@ -1524,7 +1525,7 @@ def test_barista_lifestyle_is_constant_after_part_time_gross_fix():
     assert min(values) == pytest.approx(proj.min_monthly, abs=1.0)
     # Lata Baristy nie mogą wypłacać o ~700 zł/mies. więcej niż cel.
     barista_years = [
-        P._year_lifestyle_net_monthly(data, year)
+        lifestyle_monthly_net(data, year)
         for year in simulate(data).years
         if 45 <= year.age < 55
     ]
@@ -1636,6 +1637,70 @@ def test_barista_replay_matches_projection():
     assert replay.total_withdrawn == pytest.approx(result.total_withdrawn, abs=5.0)
     assert replay.final_wealth == pytest.approx(result.final_wealth, abs=5.0)
     assert replay.years[-1].age == result.years[-1].age
+
+
+def test_b2b_warnings_explain_limited_zus_relief():
+    from app.simulation.planner import PlanProjection, _append_b2b_warning
+
+    for mode, phrase in (("ulga", "ulga na start"), ("maly", "mały/preferencyjny")):
+        answers = WizardAnswers(employment="b2b", b2b_zus_mode=mode)
+        projection = PlanProjection(met=True)
+        _append_b2b_warning(projection, answers)
+        assert any(phrase in warning for warning in projection.warnings)
+
+
+def test_coast_warning_flags_salary_below_target():
+    from app.simulation.planner import PlanProjection, _append_coast_warning
+
+    answers = WizardAnswers(
+        semi_fire_enabled=True,
+        semi_fire_mode="coast",
+        semi_fire_net_monthly=2_000,
+        semi_fire_savings_monthly=0,
+    )
+    projection = PlanProjection(met=True, min_monthly=5_000)
+    _append_coast_warning(projection, answers, 5_000)
+    assert any("niższa od celu" in warning for warning in projection.warnings)
+
+
+def test_solve_re_rejects_semi_fire_beyond_horizon():
+    a = WizardAnswers(
+        gender="m",
+        age_now=40,
+        employment="etat",
+        gross_monthly=12_000,
+        capital={"broker": 500_000},
+        savings=3_000,
+        use_broker=True,
+        semi_fire_enabled=True,
+        semi_fire_mode="barista",
+        semi_fire_age=85,
+        semi_fire_net_monthly=4_500,
+        retire_early_age=85,
+        plan_end_age=85,
+        allocations={"broker": 100},
+    )
+    assert P._solve_re(a, 5_000) == (None, False)
+
+
+def test_mortgage_in_window_is_proportional_to_overlap():
+    from app.simulation.schemas import AccountConfig, StageInput
+
+    data = SimulationInput(
+        stages=[
+            StageInput(
+                stage_type="realizacja",
+                name="Emerytura",
+                start_age=65,
+                end_age=85,
+                accounts={"broker": AccountConfig()},
+            )
+        ],
+        mortgage_monthly=3_000,
+        mortgage_end_age=70,
+    )
+    # Pięć lat spłaty z dwudziestu lat fazy → średnio 750 zł/mies.
+    assert P._mortgage_in_window(data, 65, 85) == pytest.approx(750.0)
 
 
 def test_answers_backfill_2027_config():

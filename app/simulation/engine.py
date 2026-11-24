@@ -1707,8 +1707,9 @@ def _apply_asset_tax(
 ) -> None:
     """Annual asset value tax (OKI) above the exemption threshold.
 
-    The base is the average annual asset value; the rate is asset_tax_rate
-    (0.85% in 2027, from 2028 approx. 19% of the NBP reference rate).
+    The base is the average annual asset value. The rate comes from
+    ``TaxConfig.oki_rate_at(calendar_year)``: 0 before 2027, 0.85% in 2027 and
+    from 2028 the greater of the floor and 19% of the NBP reference rate.
     The tax is paid regardless of investment performance — deducted from
     the balance and included in the annual tax (total_tax). OKI withdrawals
     are not subject to Belka tax.
@@ -1747,17 +1748,15 @@ def _apply_asset_tax(
             for a in members
             if _asset_class_of(config.get_account_rules(a)) != "oszczednosciowe"
         ]
-        rate = max(
+        # Stawka jest własnością roku (i scenariusza), nie konta — inaczej
+        # stary asset_tax_rate z configu wygrywałby ze stawką ustawową 2028.
+        rate = config.oki_rate_at(calendar_year) if calendar_year is not None else max(
             (
                 (config.get_account_rules(a).asset_tax_rate if config.get_account_rules(a) else 0.0)  # type: ignore[union-attr]
                 for a in members
             ),
             default=0.0,
         )
-        if calendar_year is not None:
-            config_rate = config.oki_rate_at(calendar_year)
-            if config_rate >= 0:
-                rate = config_rate
 
         def _avg(account: str) -> float:
             return (year_start_balances.get(account, 0.0) + balances[account]) / 2.0

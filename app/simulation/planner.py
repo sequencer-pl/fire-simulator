@@ -32,9 +32,8 @@ from app.simulation.schemas import (
     SimulationInput,
     SimulationResult,
     StageInput,
-    YearResult,
 )
-from app.simulation.summary import build_summary
+from app.simulation.summary import build_summary, lifestyle_monthly_net, realization_window
 
 SAVINGS_ACCOUNTS = ("broker", "lokata", "obligacje", "krypto")
 
@@ -143,7 +142,6 @@ class WizardAnswers(BaseModel):
     b2b_lump_rate: float = Field(default=0.12, ge=0.0, le=0.5)
     b2b_zus_mode: Literal["duzy", "maly", "ulga", "custom"] = "duzy"
     b2b_custom_zus_base: float = Field(default=5652.0, ge=0.0, le=1e8)
-    b2b_switch_to_full_zus: bool = True
 
     # Sabbatical / Coast FIRE / Barista FIRE (część etatu przed pełnym FIRE):
     semi_fire_enabled: bool = False
@@ -526,6 +524,18 @@ def _apply_scenario_modifier(config: TaxConfig, modifier: ScenarioModifier) -> T
         0.0,
         min(2.0, data["zus"]["waloryzacja_swiadczenia"] + modifier.zus_swiadczenie_delta),
     )
+
+    if modifier.oki_rate_delta:
+        data["oki_rate_2027"] = max(
+            0.0, data["oki_rate_2027"] + modifier.oki_rate_delta
+        )
+        from_2028 = data["oki_rate_from_2028"]
+        if from_2028 is None:
+            from_2028 = max(
+                data["oki_rate_floor"],
+                data["oki_nbp_tax_rate"] * data["oki_nbp_reference_rate"],
+            )
+        data["oki_rate_from_2028"] = max(0.0, from_2028 + modifier.oki_rate_delta)
 
     for name, delta in modifier.account_roi_deltas.items():
         if name in data["accounts"]:
@@ -1591,25 +1601,6 @@ def build_stages(a: WizardAnswers) -> SimulationInput:
     )
 
 
-def _realization_window(data: SimulationInput) -> tuple[int, int]:
-    starts = [
-        s.start_age
-        for s in data.stages
-        if s.stage_type == "realizacja" and "zus" not in s.accounts
-    ]
-    ends = [
-        s.end_age
-        for s in data.stages
-        if s.stage_type == "realizacja" and "zus" not in s.accounts
-    ]
-    if starts and ends:
-        return min(starts), max(ends)
-    for s in data.stages:
-        if s.stage_type == "realizacja":
-            return s.start_age, s.end_age
-    return 0, 0
-
-
 def _tl(target: float) -> float:
     """Solver/gross-up accuracy band — a draw within this of the target counts
     as "met" (the constant-target gross-up converges to min ≈ target ± tol)."""
@@ -1718,7 +1709,7 @@ def _lifestyle_averages(
     years = [year for year in result.years if start_age <= year.age < end_age]
     if not years:
         return 0.0, 0.0, 0.0, 0.0
-    lifestyle = _average([_year_lifestyle_net_monthly(data, year) for year in years])
+    lifestyle = _average([lifestyle_monthly_net(data, year) for year in years])
     monthly, portfolio, zus = _payout_averages(result, start_age, end_age)
     part_time = 0.0
     for si in data.stages:
@@ -1773,11 +1764,14 @@ def _projected_zus_values(
 
 
 def _mortgage_in_window(data: SimulationInput, start_age: int, end_age: int) -> float:
+    """Średnia rata w oknie wiekowym — tylko za lata faktycznej spłaty."""
     if data.mortgage_monthly <= 0 or data.mortgage_end_age is None:
         return 0.0
-    if start_age < data.mortgage_end_age and end_age > start_age:
-        return float(data.mortgage_monthly)
-    return 0.0
+    years = end_age - start_age
+    if years <= 0:
+        return 0.0
+    overlap = max(0, min(end_age, data.mortgage_end_age) - start_age)
+    return float(data.mortgage_monthly) * overlap / years
 
 
 def _phase_metrics(
@@ -2306,38 +2300,15 @@ def _extend_chart_to_100(
     return projection
 
 
-def _year_lifestyle_net_monthly(data: SimulationInput, year: YearResult) -> float:
-    """Miesięczny budżet na życie w roku realizacji (uwzględnia Barista FIRE i kredyt)."""
-    extra_income = 0.0
-    for si in data.stages:
-        if (
-            si.stage_type == "realizacja"
-            and "zus" not in si.accounts
-            and si.start_age <= year.age < si.end_age
-            and si.part_time_net_monthly > 0
-        ):
-            extra_income = max(extra_income, si.part_time_net_monthly)
-    mortgage_cost = (
-        data.mortgage_monthly
-        if (
-            data.mortgage_monthly > 0
-            and data.mortgage_end_age is not None
-            and year.age < data.mortgage_end_age
-        )
-        else 0.0
-    )
-    return max(0.0, year.monthly_withdrawal + extra_income - mortgage_cost)
-
-
 def _project(
     data: SimulationInput,
     result: SimulationResult,
     target: float | None,
     bequest: float = 0.0,
 ) -> PlanProjection:
-    start, end = _realization_window(data)
+    start, end = realization_window(data)
     months = [
-        (year.age, _year_lifestyle_net_monthly(data, year))
+        (year.age, lifestyle_monthly_net(data, year))
         for year in result.years
         if start <= year.age < end
     ]
@@ -2427,9 +2398,9 @@ def _drawn_floor(data: SimulationInput, result: SimulationResult) -> float:
     this up to ``target`` is what makes "you can rely on at least target"
     literally true for every year of the horizon.
     """
-    start, end = _realization_window(data)
+    start, end = realization_window(data)
     nets = [
-        _year_lifestyle_net_monthly(data, year)
+        lifestyle_monthly_net(data, year)
         for year in result.years
         if start <= year.age < end
     ]
@@ -2491,7 +2462,7 @@ def _solve_payout_unconstrained(
     data: SimulationInput, bisection_iter: int = 24, grossup_iter: int = 25
 ) -> tuple[float, bool]:
     """Highest constant monthly payout without a bequest constraint."""
-    start, end = _realization_window(data)
+    start, end = realization_window(data)
     if start >= end:
         return 0.0, True
 
@@ -2698,8 +2669,10 @@ def _solve_re(a: WizardAnswers, target: float) -> tuple[int | None, bool]:
         # Częściowe FIRE kończy się przed pełnym FIRE — nie szukamy re, przy
         # którym etap Barista/Coast zostałby po cichu pominięty.
         low = max(low, int(a.semi_fire_age) + 1)
-    high = max(int(a.plan_end_age) - 1, low)
+    high = int(a.plan_end_age) - 1
     if high < low:
+        # Barista/Coast wypada poza zadeklarowanym horyzontem — nie szukamy
+        # rozwiązania, które wymagałoby wydłużenia planu.
         return None, False
     if not _evaluate(_vary_re(a, high), target, a.bequest_target).met:
         return None, False

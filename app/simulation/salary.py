@@ -11,14 +11,6 @@ from app.simulation.config import TaxConfig
 
 MONTHS_PER_YEAR = 12
 
-# Wartości domyślne B2B są w ``B2bConfig`` (config.py). Te aliasy zostają dla
-# kompatybilności importów w testach i starych wywołań.
-B2B_PREFERENTIAL_BASE = 1_442.0
-B2B_SOCIAL_RATE_FULL = 0.3164
-B2B_SOCIAL_RATE_PREF = 0.2919
-B2B_MIN_HEALTH_MONTHLY = 432.54
-B2B_LINEAR_HEALTH_DEDUCTION_ANNUAL = 14_100.0
-
 
 def etat_annual_social(gross_monthly: float, config: TaxConfig) -> tuple[float, float]:
     """Roczne składki społeczne pracownika: (emerytalna+rentowa, chorobowa).
@@ -59,7 +51,9 @@ def b2b_social_monthly(
         full = False
     elif zus_mode == "custom":
         base = max(0.0, custom_base)
-        full = True
+        # Poniżej progu nie ma obowiązku opłacać Funduszu Pracy — wtedy
+        # obowiązują stawki preferencyjne (bez 2,45% FP).
+        full = base >= b2b.full_zus_min_base
     else:
         base = config.zus.b2b_base_monthly
         full = True

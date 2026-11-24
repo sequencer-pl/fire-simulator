@@ -209,6 +209,36 @@ def test_oki_rate_from_2028_uses_nbp_formula():
     assert cfg.oki_rate_at(2028) == pytest.approx(0.0095)
 
 
+def test_oki_year_rate_wins_over_account_asset_tax_rate():
+    """Stawka OKI jest własnością roku — stare asset_tax_rate nie może jej nadpisać."""
+    cfg = default_config(2027)
+    cfg.inflation = 0.0
+    cfg.prog_indexation = None
+    cfg.oki_rate_2027 = 0.02
+    cfg.accounts["oki_inw"].asset_tax_rate = 0.0085
+    stages = [
+        accumulation_stage(
+            {"oki_inw": acc(starting_balance=200_000, roi=0.0)},
+            start=40,
+            end=42,
+        )
+    ]
+    result = simulate(SimulationInput(stages=stages, max_age=40, config=cfg))
+    assert result.years[0].tax_paid == pytest.approx(100_000 * 0.02, abs=0.01)
+
+
+def test_oki_scenario_modifier_shifts_both_rates():
+    from app.simulation.config import ScenarioModifier
+    from app.simulation.planner import _apply_scenario_modifier
+
+    cfg = default_config(2027)
+    scenario = _apply_scenario_modifier(
+        cfg, ScenarioModifier(oki_rate_delta=0.002)
+    )
+    assert scenario.oki_rate_at(2027) == pytest.approx(cfg.oki_rate_at(2027) + 0.002)
+    assert scenario.oki_rate_at(2028) == pytest.approx(cfg.oki_rate_at(2028) + 0.002)
+
+
 def test_oki_full_simulation_2026_2027_2028():
     cfg = TaxConfig(
         year=2026,

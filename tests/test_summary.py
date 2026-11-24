@@ -146,7 +146,7 @@ def test_tax_efficiency_includes_health_contribution():
     assert summary.tax_efficiency == pytest.approx(min(100.0, expected), abs=0.01)
 
 
-def test_barista_portfolio_min_ignores_part_time_zero_years():
+def test_barista_lifestyle_min_matches_projection_and_portfolio_is_separate():
     a = WizardAnswers(
         gender="m",
         age_now=40,
@@ -165,9 +165,17 @@ def test_barista_portfolio_min_ignores_part_time_zero_years():
         allocations={"broker": 100},
     )
     result = plan(1, a, scenarios=False, extend_chart=False)
-    assert result.summary.min_monthly is not None
-    assert result.summary.min_monthly > 0
+    summary = result.summary
+    assert summary is not None
+    assert summary.min_monthly is not None
+    assert summary.min_monthly > 0
+    # Jedna definicja budżetu: summary i projekcja muszą się zgadzać.
+    assert summary.min_monthly == pytest.approx(result.projection.min_monthly, abs=1)
+    assert summary.avg_monthly == pytest.approx(result.projection.mean_monthly, abs=1)
     assert result.projection.min_monthly == pytest.approx(4_500, abs=5)
+    # Wariant portfelowy jest osobnym polem i nie zawiera części etatu.
+    assert summary.min_monthly_portfolio is not None
+    assert summary.min_monthly_portfolio < summary.min_monthly
 
 
 def test_phase_metrics_partial_fire_is_contiguous():

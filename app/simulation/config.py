@@ -221,6 +221,8 @@ class B2bConfig(BaseModel):
     preferential_base_monthly: float = 1_442.0
     social_rate_full: float = 0.3164
     social_rate_preferential: float = 0.2919
+    # Poniżej tej podstawy nie ma obowiązku płacić Funduszu Pracy (2,45%).
+    full_zus_min_base: float = 3_000.0
     # Components used for the annual 30× base cap: pension + disability are
     # capped, accident and Labour Fund contributions are not.
     pension_rent_rate: float = 0.2752
@@ -374,6 +376,7 @@ class ScenarioModifier(BaseModel):
     prog_indexation_full: bool = False
     zus_skladki_delta: float = 0.0
     zus_swiadczenie_delta: float = 0.0
+    oki_rate_delta: float = 0.0
     account_roi_deltas: dict[str, float] = Field(default_factory=dict)
     wrapper_roi_deltas: dict[str, float] = Field(default_factory=dict)
 
@@ -450,6 +453,7 @@ class TaxConfig(BaseModel):
     oki_rate_2027: float = 0.0085
     oki_rate_from_2028: float | None = None
     oki_nbp_reference_rate: float = 0.05
+    oki_nbp_tax_rate: float = 0.19
     oki_rate_floor: float = 0.001
     risk_profiles: dict[str, RiskProfile] = Field(default_factory=default_risk_profiles)
     scenarios: ScenarioConfig = Field(default_factory=default_scenarios)
@@ -474,7 +478,7 @@ class TaxConfig(BaseModel):
             return self.oki_rate_from_2028
         return max(
             self.oki_rate_floor,
-            0.19 * self.oki_nbp_reference_rate,
+            self.oki_nbp_tax_rate * self.oki_nbp_reference_rate,
         )
 
     @model_validator(mode="after")

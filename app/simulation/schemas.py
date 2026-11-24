@@ -183,16 +183,12 @@ class SimulationInput(BaseModel):
 
     @model_validator(mode="after")
     def _validate_mortgage(self) -> "SimulationInput":
-        if self.mortgage_monthly > 0:
-            if self.mortgage_end_age is None:
-                raise ValueError(
-                    "Podaj wiek końca spłaty kredytu, jeśli rata jest większa od zera."
-                )
-            first_age = min((s.start_age for s in self.stages), default=None)
-            if first_age is not None and self.mortgage_end_age <= first_age:
-                raise ValueError(
-                    "Wiek końca spłaty kredytu musi być późniejszy niż początek planu."
-                )
+        if self.mortgage_monthly > 0 and self.mortgage_end_age is None:
+            raise ValueError(
+                "Podaj wiek końca spłaty kredytu, jeśli rata jest większa od zera."
+            )
+        # Kredyt zakończony przed startem planu jest poprawny — build_stages
+        # nie dokłada wtedy raty do puli oszczędności (phase1_boosted = False).
         return self
 
 
@@ -261,6 +257,8 @@ class ResultSummary(BaseModel):
     avg_monthly: float | None = None
     min_monthly: float | None = None
     max_monthly: float | None = None
+    avg_monthly_portfolio: float | None = None
+    min_monthly_portfolio: float | None = None
     zus_monthly: float | None = None
     payout_years: int = 0
     tax_efficiency: float | None = None

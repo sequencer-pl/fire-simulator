@@ -225,6 +225,24 @@ def test_b2b_social_base_respects_annual_cap():
     assert social < 25_000 * CFG.b2b.social_rate_full
 
 
+def test_b2b_custom_base_below_threshold_has_no_fundusz_pracy():
+    from app.simulation.salary import b2b_zus_base_and_social
+
+    base, social = b2b_zus_base_and_social("custom", CFG, 2_500)
+    assert base == pytest.approx(2_500)
+    assert social == pytest.approx(
+        base * (CFG.b2b.pension_rent_rate + CFG.b2b.accident_rate), abs=0.01
+    )
+    assert social < base * CFG.b2b.social_rate_full
+
+
+def test_b2b_custom_base_at_threshold_includes_fundusz_pracy():
+    from app.simulation.salary import b2b_zus_base_and_social
+
+    base, social = b2b_zus_base_and_social("custom", CFG, CFG.b2b.full_zus_min_base)
+    assert social == pytest.approx(base * CFG.b2b.social_rate_full, abs=0.01)
+
+
 def test_b2b_2027_constants_are_in_config():
     from app.simulation.config import default_config as dc
 
