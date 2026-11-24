@@ -11,7 +11,12 @@ test("Asystent pokazuje wspólne Etapy i tabelę rok po roku", async ({ page }) 
         localStorage.removeItem("fire.wizardState");
         localStorage.setItem(
             "fire.wizardPlan",
-            JSON.stringify({ plan, path: plan.path, selectedScenario: "realne" })
+            JSON.stringify({
+                version: 2,
+                plan,
+                path: plan.path,
+                selectedScenario: "realne",
+            })
         );
     }, PLAN);
     await page.goto("/wizard?restore=1", { waitUntil: "networkidle" });

@@ -30,7 +30,7 @@
 
     function horizonMark(age, min, max) {
         if (!Number.isFinite(Number(age)) || age < min || age > max) return "";
-        return `<span class="wz-gantt-horizon" style="left:${rangePct(age, min, max)}%" title="Horyzont planu: ${age} r.ż."></span>`;
+        return `<span class="wz-gantt-horizon" style="left:${rangePct(age, min, max)}%" role="img" aria-label="Horyzont planu: ${age} r.ż." title="Horyzont planu: ${age} r.ż."></span>`;
     }
 
     function timelineHtml(phases, min, max, horizonAge) {

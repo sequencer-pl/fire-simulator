@@ -327,8 +327,10 @@ const harness = `
                 ],
             },
             summary: {
-                min_monthly: 4100,
-                avg_monthly: 4700,
+                min_monthly: 5000,
+                avg_monthly: 5500,
+                min_monthly_portfolio: 4100,
+                avg_monthly_portfolio: 4700,
                 total_withdrawn: 600000,
                 end_age: 65,
             },
@@ -542,7 +544,10 @@ const harness = `
             && headers.includes("ZUS (kapitał)")
             && text(firstRow, "zus").startsWith("450")
             && text(post, "wealth") === "—"
-            && host.textContent.includes("majątek prywatny jest poza modelem");
+            && !host.textContent.includes("majątek prywatny jest poza modelem")
+            && document.getElementById("wzYearTable")?.previousElementSibling
+                ?.querySelector(".tooltip")?.textContent
+                .includes("majątek prywatny jest poza modelem");
         host.remove();
         return ok;
     });

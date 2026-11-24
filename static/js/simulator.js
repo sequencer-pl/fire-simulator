@@ -513,10 +513,8 @@ function applyWizardDraftIfPresent() {
     if (!raw || !container) return false;
     try {
         const draft = JSON.parse(raw);
-        if (draft?.version != null && Number(draft.version) !== 2) {
-            localStorage.removeItem(WIZARD_DRAFT_KEY);
-            return false;
-        }
+        // Wersję draftu ustala Asystent (wizard.js); Symulator czyta zawsze
+        // aktualny kształt pola `input` i nie duplikuje tej stałej.
         const input = draft?.input && Array.isArray(draft.input.stages)
             ? draft.input
             : draft;
@@ -1491,10 +1489,10 @@ function applyMortgagePanel() {
 
 function populateStages(inputData) {
     const container = document.getElementById("stages-container");
-    loadedMaxAge = Number.isFinite(Number(inputData.max_age))
+    loadedMaxAge = inputData.max_age != null && Number.isFinite(Number(inputData.max_age))
         ? Number(inputData.max_age)
         : null;
-    loadedStartYear = Number.isFinite(Number(inputData.start_year))
+    loadedStartYear = inputData.start_year != null && Number.isFinite(Number(inputData.start_year))
         ? Number(inputData.start_year)
         : null;
     loadedInflation = inputData.inflation != null && inputData.inflation !== ""

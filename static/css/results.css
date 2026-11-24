@@ -322,10 +322,6 @@
     background: color-mix(in srgb, var(--warning) 8%, var(--surface-2));
 }
 
-.res-table-note {
-    margin: var(--sp-2) 0 0;
-}
-
 /* Tabela rok po roku: kolory etapów i kompaktowy wybór kolumn. */
 .res-year-table table {
     min-width: 760px;

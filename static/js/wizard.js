@@ -3271,6 +3271,8 @@ function wzRenderTimeline(input, projection) {
             line.className = "wz-gantt-horizon";
             line.style.left = `${((horizonAge - min) / width) * 100}%`;
             line.title = `Horyzont planu: ${horizonAge} r.ż.`;
+            line.setAttribute("role", "img");
+            line.setAttribute("aria-label", `Horyzont planu: ${horizonAge} r.ż.`);
             box.appendChild(line);
         }
         setupTimelineDetails(box, ordered);
@@ -5015,9 +5017,12 @@ function wzRenderCharts(input, projection, summary = {}) {
         1 / 12
     );
     const inputHorizon = wzInputHorizonAge(input);
+    const summaryEnd = summary?.end_age;
     const horizonAge = Number.isFinite(inputHorizon)
         ? inputHorizon
-        : (Number.isFinite(Number(summary?.end_age)) ? Number(summary.end_age) + 1 : null);
+        : (summaryEnd != null && Number.isFinite(Number(summaryEnd))
+            ? Number(summaryEnd) + 1
+            : null);
     // Wykresy wypłat pokazują ZUS do 100 r.ż.; kapitał prywatny urywamy na
     // horyzoncie planu (plan_end jest wiekiem ekskluzywnym — ostatni rok to
     // plan_end - 1), żeby nie sugerować, że poza modelem nadal rośnie.

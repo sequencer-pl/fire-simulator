@@ -171,8 +171,6 @@
                     <tbody>${rows}</tbody>
                 </table>
             </div>
-            <p class="field-hint res-table-note">Majątek prywatny: salda na koniec roku bez ZUS i OFE; ZUS w osobnej kolumnie. Kwoty brutto — majątek końcowy netto jest po podatku wyjścia.</p>
-            ${postYear ? `<p class="field-hint res-table-note">Wiersz po horyzoncie pokazuje tylko ZUS — majątek prywatny jest poza modelem.</p>` : ""}
         </div>`;
 
         container.innerHTML = embedded
