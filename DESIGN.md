@@ -104,7 +104,10 @@ Przezroczystości robimy przez `color-mix()`, nie `rgba()`. Kontrast `--text`,
 - **Tooltipy.** `.tip` przy nagłówku panelu; treść wyjaśnia mechanikę, przykłady,
   limity i wyliczenia. Nie dziedziczy `text-transform` ani `letter-spacing`
   z nagłówków. Działa na hover i focus; na mobile tap. Nie powtarza listy opcji
-  widocznych pod spodem.
+  widocznych pod spodem. Definicje kolumn, opisy wierszy, zakres danych i
+  uzasadnienia liczb to wyjaśnienia — zawsze lądują w `.tip` przy nagłówku
+  sekcji, nigdy jako widoczny komentarz pod tabelą/wykresem ani jako akapit
+  na stronie głównej. Widoczny zostaje krótki tytuł i same dane.
 - **Domyślne wartości.** Najbardziej prawdopodobna opcja jest zaznaczona; opcje
   szeregujemy od najczęstszej, chyba że naturalna kolejność jest inna.
 - **Suwaki.** Suwak = typowy zakres; pole liczbowe = wyższy limit manualny.
@@ -135,7 +138,10 @@ Ten sam termin ma wszędzie to samo znaczenie — w kafelkach, tooltipach,
 wynikach i eksporcie. Definicje są krótkie i pisane językiem użytkownika.
 
 - **FIRE** — niezależność finansowa i możliwość wcześniejszego zakończenia pracy.
-- **Full FIRE** — całkowite zakończenie pracy w wybranym wieku.
+- **Full FIRE / Pełne FIRE** — całkowite zakończenie pracy w wybranym wieku.
+- **Częściowe FIRE** — wspólna nazwa etapów Coast i Barista, w których praca
+  na część etatu współfinansuje życie przed pełnym FIRE. Na osiach i Gancie
+  używamy tej etykiety zbiorczej; szczegóły wyjaśnia tooltip etapu.
 - **Coast FIRE** — część etatu; pensja pokrywa życie, oszczędności rosną bez wpłat.
 - **Barista FIRE** — część etatu z pensją mniejszą niż potrzeby; różnicę pokrywa portfel.
 - **Horyzont planu** — wiek, do którego liczymy wypłaty, metryki i kapitał końcowy.
