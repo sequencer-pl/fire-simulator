@@ -75,6 +75,32 @@ const harness = `
 
     wzInit();
 
+    check("init: wejście bez ?restore nie zapisuje stanu", () => {
+        return localStorage.getItem("fire.wizardState") == null;
+    });
+    check("draft: zawiera pełny input i skalary kredytu/pensji", () => {
+        const input = {
+            gender: "m",
+            stages: [{ stage_type: "akumulacja", name: "A", start_age: 40, end_age: 50, accounts: {} }],
+            max_age: 80,
+            mortgage_monthly: 3200,
+            mortgage_end_age: 57,
+            monthly_gross: 9000,
+            start_year: 2026,
+            inflation: 0.025,
+            withdrawal_policy: "auto",
+        };
+        const draft = wzBuildDraft(input);
+        return draft.input === input
+            && draft.max_age === 80
+            && draft.mortgage_monthly === 3200
+            && draft.mortgage_end_age === 57
+            && draft.monthly_gross === 9000
+            && draft.start_year === 2026
+            && draft.inflation === 0.025
+            && draft.stages === input.stages
+            && draft.withdrawal_policy === "auto";
+    });
     check("start: krok cel, 9 kroków", () => {
         const cel = document.querySelector('.wz-step[data-step-id="cel"]');
         return !cel.classList.contains("hidden")
@@ -130,6 +156,22 @@ const harness = `
         maly.checked = true;
         maly.dispatchEvent(new Event("change", { bubbles: true }));
         return document.getElementById("wzB2bCustomZusRow").classList.contains("hidden");
+    });
+    check("IKZE: kolejność reinwestycji bez krypto", () => {
+        wzRenderIkzeRefundNote([["ikze", 40]]);
+        const note = document.getElementById("wzIkzeRefundNote");
+        const text = note.textContent.replace(/\\s+/g, " ");
+        return !note.classList.contains("hidden")
+            && !/krypto/i.test(text)
+            && text.includes("IKE → OIPE → Obligacje → Lokata → OKI oszczędnościowe → Broker → Gotówka");
+    });
+    check("copy: 'nie pracuję' opisuje inne źródło utrzymania", () => {
+        const radio = document.querySelector('input[name="wzEmployment"][value="niepracujacy"]');
+        const card = radio?.closest(".wz-path");
+        const text = (card?.textContent || "").replace(/\\s+/g, " ");
+        return text.includes("inne źródło utrzymania")
+            && text.includes("Wpłaty pochodzą spoza modelowanego portfela")
+            && text.includes("kapitał rośnie");
     });
     check("PPK/PPE: etat pozwala zaznaczyć oba i wpisać salda", () => {
         const etat = document.querySelector('input[name="wzEmployment"][value="etat"]');
@@ -284,6 +326,14 @@ const harness = `
                     { stage_type: "realizacja", name: "Emerytura ZUS", start_age: 65, end_age: 100, accounts: { zus: {} } },
                 ],
             },
+            summary: {
+                min_monthly: 5000,
+                avg_monthly: 5500,
+                min_monthly_portfolio: 4100,
+                avg_monthly_portfolio: 4700,
+                total_withdrawn: 600000,
+                end_age: 65,
+            },
             projection: {
                 met: true,
                 min_monthly: 5000,
@@ -370,12 +420,26 @@ const harness = `
         wzSelectedScenario = "realne";
         wzRenderResult(wzPlan);
         return document.getElementById("wzHeroAnswer").textContent.includes("5")
-            && document.querySelectorAll("#wzMetrics .metric").length === 6
+            && document.querySelectorAll("#wzMetrics .metric").length === 7
             && document.querySelectorAll("#wzTimeline .wz-timeline-segment").length === 2
             && document.querySelectorAll("#wzFlowsGantt .wz-gantt-row").length >= 3
             && Boolean(document.querySelector("#wzFlowsGantt .wz-gantt-transfer"))
             && document.querySelectorAll("#wzFacts .wz-fact").length >= 1
             && document.getElementById("wzPolicyTipText").textContent.includes("Najpierw");
+    });
+    check("metryki: min/średnia to lifestyle, portfel osobno z summary", () => {
+        const metricByLabel = (label) => [...document.querySelectorAll("#wzMetrics .metric")]
+            .find((node) => node.textContent.includes(label));
+        const min = metricByLabel("Minimalna wypłata mies.");
+        const avg = metricByLabel("Średnia wypłata mies.");
+        const portfolio = metricByLabel("Minimalna wypłata z portfela");
+        return Boolean(min && avg && portfolio)
+            && min.textContent.includes("5")
+            && min.textContent.includes("000")
+            && avg.textContent.includes("5")
+            && avg.textContent.includes("500")
+            && portfolio.textContent.includes("4")
+            && portfolio.textContent.includes("100");
     });
     check("rok po roku: wiersz po horyzoncie pokazuje sam ZUS", () => {
         const row = wzPostHorizonRow(
@@ -426,8 +490,9 @@ const harness = `
                     {
                         age: 40,
                         stage_name: "Akumulacja",
-                        balances: { ike: 1000 },
-                        total_wealth: 1000,
+                        balances: { ike: 1000, zus: 200 },
+                        ending_balances: { ike: 1100, zus: 300, "zus:ofe": 150 },
+                        total_wealth: 1550,
                         annual_withdrawal: 0,
                         monthly_withdrawal: 0,
                         tax_paid: 0,
@@ -435,8 +500,9 @@ const harness = `
                     {
                         age: 41,
                         stage_name: "Realizacja",
-                        balances: { ike: 900 },
-                        total_wealth: 900,
+                        balances: { ike: 900, zus: 200 },
+                        ending_balances: { ike: 800, zus: 250 },
+                        total_wealth: 1050,
                         annual_withdrawal: 60000,
                         monthly_withdrawal: 5000,
                         tax_paid: 100,
@@ -453,10 +519,15 @@ const harness = `
             },
         });
         const headers = [...host.querySelectorAll("thead th")].map((th) => th.textContent.trim());
-        const firstRow = host.querySelector("tbody tr");
+        const rows = [...host.querySelectorAll("tbody tr")];
+        const firstRow = rows[0];
+        const secondRow = rows[1];
         const monthlyCell = firstRow?.querySelector("td.col-monthly");
         const monthlyHeader = host.querySelector("th.col-monthly");
         const post = host.querySelector("tr.post-horizon");
+        const text = (row, col) => (row?.querySelector('td[data-col="' + col + '"]')?.textContent || "")
+            .replace(/\\s+/g, " ")
+            .trim();
         const ok = headers.slice(0, 6).join("|")
                 === "Wiek|Etap|Wypłata mies.|Majątek|Wypłata roczna|Podatek"
             && Boolean(monthlyCell)
@@ -464,7 +535,19 @@ const harness = `
             && firstRow.querySelectorAll("td")[2] === monthlyCell
             && Boolean(post?.querySelector("td.col-monthly"))
             && post?.dataset.keep === "true"
-            && !firstRow.querySelector("strong");
+            && !firstRow.querySelector("strong")
+            // Salda i majątek liczone z ending_balances; ZUS poza majątkiem.
+            && text(firstRow, "ike").startsWith("1100")
+            && text(secondRow, "ike").startsWith("800")
+            && text(firstRow, "wealth").startsWith("1100")
+            && text(secondRow, "wealth").startsWith("800")
+            && headers.includes("ZUS (kapitał)")
+            && text(firstRow, "zus").startsWith("450")
+            && text(post, "wealth") === "—"
+            && !host.textContent.includes("majątek prywatny jest poza modelem")
+            && document.getElementById("wzYearTable")?.previousElementSibling
+                ?.querySelector(".tooltip")?.textContent
+                .includes("majątek prywatny jest poza modelem");
         host.remove();
         return ok;
     });
@@ -617,6 +700,7 @@ const harness = `
     check("restore: ?restore=1 odtwarza krok wyniku z zapisanego planu", () => {
         localStorage.removeItem("fire.wizardState");
         localStorage.setItem("fire.wizardPlan", JSON.stringify({
+            version: WZ_PLAN_VERSION,
             plan: wzPlan,
             path: 1,
             selectedScenario: "realne",

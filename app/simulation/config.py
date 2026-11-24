@@ -195,8 +195,14 @@ class ZusConfig(BaseModel):
 
     skladka_rate: float = 0.1952
     employee_rate: float = 0.1371
+    # Employee contribution components. Pension + disability are subject to
+    # the annual 30× base cap; sickness contribution is not.
+    employee_pension_rate: float = 0.0976
+    employee_rent_rate: float = 0.015
+    employee_sickness_rate: float = 0.0245
     ofe_rate: float = 0.0292
-    limit_base_annual: float = 270_000
+    # 30 × 9,420 (average salary used for 2026 IKE/IKZE/OIPE limits).
+    limit_base_annual: float = 282_600
     waloryzacja_skladek: float = 0.02
     waloryzacja_swiadczenia: float = 0.01
     wiek_emerytalny_k: int = 60
@@ -205,11 +211,39 @@ class ZusConfig(BaseModel):
     b2b_base_monthly: float = 5_652.0
 
 
+class B2bConfig(BaseModel):
+    """Stałe B2B (JDG) na dany rok.
+
+    Trzymamy je w configu, bo preset 2027 musi je aktualizować razem z PIT
+    i limitami IKE/IKZE. Wartości 2027 są tam uzupełniane w ``default_config``.
+    """
+
+    preferential_base_monthly: float = 1_442.0
+    social_rate_full: float = 0.3164
+    social_rate_preferential: float = 0.2919
+    # Poniżej tej podstawy nie ma obowiązku płacić Funduszu Pracy (2,45%).
+    full_zus_min_base: float = 3_000.0
+    # Components used for the annual 30× base cap: pension + disability are
+    # capped, accident and Labour Fund contributions are not.
+    pension_rent_rate: float = 0.2752
+    accident_rate: float = 0.0167
+    fp_rate: float = 0.0245
+    # Składka zdrowotna: minimalna oraz progi ryczałtu (przychód roczny).
+    min_health_monthly: float = 432.54
+    lump_health_thresholds: tuple[float, float] = (60_000.0, 300_000.0)
+    lump_health_amounts: tuple[float, float, float] = (498.35, 830.58, 1_495.04)
+    linear_health_rate: float = 0.049
+    linear_health_deduction_annual: float = 14_100.0
+    min_wage: float = 4_806.0
+
+
 class PpkConfig(BaseModel):
     """PPK parameters (PPK Act, auto-enrolment since 2019).
 
     Base contributions: employee 2%, employer 1.5% of base (total max 8%).
     State: 250 PLN welcoming payment (one-time) + 240 PLN annual top-up.
+    Annual top-up requires basic contributions of at least 3,5% of 6× minimum
+    wage in that year (PPK Act).
     """
 
     employee_pct: float = 0.02
@@ -217,6 +251,9 @@ class PpkConfig(BaseModel):
     max_total_pct: float = 0.08
     state_welcoming: float = 250.0
     state_annual: float = 240.0
+    state_topup_min_rate: float = 0.035
+    state_topup_min_wage_multiple: float = 6.0
+    min_wage: float = 4_806.0
 
 
 class PpeConfig(BaseModel):
@@ -339,6 +376,7 @@ class ScenarioModifier(BaseModel):
     prog_indexation_full: bool = False
     zus_skladki_delta: float = 0.0
     zus_swiadczenie_delta: float = 0.0
+    oki_rate_delta: float = 0.0
     account_roi_deltas: dict[str, float] = Field(default_factory=dict)
     wrapper_roi_deltas: dict[str, float] = Field(default_factory=dict)
 
@@ -406,9 +444,17 @@ class TaxConfig(BaseModel):
     limits: Limits = Field(default_factory=Limits)
     accounts: dict[str, AccountRules] = Field(default_factory=default_account_rules)
     zus: ZusConfig = Field(default_factory=ZusConfig)
+    b2b: B2bConfig = Field(default_factory=B2bConfig)
     longevity: LongevityConfig = Field(default_factory=LongevityConfig)
     ppk: PpkConfig = Field(default_factory=PpkConfig)
     ppe: PpeConfig = Field(default_factory=PpeConfig)
+    # OKI: 0,85% tylko w 2027; od 2028 19% stopy referencyjnej NBP (min. 0,1%).
+    # ``oki_rate_from_2028`` pozwala nadpisać formułę bez zmiany kodu.
+    oki_rate_2027: float = 0.0085
+    oki_rate_from_2028: float | None = None
+    oki_nbp_reference_rate: float = 0.05
+    oki_nbp_tax_rate: float = 0.19
+    oki_rate_floor: float = 0.001
     risk_profiles: dict[str, RiskProfile] = Field(default_factory=default_risk_profiles)
     scenarios: ScenarioConfig = Field(default_factory=default_scenarios)
     wrapper_vehicles: dict[str, WrapperVehicle] = Field(
@@ -417,6 +463,23 @@ class TaxConfig(BaseModel):
     wrapper_vehicle_options: dict[str, list[str]] = Field(
         default_factory=default_wrapper_vehicle_options
     )
+
+    def oki_rate_at(self, year: int) -> float:
+        """Stawka podatku od aktywów OKI dla roku kalendarzowego.
+
+        2026: brak podatku (OKI startują od 2027). 2027: 0,85%. Od 2028:
+        19% stopy referencyjnej NBP, nie mniej niż ``oki_rate_floor``.
+        """
+        if year < 2027:
+            return 0.0
+        if year == 2027:
+            return self.oki_rate_2027
+        if self.oki_rate_from_2028 is not None:
+            return self.oki_rate_from_2028
+        return max(
+            self.oki_rate_floor,
+            self.oki_nbp_tax_rate * self.oki_nbp_reference_rate,
+        )
 
     @model_validator(mode="after")
     def _backfill_risk_metadata(self) -> "TaxConfig":
@@ -503,14 +566,31 @@ def default_config(year: int = 2026) -> TaxConfig:
             ppe_additional_annual=45_148.50,
         )
         cfg.zus.limit_base_annual = 300_990.0
+        # 60% × 10 033 zł (przeciętne wynagrodzenie użyte do limitów 2027).
+        cfg.zus.b2b_base_monthly = 6_019.80
+        cfg.b2b = B2bConfig(
+            preferential_base_monthly=1_485.0,
+            min_health_monthly=445.50,
+            linear_health_deduction_annual=15_100.0,
+            min_wage=4_950.0,
+        )
+        cfg.ppk.min_wage = 4_950.0
     return cfg
 
 
 def backfill_tax_config(data: dict) -> dict:
-    """Uzupełnia stare zapisane configi o pola 2027 (bez migracji SQL)."""
-    defaults = TaxConfig().model_dump()
+    """Uzupełnia stare zapisane configi o brakujące pola (bez migracji SQL)."""
+    try:
+        year = int(data.get("year", 2026))
+    except (TypeError, ValueError):
+        year = 2026
+    defaults = default_config(year).model_dump()
     for key, val in defaults.items():
-        data.setdefault(key, val)
+        if isinstance(val, dict) and isinstance(data.get(key), dict):
+            for sub_key, sub_val in val.items():
+                data[key].setdefault(sub_key, sub_val)
+        else:
+            data.setdefault(key, val)
     return data
 
 

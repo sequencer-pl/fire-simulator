@@ -11,18 +11,59 @@ from app.simulation.config import TaxConfig
 
 MONTHS_PER_YEAR = 12
 
-# Parametry B2B (2026):
-# - Duży ZUS: podstawa 60% prognozowanego przeciętnego wynagrodzenia
-#   (config.zus.b2b_base_monthly = 5 652 zł).
-# - Mały ZUS (preferencyjny przez 24 mies.): podstawa 30% płacy minimalnej
-#   (ok. 1 442 zł).
-# - Stopa składek społecznych: emerytalna 19,52% + rentowa 8% + wypadkowa
-#   1,67% (+ FP 2,45% na dużym ZUS).
-B2B_PREFERENTIAL_BASE = 1_442.0
-B2B_SOCIAL_RATE_FULL = 0.3164
-B2B_SOCIAL_RATE_PREF = 0.2919
-B2B_MIN_HEALTH_MONTHLY = 432.54
-B2B_LINEAR_HEALTH_DEDUCTION_ANNUAL = 14_100.0
+
+def etat_annual_social(gross_monthly: float, config: TaxConfig) -> tuple[float, float]:
+    """Roczne składki społeczne pracownika: (emerytalna+rentowa, chorobowa).
+
+    Emerytalna i rentowa są objęte rocznym limitem 30-krotności; chorobowa
+    (2,45%) nie. Zwracamy kwoty roczne, bo limit jest roczny.
+    """
+    annual = max(0.0, gross_monthly) * MONTHS_PER_YEAR
+    zus = config.zus
+    capped = min(annual, zus.limit_base_annual) if zus.limit_base_annual > 0 else annual
+    pension_rent = capped * (zus.employee_pension_rate + zus.employee_rent_rate)
+    sickness = annual * zus.employee_sickness_rate
+    return pension_rent, sickness
+
+
+def etat_taxable_income(gross_monthly: float, config: TaxConfig) -> float:
+    """Roczny dochód etatu do PIT (po składkach społecznych i KUP)."""
+    pension_rent, sickness = etat_annual_social(gross_monthly, config)
+    annual = max(0.0, gross_monthly) * MONTHS_PER_YEAR
+    return max(0.0, annual - pension_rent - sickness - config.kup)
+
+
+def b2b_social_monthly(
+    zus_mode: str,
+    config: TaxConfig,
+    custom_base: float = 5_652.0,
+) -> tuple[float, float]:
+    """Zwraca (miesięczna podstawa wymiaru, miesięczna składka społeczna ZUS).
+
+    Emerytalna+rentowa są ograniczone rocznym limitem 30-krotności; wypadkowa
+    i Fundusz Pracy liczone są od pełnej podstawy.
+    """
+    b2b = config.b2b
+    if zus_mode == "ulga":
+        return 0.0, 0.0
+    if zus_mode == "maly":
+        base = b2b.preferential_base_monthly
+        full = False
+    elif zus_mode == "custom":
+        base = max(0.0, custom_base)
+        # Poniżej progu nie ma obowiązku opłacać Funduszu Pracy — wtedy
+        # obowiązują stawki preferencyjne (bez 2,45% FP).
+        full = base >= b2b.full_zus_min_base
+    else:
+        base = config.zus.b2b_base_monthly
+        full = True
+    annual_base = base * MONTHS_PER_YEAR
+    cap = config.zus.limit_base_annual
+    capped = min(annual_base, cap) if cap and cap > 0 else annual_base
+    social_annual = capped * b2b.pension_rent_rate + annual_base * b2b.accident_rate
+    if full:
+        social_annual += annual_base * b2b.fp_rate
+    return base, social_annual / MONTHS_PER_YEAR
 
 
 def b2b_zus_base_and_social(
@@ -30,18 +71,8 @@ def b2b_zus_base_and_social(
     config: TaxConfig,
     custom_base: float = 5_652.0,
 ) -> tuple[float, float]:
-    """Zwraca (miesięczna podstawa wymiaru składek ZUS, miesięczna składka społeczna ZUS)."""
-    if zus_mode == "ulga":
-        return 0.0, 0.0
-    if zus_mode == "maly":
-        base = B2B_PREFERENTIAL_BASE
-        return base, base * B2B_SOCIAL_RATE_PREF
-    if zus_mode == "custom":
-        base = max(0.0, custom_base)
-        rate = B2B_SOCIAL_RATE_FULL if base >= 3_000.0 else B2B_SOCIAL_RATE_PREF
-        return base, base * rate
-    base = config.zus.b2b_base_monthly
-    return base, base * B2B_SOCIAL_RATE_FULL
+    """Kompatybilny wrapper: (podstawa miesięczna, składka społeczna miesięczna)."""
+    return b2b_social_monthly(zus_mode, config, custom_base)
 
 
 def b2b_net_from_gross(
@@ -64,12 +95,13 @@ def b2b_net_from_gross(
 
     if tax_form == "ryczalt":
         # 3 progi składki zdrowotnej na ryczałcie (do 60k, 60k-300k, >300k rocznie)
-        if annual_rev <= 60_000:
-            health_m = 498.35
-        elif annual_rev <= 300_000:
-            health_m = 830.58
+        low, high = config.b2b.lump_health_thresholds
+        if annual_rev <= low:
+            health_m = config.b2b.lump_health_amounts[0]
+        elif annual_rev <= high:
+            health_m = config.b2b.lump_health_amounts[1]
         else:
-            health_m = 1_495.04
+            health_m = config.b2b.lump_health_amounts[2]
         annual_health = health_m * MONTHS_PER_YEAR
         taxable = max(0.0, annual_rev - annual_social - 0.5 * annual_health)
         tax_annual = taxable * max(0.0, lump_rate)
@@ -79,9 +111,9 @@ def b2b_net_from_gross(
     annual_income = income_m * MONTHS_PER_YEAR
 
     if tax_form == "liniowy":
-        health_m = max(B2B_MIN_HEALTH_MONTHLY, income_m * 0.049)
+        health_m = max(config.b2b.min_health_monthly, income_m * config.b2b.linear_health_rate)
         annual_health = health_m * MONTHS_PER_YEAR
-        deductible_health = min(annual_health, B2B_LINEAR_HEALTH_DEDUCTION_ANNUAL)
+        deductible_health = min(annual_health, config.b2b.linear_health_deduction_annual)
         taxable = max(0.0, annual_income - deductible_health)
         pit = taxable * 0.19 + danina_solidarnosciowa(
             taxable, danina_prog=config.danina_prog, danina_rate=config.danina_rate
@@ -89,7 +121,7 @@ def b2b_net_from_gross(
         return max(0.0, rev - social_m - health_m - pit / MONTHS_PER_YEAR)
 
     # Skala podatkowa (12% / 32%)
-    health_m = max(B2B_MIN_HEALTH_MONTHLY, income_m * config.health_rate)
+    health_m = max(config.b2b.min_health_monthly, income_m * config.health_rate)
     pit = scale_tax(annual_income, **config.scale_kwargs()) + danina_solidarnosciowa(
         annual_income, danina_prog=config.danina_prog, danina_rate=config.danina_rate
     )
@@ -148,9 +180,15 @@ def net_from_gross(gross_monthly: float, config: TaxConfig, *, ppk_pct: float = 
     gross = max(0.0, gross_monthly)
     if gross <= 0:
         return 0.0
-    zus = gross * config.zus.employee_rate
-    health = max(0.0, gross - zus) * config.health_rate
-    annual_income = max(0.0, (gross - zus) * MONTHS_PER_YEAR - config.kup)
+    annual = gross * MONTHS_PER_YEAR
+    pension_rent, sickness = etat_annual_social(gross, config)
+    zus_annual = pension_rent + sickness
+    # Podstawa zdrowotnej to bieżące wynagrodzenie pomniejszone o składki
+    # społeczne; przy przekroczeniu limitu 30× emerytalna+rentowa już nie
+    # schodzą, więc zdrowotna liczy się od większej podstawy.
+    zus_monthly = zus_annual / MONTHS_PER_YEAR
+    health = max(0.0, gross - zus_monthly) * config.health_rate
+    annual_income = max(0.0, annual - zus_annual - config.kup)
     pit = scale_tax(annual_income, **config.scale_kwargs())
     pit += danina_solidarnosciowa(
         annual_income,
@@ -158,7 +196,7 @@ def net_from_gross(gross_monthly: float, config: TaxConfig, *, ppk_pct: float = 
         danina_rate=config.danina_rate,
     )
     ppk = gross * max(0.0, ppk_pct)
-    return max(0.0, gross - zus - health - pit / MONTHS_PER_YEAR - ppk)
+    return max(0.0, gross - zus_monthly - health - pit / MONTHS_PER_YEAR - ppk)
 
 
 def gross_from_net(net_monthly: float, config: TaxConfig, *, ppk_pct: float = 0.0) -> float:

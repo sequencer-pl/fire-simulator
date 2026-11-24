@@ -67,7 +67,7 @@ Pełne założenia, wyjątki i ograniczenia: [`docs/model.md`](docs/model.md).
 | IKZE | 10% po 65 r.ż.; przed 65 skala PIT od całości | ulga w roku wpłaty |
 | PPK / PPE | 0% po 60 r.ż.; przed 60 ograniczenia | składki pracodawcy i państwa |
 | OIPE | 0% po 60 r.ż. | limit wpłat jak IKE; dziś funduszowe |
-| OKI (inw./osk.) | podatek od aktywów 0,85% | wspólny limit 100 tys. zł / 25 tys. zł |
+| OKI (inw./osk.) | podatek od aktywów 0,85% w 2027; od 2028 19% stopy NBP | wspólny limit 100 tys. zł / 25 tys. zł |
 | ZUS | skala PIT przy wypłacie | kapitał ÷ ŚDTŻ (projekcja GUS) |
 
 ## Szybki start

@@ -2,7 +2,12 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from app.simulation.config import TaxConfig, base_account_key, default_config
+from app.simulation.config import (
+    TaxConfig,
+    backfill_tax_config,
+    base_account_key,
+    default_config,
+)
 
 _ALLOWED_IKZE_TARGETS = {
     "",
@@ -36,6 +41,9 @@ class AccountConfig(BaseModel):
     # "lump_sum" = ryczałt ewidencjonowany wg stawki ikze_lump_sum_rate (B2B).
     ikze_tax_regime: Literal["scale", "flat_19", "lump_sum"] = "scale"
     ikze_lump_sum_rate: float = Field(default=0.12, ge=0.0, le=0.5)
+    # Roczny dochód do wyliczenia ulgi IKZE na skali PIT. Planner ustawia go
+    # dla etatu/B2B, żeby silnik nie zgadywał podstawy z ``monthly_base``.
+    ikze_income_annual: float | None = Field(default=None, ge=0.0, le=1e12)
     # Gdzie trafia zwrot podatku z ulgi IKZE: "auto", "none" albo konkretne konto
     # w etapie (w tym sub-konta np. "broker:2", "lokata:2").
     ikze_refund_target: str = "auto"
@@ -88,6 +96,15 @@ class StageInput(BaseModel):
         description=(
             "Miesięczny dochód netto z pracy na część etatu w okresie częściowego FIRE "
             "(Barista FIRE / Sabbatical), zmniejszający zapotrzebowanie na wypłatę z portfela."
+        ),
+    )
+    part_time_gross_monthly: float = Field(
+        default=0.0,
+        ge=0.0,
+        le=1e8,
+        description=(
+            "Miesięczny dochód brutto z pracy na część etatu. Silnik odejmuje go od "
+            "brutto celu wypłaty; 0 = użyj wartości netto (zachowanie legacy)."
         ),
     )
     part_time_zus_base: float = Field(
@@ -157,6 +174,23 @@ class SimulationInput(BaseModel):
     mortgage_end_age: int | None = Field(default=None, ge=0, le=120)
     config: TaxConfig = Field(default_factory=default_config)
 
+    @field_validator("config", mode="before")
+    @classmethod
+    def _backfill_saved_config(cls, value):
+        if isinstance(value, dict):
+            return backfill_tax_config(dict(value))
+        return value
+
+    @model_validator(mode="after")
+    def _validate_mortgage(self) -> "SimulationInput":
+        if self.mortgage_monthly > 0 and self.mortgage_end_age is None:
+            raise ValueError(
+                "Podaj wiek końca spłaty kredytu, jeśli rata jest większa od zera."
+            )
+        # Kredyt zakończony przed startem planu jest poprawny — build_stages
+        # nie dokłada wtedy raty do puli oszczędności (phase1_boosted = False).
+        return self
+
 
 class YearResult(BaseModel):
     age: int
@@ -223,6 +257,8 @@ class ResultSummary(BaseModel):
     avg_monthly: float | None = None
     min_monthly: float | None = None
     max_monthly: float | None = None
+    avg_monthly_portfolio: float | None = None
+    min_monthly_portfolio: float | None = None
     zus_monthly: float | None = None
     payout_years: int = 0
     tax_efficiency: float | None = None

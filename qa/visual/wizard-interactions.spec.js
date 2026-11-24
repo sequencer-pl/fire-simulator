@@ -94,7 +94,7 @@ test("mobile layout stays within the screen throughout the employment path", asy
     await expect(page.locator("#wzResult")).toBeVisible({ timeout: 120_000 });
     await expect(page.locator("#wzHeroAnswer")).not.toBeEmpty();
     await expect(page.locator("#wzScenariosBox .wz-scenario-card")).toHaveCount(3);
-    await expect(page.locator("#wzMetrics .metric")).toHaveCount(6);
+    await expect(page.locator("#wzMetrics .metric")).toHaveCount(7);
     await expect(page.locator("#wzFlowsGantt .wz-gantt-row").first()).toBeVisible();
     await expect(page.locator("#wzChartsWrap")).toBeVisible();
     await expect(page.locator("#wzWithdrawalsChart svg")).toBeVisible();

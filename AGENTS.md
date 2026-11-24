@@ -153,9 +153,11 @@ każdego ekranu:
 - Używaj istniejących komponentów i tokenów. Nie dodawaj własnych kolorów,
   rozmiarów, promieni ani ikon.
 - Widoczny tekst jest krótki. Mechanika, przykłady, listy składników,
-  uzasadnienia i wyliczenia idą do `.tip` przy nagłówku panelu. Tooltip
-  wyjaśnia **szczegółowo** działanie sekcji, przycisku lub mechanizmu; nie
-  powtarza listy opcji, które są pod spodem.
+  uzasadnienia i wyliczenia idą do `.tip` przy nagłówku panelu. To samo
+  dotyczy definicji kolumn, opisów wierszy i zakresu danych w wynikach — nie
+  dodawaj ich jako widocznych komentarzy pod tabelą ani na stronie głównej.
+  Tooltip wyjaśnia **szczegółowo** działanie sekcji, przycisku lub mechanizmu;
+  nie powtarza listy opcji, które są pod spodem.
 - Duży kafel `.wz-path` dla decyzji wymagającej wyjaśnienia; `.segmented` dla
   wyboru oczywistego. Domyślnie zaznaczaj najbardziej prawdopodobną opcję;
   kolejność opcji od najczęstszej, chyba że naturalna kolejność jest inna

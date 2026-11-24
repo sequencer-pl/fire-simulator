@@ -26,7 +26,8 @@ według zasad konta (Belka, ryczałt, skala PIT). Wyjątki:
 
 - **lokata** — Belka 19% pobierana co okres; silnik przelicza ROI na nominalne
   brutto i urealnia,
-- **OKI** — ROI przed rocznym podatkiem od aktywów (0,85%),
+- **OKI** — ROI przed rocznym podatkiem od aktywów (0,85% w 2027; od 2028
+  19% stopy NBP),
 - **gotówka** — ROI = `-inflacja`,
 - **ZUS** — waloryzacja, nie ROI; emerytura netto po 9% składce zdrowotnej.
 
@@ -63,7 +64,8 @@ Wypłaty przed progami kosztują i nie zawsze da się je zamodelować w 100%:
   krypto**);
 - **PPK przed 60** — środki pracodawcy i dopłaty państwa przepadają, podatek Belki
   od zysku tylko na części pracownika;
-- **PPE przed 60** — 30% składek podstawowych pracodawcy trafia do ZUS subkonto.
+- **PPE** — 30% składki podstawowej pracodawcy trafia do ZUS subkonto
+  (model księguje to corocznie; moment prawny do potwierdzenia).
 
 ## 6. Bufor to wartość końcowa, nie „poduszka”
 
@@ -73,17 +75,18 @@ Chcesz zachować kapitał na później → wpisz go w bufor; chcesz przejeść w
 
 ## 7. OKI (od 2027 r.)
 
-Zamiast Belki coroczny podatek od wartości aktywów (0,85%) od średniego stanu
-ponad **wspólny limit 100 000 zł** dla wszystkich kont OKI, z czego max
-25 000 zł na część oszczędnościową (lokaty/obligacje). Podatek płacisz
-niezależnie od zysku lub straty. Wypłaty nie podlegają Belce. Zamodelowane
-wprost.
+Zamiast Belki coroczny podatek od wartości aktywów: **0,85% w 2027 r.**, a od
+2028 r. **19% stopy referencyjnej NBP** (min. 0,1%, bez górnego limitu) od
+średniego stanu ponad **wspólny limit 100 000 zł** dla wszystkich kont OKI,
+z czego max 25 000 zł na część oszczędnościową (lokaty/obligacje). Podatek
+płacisz niezależnie od zysku lub straty. Wypłaty nie podlegają Belce.
 
 ## 8. ZUS w akumulacji
 
-ZUS rośnie przez waloryzację (domyślnie 1%/rok), nie przez ROI — plus składka
-19,52% od podstawy do limitu 30× przeciętnego wynagrodzenia. Członkowie OFE mają
-rozdzielany strumień: 2,92 pkt do OFE (rośnie z ROI), reszta waloryzowana w ZUS.
+ZUS rośnie przez waloryzację (domyślnie 2%/rok dla kapitału i 1%/rok dla
+świadczenia), nie przez ROI — plus składka 19,52% od podstawy do limitu
+30× przeciętnego wynagrodzenia. Członkowie OFE mają rozdzielany strumień:
+2,92 pkt do OFE (rośnie z ROI), reszta waloryzowana w ZUS.
 
 ## 9. Horyzont i długowieczność
 
@@ -123,12 +126,13 @@ jest środkiem wypłat — wynik jest bliżej bessy niż hossy.
 ## 12. Limity wpłat
 
 **2026:** IKE 28 260 zł, IKZE 11 304 zł (16 956 zł samozatrudnieni), OIPE
-28 260 zł, składka dodatkowa PPE 42 390 zł.
+28 260 zł, składka dodatkowa PPE 42 390 zł, limit 30-krotności ZUS
+282 600 zł.
 
 **2027:** IKE i OIPE 30 099 zł, IKZE 12 039,60 zł (18 059,40 zł dla działalności
 gospodarczej), PPE — składki dodatkowe 45 148,50 zł, limit 30-krotności ZUS
-300 990 zł. Preset `Domyślny 2027` używa progów PIT 130/150 tys. i stawek
-12/24/32%.
+300 990 zł, duży ZUS B2B 6 019,80 zł. Preset `Domyślny 2027` używa progów PIT
+130/150 tys. i stawek 12/24/32%.
 
 Przekroczenie limitu to ostrzeżenie, nie automatyczne obcięcie — dopłaty ponad
 limit po prostu „wchodzą” i tracą sens podatkowy.
@@ -146,6 +150,8 @@ pasywnie z ostatnim znanym ROI (domyślnie 2%).
 - Nie zastępuje doradcy podatkowego ani finansowego.
 - Nie gwarantuje, że ZUS, PPK/PPE, IKE/IKZE/OIPE i OKI będą działać tak samo
   za 20–30 lat.
+- Nie sprawdza 5-letniego stażu wpłat IKE/IKZE — po 60/65 r.ż. stosuje stawkę
+  docelową (0%/10%) także przy późnym starcie oszczędzania.
 
 To model do myślenia „co się stanie, jeśli”, nie do wróżenia.
 
@@ -158,14 +164,20 @@ Wszystkie ekrany liczą te same metryki w `app/simulation/summary.py`:
   rękę”. W Asystencie pokazujemy ją jako osobną sumę wypłat i majątek końcowy.
 - **Suma wypłat z portfela** = wypłaty netto z kont prywatnych (bez ZUS) w
   horyzoncie.
-- **Średnia wypłata mies.** = suma wypłat netto / 12 / liczba lat, w których
-  wystąpiła wypłata; obejmuje portfel i ZUS.
-- **Minimalna wypłata mies.** = najniższa miesięczna wypłata netto w
-  horyzoncie; to realna gwarancja, a nie średnia.
+- **Średnia wypłata mies.** = średni miesięczny budżet na życie w oknie
+  realizacji planu: wypłata z portfela i ZUS plus część etatu, minus rata
+  kredytu. Uwzględniamy wszystkie lata tego okna, także te bez wypłaty.
+- **Minimalna wypłata mies.** = najniższy miesięczny budżet na życie w oknie
+  realizacji (portfel i ZUS plus część etatu, minus rata kredytu). Minimum
+  obejmuje lata z zerową wypłatą — wtedy pokazuje ewentualny dochód z części
+  etatu albo 0, uczciwie sygnalizując wyczerpanie portfela. Osobne pola
+  **Średnia/Minimalna wypłata z portfela** liczą tylko wypłaty z portfela i
+  ZUS, bez części etatu i korekty kredytu. Wszystkie cztery liczy
+  `summary.py`; front i eksport czytają gotowe wartości.
 - **ZUS mies.** = miesięczna emerytura ZUS na koniec horyzontu.
 - **Podatki i składki** = podatki plus składka zdrowotna ZUS w horyzoncie.
-- **Efektywność podatkowa** = wypłaty netto / (wypłaty netto + podatki),
-  maksymalnie 100%.
+- **Efektywność podatkowa** = wypłaty netto / (wypłaty netto + podatki +
+  składka zdrowotna), maksymalnie 100%.
 - **Mnożnik kapitału** = łączna korzyść netto / (kapitał początkowy + wpłaty
   własne). Wpłaty własne liczymy tylko w etapach akumulacji; obejmują też
   dopłaty do gotówki, ale nie składki ZUS.

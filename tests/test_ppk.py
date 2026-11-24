@@ -89,7 +89,8 @@ def test_ppk_growth_and_contribution():
         )
     ]
     result = simulate(SimulationInput(stages=stages, max_age=41, config=CFG_NOINFL))
-    assert result.years[1].balances["ppk"] == pytest.approx(10000 * 1.06 + 3850)
+    # Saldo startowe oznacza, że powitalna została już wypłacona wcześniej.
+    assert result.years[1].balances["ppk"] == pytest.approx(10000 * 1.06 + 3360 + 240)
 
 
 # --- Wypłaty ---
@@ -250,9 +251,32 @@ def test_ppk_accumulation_details_include_state_topups():
     )
     result = simulate(data)
     phase = next(p for p in _account_phases(data, result) if p.account == "ppk")
-    # (2% + 1,5%) * 96 000 + 240 zł dopłaty rocznej
+    # (2% + 1,5%) * 96 000 + 240 zł dopłaty rocznej; powitalnej nie ma,
+    # bo konto ma już saldo startowe.
     assert phase.accumulation_annual_contribution == pytest.approx(3600.0)
-    # 7 lat wpłat + 250 zł dopłaty powitalnej
-    assert phase.accumulation_total_contributions == pytest.approx(25_450.0)
-    assert phase.accumulation_end_balance == pytest.approx(31_450.0)
+    # 7 lat wpłat + 7 × 240 zł dopłaty rocznej
+    assert phase.accumulation_total_contributions == pytest.approx(25_200.0)
+    assert phase.accumulation_end_balance == pytest.approx(31_200.0)
     assert phase.accumulation_growth == pytest.approx(0.0)
+
+
+def test_ppk_state_topup_requires_minimum_basic_contributions():
+    # 2 000 zł/mies. × 3,5% = 840 zł/rok < 1 009,26 zł progu ustawowego.
+    stages = [
+        accumulation_stage(
+            {
+                "ppk": acc(
+                    base_override_enabled=True,
+                    monthly_base=2_000,
+                    employee_pct=0.02,
+                    employer_pct=0.015,
+                    state_topups=True,
+                    roi=0.0,
+                )
+            }
+        )
+    ]
+    result = simulate(SimulationInput(stages=stages, max_age=42, config=CFG_NOINFL))
+    # rok 2: 2 × wpłaty podstawowe + powitalna 250 zł, bez dopłaty rocznej
+    # (próg 3,5% × 6 × płaca min.).
+    assert result.years[2].balances["ppk"] == pytest.approx(2_000 * 12 * 0.035 * 2 + 250)

@@ -19,6 +19,7 @@ from app.simulation.planner import (
     plan as _plan,
 )
 from app.simulation.schemas import SimulationInput
+from app.simulation.summary import lifestyle_monthly_net
 
 _PLAN_CACHE: dict[tuple, P.WizardPlanResult] = {}
 
@@ -479,8 +480,15 @@ def test_path3_monotonic_in_re():
         prev = m
 
 
-def test_path3_infeasible():
+def test_path3_can_find_fire_after_statutory_age():
     r = plan(3, answers(), 99_000)
+    assert r.solved.feasible
+    assert r.solved.retire_early_age is not None
+    assert r.solved.retire_early_age > answers().retire_early_age
+
+
+def test_path3_infeasible():
+    r = plan(3, answers(), 1_000_000_000)
     assert not r.solved.feasible
 
 
@@ -1011,7 +1019,10 @@ def test_suggest_respects_existing_oki_balance():
     )
     alloc_full, _ = suggest_allocation_plan(full, default_config(), 200_000)
     assert "oki_inw" not in alloc_full
-    assert alloc_full["broker"] > 50.0
+    # Broker jest limitowany przez max_single_taxable (50%); reszta nie może
+    # przekroczyć profilu, więc trafia do gotówki.
+    assert alloc_full["broker"] <= 50.0 + 1e-6
+    assert alloc_full.get("gotowka", 0.0) > 0
 
     empty = answers(risk_profile="zrownowazony", allocations={}, capital={})
     alloc_empty, _ = suggest_allocation_plan(empty, default_config(), 200_000)
@@ -1478,3 +1489,229 @@ def test_suggest_large_balanced_uses_market_wrappers():
     assert vehicles.get("oipe") == "fund"
     assert alloc["ike"] == pytest.approx(47.1, abs=0.1)
     assert alloc["oipe"] == pytest.approx(47.1, abs=0.1)
+
+
+def _lifestyle_series(result, data):
+    from app.simulation.summary import lifestyle_monthly_net, realization_window
+
+    start, end = realization_window(data)
+    return [
+        lifestyle_monthly_net(data, year)
+        for year in simulate(data).years
+        if start <= year.age < end
+    ]
+
+
+def test_barista_lifestyle_is_constant_after_part_time_gross_fix():
+    a = answers(
+        age_now=40,
+        gross_monthly=12_000,
+        capital={"broker": 500_000},
+        savings=3_000,
+        use_broker=True,
+        semi_fire_enabled=True,
+        semi_fire_mode="barista",
+        semi_fire_age=45,
+        semi_fire_net_monthly=4_500,
+        retire_early_age=55,
+        retirement_age=65,
+        plan_end_age=85,
+        allocations={"broker": 100},
+    )
+    r = P._plan_single(1, a)
+    data, proj = r[0], r[1]
+    values = _lifestyle_series(r[3], data)
+    assert values
+    assert min(values) == pytest.approx(proj.min_monthly, abs=1.0)
+    # Lata Baristy nie mogą wypłacać o ~700 zł/mies. więcej niż cel.
+    barista_years = [
+        lifestyle_monthly_net(data, year)
+        for year in simulate(data).years
+        if 45 <= year.age < 55
+    ]
+    assert all(value == pytest.approx(proj.min_monthly, abs=1.5) for value in barista_years)
+
+
+def test_coast_does_not_add_new_ppk_contributions():
+    a = answers(
+        age_now=40,
+        gross_monthly=12_000,
+        capital={"broker": 100_000},
+        savings=3_000,
+        use_ppk=True,
+        ppk_contributions=True,
+        semi_fire_enabled=True,
+        semi_fire_mode="coast",
+        semi_fire_age=45,
+        semi_fire_net_monthly=4_500,
+        semi_fire_savings_monthly=500,
+        retire_early_age=55,
+        retirement_age=65,
+        plan_end_age=85,
+    )
+    data = P.build_stages(a)
+    coast = next(s for s in data.stages if s.name.startswith("Coast FIRE"))
+    assert "ppk" not in coast.accounts or coast.accounts["ppk"].monthly_base == 0
+    assert "zus" in coast.accounts and coast.accounts["zus"].monthly_base > 0
+
+
+def test_path3_barista_is_never_silently_dropped():
+    a = WizardAnswers(
+        gender="m",
+        age_now=40,
+        employment="etat",
+        gross_monthly=8_000,
+        capital={"broker": 500_000},
+        savings=8_000,
+        semi_fire_enabled=True,
+        semi_fire_mode="barista",
+        semi_fire_age=48,
+        semi_fire_net_monthly=3_000,
+        retire_early_age=55,
+        retirement_age=65,
+        plan_end_age=85,
+    )
+    r = plan(3, a, 3_000)
+    assert r.solved.retire_early_age is not None
+    assert r.solved.retire_early_age > 48
+    assert any(
+        stage.part_time_net_monthly > 0 for stage in r.input.stages
+    )
+
+
+def test_suggest_respects_shared_oki_limit_for_custom_profile():
+    cfg = default_config()
+    profile = cfg.risk_profiles["zrownowazony"]
+    profile.min_safe = 0.5
+    profile.max_market = 0.5
+    profile.max_single_taxable = 0.2
+    a = answers(risk_profile="zrownowazony", allocations={}, capital={})
+    pool = 500_000.0
+    alloc, _ = suggest_allocation_plan(a, cfg, pool)
+    oki_total = (alloc.get("oki_inw", 0.0) + alloc.get("oki_osk", 0.0)) / 100.0 * pool
+    assert oki_total <= 100_000 + 1.0
+    assert alloc.get("broker", 0.0) <= 20.0 + 1e-6
+
+
+def test_coast_is_not_reported_as_missing_stage():
+    a = answers(
+        semi_fire_enabled=True,
+        semi_fire_mode="coast",
+        semi_fire_age=45,
+        semi_fire_net_monthly=4500,
+        semi_fire_savings_monthly=500,
+        retire_early_age=55,
+    )
+    r = plan(1, a)
+    assert not any("nie został uwzględniony" in w for w in r.projection.warnings)
+
+
+def test_b2b_ulga_warns_about_time_limit():
+    a = answers(
+        employment="b2b",
+        b2b_tax_form="ryczalt",
+        b2b_zus_mode="ulga",
+    )
+    r = plan(1, a)
+    assert any("ulga na start trwa 6" in w for w in r.projection.warnings)
+
+
+def test_barista_replay_matches_projection():
+    a = answers(
+        age_now=40,
+        gross_monthly=12_000,
+        capital={"broker": 500_000},
+        savings=3_000,
+        use_broker=True,
+        semi_fire_enabled=True,
+        semi_fire_mode="barista",
+        semi_fire_age=45,
+        semi_fire_net_monthly=4_500,
+        retire_early_age=55,
+        retirement_age=65,
+        plan_end_age=85,
+        allocations={"broker": 100},
+    )
+    data, proj, _solved, result = P._plan_single(1, a)
+    replay = simulate(data)
+    assert replay.total_withdrawn == pytest.approx(result.total_withdrawn, abs=5.0)
+    assert replay.final_wealth == pytest.approx(result.final_wealth, abs=5.0)
+    assert replay.years[-1].age == result.years[-1].age
+
+
+def test_b2b_warnings_explain_limited_zus_relief():
+    from app.simulation.planner import PlanProjection, _append_b2b_warning
+
+    for mode, phrase in (("ulga", "ulga na start"), ("maly", "mały/preferencyjny")):
+        answers = WizardAnswers(employment="b2b", b2b_zus_mode=mode)
+        projection = PlanProjection(met=True)
+        _append_b2b_warning(projection, answers)
+        assert any(phrase in warning for warning in projection.warnings)
+
+
+def test_coast_warning_flags_salary_below_target():
+    from app.simulation.planner import PlanProjection, _append_coast_warning
+
+    answers = WizardAnswers(
+        semi_fire_enabled=True,
+        semi_fire_mode="coast",
+        semi_fire_net_monthly=2_000,
+        semi_fire_savings_monthly=0,
+    )
+    projection = PlanProjection(met=True, min_monthly=5_000)
+    _append_coast_warning(projection, answers, 5_000)
+    assert any("niższa od celu" in warning for warning in projection.warnings)
+
+
+def test_solve_re_rejects_semi_fire_beyond_horizon():
+    a = WizardAnswers(
+        gender="m",
+        age_now=40,
+        employment="etat",
+        gross_monthly=12_000,
+        capital={"broker": 500_000},
+        savings=3_000,
+        use_broker=True,
+        semi_fire_enabled=True,
+        semi_fire_mode="barista",
+        semi_fire_age=85,
+        semi_fire_net_monthly=4_500,
+        retire_early_age=85,
+        plan_end_age=85,
+        allocations={"broker": 100},
+    )
+    assert P._solve_re(a, 5_000) == (None, False)
+
+
+def test_mortgage_in_window_is_proportional_to_overlap():
+    from app.simulation.schemas import AccountConfig, StageInput
+
+    data = SimulationInput(
+        stages=[
+            StageInput(
+                stage_type="realizacja",
+                name="Emerytura",
+                start_age=65,
+                end_age=85,
+                accounts={"broker": AccountConfig()},
+            )
+        ],
+        mortgage_monthly=3_000,
+        mortgage_end_age=70,
+    )
+    # Pięć lat spłaty z dwudziestu lat fazy → średnio 750 zł/mies.
+    assert P._mortgage_in_window(data, 65, 85) == pytest.approx(750.0)
+
+
+def test_answers_backfill_2027_config():
+    a = WizardAnswers(
+        base_config={"year": 2027},
+        age_now=30,
+        employment="etat",
+        gross_monthly=8_000,
+        capital={},
+        savings=1_000,
+    )
+    assert a.base_config is not None
+    assert a.base_config.b2b.preferential_base_monthly == pytest.approx(1_485)
+    assert a.base_config.zus.b2b_base_monthly == pytest.approx(6_019.80)

@@ -7,6 +7,35 @@
         return window.ResultsModel.fmtMoney(value, { dashZero: true });
     }
 
+    function baseKey(account) {
+        if (typeof window.baseAccountKey === "function") return window.baseAccountKey(account);
+        return String(account || "").split(":")[0];
+    }
+
+    function endingBalances(year) {
+        const ending = year?.ending_balances;
+        if (ending && Object.keys(ending).length) return ending;
+        return year?.balances || {};
+    }
+
+    // Majątek prywatny = salda na koniec roku bez ZUS i OFE. ZUS pokazujemy
+    // osobno, bo nie jest kapitałem, którym użytkownik zarządza.
+    function privateWealth(year) {
+        const source = endingBalances(year);
+        if (!source || !Object.keys(source).length) {
+            return Number(year?.total_wealth) || 0;
+        }
+        return Object.entries(source).reduce(
+            (sum, [account, value]) => {
+                const base = baseKey(account);
+                return base === "zus" || base === "zus:ofe"
+                    ? sum
+                    : sum + (Number(value) || 0);
+            },
+            0
+        );
+    }
+
     function render(container, options = {}) {
         if (!container) return;
         const {
@@ -22,12 +51,18 @@
         counter += 1;
         const uid = `res-year-table-${counter}`;
         const years = result?.years || [];
-        const accounts = result?.accounts || [];
+        const accounts = (result?.accounts || []).filter(
+            (account) => account !== "zus" && account !== "zus:ofe"
+        );
         const labels = result?.account_labels || {};
         if (!years.length) {
             container.innerHTML = `<p class="field-hint">Brak danych rocznych do pokazania.</p>`;
             return;
         }
+        const hasZus = years.some((year) => {
+            const ending = endingBalances(year);
+            return (Number(ending.zus) || 0) + (Number(ending["zus:ofe"]) || 0) > 0.5;
+        });
 
         const columns = [
             { key: "monthly", label: "Wypłata mies." },
@@ -39,32 +74,42 @@
                 label: labels[account] || account,
                 account: true,
             })),
+            ...(hasZus ? [{ key: "zus", label: "ZUS (kapitał)", zus: true }] : []),
         ];
 
+        const wealthTip = "Majątek prywatny: suma sald na koniec roku bez ZUS i OFE. ZUS pokazujemy w osobnej kolumnie. Kwoty są brutto — majątek końcowy netto jest po podatku wyjścia.";
         const header = columns.map((column) => {
             const classes = ["amount"];
             if (column.key === "monthly") classes.push("col-monthly");
-            return `<th data-col="${window.escapeHtml(column.key)}" class="${classes.join(" ")}">${window.escapeHtml(column.label)}</th>`;
+            const title = column.key === "wealth" ? ` title="${window.escapeHtml(wealthTip)}"` : "";
+            return `<th data-col="${window.escapeHtml(column.key)}" class="${classes.join(" ")}"${title}>${window.escapeHtml(column.label)}</th>`;
         }).join("");
 
         const valueFor = (column, year) => {
-            if (column.account) return money(year.balances?.[column.key] || 0);
+            const ending = endingBalances(year);
+            if (column.zus) {
+                return money((Number(ending.zus) || 0) + (Number(ending["zus:ofe"]) || 0));
+            }
+            if (column.account) return money(ending[column.key] || 0);
             if (column.key === "monthly") return money(year.monthly_withdrawal);
-            if (column.key === "wealth") return money(year.total_wealth);
+            if (column.key === "wealth") return money(privateWealth(year));
             if (column.key === "annual") return money(year.annual_withdrawal);
             if (column.key === "tax") return money(year.tax_paid);
             return money(0);
         };
 
-        const cellFor = (column, year) => {
+        const cellFor = (column, year, isPost = false) => {
             const classes = ["amount"];
             if (column.key === "monthly") classes.push("col-monthly");
             if (column.key === "tax" && (year.tax_paid || 0) < 0) classes.push("text-success");
-            return `<td class="${classes.join(" ")}" data-col="${window.escapeHtml(column.key)}">${valueFor(column, year)}</td>`;
+            const postWealth = isPost && column.key === "wealth";
+            const title = postWealth ? ' title="Poza modelem — po horyzoncie pokazujemy tylko ZUS."' : "";
+            const value = postWealth ? "—" : valueFor(column, year);
+            return `<td class="${classes.join(" ")}" data-col="${window.escapeHtml(column.key)}"${title}>${value}</td>`;
         };
 
         const rowHtml = (year, index, isPost = false) => {
-            const cells = columns.map((column) => cellFor(column, year)).join("");
+            const cells = columns.map((column) => cellFor(column, year, isPost)).join("");
             const rowClass = isPost
                 ? "highlight post-horizon"
                 : (year.monthly_withdrawal > 0 ? "highlight" : "stage-accum");

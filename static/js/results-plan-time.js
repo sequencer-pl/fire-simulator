@@ -24,13 +24,26 @@
         return ((age - min) / Math.max(1, max - min)) * 100;
     }
 
-    function timelineHtml(phases, min, max) {
-        return phases.map((phase) => {
+    function phaseName(phase) {
+        return phase?.key === "partial_fire" ? "Częściowe FIRE" : (phase?.name || "");
+    }
+
+    function horizonMark(age, min, max) {
+        if (!Number.isFinite(Number(age)) || age < min || age > max) return "";
+        return `<span class="wz-gantt-horizon" style="left:${rangePct(age, min, max)}%" role="img" aria-label="Horyzont planu: ${age} r.ż." title="Horyzont planu: ${age} r.ż."></span>`;
+    }
+
+    function timelineHtml(phases, min, max, horizonAge) {
+        const legend = horizonMark(horizonAge, min, max);
+        return legend + phases.map((phase) => {
             const left = rangePct(phase.start_age, min, max);
             const width = Math.max(1.8, rangePct(phase.end_age, min, max) - left);
             const cls = phase.cashflow === "contribution" ? "wz-tl-acc" : "wz-tl-real";
-            return `<div class="wz-timeline-segment ${cls}" style="left:${left}%;width:${width}%" title="${window.escapeHtml(phase.name)}: ${phase.start_age}–${phase.end_age} r.ż.">
-                <span class="wz-tl-name">${window.escapeHtml(phase.name)}</span>
+            const partTime = phase.part_time_monthly > 0.5
+                ? ` Część etatu: ${money(phase.part_time_monthly)}/mies.`
+                : "";
+            return `<div class="wz-timeline-segment ${cls}" style="left:${left}%;width:${width}%" title="${window.escapeHtml(phaseName(phase))}: ${phase.start_age}–${phase.end_age} r.ż.${window.escapeHtml(partTime)}">
+                <span class="wz-tl-name">${window.escapeHtml(phaseName(phase))}</span>
                 <span class="wz-tl-age">${phase.start_age}–${phase.end_age} r.ż.</span>
                 <span class="wz-tl-amount">${phase.monthly > 0 ? `~${money(phase.monthly)}/mies.` : "—"}</span>
                 <span class="wz-tl-kind">${phase.cashflow === "contribution" ? "wpłaty" : "wypłata netto"}</span>
@@ -81,7 +94,7 @@
         }).join("");
     }
 
-    function ganttHtml(projection, stages, labels, min, max, input) {
+    function ganttHtml(projection, stages, labels, min, max, input, horizonAge) {
         const accountPhases = projection?.account_phases || [];
         const accumulationPhases = projection?.accumulation_phases || [];
         const transfers = projection?.capital_transfers || [];
@@ -157,7 +170,7 @@
             });
             html += `<div class="wz-gantt-row">
                 <span class="wz-gantt-label">${window.iconSvg(account)}<span>${window.escapeHtml(labelOf(account, labels))}</span></span>
-                <div class="wz-gantt-track">${bars}</div>
+                <div class="wz-gantt-track">${bars}${horizonMark(horizonAge, min, max)}</div>
             </div>`;
         });
 
@@ -177,7 +190,7 @@
             });
             html += `<div class="wz-gantt-row wz-gantt-transfer-row">
                 <span class="wz-gantt-label">${window.iconSvg("arrow")}<span>Transfery</span></span>
-                <div class="wz-gantt-track">${bars}</div>
+                <div class="wz-gantt-track">${bars}${horizonMark(horizonAge, min, max)}</div>
             </div>`;
         }
 
@@ -187,9 +200,12 @@
                 const left = rangePct(phase.start_age, min, max);
                 const width = Math.max(0.8, rangePct(phase.end_age, min, max) - left);
                 const label = width >= 8 ? `${Math.round(phase.monthly).toLocaleString("pl-PL")} zł/mies.` : "";
-                bars += `<span class="wz-gantt-phase is-total" style="left:${left}%;width:${width}%" title="${window.escapeHtml(phase.name)}: ${phase.start_age}–${phase.end_age} r.ż., ${money(phase.monthly)}/mies.">${label}</span>`;
+                const partTime = phase.part_time_monthly > 0.5
+                    ? ` Część etatu: ${money(phase.part_time_monthly)}/mies.`
+                    : "";
+                bars += `<span class="wz-gantt-phase is-total" style="left:${left}%;width:${width}%" title="${window.escapeHtml(phaseName(phase))}: ${phase.start_age}–${phase.end_age} r.ż., ${money(phase.monthly)}/mies.${window.escapeHtml(partTime)}">${label}</span>`;
             });
-            html += `<div class="wz-gantt-row wz-gantt-total"><span class="wz-gantt-label">Razem</span><div class="wz-gantt-track">${bars}</div></div>`;
+            html += `<div class="wz-gantt-row wz-gantt-total"><span class="wz-gantt-label">Razem</span><div class="wz-gantt-track">${bars}${horizonMark(horizonAge, min, max)}</div></div>`;
         }
 
         return html;
@@ -221,6 +237,9 @@
         }
         const min = Math.min(...allAges);
         const max = Math.max(...allAges);
+        const horizonAge = summary?.end_age != null
+            ? Number(summary.end_age) + 1
+            : null;
 
         counter += 1;
         const uid = `res-plan-time-${counter}`;
@@ -233,7 +252,7 @@
                     : "",
             })}
             <div class="wz-plan-block">
-                <div class="wz-timeline">${timelineHtml(phases, min, max)}</div>
+                <div class="wz-timeline" tabindex="0" role="group" aria-label="Etapy planu na osi wieku">${timelineHtml(phases, min, max, horizonAge)}</div>
             </div>
             <div class="res-stage-summary">
                 <h4 class="wz-plan-subhead">Etapy</h4>
@@ -243,8 +262,8 @@
             </div>
             <div class="wz-flows-wrap">
                 <h4 class="wz-plan-subhead">Z czego żyjesz w kolejnych latach</h4>
-                <div class="wz-flows-gantt-scroll">
-                    <div class="wz-flows-gantt">${ganttHtml(projection, stages, labels, min, max, input)}</div>
+                <div class="wz-flows-gantt-scroll" tabindex="0" role="group" aria-label="Gantt przepływów: wpłaty, wypłaty i transfery według wieku">
+                    <div class="wz-flows-gantt">${ganttHtml(projection, stages, labels, min, max, input, horizonAge)}</div>
                 </div>
             </div>
         </section>`;

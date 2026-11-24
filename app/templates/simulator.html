@@ -23,6 +23,40 @@
             </div>
             <form id="simForm" novalidate>
                 <div id="simConfigSection" class="sim-config-section">
+                    <div class="card-inset sim-mortgage-panel" id="simHorizonPanel">
+                        <h3 class="eyebrow">Horyzont planu</h3>
+                        <p class="field-hint">Ostatni pełny rok to podany wiek minus jeden. Metryki i podatek wyjścia kończą się razem z horyzontem; etap ZUS może wystawać dalej (do 100 r.ż.).</p>
+                        <div class="field">
+                            <label for="simHorizonAge">Horyzont planu (wiek)</label>
+                            <div class="num-control">
+                                <button type="button" class="stepper stepper-down" tabindex="-1" aria-label="Zmniejsz horyzont">&minus;</button>
+                                <input type="number" id="simHorizonAge" class="acc-field" value="" min="18" max="120" step="1" placeholder="np. 85" aria-label="Horyzont planu">
+                                <button type="button" class="stepper stepper-up" tabindex="-1" aria-label="Zwiększ horyzont">+</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-inset sim-mortgage-panel" id="simMortgagePanel">
+                        <h3 class="eyebrow">Kredyt hipoteczny</h3>
+                        <p class="field-hint">Rata obniża miesięczny budżet na życie do wieku końca spłaty. Wpisz 0 zł, jeśli nie masz kredytu.</p>
+                        <div class="wz-grid">
+                            <div class="field">
+                                <label for="simMortgageMonthly">Miesięczna rata (zł)</label>
+                                <div class="num-control">
+                                    <button type="button" class="stepper stepper-down" tabindex="-1" aria-label="Zmniejsz miesięczną ratę">&minus;</button>
+                                    <input type="number" id="simMortgageMonthly" class="acc-field" value="0" min="0" max="100000" step="100" aria-label="Miesięczna rata kredytu">
+                                    <button type="button" class="stepper stepper-up" tabindex="-1" aria-label="Zwiększ miesięczną ratę">+</button>
+                                </div>
+                            </div>
+                            <div class="field">
+                                <label for="simMortgageEndAge">Wiek końca spłaty</label>
+                                <div class="num-control">
+                                    <button type="button" class="stepper stepper-down" tabindex="-1" aria-label="Zmniejsz wiek końca spłaty">&minus;</button>
+                                    <input type="number" id="simMortgageEndAge" class="acc-field" value="" min="0" max="120" step="1" placeholder="np. 55" data-empty="55" aria-label="Wiek końca spłaty kredytu">
+                                    <button type="button" class="stepper stepper-up" tabindex="-1" aria-label="Zwiększ wiek końca spłaty">+</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                     <div id="stagesHead" class="stages-head hidden">
                         <h3 class="section-title">Etapy</h3>
                         <button type="button" id="clearStagesBtn" class="btn btn-ghost btn-sm" title="Usuń wszystkie etapy">Wyczyść</button>
@@ -62,7 +96,7 @@
                         <div class="wz-chart-annotations" id="simChartAnnotations"></div>
                     </div>
                 </div>
-                <h3 class="section-title">Rok po roku</h3>
+                <h3 class="section-title">Rok po roku<span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">Majątek prywatny: suma sald na koniec roku bez ZUS i OFE; ZUS pokazujemy w osobnej kolumnie. Kwoty są brutto — majątek końcowy netto jest po podatku wyjścia.</span></span></h3>
                 <div id="simYearTable"></div>
                 <div id="simDetails"></div>
             </div>

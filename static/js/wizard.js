@@ -9,6 +9,11 @@ const WZ_LEGACY_STATE_KEY = "fire.wizardV2State";
 const WZ_LEGACY_PLAN_KEY = "fire.wizardV2Plan";
 const WZ_TINY_CASH_ANNUAL = 120;
 const WZ_STATE_SAVE_MS = 150;
+// Wersje cache'y w localStorage. Niezgodne wpisy odrzucamy, żeby po zmianie
+// schematu stary stan nie nadpisywał nowego planu.
+const WZ_STATE_VERSION = 2;
+const WZ_PLAN_VERSION = 2;
+const WZ_DRAFT_VERSION = 2;
 
 const WZ_RETIREMENT_DEFAULT = { k: 60, m: 65 };
 
@@ -587,19 +592,38 @@ async function wzLoadAccountConfig() {
 }
 
 function wzUpdateB2bZusLabels() {
+    const zl = (value) => `${Math.round(value).toLocaleString("pl-PL")} zł`;
     const base = Number(wzAccountConfig?.zus?.b2b_base_monthly);
-    if (!Number.isFinite(base) || base <= 0) return;
-    const label = document.querySelector(".wz-b2b-zus-label");
-    if (label) {
-        label.textContent = `Duży ZUS (podstawa ${Math.round(base).toLocaleString("pl-PL")} zł)`;
-    }
-    const custom = wzEl("wzB2bCustomZus");
-    if (custom) {
-        const current = parseFloat(custom.value);
-        if (!Number.isFinite(current) || Math.abs(current - 5652) < 1) {
-            custom.value = String(Math.round(base));
-            wzSetValue("wzB2bCustomZusRange", Math.round(base));
+    if (Number.isFinite(base) && base > 0) {
+        const label = document.querySelector(".wz-b2b-zus-label");
+        if (label) {
+            label.textContent = `Duży ZUS (podstawa ${zl(base)})`;
         }
+        const baseLabel = wzEl("wzB2bZusBase");
+        if (baseLabel) baseLabel.textContent = zl(base);
+        const rate = Number(wzAccountConfig?.zus?.skladka_rate);
+        const contributionLabel = wzEl("wzB2bZusContribution");
+        if (contributionLabel && Number.isFinite(rate) && rate > 0) {
+            contributionLabel.textContent = zl(base * rate);
+        }
+        const custom = wzEl("wzB2bCustomZus");
+        if (custom) {
+            const current = parseFloat(custom.value);
+            if (!Number.isFinite(current) || current <= 0) {
+                custom.value = String(Math.round(base));
+                wzSetValue("wzB2bCustomZusRange", Math.round(base));
+            }
+        }
+    }
+    const preferential = Number(wzAccountConfig?.b2b?.preferential_base_monthly);
+    const preferentialLabel = wzEl("wzB2bPreferentialBase");
+    if (preferentialLabel && Number.isFinite(preferential) && preferential > 0) {
+        preferentialLabel.textContent = zl(preferential);
+    }
+    const ikzeLimit = Number(wzAccountConfig?.limits?.ikze_annual_self_employed);
+    const ikzeLabel = wzEl("wzB2bIkzeLimit");
+    if (ikzeLabel && Number.isFinite(ikzeLimit) && ikzeLimit > 0) {
+        ikzeLabel.textContent = `${Math.round(ikzeLimit).toLocaleString("pl-PL")} zł/rok`;
     }
 }
 
@@ -725,6 +749,7 @@ function wzShowStep(stepId, focus = false) {
     const order = wzStepOrder();
     const id = order.includes(stepId) ? stepId : order[0];
     wzCurrentStep = id;
+    wzClearValidationError();
 
     document.querySelectorAll(".wz-step").forEach((el) => {
         el.classList.toggle("hidden", el.dataset.stepId !== id);
@@ -818,13 +843,16 @@ function wzNext() {
         return;
     }
     if (wzCurrentStep === planStep) {
+        // Walidacja musi zakończyć się przed przejściem na krok wyniku —
+        // inaczej użytkownik widzi pusty wynik i dopiero potem błąd.
+        if (!wzValidateForPlan()) return;
         const body = wzPlanBody();
         if (wzPlan && wzPlanSignature === wzCanonicalJson(body)) {
             wzShowStep("wynik", true);
             return;
         }
         wzShowStep("wynik", true);
-        wzRunPlan();
+        wzRunPlan({ validated: true });
         return;
     }
 
@@ -907,7 +935,7 @@ function wzSyncAgeBounds() {
     const reInput = wzEl("wzRe");
     const reRange = wzEl("wzReRange");
     if (reInput && (parseInt(reInput.value, 10) || 0) <= age) {
-        const next = Math.min(90, age + 5);
+        const next = Math.min(95, age + 5);
         reInput.value = String(next);
         if (reRange) reRange.value = String(next);
     }
@@ -1155,7 +1183,10 @@ function wzSalaryRequestBody() {
         body.b2b_tax_form = wzRadio("wzB2bTaxForm", "ryczalt");
         body.b2b_lump_rate = parseFloat(wzRadio("wzB2bLumpRate", "0.12"));
         body.b2b_zus_mode = wzRadio("wzB2bZusMode", "duzy");
-        body.b2b_custom_zus_base = wzNum("wzB2bCustomZus", 5652);
+        body.b2b_custom_zus_base = wzNum(
+            "wzB2bCustomZus",
+            Number(wzAccountConfig?.zus?.b2b_base_monthly) || 0
+        );
     }
     const config = wzAnonymousConfig();
     if (config) body.base_config = config;
@@ -1604,10 +1635,14 @@ function wzCollectAnswers({ withAllocations = true } = {}) {
     const activeBases = new Set(rows.map((row) => wzBaseKey(row.dataset.account)));
 
     const etat = employment === "etat";
-    const ppkState = etat ? wzPayrollState("wzPpkState") : "paused";
-    const ppeState = etat ? wzPayrollState("wzPpeState") : "paused";
-    const ppkBalance = etat && ppkState === "never" ? 0 : wzNum("wzPpkBalance", 0);
-    const ppeBalance = etat && ppeState === "never" ? 0 : wzNum("wzPpeBalance", 0);
+    // Stan programu czytamy niezależnie od zatrudnienia: „nigdy" zawsze zeruje
+    // saldo, a zmiana gałęzi nie przenosi starych kwot bez wiedzy użytkownika.
+    const ppkStateRaw = wzPayrollState("wzPpkState");
+    const ppeStateRaw = wzPayrollState("wzPpeState");
+    const ppkState = etat ? ppkStateRaw : "paused";
+    const ppeState = etat ? ppeStateRaw : "paused";
+    const ppkBalance = ppkStateRaw === "never" ? 0 : wzNum("wzPpkBalance", 0);
+    const ppeBalance = ppeStateRaw === "never" ? 0 : wzNum("wzPpeBalance", 0);
     if (ppkBalance > 0) capital.ppk = ppkBalance;
     if (ppeBalance > 0) capital.ppe = ppeBalance;
 
@@ -1699,7 +1734,10 @@ function wzCollectAnswers({ withAllocations = true } = {}) {
         answers.b2b_tax_form = wzRadio("wzB2bTaxForm", "ryczalt");
         answers.b2b_lump_rate = parseFloat(wzRadio("wzB2bLumpRate", "0.12"));
         answers.b2b_zus_mode = wzRadio("wzB2bZusMode", "duzy");
-        answers.b2b_custom_zus_base = wzNum("wzB2bCustomZus", 5652);
+        answers.b2b_custom_zus_base = wzNum(
+            "wzB2bCustomZus",
+            Number(wzAccountConfig?.zus?.b2b_base_monthly) || 0
+        );
     }
 
     const config = wzAnonymousConfig();
@@ -1734,83 +1772,135 @@ function wzPlanBody() {
 
 // --- Walidacja --------------------------------------------------------------
 
+function wzClearValidationError() {
+    const box = wzEl("wzValidationError");
+    if (box) {
+        box.classList.add("hidden");
+        box.innerHTML = "";
+    }
+    document.querySelectorAll('[aria-invalid="true"]').forEach((el) => {
+        el.removeAttribute("aria-invalid");
+    });
+}
+
+function wzValidationError(message, fieldId = null) {
+    const field = fieldId ? wzEl(fieldId) : null;
+    // Pole może być w ukrytym kroku (np. walidacja całego planu z „strategii”).
+    // Najpierw pokaż właściwy krok, dopiero potem banner i fokus.
+    if (field) {
+        const stepId = field.closest(".wz-step")?.dataset.stepId;
+        if (stepId && stepId !== wzCurrentStep) wzShowStep(stepId, true);
+    }
+    const box = wzEl("wzValidationError");
+    if (box) {
+        box.innerHTML = `${iconSvg("danger")}<div class="banner-body">${escapeHtml(message)}</div>`;
+        box.classList.remove("hidden");
+    }
+    if (field) {
+        field.setAttribute("aria-invalid", "true");
+        field.focus({ preventScroll: false });
+        field.scrollIntoView?.({ block: "center", behavior: "smooth" });
+    } else if (box) {
+        box.setAttribute("tabindex", "-1");
+        box.focus({ preventScroll: true });
+    }
+    return false;
+}
+
 function wzValidateStep(stepId) {
     const age = wzInt("wzAge", 40);
     const path = wzCurrentPath();
 
     if (stepId === "profil") {
         if (age < 16 || age > 90) {
-            alert("Podaj wiek z zakresu 16–90 lat.");
-            return false;
+            return wzValidationError("Podaj wiek z zakresu 16–90 lat.", "wzAge");
         }
     }
 
     if (stepId === "etat" && wzMonthlySalaryValue() <= 0) {
-        alert("Podaj kwotę pensji większą od zera.");
-        return false;
+        return wzValidationError("Podaj kwotę pensji większą od zera.", "wzEtatSalary");
     }
 
     if (stepId === "b2b" && wzMonthlySalaryValue() <= 0) {
-        alert("Podaj miesięczny przychód z działalności większy od zera.");
-        return false;
+        return wzValidationError(
+            "Podaj miesięczny przychód z działalności większy od zera.",
+            "wzB2bSalary"
+        );
     }
 
     if (stepId === "oszczednosci") {
         if (path !== 2 && wzNum("wzSavings", 0) < 0) {
-            alert("Kwota oszczędności nie może być ujemna.");
-            return false;
+            return wzValidationError("Kwota oszczędności nie może być ujemna.", "wzSavings");
         }
         if (wzRadio("wzHasMortgage", "no") === "yes") {
             if (wzNum("wzMortgageMonthly", 0) <= 0) {
-                alert("Podaj miesięczną ratę kredytu hipotecznego.");
-                return false;
+                return wzValidationError(
+                    "Podaj miesięczną ratę kredytu hipotecznego.",
+                    "wzMortgageMonthly"
+                );
             }
             if (wzInt("wzMortgageEndAge", 0) <= age) {
-                alert("Wiek końca spłaty kredytu musi być późniejszy niż obecny wiek.");
-                return false;
+                return wzValidationError(
+                    "Wiek końca spłaty kredytu musi być późniejszy niż obecny wiek.",
+                    "wzMortgageEndAge"
+                );
             }
         }
     }
 
     if (stepId === "kapital" && wzRadio("wzHasRealEstate", "no") === "yes") {
         if (wzNum("wzReValue", 0) <= 0) {
-            alert("Podaj wartość rynkową nieruchomości inwestycyjnej.");
-            return false;
+            return wzValidationError(
+                "Podaj wartość rynkową nieruchomości inwestycyjnej.",
+                "wzReValue"
+            );
         }
         const liq = wzInt("wzReLiqAge", 0);
         if (liq > 0 && liq <= age) {
-            alert("Wiek sprzedaży nieruchomości musi być późniejszy niż obecny wiek (albo 0 = nie sprzedawaj).");
-            return false;
+            return wzValidationError(
+                "Wiek sprzedaży nieruchomości musi być późniejszy niż obecny wiek (albo 0 = nie sprzedawaj).",
+                "wzReLiqAge"
+            );
         }
     }
 
     if (stepId === "sabbatical") {
         if (path !== 1 && wzNum("wzTarget", 0) <= 0) {
-            alert("Podaj docelową wypłatę miesięczną netto.");
-            return false;
+            return wzValidationError(
+                "Podaj docelową wypłatę miesięczną netto.",
+                "wzTarget"
+            );
         }
 
         const retirement = wzInt("wzRetirement", 65);
         const planEnd = wzInt("wzPlanEnd", 85);
         const auto = wzIsAutoPlan();
         if (!auto && planEnd <= retirement) {
-            alert("Horyzont planu musi być późniejszy niż wiek rozpoczęcia emerytury ZUS.");
-            return false;
+            return wzValidationError(
+                "Horyzont planu musi być późniejszy niż wiek rozpoczęcia emerytury ZUS.",
+                "wzPlanEnd"
+            );
         }
 
         if (path !== 3) {
             const re = wzInt("wzRe", 55);
             if (re <= age) {
-                alert(`Wiek FIRE musi być większy niż obecny wiek (${age}).`);
-                return false;
+                return wzValidationError(
+                    `Wiek FIRE musi być większy niż obecny wiek (${age}).`,
+                    "wzRe"
+                );
             }
             if (!auto && retirement < re) {
-                alert("Wiek emerytury ZUS nie może być wcześniejszy niż wiek pełnego FIRE. Zwiększ wiek emerytury albo obniż wiek FIRE.");
-                return false;
+                return wzValidationError(
+                    "Wiek emerytury ZUS nie może być wcześniejszy niż wiek pełnego FIRE. Zwiększ wiek emerytury albo obniż wiek FIRE.",
+                    "wzRetirement"
+                );
             }
             if (planEnd <= re) {
-                alert("Horyzont planu musi być późniejszy niż wiek FIRE.");
-                return false;
+                return wzValidationError(
+                    "Horyzont planu musi być późniejszy niż wiek FIRE.",
+                    "wzPlanEnd"
+                );
             }
         }
 
@@ -1818,19 +1908,25 @@ function wzValidateStep(stepId) {
         if (style === "coast" || style === "barista") {
             const semiAge = wzInt("wzSemiAge", 48);
             if (semiAge <= age) {
-                alert("Wiek przejścia na część etatu musi być późniejszy niż obecny wiek.");
-                return false;
+                return wzValidationError(
+                    "Wiek przejścia na część etatu musi być późniejszy niż obecny wiek.",
+                    "wzSemiAge"
+                );
             }
             const semiUpper = path === 3 ? retirement : wzInt("wzRe", 55);
             if (semiAge >= semiUpper) {
-                alert(path === 3
-                    ? "Wiek przejścia na część etatu musi być wcześniejszy niż wiek emerytury ZUS."
-                    : "Wiek przejścia na część etatu musi być wcześniejszy niż wiek pełnego FIRE.");
-                return false;
+                return wzValidationError(
+                    path === 3
+                        ? "Wiek przejścia na część etatu musi być wcześniejszy niż wiek emerytury ZUS."
+                        : "Wiek przejścia na część etatu musi być wcześniejszy niż wiek pełnego FIRE.",
+                    "wzSemiAge"
+                );
             }
             if (wzNum("wzSemiNet", 0) <= 0) {
-                alert("Podaj miesięczne zarobki netto na części etatu.");
-                return false;
+                return wzValidationError(
+                    "Podaj miesięczne zarobki netto na części etatu.",
+                    "wzSemiNet"
+                );
             }
         }
     }
@@ -1838,21 +1934,35 @@ function wzValidateStep(stepId) {
     if (stepId === "strategia") {
         if (wzIsAutoPlan()) return true;
         if (!wzSuggested || wzSuggestLoading) {
-            alert("Poczekaj na wyliczenie propozycji podziału oszczędności, a potem przejdź dalej.");
-            return false;
+            return wzValidationError(
+                "Poczekaj na wyliczenie propozycji podziału oszczędności, a potem przejdź dalej."
+            );
         }
         const allocations = wzCurrentAllocations();
         const total = Object.values(allocations).reduce((sum, value) => sum + (value || 0), 0);
         if (total > 100 + 1e-6) {
-            alert("Suma udziałów nie może przekraczać 100%. Zmniejsz wybrane wartości.");
-            return false;
+            return wzValidationError(
+                "Suma udziałów nie może przekraczać 100%. Zmniejsz wybrane wartości."
+            );
         }
         if (total <= 0 && wzManualAllocationPoolMonthly() > 0) {
-            alert("Rozdziel wpłaty: użyj kafla „Zacznij od propozycji” albo ustaw udziały. Inaczej cała pula trafi do gotówki.");
-            return false;
+            return wzValidationError(
+                "Rozdziel wpłaty: użyj kafla „Zacznij od propozycji” albo ustaw udziały. Inaczej cała pula trafi do gotówki."
+            );
         }
     }
 
+    return true;
+}
+
+function wzValidateForPlan() {
+    // Walidujemy wszystkie kroki przed wynikiem, nie tylko dwa ostatnie:
+    // użytkownik może wrócić i zmienić wcześniejsze pola, a „Wylicz plan”
+    // nie może wtedy pominąć błędów.
+    for (const step of wzStepOrder()) {
+        if (step === "wynik") break;
+        if (!wzValidateStep(step)) return false;
+    }
     return true;
 }
 
@@ -2458,12 +2568,10 @@ function wzRenderIkzeRefundNote(entries) {
     const order = [
         "IKE",
         "OIPE",
-        "Broker",
-        "OKI inwestycyjne",
         "Obligacje",
         "Lokata",
         "OKI oszczędnościowe",
-        "Krypto",
+        "Broker",
         "Gotówka",
     ].join(" → ");
     note.innerHTML = `${iconSvg("info")}<span>Ulga IKZE wraca co roku i jest reinwestowana.${tipHtml(
@@ -2591,10 +2699,14 @@ function wzUpdateLoaderText() {
         </span>`;
 }
 
-async function wzRunPlan() {
+function wzRetryAfterSeconds(value) {
+    const parsed = parseInt(value || "", 10);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+async function wzRunPlan({ validated = false } = {}) {
     if (wzPlanLoading) return;
-    if (!wzValidateStep("sabbatical")) return;
-    if (!wzIsAutoPlan() && !wzValidateStep("strategia")) return;
+    if (!validated && !wzValidateForPlan()) return;
 
     const body = wzPlanBody();
     const seq = ++wzPlanSeq;
@@ -2635,7 +2747,16 @@ async function wzRunPlan() {
         const result = wzEl("wzResult");
         if (result) result.classList.remove("hidden");
         if (errorBox) {
-            errorBox.innerHTML = `${iconSvg("danger")}<div class="banner-body">${escapeHtml(err.message)}</div>`;
+            if (err?.status === 429) {
+                const seconds = wzRetryAfterSeconds(err.retryAfter);
+                const waitText = seconds ? ` Spróbuj ponownie za ${seconds} s.` : "";
+                errorBox.innerHTML = `${iconSvg("danger")}<div class="banner-body">
+                    <p>Zbyt wiele zapytań do planera.${waitText}</p>
+                    <button type="button" class="btn btn-secondary btn-sm" data-wz-retry-plan>Ponów</button>
+                </div>`;
+            } else {
+                errorBox.innerHTML = `${iconSvg("danger")}<div class="banner-body">${escapeHtml(err.message)}</div>`;
+            }
             errorBox.classList.remove("hidden");
         }
     } finally {
@@ -2780,6 +2901,8 @@ function wzLoadFullResult(input, scenarioKey) {
     }
     const cached = wzFullResults.get(key);
     if (cached) {
+        // Unieważnij ewentualną odpowiedź w locie dla innego scenariusza.
+        wzFullResultSeq += 1;
         wzRenderStageSummaryFromResult(input, cached, cached.projection);
         wzRenderYearTableFromResult(cached, input);
         return;
@@ -2836,9 +2959,13 @@ function wzRenderResult(data) {
         )
     );
     wzRenderWarnings(warnings);
+    const summary = data.scenario_summaries?.[wzSelectedScenario]
+        || data.summary
+        || active.projection?.summary
+        || {};
     wzRenderTimeline(active.input, active.projection);
     wzRenderAccountFlows(active.input, active.projection);
-    wzRenderCharts(active.input, active.projection);
+    wzRenderCharts(active.input, active.projection, summary);
     wzRenderFacts(active.projection, data);
     wzRenderPolicy(active.projection);
     wzLoadFullResult(active.input, wzSelectedScenario);
@@ -2872,7 +2999,7 @@ function wzRenderPlanWhy(data) {
     const tip = tipHtml(
         "Silnik porównał kilka wariantów wieku rozpoczęcia ZUS i podziału wpłat IKE/IKZE. "
         + "Wybrany wariant jest najlepszy według wybranego priorytetu. "
-        + "Szczegółową tabelę wariantów pokażemy w osobnym widoku."
+        + "Wiek ZUS i podział wpłat wybranego wariantu znajdziesz w podsumowaniu planu."
     );
     box.innerHTML = `<span class="wz-why-label">Dlaczego ten plan?</span> ${escapeHtml(summary)}${tip}`;
     box.classList.remove("hidden");
@@ -2909,7 +3036,7 @@ function wzRenderHero(data) {
                 box.innerHTML = `
                     <div class="wz-hero-kicker">${escapeHtml(kicker)}</div>
                     <div class="wz-hero-headline">Możesz wypłacać ${fmt(payout)} zł/mies. netto</div>
-                    <div class="wz-hero-desc">Od ${reAge}. do ${endAge}. roku życia portfel i ZUS zapewnią co najmniej <strong>${fmt(payout)} zł/mies.</strong> na rękę.</div>`;
+                    <div class="wz-hero-desc">Od ${reAge}. do ${endAge}. roku życia Twój budżet netto wyniesie co najmniej <strong>${fmt(payout)} zł/mies.</strong> — portfel, ZUS i ewentualna praca na część etatu, po racie kredytu.</div>`;
             }
         } else {
             box.innerHTML = `
@@ -2982,7 +3109,9 @@ function wzRenderScenarios(data) {
         let mainText = "";
         let subText = `Szczyt majątku: ${fmt(scenario.peak_wealth)} zł`;
         if (path === 1) {
-            mainText = `${fmt(scenario.payout_monthly)} zł/mies.`;
+            mainText = scenario.feasible
+                ? `${fmt(scenario.payout_monthly)} zł/mies.`
+                : "Nieosiągalne";
             if (data.optimization?.objective === "total") {
                 subText = `Łącznie ${fmt(scenario.total_withdrawn)} zł · Szczyt: ${fmt(scenario.peak_wealth)} zł`;
             }
@@ -3018,6 +3147,9 @@ function wzRenderMetrics(data) {
         window.ResultsModel.metric(planView, "totalWithdrawnPrivate"),
         window.ResultsModel.metric(planView, "avgMonthly", { label: "Średnia wypłata mies." }),
         window.ResultsModel.metric(planView, "minMonthly", { label: "Minimalna wypłata mies." }),
+        window.ResultsModel.metric(planView, "portfolioMinMonthly", {
+            label: "Minimalna wypłata z portfela",
+        }),
         window.ResultsModel.metric(planView, "finalWealthNet"),
         window.ResultsModel.metric(planView, "taxAndHealth", { label: "Podatki i składki" }),
     ];
@@ -3120,18 +3252,29 @@ function wzRenderTimeline(input, projection) {
             seg.dataset.phaseIndex = String(index);
             seg.setAttribute("role", "button");
             seg.tabIndex = 0;
+            const phaseName = phase.key === "partial_fire" ? "Częściowe FIRE" : phase.name;
             seg.setAttribute(
                 "aria-label",
-                `${phase.name}, ${phase.start_age}–${phase.end_age} r.ż., `
+                `${phaseName}, ${phase.start_age}–${phase.end_age} r.ż., `
                 + `${isAccum ? "wpłaty" : "wypłata netto"} ${wzFmtZloty(phase.monthly)} zł/mies. — szczegóły`
             );
             seg.innerHTML = `
-                <span class="wz-tl-name">${escapeHtml(phase.name)}</span>
+                <span class="wz-tl-name">${escapeHtml(phaseName)}</span>
                 <span class="wz-tl-age">${phase.start_age}–${phase.end_age} r.ż.</span>
                 <span class="wz-tl-amount">${phase.monthly > 0 ? `~${fmtMoney(phase.monthly)}/mies.` : "—"}</span>
                 <span class="wz-tl-kind">${isAccum ? "wpłaty" : "wypłata netto"}</span>`;
             box.appendChild(seg);
         });
+        const horizonAge = wzInputHorizonAge(input);
+        if (Number.isFinite(horizonAge) && horizonAge >= min && horizonAge <= max) {
+            const line = document.createElement("span");
+            line.className = "wz-gantt-horizon";
+            line.style.left = `${((horizonAge - min) / width) * 100}%`;
+            line.title = `Horyzont planu: ${horizonAge} r.ż.`;
+            line.setAttribute("role", "img");
+            line.setAttribute("aria-label", `Horyzont planu: ${horizonAge} r.ż.`);
+            box.appendChild(line);
+        }
         setupTimelineDetails(box, ordered);
         return;
     }
@@ -3165,6 +3308,14 @@ function wzRenderTimeline(input, projection) {
             <span class="wz-tl-age">${span.start}–${span.end} r.ż.</span>`;
         box.appendChild(seg);
     });
+    const horizonAge = wzInputHorizonAge(input);
+    if (Number.isFinite(horizonAge) && horizonAge >= min && horizonAge <= max) {
+        const line = document.createElement("span");
+        line.className = "wz-gantt-horizon";
+        line.style.left = `${((horizonAge - min) / width) * 100}%`;
+        line.title = `Horyzont planu: ${horizonAge} r.ż.`;
+        box.appendChild(line);
+    }
 }
 
 let wzTimelinePhases = [];
@@ -3191,11 +3342,27 @@ function wzTimelineTipHtml(phase) {
     if (phase.zus_monthly > 0.5) {
         rows.push(wzGanttTipRow("ZUS", `${wzFmtZloty(phase.zus_monthly)} zł/mies.`));
     }
+    if (phase.part_time_monthly > 0.5) {
+        rows.push(wzGanttTipRow(
+            "Część etatu",
+            `${wzFmtZloty(phase.part_time_monthly)} zł/mies.`
+        ));
+    }
+    if (phase.mortgage_monthly > 0.5) {
+        rows.push(wzGanttTipRow(
+            "Rata kredytu",
+            `−${wzFmtZloty(phase.mortgage_monthly)} zł/mies.`
+        ));
+    }
     rows.push(wzGanttTipRow(
         "Razem netto (≈)",
         `${wzFmtZloty(phase.monthly * years * 12)} zł`
     ));
-    return wzGanttTipPanel(phase.name, "Wypłaty", rows);
+    return wzGanttTipPanel(
+        phase.key === "partial_fire" ? "Częściowe FIRE" : phase.name,
+        "Wypłaty",
+        rows
+    );
 }
 
 function setupTimelineDetails(box, phases) {
@@ -3521,11 +3688,27 @@ function wzTotalTipHtml(phase) {
     if (phase.zus_monthly > 0.5) {
         rows.push(wzGanttTipRow("ZUS", `${wzFmtZloty(phase.zus_monthly)} zł/mies.`));
     }
+    if (phase.part_time_monthly > 0.5) {
+        rows.push(wzGanttTipRow(
+            "Część etatu",
+            `${wzFmtZloty(phase.part_time_monthly)} zł/mies.`
+        ));
+    }
+    if (phase.mortgage_monthly > 0.5) {
+        rows.push(wzGanttTipRow(
+            "Rata kredytu",
+            `−${wzFmtZloty(phase.mortgage_monthly)} zł/mies.`
+        ));
+    }
     rows.push(wzGanttTipRow(
         "Razem netto (≈)",
         `${wzFmtZloty((phase.monthly || 0) * years * 12)} zł`
     ));
-    return wzGanttTipPanel(phase.name || "Razem", "Wypłaty łączne", rows);
+    return wzGanttTipPanel(
+        phase.key === "partial_fire" ? "Częściowe FIRE" : (phase.name || "Razem"),
+        "Wypłaty łączne",
+        rows
+    );
 }
 
 function wzAccumulationPhaseTipHtml(phase, accountLabel) {
@@ -3751,7 +3934,8 @@ function wzRenderAccountFlows(input, projection) {
                 ? `${Math.round(phase.monthly || 0).toLocaleString("pl-PL")} zł/mies.`
                 : "";
             const tipIdx = addTip(wzTotalTipHtml(phase));
-            const tipLabel = `${phase.name}: ${phase.start_age}–${phase.end_age} r.ż., ${Math.round(phase.monthly || 0).toLocaleString("pl-PL")} zł/mies. netto — szczegóły`;
+            const phaseName = phase.key === "partial_fire" ? "Częściowe FIRE" : phase.name;
+            const tipLabel = `${phaseName}: ${phase.start_age}–${phase.end_age} r.ż., ${Math.round(phase.monthly || 0).toLocaleString("pl-PL")} zł/mies. netto — szczegóły`;
             totalBars += `<span class="wz-gantt-phase is-total" style="left:${left.toFixed(2)}%;width:${width.toFixed(2)}%" data-tip-id="${tipIdx}" tabindex="0" aria-label="${escapeHtml(tipLabel)}">${label}</span>`;
         });
         ganttHtml += `<div class="wz-gantt-row wz-gantt-total"><span class="wz-gantt-label">Razem</span><div class="wz-gantt-track">${totalBars}</div></div>`;
@@ -4028,15 +4212,17 @@ function wzChartReferences(model) {
             ? positive.reduce((sum, value) => sum + value, 0) / positive.length
             : null;
         const fallbackMin = positive.length ? Math.min(...positive) : null;
-        const avg = Number(model.references?.avgMonthly);
-        const min = Number(model.references?.minMonthly);
+        const rawAvg = model.references?.avgMonthly;
+        const rawMin = model.references?.minMonthly;
+        const avg = rawAvg == null ? null : Number(rawAvg);
+        const min = rawMin == null ? null : Number(rawMin);
         const refs = [];
         if (Number.isFinite(avg) && avg > 0.5) {
             refs.push({ key: "avg", label: "średnia", value: avg });
         } else if (fallbackAvg) {
             refs.push({ key: "avg", label: "średnia", value: fallbackAvg });
         }
-        if (Number.isFinite(min) && min > 0.5) {
+        if (Number.isFinite(min) && min >= 0) {
             refs.push({ key: "min", label: "min", value: min });
         } else if (fallbackMin) {
             refs.push({ key: "min", label: "min", value: fallbackMin });
@@ -4090,17 +4276,26 @@ function wzChartSummary(model) {
     const last = model.ages[model.ages.length - 1];
     const peak = Math.max(...model.totals);
     if (model.kind === "withdrawals") {
-        const total = model.totals.reduce((sum, value) => sum + value, 0) * 12;
+        const horizon = Number(model.horizonAge);
+        const total = model.totals.reduce(
+            (sum, value, index) => (
+                Number.isFinite(horizon) && model.ages[index] >= horizon ? sum : sum + value
+            ),
+            0
+        ) * 12;
         const refs = wzChartReferences(model);
         const avg = refs.find((ref) => ref.key === "avg");
         const min = refs.find((ref) => ref.key === "min");
         const extra = [];
         if (avg) extra.push(`Średnia wypłata ${wzChartAxisNumber(Math.round(avg.value))} zł/mies.`);
         if (min) extra.push(`Minimalna wypłata ${wzChartAxisNumber(Math.round(min.value))} zł/mies.`);
-        return `Wykres miesięcznych wypłat netto według kont, wiek ${first}–${last}. Łącznie w horyzoncie ${wzFmtZloty(total)} zł netto. ${extra.join(" ")} Użyj strzałek, aby czytać szczegóły.`;
+        const horizonText = Number.isFinite(horizon)
+            ? ` Horyzont planu: ${horizon} r.ż.; dalsze lata pokazują sam ZUS.`
+            : "";
+        return `Wykres miesięcznych wypłat netto według kont, wiek ${first}–${last}. Łącznie w horyzoncie ${wzFmtZloty(total)} zł netto.${horizonText} ${extra.join(" ")} Użyj strzałek, aby czytać szczegóły.`;
     }
     const peakIndex = model.totals.indexOf(peak);
-    return `Wykres kapitału prywatnego według kont, wiek ${first}–${last}. Kapitał szczytowy ${wzFmtZloty(peak)} zł w wieku ${model.ages[peakIndex]}. Użyj strzałek, aby czytać szczegóły.`;
+    return `Wykres kapitału prywatnego według kont, wiek ${first}–${last}. Kapitał szczytowy ${wzFmtZloty(peak)} zł w wieku ${model.ages[peakIndex]}.${model.truncated ? " Wykres ucięty na horyzoncie planu." : ""} Użyj strzałek, aby czytać szczegóły.`;
 }
 
 let wzChartMilestones = [];
@@ -4114,9 +4309,15 @@ function wzChartAnnotationsFor(input, projection) {
     const minAge = ages[0];
     const maxAge = ages[ages.length - 1];
     const stages = input?.stages || [];
-    const fireStage = stages.find(
+    const portfolioStages = stages.filter(
         (stage) => stage.stage_type === "realizacja"
             && !("zus" in (stage.accounts || {}))
+    );
+    // FIRE to pełne zakończenie pracy, a nie etap części etatu. Etapy
+    // Coast/Barista mają dodatni part_time_* i nie mogą przejąć etykiety FIRE.
+    const fireStage = portfolioStages.find(
+        (stage) => !(Number(stage.part_time_net_monthly) > 0)
+            && !(Number(stage.part_time_gross_monthly) > 0)
     );
     const zusStage = stages.find(
         (stage) => stage.stage_type === "realizacja"
@@ -4149,7 +4350,7 @@ function wzChartAnnotationsFor(input, projection) {
             "fire",
             "FIRE",
             fireStage.start_age,
-            `Wiek FIRE: ${fireStage.start_age} r.ż. Od tego roku portfel finansuje życie zamiast pensji.`
+            `Pełne FIRE: ${fireStage.start_age} r.ż. Od tego roku portfel finansuje życie zamiast pensji.`
         );
     }
     if (projection?.early_return_total > 0 && projection?.early_return_age != null) {
@@ -4163,16 +4364,17 @@ function wzChartAnnotationsFor(input, projection) {
     }
     if (zusStage?.start_age != null) {
         const zusText = zusStage.start_age !== statutoryAge
-            ? `Ustawowy wiek emerytalny: ${statutoryAge} lat. W tym planie ZUS startuje od ${zusStage.start_age} r.ż.`
-            : `Ustawowy wiek emerytalny: ${statutoryAge} lat.`;
-        add("zus", "ZUS", statutoryAge, zusText);
+            ? `ZUS startuje od ${zusStage.start_age} r.ż. Ustawowy wiek emerytalny to ${statutoryAge} lat.`
+            : `ZUS startuje od ${zusStage.start_age} r.ż. To ustawowy wiek emerytalny (${statutoryAge} lat).`;
+        add("zus", "ZUS", zusStage.start_age, zusText);
     }
     if (horizonAge != null) {
+        const lastYear = Math.max(minAge, horizonAge - 1);
         add(
             "horizon",
             "Horyzont",
-            horizonAge,
-            `Horyzont planu: ${horizonAge} r.ż. Metryki i podatek wyjścia liczą się do tego wieku; wykresy pokazują ZUS do 100 r.ż.`
+            lastYear,
+            `Horyzont planu: ${horizonAge} r.ż. — ostatni pełny rok symulacji to ${lastYear}. Metryki i podatek wyjścia liczą się do tego wieku; wykresy pokazują ZUS do 100 r.ż.`
         );
     }
 
@@ -4793,7 +4995,7 @@ function wzRenderChartSvg(container, model) {
     wzRenderMilestoneLayer(container, model);
 }
 
-function wzRenderCharts(input, projection) {
+function wzRenderCharts(input, projection, summary = {}) {
     const wrap = wzEl("wzChartsWrap");
     if (!wrap) return;
     const chart = projection?.chart;
@@ -4814,9 +5016,27 @@ function wzRenderCharts(input, projection) {
         ),
         1 / 12
     );
-    const capitalGroups = wzLimitChartGroups(
+    const inputHorizon = wzInputHorizonAge(input);
+    const summaryEnd = summary?.end_age;
+    const horizonAge = Number.isFinite(inputHorizon)
+        ? inputHorizon
+        : (summaryEnd != null && Number.isFinite(Number(summaryEnd))
+            ? Number(summaryEnd) + 1
+            : null);
+    // Wykresy wypłat pokazują ZUS do 100 r.ż.; kapitał prywatny urywamy na
+    // horyzoncie planu (plan_end jest wiekiem ekskluzywnym — ostatni rok to
+    // plan_end - 1), żeby nie sugerować, że poza modelem nadal rośnie.
+    const capitalAges = horizonAge == null
+        ? ages
+        : ages.filter((age) => age < horizonAge);
+    const capitalLimit = capitalAges.length;
+    let capitalGroups = wzLimitChartGroups(
         wzChartGroups(chart.balances, input, "capital", ages.length)
-    );
+    ).map((group) => ({
+        ...group,
+        values: group.values.slice(0, capitalLimit),
+    }));
+    if (!capitalLimit) capitalGroups = [];
     if (!withdrawalGroups.length && !capitalGroups.length) {
         wrap.classList.add("hidden");
         wzChartMilestones = [];
@@ -4830,8 +5050,10 @@ function wzRenderCharts(input, projection) {
     wrap.classList.remove("hidden");
     const annotations = wzChartAnnotationsFor(input, projection);
     const references = {
-        avgMonthly: Number(projection?.mean_monthly) || null,
-        minMonthly: Number(projection?.min_monthly) || null,
+        // Linie referencyjne to wypłata z portfela i ZUS, nie lifestyle
+        // (mean/min z projekcji zawierają część etatu i kredyt).
+        avgMonthly: Number(summary?.avg_monthly) || null,
+        minMonthly: Number(summary?.min_monthly) || null,
         peakWealth: Number(projection?.peak_wealth) || null,
     };
     wzChartMilestones = annotations;
@@ -4844,16 +5066,19 @@ function wzRenderCharts(input, projection) {
             ages,
             annotations,
             references,
+            horizonAge,
             groups: withdrawalGroups,
             totals: wzChartTotals(withdrawalGroups, ages.length),
         },
         capital: {
             kind: "capital",
-            ages,
+            ages: capitalAges,
             annotations,
             references,
+            horizonAge,
+            truncated: capitalAges.length < ages.length,
             groups: capitalGroups,
-            totals: wzChartTotals(capitalGroups, ages.length),
+            totals: wzChartTotals(capitalGroups, capitalAges.length),
         },
     };
     wzChartTipHide(true);
@@ -4954,18 +5179,33 @@ function wzExportPlan() {
     URL.revokeObjectURL(a.href);
 }
 
+function wzBuildDraft(activeInput) {
+    const input = activeInput || {};
+    return {
+        version: WZ_DRAFT_VERSION,
+        // Pełny input jest źródłem prawdy dla Symulatora; stare pola zostają
+        // dla zgodności z wcześniejszymi wersjami frontu.
+        input,
+        gender: input.gender,
+        config: input.config,
+        stages: input.stages,
+        withdrawal_policy: input.withdrawal_policy || "defer_tier",
+        max_age: input.max_age,
+        mortgage_monthly: input.mortgage_monthly,
+        mortgage_end_age: input.mortgage_end_age,
+        monthly_gross: input.monthly_gross,
+        start_year: input.start_year,
+        inflation: input.inflation,
+        source: "wizard",
+    };
+}
+
 function wzFinish() {
     if (!wzPlan) return;
     wzSaveState();
     wzSavePlanCache();
     const activeInput = wzPlan.scenario_inputs?.[wzSelectedScenario] || wzPlan.input;
-    const draft = {
-        gender: activeInput.gender,
-        config: activeInput.config,
-        stages: activeInput.stages,
-        withdrawal_policy: activeInput.withdrawal_policy || "defer_tier",
-        source: "wizard",
-    };
+    const draft = wzBuildDraft(activeInput);
     try {
         localStorage.setItem("fire.wizardDraft", JSON.stringify(draft));
     } catch {
@@ -4977,6 +5217,7 @@ function wzFinish() {
 // --- Zdarzenia --------------------------------------------------------------
 
 function wzTouch() {
+    wzClearValidationError();
     wzFormVersion += 1;
     wzPlan = null;
     wzPlanSignature = "";
@@ -5264,6 +5505,11 @@ function wzBindEvents() {
             wzTouch();
             return;
         }
+        const retryPlan = event.target.closest("[data-wz-retry-plan]");
+        if (retryPlan) {
+            wzRunPlan({ validated: true });
+            return;
+        }
         const retry = event.target.closest("[data-wz-retry-suggest]");
         if (retry) {
             wzRefreshSuggestion();
@@ -5318,6 +5564,7 @@ function wzSaveState() {
     if (!wzStateReady || wzRestoring) return;
     clearTimeout(wzStateTimer);
     const state = {
+        version: WZ_STATE_VERSION,
         step: wzCurrentStep,
         fields: wzCollectFormState(),
         rows: wzCollectCapitalState(),
@@ -5354,6 +5601,7 @@ function wzSavePlanCache() {
     const body = wzPlanBodyCache || wzPlanBody();
     try {
         localStorage.setItem(WZ_PLAN_KEY, JSON.stringify({
+            version: WZ_PLAN_VERSION,
             plan: wzPlan,
             body,
             path: wzCurrentPath(),
@@ -5444,6 +5692,7 @@ function wzReadCachedPlan(allowLegacy = true) {
         return null;
     }
     if (!stored || !stored.plan) return null;
+    if (Number(stored.version) !== WZ_PLAN_VERSION) return null;
     // Starsze cache'e nie mają serii do wykresów — wymuś świeże wyliczenie.
     if (!stored.plan?.projection?.chart?.ages?.length) return null;
 
@@ -5489,6 +5738,7 @@ function wzRestoreIfRequested() {
     } catch {
         state = null;
     }
+    if (state && Number(state.version) !== WZ_STATE_VERSION) state = null;
 
     wzRestoring = true;
     if (state) {
@@ -5597,9 +5847,12 @@ function wzInit() {
     // Pierwszy podgląd pensji jest opóźniony, żeby nie konkurować z renderingiem.
     setTimeout(wzScheduleSalaryPreview, 150);
 
-    wzRestoreIfRequested();
+    const restored = wzRestoreIfRequested();
     wzStateReady = true;
-    wzSaveState();
+    // Zwykłe wejście na /wizard nie może nadpisać zapisanego stanu; zapisujemy
+    // dopiero po interakcji (wzTouch / zmiana kroku). Przy ?restore utrwalamy
+    // odtworzony stan.
+    if (restored) wzSaveState();
 }
 
 document.addEventListener("DOMContentLoaded", wzInit);

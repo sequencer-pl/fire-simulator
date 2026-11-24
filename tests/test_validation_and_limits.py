@@ -80,3 +80,64 @@ def test_client_ip_ignores_forwarded_header_in_dev(monkeypatch):
     monkeypatch.delenv("FIRE_ENV", raising=False)
     request = _request({"x-forwarded-for": "9.9.9.9, 5.5.5.5"})
     assert client_ip(request) == "1.2.3.4"
+
+
+def test_mortgage_requires_end_age():
+    from pydantic import ValidationError
+
+    from app.simulation.schemas import AccountConfig, SimulationInput, StageInput
+
+    with pytest.raises(ValidationError):
+        SimulationInput(
+            stages=[
+                StageInput(
+                    stage_type="akumulacja",
+                    start_age=40,
+                    end_age=41,
+                    accounts={"broker": AccountConfig()},
+                )
+            ],
+            mortgage_monthly=3_000,
+            mortgage_end_age=None,
+        )
+
+
+def test_mortgage_end_age_at_plan_start_is_accepted():
+    """Kredyt spłacony w roku startu nie jest błędem — silnik nie dokłada raty."""
+    from app.simulation.schemas import AccountConfig, SimulationInput, StageInput
+
+    data = SimulationInput(
+        stages=[
+            StageInput(
+                stage_type="akumulacja",
+                start_age=40,
+                end_age=41,
+                accounts={"broker": AccountConfig()},
+            )
+        ],
+        mortgage_monthly=3_000,
+        mortgage_end_age=40,
+    )
+    assert data.mortgage_end_age == 40
+
+
+def test_coast_with_mortgage_ending_at_current_age_does_not_raise():
+    from app.simulation.planner import WizardAnswers, build_stages
+
+    answers = WizardAnswers(
+        gender="m",
+        age_now=40,
+        employment="etat",
+        gross_monthly=12_000,
+        capital={"broker": 200_000},
+        savings=1_000,
+        use_broker=True,
+        mortgage_monthly=3_000,
+        mortgage_end_age=40,
+        semi_fire_enabled=True,
+        semi_fire_mode="coast",
+        semi_fire_age=40,
+        retire_early_age=55,
+    )
+    stages = build_stages(answers)
+    assert stages

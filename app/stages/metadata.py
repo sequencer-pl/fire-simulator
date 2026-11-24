@@ -139,7 +139,11 @@ FIELD_HINTS = {
         "Próg zwolnienia w OKI. Konta OKI dzielą wspólny limit 100 000 zł; "
         "w jego ramach część oszczędnościowa (lokaty/obligacje) do 25 000 zł."
     ),
-    "asset_tax_rate": "Roczny podatek od wartości aktywów ponad próg (OKI: 0,85%).",
+    "asset_tax_rate": (
+        "Stawka podatku od wartości aktywów ponad próg. Dla OKI ustala ją rok "
+        "(0,85% w 2027, od 2028 19% stopy NBP) w Konfiguracji — to pole "
+        "pozostaje dla innych modeli podatku od aktywów."
+    ),
     "cost_basis_enabled": (
         "Zaznacz, jeśli znasz koszty zakupu (cenę nabycia). "
         "Dzięki temu podatek 19% naliczany jest tylko od zysku, "
