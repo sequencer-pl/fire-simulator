@@ -59,9 +59,9 @@ Wymagania: `uv`, Python 3.12+.
 
 - `app/simulation/` — model: `engine.py` (silnik, podatki, ZUS), `planner.py`
   (wizard, budowa etapów, solvery), `optimizer.py` (alokacja i wiek ZUS),
-  `config.py` (globalny config, presety, scenariusze, limity), `summary.py`
-  (wspólne metryki wyników), `schemas.py` (walidacja wejścia), `zus.py`,
-  `constants.py`.
+  `config.py` (globalny config, presety, scenariusze, limity), `cashflow.py`
+  (wspólny dochód netto i budżet na życie), `summary.py` (wspólne metryki
+  wyników), `schemas.py` (walidacja wejścia), `zus.py`, `constants.py`.
 - `app/stages/` — implementacje etapów (akumulacja, realizacja).
 - `app/web/` — FastAPI: `routes.py`, `limits.py`.
 - `app/core/` — helpery: podatki, PMT, ROI, inflacja.

@@ -1475,6 +1475,9 @@ def test_simulator_projection_extends_zus_chart_to_100():
     assert max(year.age for year in simulation.years) == r.input.max_age
     assert projection.chart.ages[-1] == 100
     assert projection.chart.withdrawals_net["zus"][-1] > 0
+    assert len(projection.chart.lifestyle_monthly) == len(projection.chart.ages)
+    assert len(projection.chart.obligations_monthly) == len(projection.chart.ages)
+    assert len(projection.chart.part_time_monthly) == len(projection.chart.ages)
     assert projection.final_wealth == pytest.approx(simulation.final_wealth)
 
 

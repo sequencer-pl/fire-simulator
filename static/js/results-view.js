@@ -18,9 +18,15 @@
         const containerId = kind === "withdrawals" ? "wzWithdrawalsChart" : "wzCapitalChart";
         const legendId = kind === "withdrawals" ? "wzWithdrawalsLegend" : "wzCapitalLegend";
         const titleId = kind === "withdrawals" ? "wzWithdrawalsTitle" : "wzCapitalTitle";
+        const titleHtml = kind === "withdrawals"
+            ? tip(
+                title,
+                "Przerywana linia „Budżet na życie” pokazuje, ile zostaje po odjęciu aktywnych zobowiązań czasowych od dochodu netto (portfel + ZUS + praca). Rysujemy ją tylko w latach, w których różni się od wypłat netto; po zakończeniu zobowiązań łączy się z górną linią. Szczegóły roku znajdziesz w tabeli „Rok po roku”."
+            )
+            : esc(title);
         return `<section class="wz-chart-card" data-results-chart-card="${kind}" aria-labelledby="${titleId}">
             <div class="wz-chart-head">
-                <h4 class="wz-plan-subhead" id="${titleId}">${esc(title)}</h4>
+                <h4 class="wz-plan-subhead" id="${titleId}">${titleHtml}</h4>
                 <div class="wz-chart-legend" id="${legendId}" data-results-legend="${kind}"></div>
             </div>
             <div class="wz-chart" id="${containerId}" data-results-chart="${kind}"></div>

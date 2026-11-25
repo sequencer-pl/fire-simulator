@@ -28,6 +28,7 @@ let loadedMaxAge = null;
 let loadedStartYear = null;
 let loadedInflation = null;
 let loadedMonthlyGross = null;
+let simObligationRedirectSeq = 0;
 
 function gatherFormData() {
     const stages = [];
@@ -1369,6 +1370,8 @@ function defaultObligationAges() {
 function createObligationRow(data = {}) {
     const ages = defaultObligationAges();
     const row = document.createElement("div");
+    const redirectName = `simObligationRedirect${++simObligationRedirectSeq}`;
+    const redirectToSavings = data.redirect_to_savings !== false;
     row.className = "obligation-row";
     row.dataset.obligation = "true";
     row.innerHTML = `
@@ -1411,11 +1414,20 @@ function createObligationRow(data = {}) {
                 })}
             </div>
         </div>
-        <div class="obligation-actions">
-            <label class="field-checkbox obligation-redirect-label">
-                <input type="checkbox" class="obligation-redirect" ${data.redirect_to_savings !== false ? "checked" : ""}>
-                <span>Po zakończeniu przekieruj na oszczędności</span>
-            </label>
+        <div class="obligation-redirect">
+            <span class="obligation-redirect-title">Po zakończeniu zobowiązania</span>
+            <div class="segmented is-sm segmented-stack obligation-redirect-switch"
+                 role="radiogroup" aria-label="Po zakończeniu zobowiązania">
+                <label class="seg-option">
+                    <input type="radio" class="obligation-redirect-yes" name="${redirectName}" value="yes" ${redirectToSavings ? "checked" : ""}>
+                    Przekierować na oszczędności
+                </label>
+                <label class="seg-option">
+                    <input type="radio" class="obligation-redirect-no" name="${redirectName}" value="no" ${redirectToSavings ? "" : "checked"}>
+                    Zostawić w budżecie
+                </label>
+            </div>
+            <p class="field-hint obligation-redirect-hint">Bez przekierowania uwolniona kwota zostaje w budżecie na życie.</p>
         </div>`;
     row.querySelector(".obligation-remove").addEventListener("click", () => row.remove());
     return row;
@@ -1446,7 +1458,7 @@ function gatherObligations() {
                 monthly,
                 start_age: Number.isFinite(startAge) ? startAge : 0,
                 end_age: Number.isFinite(endAge) ? endAge : 0,
-                redirect_to_savings: Boolean(row.querySelector(".obligation-redirect")?.checked),
+                redirect_to_savings: Boolean(row.querySelector(".obligation-redirect-yes")?.checked),
             };
         })
         .filter((item) => item.monthly > 0 && item.end_age > item.start_age);

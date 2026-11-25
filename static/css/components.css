@@ -1340,17 +1340,23 @@ tbody tr.table-group:hover td { background: var(--surface-2); }
     font-size: var(--fs-sm);
 }
 
-.obligation-actions {
+.obligation-redirect {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--sp-3);
-    flex-wrap: wrap;
+    flex-direction: column;
+    gap: var(--sp-2);
 }
 
-.obligation-redirect-label {
+.obligation-redirect-title {
     color: var(--text-2);
     font-size: var(--fs-sm);
+    font-weight: 600;
+}
+
+.obligation-redirect-switch { width: 100%; }
+
+.obligation-redirect-hint {
+    color: var(--text-3);
+    font-size: var(--fs-xs);
 }
 
 .obligation-remove { flex: 0 0 auto; }

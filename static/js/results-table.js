@@ -92,9 +92,18 @@
             const ending = endingBalances(year);
             return (Number(ending.zus) || 0) + (Number(ending["zus:ofe"]) || 0) > 0.5;
         });
+        const hasObligations = (input?.obligations || []).length > 0
+            || (Number(input?.mortgage_monthly) > 0 && input?.mortgage_end_age != null);
+        const hasPartTime = (input?.stages || []).some(
+            (stage) => Number(stage.part_time_net_monthly) > 0
+        );
+        const showLifestyle = hasObligations || hasPartTime;
 
         const columns = [
             { key: "monthly", label: "Wypłata mies." },
+            ...(showLifestyle
+                ? [{ key: "lifestyle", label: "Budżet na życie" }]
+                : []),
             { key: "wealth", label: "Majątek" },
             { key: "annual", label: "Wypłata roczna" },
             { key: "tax", label: "Podatek" },
@@ -107,10 +116,16 @@
         ];
 
         const wealthTip = "Majątek prywatny: suma sald na koniec roku bez ZUS i OFE. ZUS pokazujemy w osobnej kolumnie. Kwoty są brutto — majątek końcowy netto jest po podatku wyjścia.";
+        const lifestyleTip = "Budżet na życie: dochód netto (portfel + ZUS + praca) minus aktywne zobowiązania czasowe. W roku zakończenia zobowiązania zobaczysz skok kwoty.";
         const header = columns.map((column) => {
             const classes = ["amount"];
             if (column.key === "monthly") classes.push("col-monthly");
-            const title = column.key === "wealth" ? ` title="${window.escapeHtml(wealthTip)}"` : "";
+            if (column.key === "lifestyle") classes.push("col-lifestyle");
+            const title = column.key === "wealth"
+                ? ` title="${window.escapeHtml(wealthTip)}"`
+                : column.key === "lifestyle"
+                    ? ` title="${window.escapeHtml(lifestyleTip)}"`
+                    : "";
             return `<th data-col="${window.escapeHtml(column.key)}" class="${classes.join(" ")}"${title}>${window.escapeHtml(column.label)}</th>`;
         }).join("");
 
@@ -121,6 +136,7 @@
             }
             if (column.account) return money(ending[column.key] || 0);
             if (column.key === "monthly") return money(year.monthly_withdrawal);
+            if (column.key === "lifestyle") return money(year.lifestyle_monthly);
             if (column.key === "wealth") return money(privateWealth(year));
             if (column.key === "annual") return money(year.annual_withdrawal);
             if (column.key === "tax") return money(year.tax_paid);
@@ -130,6 +146,7 @@
         const cellFor = (column, year, isPost = false) => {
             const classes = ["amount"];
             if (column.key === "monthly") classes.push("col-monthly");
+            if (column.key === "lifestyle") classes.push("col-lifestyle");
             if (column.key === "tax" && (year.tax_paid || 0) < 0) classes.push("text-success");
             const postWealth = isPost && column.key === "wealth";
             const title = postWealth ? ' title="Poza modelem — po horyzoncie pokazujemy tylko ZUS."' : "";
@@ -161,6 +178,7 @@
                 total_wealth: 0,
                 annual_withdrawal: postHorizon.annual,
                 monthly_withdrawal: postHorizon.monthly,
+                lifestyle_monthly: postHorizon.monthly,
                 tax_paid: 0,
             }
             : null;

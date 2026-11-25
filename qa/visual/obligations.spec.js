@@ -26,7 +26,7 @@ test("Symulator: zobowiązanie czasowe zmniejsza budżet i tworzy etap akumulacj
     await row.locator(".obligation-monthly").fill("2000");
     await row.locator(".obligation-start").fill("35");
     await row.locator(".obligation-end").fill("50");
-    await expect(row.locator(".obligation-redirect")).toBeChecked();
+    await expect(row.locator(".obligation-redirect-yes")).toBeChecked();
 
     await page.locator("#simulateBtn").click();
     await expect(page.locator("#results")).toBeVisible({ timeout: 30_000 });
@@ -58,7 +58,11 @@ test("Asystent: zobowiązanie czasowe jest osobną listą i trafia do planu", as
     await row.locator(".obligation-monthly").fill("2000");
     await row.locator(".obligation-start").fill("40");
     await row.locator(".obligation-end").fill("60");
-    await expect(row.locator(".obligation-redirect")).toBeChecked();
+    await expect(row.locator(".obligation-redirect-yes")).toBeChecked();
+    await row.locator("label.seg-option", { hasText: "Zostawić w budżecie" }).click();
+    await expect(row.locator(".obligation-redirect-no")).toBeChecked();
+    await row.locator("label.seg-option", { hasText: "Przekierować na oszczędności" }).click();
+    await expect(row.locator(".obligation-redirect-yes")).toBeChecked();
 
     await page.locator('[data-obligation-type="inne"]').click();
     const customRow = page.locator("#wzObligationsList .obligation-row").nth(1);
@@ -75,4 +79,11 @@ test("Asystent: zobowiązanie czasowe jest osobną listą i trafia do planu", as
     await expect(page.locator("#wzHeroAnswer")).toContainText("Po zobowiązaniach");
     await expect(page.locator("#wzFacts")).toContainText("Zobowiązania");
     await expect(page.locator("#wzFacts")).toContainText("Alimenty");
+    await expect(page.locator("#wzFacts")).toContainText("Budżet na życie");
+    await expect(page.locator("#wzYearTable thead")).toContainText("Budżet na życie");
+    await expect(page.locator("#wzWithdrawalsLegend")).toContainText("Budżet na życie");
+    await expect(page.locator(".wz-chart-lifestyle")).toHaveCount(1);
+    await expect(
+        page.locator(".wz-chart-milestone", { hasText: "Koniec zob." }).first()
+    ).toBeVisible({ timeout: 30_000 });
 });

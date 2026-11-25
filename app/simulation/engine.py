@@ -5,6 +5,11 @@ from app.core.base import resolve_base
 from app.core.inflation import cumulative_factor, deflate, fisher_nominal
 from app.core.roi import effective_roi, periodic_net_roi
 from app.core.tax import danina_solidarnosciowa, scale_tax
+from app.simulation.cashflow import (
+    extra_income_monthly,
+    lifestyle_monthly_net,
+    obligations_monthly,
+)
 from app.simulation.config import (
     ACCOUNT_LABELS,
     AccountRules,
@@ -1007,6 +1012,7 @@ def _passive_growth(
 
 def _assemble_years(
     computed: dict[int, dict],
+    data: SimulationInput,
 ) -> tuple[list[YearResult], float, float, float]:
     sorted_ages = sorted(computed.keys())
     years: list[YearResult] = []
@@ -1038,29 +1044,31 @@ def _assemble_years(
             - c.get("health", {}).get("zus", 0.0),
         ) / MONTHS_PER_YEAR
 
-        years.append(
-            YearResult(
-                age=age,
-                stage_name=c["stage_name"],
-                balances={k: round(v, 2) for k, v in sb.items()},
-                total_wealth=round(sum(sb.values()), 2),
-                annual_withdrawal=round(stage_withdrawal_net, 2),
-                monthly_withdrawal=round(stage_withdrawal_net / MONTHS_PER_YEAR, 2),
-                zus_monthly=round(zus_monthly, 2),
-                tax_paid=round(stage_tax, 2),
-                health_paid=round(stage_health, 2),
-                withdrawals={k: round(v, 2) for k, v in c["withdrawal"].items()},
-                taxes={k: round(v, 2) for k, v in c["tax"].items()},
-                health={k: round(v, 2) for k, v in c.get("health", {}).items()},
-                ending_balances={
-                    k: round(v, 2) for k, v in c["ending_balances"].items()
-                },
-                early_return_tax_by_account={
-                    k: round(v, 2)
-                    for k, v in c.get("early_return_tax_by_account", {}).items()
-                },
-            )
+        year = YearResult(
+            age=age,
+            stage_name=c["stage_name"],
+            balances={k: round(v, 2) for k, v in sb.items()},
+            total_wealth=round(sum(sb.values()), 2),
+            annual_withdrawal=round(stage_withdrawal_net, 2),
+            monthly_withdrawal=round(stage_withdrawal_net / MONTHS_PER_YEAR, 2),
+            zus_monthly=round(zus_monthly, 2),
+            tax_paid=round(stage_tax, 2),
+            health_paid=round(stage_health, 2),
+            withdrawals={k: round(v, 2) for k, v in c["withdrawal"].items()},
+            taxes={k: round(v, 2) for k, v in c["tax"].items()},
+            health={k: round(v, 2) for k, v in c.get("health", {}).items()},
+            ending_balances={
+                k: round(v, 2) for k, v in c["ending_balances"].items()
+            },
+            early_return_tax_by_account={
+                k: round(v, 2)
+                for k, v in c.get("early_return_tax_by_account", {}).items()
+            },
         )
+        year.part_time_monthly = round(extra_income_monthly(data, year), 2)
+        year.obligations_monthly = round(obligations_monthly(data, age), 2)
+        year.lifestyle_monthly = round(lifestyle_monthly_net(data, year), 2)
+        years.append(year)
 
     return years, total_withdrawn_net, total_tax, total_health
 
@@ -1463,7 +1471,9 @@ def _exit_tax(state: SimulationState, age: int) -> float:
 def _finalize_result(
     data: SimulationInput, state: SimulationState, target: float | None = None
 ) -> SimulationResult:
-    years, total_withdrawn_net, total_tax, total_health = _assemble_years(state.computed)
+    years, total_withdrawn_net, total_tax, total_health = _assemble_years(
+        state.computed, data
+    )
     sorted_ages = sorted(state.computed.keys())
     final_balances = state.computed[sorted_ages[-1]]["ending_balances"] if sorted_ages else {}
     final_wealth = round(sum(final_balances.values()), 2)

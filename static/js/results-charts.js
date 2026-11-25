@@ -219,6 +219,23 @@ function wzChartVisibleRange(values) {
     return { first, last };
 }
 
+function wzChartLifestyleRange(model) {
+    if (!model.lifestyle) return null;
+    const affected = model.lifestyle.map((value, index) => (
+        value > 0.5 && (
+            (model.obligations?.[index] || 0) > 0.5
+            || (model.partTime?.[index] || 0) > 0.5
+        )
+    ));
+    const first = affected.indexOf(true);
+    if (first === -1) return null;
+    const last = Math.min(
+        model.lifestyle.length - 1,
+        affected.lastIndexOf(true) + 1,
+    );
+    return { first, last };
+}
+
 function wzChartLegendHtml(groups) {
     return groups.map((group) => {
         const colorKey = wzChartColorKey(group.key);
@@ -317,7 +334,10 @@ function wzChartSummary(model) {
         const horizonText = Number.isFinite(horizon)
             ? ` Horyzont planu: ${horizon} r.ż.; dalsze lata pokazują sam ZUS.`
             : "";
-        return `Wykres miesięcznych wypłat netto według kont, wiek ${first}–${last}. Łącznie w horyzoncie ${wzFmtZloty(total)} zł netto.${horizonText} ${extra.join(" ")} Użyj strzałek, aby czytać szczegóły.`;
+        const lifestyleText = model.lifestyle
+            ? " Przerywana linia pokazuje budżet na życie po odjęciu zobowiązań."
+            : "";
+        return `Wykres miesięcznych wypłat netto według kont, wiek ${first}–${last}. Łącznie w horyzoncie ${wzFmtZloty(total)} zł netto.${horizonText}${lifestyleText} ${extra.join(" ")} Użyj strzałek, aby czytać szczegóły.`;
     }
     const peakIndex = model.totals.indexOf(peak);
     return `Wykres kapitału prywatnego według kont, wiek ${first}–${last}. Kapitał szczytowy ${wzFmtZloty(peak)} zł w wieku ${model.ages[peakIndex]}.${model.truncated ? " Wykres ucięty na horyzoncie planu." : ""} Użyj strzałek, aby czytać szczegóły.`;
@@ -394,6 +414,39 @@ function wzChartAnnotationsFor(input, projection) {
             : `ZUS startuje od ${zusStage.start_age} r.ż. To ustawowy wiek emerytalny (${statutoryAge} lat).`;
         add("zus", "ZUS", zusStage.start_age, zusText);
     }
+    const obligations = Array.isArray(input?.obligations) && input.obligations.length
+        ? input.obligations
+        : (Number(input?.mortgage_monthly) > 0 && input?.mortgage_end_age != null
+            ? [{
+                name: "Kredyt hipoteczny",
+                monthly: Number(input.mortgage_monthly),
+                end_age: Number(input.mortgage_end_age),
+                redirect_to_savings: input.redirect_mortgage_to_savings !== false,
+            }]
+            : []);
+    const obligationsByEnd = new Map();
+    obligations.forEach((obligation) => {
+        const endAge = Number(obligation.end_age);
+        if (!Number.isFinite(endAge)) return;
+        if (!obligationsByEnd.has(endAge)) obligationsByEnd.set(endAge, []);
+        obligationsByEnd.get(endAge).push(obligation);
+    });
+    obligationsByEnd.forEach((items, endAge) => {
+        const total = items.reduce((sum, item) => sum + (Number(item.monthly) || 0), 0);
+        const details = items.map((item) => {
+            const redirect = item.redirect_to_savings === false
+                ? "zostaje w budżecie"
+                : "na oszczędności";
+            return `${item.name || "Zobowiązanie"}: ${wzFmtZloty(item.monthly)} zł/mies. (${redirect})`;
+        }).join("; ");
+        add(
+            "obligation",
+            "Koniec zobowiązania",
+            endAge,
+            `Od ${endAge} r.ż. kończy się: ${details}. Uwalnia to ${wzFmtZloty(total)} zł/mies.`,
+            "Koniec zob."
+        );
+    });
     if (horizonAge != null) {
         const lastYear = Math.max(minAge, horizonAge - 1);
         add(
@@ -726,8 +779,26 @@ function wzChartTooltipHtml(model, index) {
         return `<div class="wz-chart-tip-group">${row}${subs ? `<div class="wz-chart-tip-subrows">${subs}</div>` : ""}</div>`;
     }).join("");
 
+    let lifestyleBlock = "";
+    if (model.kind === "withdrawals" && model.lifestyle) {
+        const budget = Number(model.lifestyle[index]) || 0;
+        const obligations = Number(model.obligations?.[index]) || 0;
+        const partTime = Number(model.partTime?.[index]) || 0;
+        if (budget > 0.5) {
+            lifestyleBlock = `<div class="wz-chart-tip-group wz-chart-tip-lifestyle">
+                <div class="wz-chart-tip-row">
+                    <span class="wz-chart-tip-label"><span class="wz-chart-swatch"></span><span>Budżet na życie</span></span>
+                    <span class="wz-chart-tip-value">${wzFmtZloty(budget)} zł</span>
+                </div>
+                ${partTime > 0.5 ? `<div class="wz-chart-tip-subrow"><span>w tym praca</span><span>${wzFmtZloty(partTime)} zł</span></div>` : ""}
+                ${obligations > 0.5 ? `<div class="wz-chart-tip-subrow"><span>zobowiązania</span><span>−${wzFmtZloty(obligations)} zł</span></div>` : ""}
+            </div>`;
+        }
+    }
+
     return `<div class="wz-gantt-tip-title">Wiek ${model.ages[index]}</div>
         ${totalCard}
+        ${lifestyleBlock}
         ${rows ? `<div class="wz-chart-tip-list">${rows}</div>` : ""}`;
 }
 
@@ -858,7 +929,12 @@ function wzRenderChartSvg(container, model) {
     const plotW = Math.max(40, width - margin.left - margin.right);
     const plotH = height - margin.top - margin.bottom;
     const count = model.ages.length;
-    const maxTotal = Math.max(0, ...model.totals);
+    const budgetRange = model.kind === "withdrawals" ? wzChartLifestyleRange(model) : null;
+    const maxTotal = Math.max(
+        0,
+        ...model.totals,
+        ...(budgetRange ? model.lifestyle : []),
+    );
     const step = wzNiceStep(Math.max(1, maxTotal * 1.08), 5);
     const yMax = Math.max(step, Math.ceil((maxTotal * 1.08) / step) * step);
     const capitalInThousands = model.kind === "capital" && yMax >= 10_000;
@@ -939,6 +1015,9 @@ function wzRenderChartSvg(container, model) {
         }
     });
     svg += `<path class="wz-chart-total" d="${wzChartLinePath(x, y, model.totals)}"/>`;
+    if (budgetRange) {
+        svg += `<path class="wz-chart-lifestyle" d="${wzChartLinePath(x, y, model.lifestyle, budgetRange.first, budgetRange.last)}"/>`;
+    }
     svg += wzChartReferenceSvg(model, wzChartReferences(model), {
         x, y, margin, plotW, yMax,
     });
@@ -1040,6 +1119,19 @@ function wzRenderCharts(input, projection, summary = {}) {
         wzChartTipHide(true);
         return;
     }
+    const series = (values) => Array.from(
+        { length: ages.length },
+        (_, index) => Number(values?.[index]) || 0
+    );
+    const lifestyle = series(chart?.lifestyle_monthly);
+    const obligations = series(chart?.obligations_monthly);
+    const partTime = series(chart?.part_time_monthly);
+    const hasLifestyle = lifestyle.some((value, index) => (
+        value > 0.5 && (
+            obligations[index] > 0.5
+            || partTime[index] > 0.5
+        )
+    ));
 
     const withdrawalGroups = wzScaleChartGroups(
         wzLimitChartGroups(
@@ -1100,6 +1192,9 @@ function wzRenderCharts(input, projection, summary = {}) {
             horizonAge,
             groups: withdrawalGroups,
             totals: wzChartTotals(withdrawalGroups, ages.length),
+            lifestyle: hasLifestyle ? lifestyle : null,
+            obligations: hasLifestyle ? obligations : null,
+            partTime: hasLifestyle ? partTime : null,
         },
         capital: {
             kind: "capital",
@@ -1116,7 +1211,12 @@ function wzRenderCharts(input, projection, summary = {}) {
 
     const withdrawalLegend = el("wzWithdrawalsLegend");
     const capitalLegend = el("wzCapitalLegend");
-    if (withdrawalLegend) withdrawalLegend.innerHTML = wzChartLegendHtml(withdrawalGroups);
+    if (withdrawalLegend) {
+        withdrawalLegend.innerHTML = wzChartLegendHtml(withdrawalGroups)
+            + (hasLifestyle
+                ? `<span class="wz-chart-legend-item wz-chart-legend-lifestyle"><span class="wz-chart-swatch"></span>Budżet na życie</span>`
+                : "");
+    }
     if (capitalLegend) capitalLegend.innerHTML = wzChartLegendHtml(capitalGroups);
 
     const withdrawalChart = el("wzWithdrawalsChart");

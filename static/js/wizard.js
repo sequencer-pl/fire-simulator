@@ -249,6 +249,7 @@ let wzStrategyExpanded = false;
 let wzLongevityGrowth = 1.5;
 let wzEtatPeriodPrev = "year";
 let wzFormVersion = 0;
+let wzObligationRedirectSeq = 0;
 let wzAccountConfig = null;
 let wzAllocationMode = "auto";
 let wzManualAllocations = null;
@@ -936,6 +937,8 @@ function wzObligationDefaultAges() {
 function wzCreateObligationRow(data = {}) {
     const ages = wzObligationDefaultAges();
     const row = document.createElement("div");
+    const redirectName = `wzObligationRedirect${++wzObligationRedirectSeq}`;
+    const redirectToSavings = data.redirect_to_savings !== false;
     row.className = "obligation-row";
     row.dataset.obligation = "true";
     row.innerHTML = `
@@ -978,11 +981,20 @@ function wzCreateObligationRow(data = {}) {
                 })}
             </div>
         </div>
-        <div class="obligation-actions">
-            <label class="field-checkbox obligation-redirect-label">
-                <input type="checkbox" class="obligation-redirect" ${data.redirect_to_savings !== false ? "checked" : ""}>
-                <span>Po zakończeniu przekieruj na oszczędności</span>
-            </label>
+        <div class="obligation-redirect">
+            <span class="obligation-redirect-title">Po zakończeniu zobowiązania</span>
+            <div class="segmented is-sm segmented-stack obligation-redirect-switch"
+                 role="radiogroup" aria-label="Po zakończeniu zobowiązania">
+                <label class="seg-option">
+                    <input type="radio" class="obligation-redirect-yes" name="${redirectName}" value="yes" ${redirectToSavings ? "checked" : ""}>
+                    Przekierować na oszczędności
+                </label>
+                <label class="seg-option">
+                    <input type="radio" class="obligation-redirect-no" name="${redirectName}" value="no" ${redirectToSavings ? "" : "checked"}>
+                    Zostawić w budżecie
+                </label>
+            </div>
+            <p class="field-hint obligation-redirect-hint">Bez przekierowania uwolniona kwota zostaje w budżecie na życie.</p>
         </div>`;
     row.querySelector(".obligation-remove").addEventListener("click", () => {
         row.remove();
@@ -1034,7 +1046,7 @@ function wzGatherObligations() {
                 monthly,
                 start_age: Number.isFinite(startAge) ? startAge : 0,
                 end_age: Number.isFinite(endAge) ? endAge : 0,
-                redirect_to_savings: Boolean(row.querySelector(".obligation-redirect")?.checked),
+                redirect_to_savings: Boolean(row.querySelector(".obligation-redirect-yes")?.checked),
             };
         })
         .filter((item) => item.monthly > 0 && item.end_age > item.start_age);
@@ -3067,7 +3079,7 @@ function wzRenderResult(data) {
         hero: wzHeroData(data),
         warnings,
         metrics: window.ResultsSummary.metricsFor(planView),
-        facts: wzFactsFor(active.projection, data, active.input),
+        facts: wzFactsFor(active.projection, data, active.input, summary),
         why: wzPlanWhyHtml(data),
     });
     wzRenderScenarios(data);
@@ -3259,7 +3271,7 @@ function wzRenderScenarios(data) {
     box.innerHTML = html;
 }
 
-function wzFactsFor(projection, plan = null, input = null) {
+function wzFactsFor(projection, plan = null, input = null, summary = null) {
     const facts = [];
     const mixText = wzAssetMixLabel(plan?.asset_mix);
     if (mixText) {
@@ -3272,6 +3284,8 @@ function wzFactsFor(projection, plan = null, input = null) {
             `<span class="chip wz-fact">Nowe wpłaty: ${escapeHtml(mixText)}${tipHtml(tip)}</span>`
         );
     }
+    const budget = window.ResultsSummary.budgetFact(input, summary);
+    if (budget) facts.push(budget);
     return facts
         .concat(window.ResultsSummary.ikzeFacts(projection))
         .concat(window.ResultsSummary.obligationFacts(input));

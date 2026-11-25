@@ -168,7 +168,10 @@
         const details = obligations.map((item) => {
             const from = Number(item.start_age) || 0;
             const to = Number(item.end_age) || 0;
-            return `${item.name || "Zobowiązanie"}: ${money(item.monthly)}/mies. od ${from} do ${to} r.ż.`;
+            const redirect = item.redirect_to_savings === false
+                ? "po zakończeniu zostaje w budżecie"
+                : "po zakończeniu na oszczędności";
+            return `${item.name || "Zobowiązanie"}: ${money(item.monthly)}/mies. od ${from} do ${to} r.ż., ${redirect}.`;
         }).join(" ");
         const endAges = obligations.map((item) => Number(item.end_age)).filter(Number.isFinite);
         const endLabel = endAges.length ? ` do ${Math.max(...endAges)} r.ż.` : "";
@@ -177,16 +180,26 @@
         ];
     }
 
+    function budgetFact(input, summary) {
+        const obligations = obligationsFor(input);
+        if (!obligations.length) return "";
+        const avg = Number(summary?.avg_monthly);
+        const min = Number(summary?.min_monthly);
+        if (!Number.isFinite(avg)) return "";
+        const label = Number.isFinite(min)
+            ? `min. ${money(min)}/mies.`
+            : `średnio ${money(avg)}/mies.`;
+        const detail = Number.isFinite(min)
+            ? ` Minimalny budżet: ${money(min)}/mies., średni: ${money(avg)}/mies.`
+            : ` Średni budżet: ${money(avg)}/mies.`;
+        return `<span class="chip wz-fact">Budżet na życie: ${label}${tip(`Dochód netto z planu (portfel + ZUS + praca) po odjęciu aktywnych zobowiązań czasowych. To kwota na życie, a nie wypłata z portfela.${detail} Wzrost po zakończeniu zobowiązania zobaczysz w tabeli rok po roku.`)}</span>`;
+    }
+
     function factsForSimulator(input, projection, summary) {
         const obligationChips = obligationFacts(input);
         const facts = ikzeFacts(projection).concat(obligationChips);
-        if (obligationChips.length
-            && summary?.avg_monthly != null
-            && Number(summary.avg_monthly) < Number(summary.avg_income ?? summary.avg_monthly) - 0.5) {
-            facts.push(
-                `<span class="chip wz-fact">Budżet na życie: ${money(summary.avg_monthly)}/mies.${tip("Średni miesięczny budżet po odjęciu aktywnych zobowiązań czasowych. Wypłata netto z planu to osobna metryka.")}</span>`
-            );
-        }
+        const budget = budgetFact(input, summary);
+        if (budget) facts.push(budget);
         const peak = Number(summary?.peak_wealth);
         if (Number.isFinite(peak) && peak > 0 && (summary?.zus_monthly ?? 0) > 0) {
             facts.push(
@@ -239,6 +252,7 @@
         metricsFor,
         factsForSimulator,
         obligationFacts,
+        budgetFact,
         ikzeFacts,
         policyText,
         render,

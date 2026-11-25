@@ -384,6 +384,9 @@ class ProjectionChart(BaseModel):
     ages: list[int] = Field(default_factory=list)
     withdrawals_net: dict[str, list[float]] = Field(default_factory=dict)
     balances: dict[str, list[float]] = Field(default_factory=dict)
+    lifestyle_monthly: list[float] = Field(default_factory=list)
+    obligations_monthly: list[float] = Field(default_factory=list)
+    part_time_monthly: list[float] = Field(default_factory=list)
 
 
 class PlanProjection(BaseModel):
@@ -2425,6 +2428,9 @@ def _projection_chart(result: SimulationResult) -> ProjectionChart:
             account: [values.get(index, 0.0) for index in range(count)]
             for account, values in balances.items()
         },
+        lifestyle_monthly=[round(year.lifestyle_monthly, 2) for year in result.years],
+        obligations_monthly=[round(year.obligations_monthly, 2) for year in result.years],
+        part_time_monthly=[round(year.part_time_monthly, 2) for year in result.years],
     )
 
 

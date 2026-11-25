@@ -82,6 +82,10 @@ def test_summary_separates_income_from_lifestyle_after_obligations():
     assert lifestyle_monthly_net(input_data, year) == pytest.approx(
         year.monthly_withdrawal - 2_000, abs=0.02
     )
+    assert year.obligations_monthly == pytest.approx(2_000, abs=0.02)
+    assert year.lifestyle_monthly == pytest.approx(
+        lifestyle_monthly_net(input_data, year), abs=0.02
+    )
 
 
 def test_legacy_mortgage_maps_to_one_obligation():

@@ -232,6 +232,11 @@ class YearResult(BaseModel):
     annual_withdrawal: float = 0.0
     monthly_withdrawal: float = 0.0
     zus_monthly: float = 0.0
+    # Budżet na życie w danym roku: dochód netto + część etatu - zobowiązania.
+    # W akumulacji silnik nie modeluje pensji, więc te pola są tam zerowe.
+    part_time_monthly: float = 0.0
+    obligations_monthly: float = 0.0
+    lifestyle_monthly: float = 0.0
     tax_paid: float = 0.0
     # Składka zdrowotna (9%) od emerytury ZUS — nie jest podatkiem, ale
     # pomniejsza kwotę „na rękę”.
