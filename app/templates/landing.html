@@ -7,8 +7,8 @@
         <section class="hero">
             <div class="hero-copy">
                 <p class="eyebrow">Polski planer FIRE</p>
-                <h2>Ile wystarczy odkładać, żeby móc przestać pracować?</h2>
-                <p class="hero-lead">Podatki, limity i ZUS w jednym modelu. Wynik w dzisiejszych złotych i trzy scenariusze zamiast jednej magicznej liczby.</p>
+                <h2>Zaplanuj swoją drogę do niezależności finansowej</h2>
+                <p class="hero-lead">ZUS, PPK, IKE, IKZE, OKI i zwykły rachunek maklerski w jednym modelu. Wszystko w dzisiejszych złotych, z polskimi podatkami i limitami, bez obietnic.</p>
                 <div class="btn-row hero-actions">
                     <a href="/wizard" class="btn btn-primary">Zbuduj plan z Asystentem</a>
                     <a href="/sim" class="btn btn-secondary">Otwórz symulator</a>
@@ -21,134 +21,176 @@
             <aside class="card hero-preview" aria-label="Przykładowy plan FIRE">
                 <div class="hero-preview-head">
                     <div class="hero-preview-heading">
-                        <span class="eyebrow">Przykładowy plan</span>
-                        <div class="hero-preview-title-row">
-                            <p class="hero-preview-title">Od wpłat do emerytury</p>
-                            <button type="button" class="tip" aria-label="Założenia przykładowego planu" aria-describedby="tip-preview">?<span class="tooltip" role="tooltip" id="tip-preview">Przykład poglądowy dla 40-latka: 4 000 zł wpłat miesięcznie, 300 000 zł na start, horyzont do 85 r.ż. i wariant realny. Wiek FIRE to moment zakończenia pracy. Wypłata mies. to średnia netto z portfela i ZUS. Szczyt majątku to najwyższy majątek prywatny przed wypłatami. Kwoty są zaokrąglone; Twój plan policzy Asystent.</span></button>
+                        <div class="hero-preview-heading-row">
+                            <span class="eyebrow">Przykładowy plan</span>
+                            <button type="button" class="tip" aria-label="Założenia przykładowego planu" aria-describedby="tip-preview">?<span class="tooltip" role="tooltip" id="tip-preview">Przykład poglądowy dla 40-latka: 16 000 zł brutto miesięcznie, 500 000 zł na start, 8 000 zł wpłat miesięcznie, Barista FIRE od 45 r.ż. z pensją 3 000 zł netto, pełne FIRE od 55 r.ż., ZUS od 65 r.ż., horyzont do 85 r.ż. i wariant realny. Min. wypłata to najniższa miesięczna kwota netto w horyzoncie: 3 000 zł w bessie, 5 000 zł w wariancie realnym i 7 600 zł w hossie. Szczyt majątku to ok. 1,6 mln zł. Po 65 r.ż. portfel FIRE dopłaca do emerytury ZUS, a ZUS w modelu liczy się do 100 r.ż. Kwoty są zaokrąglone; Twój plan policzy Asystent.</span></button>
                         </div>
                     </div>
-                    <span class="chip chip-primary">1 z 3 scenariuszy</span>
+                    <span class="chip">3 scenariusze</span>
                 </div>
-                <div class="metric-grid is-compact hero-metrics">
-                    <div class="metric">
-                        <span class="metric-label">Wiek FIRE</span>
-                        <span class="metric-value">55 lat</span>
+                <div class="hero-plan" role="group" aria-label="Etapy przykładowego planu">
+                    <p class="hero-plan-summary">Barista FIRE <strong>45 lat</strong> · pełne FIRE <strong>55 lat</strong> · min. wypłata <strong>5 000 zł/mies.</strong></p>
+                    <div class="hero-plan-timeline" aria-hidden="true">
+                        <span class="hero-plan-seg is-accum"></span>
+                        <span class="hero-plan-seg is-partial"></span>
+                        <span class="hero-plan-seg is-full"></span>
+                        <span class="hero-plan-seg is-retire"></span>
                     </div>
-                    <div class="metric">
-                        <span class="metric-label">Wypłata mies.</span>
-                        <span class="metric-value">4 900 zł</span>
+                    <div class="hero-plan-axis" aria-hidden="true">
+                        <span>40</span>
+                        <span>45</span>
+                        <span>55</span>
+                        <span>65</span>
+                        <span>85</span>
                     </div>
-                    <div class="metric">
-                        <span class="metric-label">Szczyt majątku</span>
-                        <span class="metric-value">1,5 mln zł</span>
-                    </div>
-                </div>
-                <div class="hero-track" aria-hidden="true">
-                    <span class="hero-seg is-accum"></span>
-                    <span class="hero-seg is-bridge"></span>
-                    <span class="hero-seg is-retire"></span>
-                    <span class="hero-pin"></span>
-                </div>
-                <div class="hero-stages">
-                    <div class="hero-stage">
-                        <span class="stage-dot accum" aria-hidden="true"></span>
-                        <div class="hero-stage-body">
-                            <span class="hero-stage-title">Akumulacja</span>
-                            <span class="hero-stage-meta">40–55 r.ż. · wpłaty</span>
+                    <div class="hero-plan-grid">
+                        <div class="hero-plan-stage is-accum">
+                            <div class="hero-plan-stage-head">
+                                <span class="hero-plan-stage-title">Akumulacja</span>
+                                <span class="hero-plan-stage-age">40–45 lat</span>
+                            </div>
+                            <span class="hero-plan-stage-value">+8 000 zł/mies.</span>
+                            <span class="hero-plan-stage-note">wpłaty</span>
+                        </div>
+                        <div class="hero-plan-stage is-partial">
+                            <div class="hero-plan-stage-head">
+                                <span class="hero-plan-stage-title">Barista FIRE</span>
+                                <span class="hero-plan-stage-age">45–55 lat</span>
+                            </div>
+                            <span class="hero-plan-stage-value">3 000 + 2 200 zł</span>
+                            <span class="hero-plan-stage-note">praca + portfel FIRE</span>
+                        </div>
+                        <div class="hero-plan-stage is-full">
+                            <div class="hero-plan-stage-head">
+                                <span class="hero-plan-stage-title">Pełne FIRE</span>
+                                <span class="hero-plan-stage-age">55–65 lat</span>
+                            </div>
+                            <span class="hero-plan-stage-value">5 400 zł/mies.</span>
+                            <span class="hero-plan-stage-note">portfel FIRE</span>
+                        </div>
+                        <div class="hero-plan-stage is-retire">
+                            <div class="hero-plan-stage-head">
+                                <span class="hero-plan-stage-title">Emerytura</span>
+                                <span class="hero-plan-stage-age">65–85 lat</span>
+                            </div>
+                            <span class="hero-plan-stage-value">1 600 + 3 900 zł</span>
+                            <span class="hero-plan-stage-note">ZUS + portfel FIRE</span>
                         </div>
                     </div>
-                    <div class="hero-stage">
-                        <span class="stage-dot real" aria-hidden="true"></span>
-                        <div class="hero-stage-body">
-                            <span class="hero-stage-title">Brydż do emerytury</span>
-                            <span class="hero-stage-meta">55–65 r.ż. · portfel</span>
-                        </div>
-                    </div>
-                    <div class="hero-stage">
-                        <span class="stage-dot real" aria-hidden="true"></span>
-                        <div class="hero-stage-body">
-                            <span class="hero-stage-title">Emerytura</span>
-                            <span class="hero-stage-meta">65–85 r.ż. · ZUS + portfel</span>
-                        </div>
-                    </div>
                 </div>
-                <p class="hero-preview-note">Przykład poglądowy · 40 lat · wariant realny</p>
+                <p class="hero-preview-note">Przykład dla 40-latka · Twój indywidualny plan dopasuje Asystent</p>
             </aside>
         </section>
 
-        <section class="landing-section" aria-labelledby="how-title">
-            <div class="section-head">
-                <div class="section-head-copy">
-                    <div class="section-title-row">
-                        <h3 id="how-title" class="section-title">Jak to działa</h3>
-                        <button type="button" class="tip" aria-label="Jak prowadzi Asystent" aria-describedby="tip-how">?<span class="tooltip" role="tooltip" id="tip-how">Asystent dobiera pytania do Twojej sytuacji. Możesz pominąć konta, których nie masz, a gotowy plan otworzyć w Symulatorze i dopracować ręcznie.</span></button>
+        <section class="landing-about" aria-labelledby="about-title">
+            <h3 id="about-title" class="section-title">Zanim zaczniesz planować</h3>
+            <div class="about-grid">
+                <div class="card about-group">
+                    <div class="about-group-head">
+                        <span class="chip chip-real">Mechanika modelu</span>
+                        <h4 class="about-group-title">Czy wiesz, że…</h4>
                     </div>
-                    <p class="section-lead">Trzy kroki od Twoich liczb do planu.</p>
+                    <ul class="fact-list">
+                        <li class="card-inset fact-item">
+                            <span class="tip-label-row">
+                                <span class="tip-label-text">
+                                    <strong>Podajesz konkretne liczby, a silnik liczy każdy rok Twojego planu</strong>
+                                    <span class="fact-note">od dziś aż do końca emerytury.</span>
+                                </span>
+                                <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">Wpisujesz swój wiek, płeć, obecne zarobki (na etacie lub B2B), kwotę odkładaną co miesiąc, stan posiadanych kont (ZUS, PPK, IKE, IKZE, lokaty, obligacje, broker, nieruchomość) oraz cel: kiedy chcesz zwolnić tempo lub jakiej wypłaty oczekujesz.</span></span>
+                            </span>
+                        </li>
+                        <li class="card-inset fact-item">
+                            <span class="tip-label-row">
+                                <span class="tip-label-text">
+                                    <strong>Wszystkie kwoty widzisz w dzisiejszych złotych</strong>
+                                    <span class="fact-note">czyli w dzisiejszej sile nabywczej.</span>
+                                </span>
+                                <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">Wypłata 6 000 zł/mies. za 25 lat oznacza dokładnie tyle, ile dziś możesz kupić za 6 000 zł. Inflacja pracuje jednak w tle tam, gdzie podatki liczy się od kwot nominalnych: przy podatku Belki na lokacie i u brokera, utracie wartości gotówki oraz waloryzacji ZUS.</span></span>
+                            </span>
+                        </li>
+                        <li class="card-inset fact-item">
+                            <span class="tip-label-row">
+                                <span class="tip-label-text">
+                                    <strong>Polskie podatki, limity i ulgi są zaszyte w silniku</strong>
+                                    <span class="fact-note">nie musisz liczyć ich ręcznie.</span>
+                                </span>
+                                <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">Model pilnuje rocznych limitów wpłat na IKE, IKZE i OIPE, wylicza zwrot podatku z ulgi IKZE i reinwestuje go, nalicza 19% Belki tylko od zysku ponad koszt zakupu, uwzględnia podatek od aktywów OKI oraz zasady wypłat przed 60. i 65. r.ż. Aktualne limity i stawki znajdziesz w Konfiguracji.</span></span>
+                            </span>
+                        </li>
+                        <li class="card-inset fact-item">
+                            <span class="tip-label-row">
+                                <span class="tip-label-text">
+                                    <strong>Twój prywatny portfel współpracuje z emeryturą z ZUS</strong>
+                                    <span class="fact-note">przed i po wieku emerytalnym.</span>
+                                </span>
+                                <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">Przed osiągnięciem wieku emerytalnego (60 lat kobiety / 65 lat mężczyźni) wypłaty finansuje tzw. „brydż” z prywatnych kont. Gdy wchodzi dożywotnie świadczenie z ZUS (wyliczone z Twoich składek i tablic GUS, po odliczeniu PIT i 9% składki zdrowotnej), portfel dopłaca już tylko brakującą różnicę do Twojego celu.</span></span>
+                            </span>
+                        </li>
+                        <li class="card-inset fact-item">
+                            <span class="tip-label-row">
+                                <span class="tip-label-text">
+                                    <strong>Nie musisz kończyć pracy z dnia na dzień</strong>
+                                    <span class="fact-note">zamodelujesz też pół etatu, Coast FIRE i Barista FIRE.</span>
+                                </span>
+                                <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">Zamiast nagłego końca kariery możesz zaplanować okres przejściowy (sabbatical / lżejsza praca): przejście na część etatu, w której pensja pokrywa bieżące wydatki (Coast FIRE) albo jest uzupełniana dopłatą z portfela inwestycyjnego (Barista FIRE).</span></span>
+                            </span>
+                        </li>
+                    </ul>
                 </div>
-            </div>
-            <div class="card landing-steps">
-                <div class="landing-step">
-                    <span class="landing-step-num" aria-hidden="true">1</span>
-                    <div class="landing-step-body">
-                        <h4>Podaj punkt startu</h4>
-                        <p>Wiek, zarobki, oszczędności i konta, które masz.</p>
-                    </div>
-                </div>
-                <div class="landing-step">
-                    <span class="landing-step-num" aria-hidden="true">2</span>
-                    <div class="landing-step-body">
-                        <h4>Ustaw cel</h4>
-                        <p>Kiedy chcesz zwolnić tempo i ile chcesz wypłacać.</p>
-                    </div>
-                </div>
-                <div class="landing-step">
-                    <span class="landing-step-num" aria-hidden="true">3</span>
-                    <div class="landing-step-body">
-                        <h4>Zobacz plan</h4>
-                        <p>Wpłaty, podatki, wypłaty i ZUS rok po roku w trzech scenariuszach.</p>
-                    </div>
-                </div>
-            </div>
-        </section>
 
-        <section class="landing-section" aria-labelledby="model-title">
-            <div class="section-head">
-                <div class="section-head-copy">
-                    <div class="section-title-row">
-                        <h3 id="model-title" class="section-title">Co model liczy</h3>
-                        <button type="button" class="tip" aria-label="Co liczy model" aria-describedby="tip-model">?<span class="tooltip" role="tooltip" id="tip-model"><strong>Model liczy każdy rok</strong> od dziś do końca horyzontu, w dzisiejszych złotych. ROI podajesz realne, brutto, przed podatkiem — podatek nalicza silnik według zasad konta. ZUS to kapitał ÷ ŚDTŻ z tablic GUS, a nie z góry przyjęta kwota. Bessa i hossa to delty względem Twojej konfiguracji, nie prognozy. Przepisy mogą się zmienić — założenia edytujesz w Konfiguracji.</span></button>
+                <div class="card about-group">
+                    <div class="about-group-head">
+                        <span class="chip chip-warn">Założenia i ograniczenia</span>
+                        <h4 class="about-group-title">Pamiętaj, że…</h4>
                     </div>
-                    <p class="section-lead">Każdy rok, każde konto, polskie zasady.</p>
-                </div>
-            </div>
-            <div class="landing-features">
-                <div class="card landing-feature">
-                    <span class="landing-icon" aria-hidden="true"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M4 21h16M6 7l-3 7a3 3 0 0 0 6 0zM18 7l-3 7a3 3 0 0 0 6 0zM5 7h14"/></svg></span>
-                    <div class="landing-feature-body">
-                        <h4>Podatki per konto</h4>
-                        <p>PIT, Belka, ryczałt IKZE i podatek od aktywów OKI — według zasad konta.</p>
-                    </div>
-                </div>
-                <div class="card landing-feature">
-                    <span class="landing-icon" aria-hidden="true"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21h16M6 21v-9M10 21v-9M14 21v-9M18 21v-9M3 12l9-6 9 6z"/></svg></span>
-                    <div class="landing-feature-body">
-                        <h4>ZUS z kapitału</h4>
-                        <p>Emerytura z Twoich składek i tablic GUS, a nie z góry przyjętej kwoty.</p>
-                    </div>
-                </div>
-                <div class="card landing-feature">
-                    <span class="landing-icon" aria-hidden="true"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 17 9 11 13 15 21 7"/><polyline points="15 7 21 7 21 13"/></svg></span>
-                    <div class="landing-feature-body">
-                        <h4>Trzy scenariusze</h4>
-                        <p>Bessa, realne i hossa — obok siebie, zamiast jednej liczby.</p>
-                    </div>
-                </div>
-                <div class="card landing-feature">
-                    <span class="landing-icon" aria-hidden="true"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg></span>
-                    <div class="landing-feature-body">
-                        <h4>Etapy życia</h4>
-                        <p>Akumulacja, brydż do emerytury, ZUS i dopłata z portfela.</p>
-                    </div>
+                    <ul class="fact-list">
+                        <li class="card-inset fact-item">
+                            <span class="tip-label-row">
+                                <span class="tip-label-text">
+                                    <strong>To jest model matematyczny, nie wróżba</strong>
+                                    <span class="fact-note">ani rekomendacja inwestycyjna.</span>
+                                </span>
+                                <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">Symulator pokazuje długoterminowe konsekwencje Twoich decyzji finansowych, stopy oszczędności i podatków. Nie podpowiada, jakie konkretne akcje czy fundusze kupić. Ma pomóc zrozumieć mechanikę i świadomie zaplanować drogę do niezależności.</span></span>
+                            </span>
+                        </li>
+                        <li class="card-inset fact-item">
+                            <span class="tip-label-row">
+                                <span class="tip-label-text">
+                                    <strong>Stała stopa zwrotu ukrywa zmienność giełdy</strong>
+                                    <span class="fact-note">dlatego plan sprawdzasz w trzech scenariuszach.</span>
+                                </span>
+                                <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">W rzeczywistości rynki nie rosną o stały procent co roku. Zdarzają się kilkuletnie spadki (ryzyko sekwencji stóp zwrotu). Dlatego Asystent od razu zestawia Twój plan w wariancie ostrożnym (kryzysowym), bazowym oraz optymistycznym.</span></span>
+                            </span>
+                        </li>
+                        <li class="card-inset fact-item">
+                            <span class="tip-label-row">
+                                <span class="tip-label-text">
+                                    <strong>Mieszkanie, w którym mieszkasz, obniża wydatki</strong>
+                                    <span class="fact-note">ale nie wypłaca co miesiąc gotówki.</span>
+                                </span>
+                                <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">Własne mieszkanie sprawia, że potrzebujesz niższej miesięcznej kwoty na życie (odpada koszt najmu), a po spłacie kredytu hipotecznego Twoje koszty spadają skokowo. Jako aktywo w portfelu dodawaj tylko nieruchomości inwestycyjne (na wynajem lub przeznaczone na sprzedaż).</span></span>
+                            </span>
+                        </li>
+                        <li class="card-inset fact-item">
+                            <span class="tip-label-row">
+                                <span class="tip-label-text">
+                                    <strong>Konto w symulatorze to „opakowanie podatkowe”</strong>
+                                    <span class="fact-note">możesz mieć kilka lokat lub brokerów.</span>
+                                </span>
+                                <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">IKE, IKZE czy OIPE można mieć tylko jedno (limit ustawowy), a ETF-y lub akcje kupujesz wewnątrz nich albo na zwykłym koncie maklerskim (Broker). Jeśli masz kilka lokat w różnych bankach lub kilku brokerów o różnym ROI (np. XTB na ETF-y i IBKR na akcje), możesz dodać je osobno i nadać im własne nazwy.</span></span>
+                            </span>
+                        </li>
+                        <li class="card-inset fact-item">
+                            <span class="tip-label-row">
+                                <span class="tip-label-text">
+                                    <strong>Przepisy podatkowe i parametry ZUS mogą się zmienić</strong>
+                                    <span class="fact-note">każde założenie możesz dostosować.</span>
+                                </span>
+                                <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">Domyślna konfiguracja opiera się na przepisach 2026 r. oraz projekcie zmian na 2027 r. W zakładce Konfiguracja możesz samodzielnie zmienić progi podatkowe, limity wpłat, inflację, stopy zwrotu i prognozę długowieczności.</span></span>
+                            </span>
+                        </li>
+                    </ul>
                 </div>
             </div>
         </section>
@@ -164,8 +206,10 @@
                 <a class="card card-link landing-mode" href="/wizard">
                     <span class="landing-icon" aria-hidden="true"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg></span>
                     <span class="landing-mode-body">
-                        <span class="chip chip-primary">Najszybszy start</span>
-                        <span class="landing-mode-title">Asystent</span>
+                        <span class="landing-mode-head">
+                            <span class="landing-mode-title">Asystent</span>
+                            <span class="chip chip-primary">Najszybszy start</span>
+                        </span>
                         <span class="landing-mode-desc">Odpowiadasz na pytania o sytuację i cel. Dostajesz plan w trzech scenariuszach, gotowy do edycji.</span>
                         <span class="landing-mode-cta">Otwórz Asystenta<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
                     </span>
@@ -173,8 +217,10 @@
                 <a class="card card-link landing-mode" href="/sim">
                     <span class="landing-icon" aria-hidden="true"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.83 2.83 0 0 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg></span>
                     <span class="landing-mode-body">
-                        <span class="chip">Pełna kontrola</span>
-                        <span class="landing-mode-title">Symulator</span>
+                        <span class="landing-mode-head">
+                            <span class="landing-mode-title">Symulator</span>
+                            <span class="chip">Pełna kontrola</span>
+                        </span>
                         <span class="landing-mode-desc">Budujesz etapy i konta ręcznie. Widzisz tabelę rok po roku, wykresy i przepływy.</span>
                         <span class="landing-mode-cta">Otwórz Symulator<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
                     </span>
@@ -182,39 +228,16 @@
                 <a class="card card-link landing-mode" href="/compare">
                     <span class="landing-icon" aria-hidden="true"><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M4 21h16M6 7l-3 7a3 3 0 0 0 6 0zM18 7l-3 7a3 3 0 0 0 6 0zM5 7h14"/></svg></span>
                     <span class="landing-mode-body">
-                        <span class="chip">Masz już plany</span>
-                        <span class="landing-mode-title">Porównywarka</span>
+                        <span class="landing-mode-head">
+                            <span class="landing-mode-title">Porównywarka</span>
+                            <span class="chip">Masz już plany</span>
+                        </span>
                         <span class="landing-mode-desc">Wczytujesz do czterech plików .sim.json i zestawiasz warianty. Pliki zostają na dysku.</span>
                         <span class="landing-mode-cta">Otwórz Porównywarkę<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
                     </span>
                 </a>
             </div>
             <p class="landing-config-link">Podatki, limity i parametry ZUS zmienisz w <a href="/sim?view=config">Konfiguracji</a>.</p>
-        </section>
-
-        <section class="landing-section landing-trust" aria-labelledby="trust-title">
-            <div class="banner banner-info">
-                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3 4 6v6c0 5 3.4 8.4 8 9 4.6-.6 8-4 8-9V6z"/></svg>
-                <div class="banner-body">
-                    <p class="banner-title" id="trust-title">Model, nie wróżba</p>
-                    <ul class="banner-list">
-                        <li>To model deterministyczny, nie porada inwestycyjna, prognoza rynku ani gwarancja.</li>
-                        <li>Stała stopa zwrotu ukrywa zmienność, dlatego plan sprawdzasz w trzech scenariuszach.</li>
-                        <li>Przepisy i parametry ZUS mogą się zmienić — założenia edytujesz w Konfiguracji.</li>
-                    </ul>
-                </div>
-            </div>
-        </section>
-
-        <section class="card landing-final" aria-labelledby="final-title">
-            <div class="landing-final-copy">
-                <h3 id="final-title">Policz swój plan na własnych liczbach</h3>
-                <p>Asystent poprowadzi Cię krok po kroku. Bez konta i logowania — dane zostają w przeglądarce.</p>
-            </div>
-            <div class="btn-row landing-final-actions">
-                <a href="/wizard" class="btn btn-primary">Zbuduj plan z Asystentem</a>
-                <a href="/sim" class="btn btn-secondary">Otwórz symulator</a>
-            </div>
         </section>
 
         <p class="landing-footer">Projekt open source na licencji MIT. <a href="https://github.com/sequencer-pl/fire-simulator">Kod i dokumentacja na GitHubie</a>.</p>

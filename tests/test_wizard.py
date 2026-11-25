@@ -297,20 +297,19 @@ def test_mortgage_redirect_splits_accumulation_at_payoff_age():
     assert stages[1].end_age == 55
 
 
-def test_landing_orders_value_before_caveats(client):
+def test_landing_orders_hero_about_modes_footer(client):
     resp = client.get("/")
     assert resp.status_code == 200
     text = resp.text
-    hero = text.index("Ile wystarczy odkładać")
-    how = text.index("Jak to działa")
-    model = text.index("Co model liczy")
+    hero = text.index("Zaplanuj swoją drogę")
+    about = text.index("Zanim zaczniesz planować")
     modes = text.index("Wybierz tryb")
-    trust = text.index("Model, nie wróżba")
-    assert hero < how < model < modes < trust
+    footer = text.index("Projekt open source")
+    assert hero < about < modes < footer
     assert "Zbuduj plan z Asystentem" in text
-    assert "Wiek FIRE" in text
-    assert "1 z 3 scenariuszy" in text
-    assert "Czy wiesz, że" not in text
-    assert "Zanim zaczniesz planować" not in text
+    assert "Barista FIRE" in text
+    assert "Pełne FIRE" in text
+    assert "Przykład dla 40-latka · Twój indywidualny plan dopasuje Asystent" in text
+    assert "Dane zostają w Twojej przeglądarce" in text
     assert "Porównywarka" in text
     assert "Moje symulacje" not in text
