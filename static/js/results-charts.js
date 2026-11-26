@@ -219,23 +219,6 @@ function wzChartVisibleRange(values) {
     return { first, last };
 }
 
-function wzChartLifestyleRange(model) {
-    if (!model.lifestyle) return null;
-    const affected = model.lifestyle.map((value, index) => (
-        value > 0.5 && (
-            (model.obligations?.[index] || 0) > 0.5
-            || (model.partTime?.[index] || 0) > 0.5
-        )
-    ));
-    const first = affected.indexOf(true);
-    if (first === -1) return null;
-    const last = Math.min(
-        model.lifestyle.length - 1,
-        affected.lastIndexOf(true) + 1,
-    );
-    return { first, last };
-}
-
 function wzChartLegendHtml(groups) {
     return groups.map((group) => {
         const colorKey = wzChartColorKey(group.key);
@@ -334,10 +317,7 @@ function wzChartSummary(model) {
         const horizonText = Number.isFinite(horizon)
             ? ` Horyzont planu: ${horizon} r.ż.; dalsze lata pokazują sam ZUS.`
             : "";
-        const lifestyleText = model.lifestyle
-            ? " Przerywana linia pokazuje budżet na życie po odjęciu zobowiązań."
-            : "";
-        return `Wykres miesięcznych wypłat netto według kont, wiek ${first}–${last}. Łącznie w horyzoncie ${wzFmtZloty(total)} zł netto.${horizonText}${lifestyleText} ${extra.join(" ")} Użyj strzałek, aby czytać szczegóły.`;
+        return `Wykres miesięcznych wypłat netto według kont, wiek ${first}–${last}. Łącznie w horyzoncie ${wzFmtZloty(total)} zł netto.${horizonText} ${extra.join(" ")} Użyj strzałek, aby czytać szczegóły.`;
     }
     const peakIndex = model.totals.indexOf(peak);
     return `Wykres kapitału prywatnego według kont, wiek ${first}–${last}. Kapitał szczytowy ${wzFmtZloty(peak)} zł w wieku ${model.ages[peakIndex]}.${model.truncated ? " Wykres ucięty na horyzoncie planu." : ""} Użyj strzałek, aby czytać szczegóły.`;
@@ -779,26 +759,19 @@ function wzChartTooltipHtml(model, index) {
         return `<div class="wz-chart-tip-group">${row}${subs ? `<div class="wz-chart-tip-subrows">${subs}</div>` : ""}</div>`;
     }).join("");
 
-    let lifestyleBlock = "";
-    if (model.kind === "withdrawals" && model.lifestyle) {
-        const budget = Number(model.lifestyle[index]) || 0;
-        const obligations = Number(model.obligations?.[index]) || 0;
-        const partTime = Number(model.partTime?.[index]) || 0;
-        if (budget > 0.5) {
-            lifestyleBlock = `<div class="wz-chart-tip-group wz-chart-tip-lifestyle">
-                <div class="wz-chart-tip-row">
-                    <span class="wz-chart-tip-label"><span class="wz-chart-swatch"></span><span>Budżet na życie</span></span>
-                    <span class="wz-chart-tip-value">${wzFmtZloty(budget)} zł</span>
-                </div>
-                ${partTime > 0.5 ? `<div class="wz-chart-tip-subrow"><span>w tym praca</span><span>${wzFmtZloty(partTime)} zł</span></div>` : ""}
-                ${obligations > 0.5 ? `<div class="wz-chart-tip-subrow"><span>zobowiązania</span><span>−${wzFmtZloty(obligations)} zł</span></div>` : ""}
+    let obligationRow = "";
+    if (model.kind === "withdrawals" && model.obligations) {
+        const obligations = Number(model.obligations[index]) || 0;
+        if (obligations > 0.5) {
+            obligationRow = `<div class="wz-chart-tip-group wz-chart-tip-obligations">
+                <div class="wz-chart-tip-subrow"><span>zobowiązania w tym roku (dodatkowy koszt)</span><span>${wzFmtZloty(obligations)} zł</span></div>
             </div>`;
         }
     }
 
     return `<div class="wz-gantt-tip-title">Wiek ${model.ages[index]}</div>
         ${totalCard}
-        ${lifestyleBlock}
+        ${obligationRow}
         ${rows ? `<div class="wz-chart-tip-list">${rows}</div>` : ""}`;
 }
 
@@ -929,12 +902,7 @@ function wzRenderChartSvg(container, model) {
     const plotW = Math.max(40, width - margin.left - margin.right);
     const plotH = height - margin.top - margin.bottom;
     const count = model.ages.length;
-    const budgetRange = model.kind === "withdrawals" ? wzChartLifestyleRange(model) : null;
-    const maxTotal = Math.max(
-        0,
-        ...model.totals,
-        ...(budgetRange ? model.lifestyle : []),
-    );
+    const maxTotal = Math.max(0, ...model.totals);
     const step = wzNiceStep(Math.max(1, maxTotal * 1.08), 5);
     const yMax = Math.max(step, Math.ceil((maxTotal * 1.08) / step) * step);
     const capitalInThousands = model.kind === "capital" && yMax >= 10_000;
@@ -1015,9 +983,6 @@ function wzRenderChartSvg(container, model) {
         }
     });
     svg += `<path class="wz-chart-total" d="${wzChartLinePath(x, y, model.totals)}"/>`;
-    if (budgetRange) {
-        svg += `<path class="wz-chart-lifestyle" d="${wzChartLinePath(x, y, model.lifestyle, budgetRange.first, budgetRange.last)}"/>`;
-    }
     svg += wzChartReferenceSvg(model, wzChartReferences(model), {
         x, y, margin, plotW, yMax,
     });
@@ -1104,6 +1069,92 @@ function wzRenderChartSvg(container, model) {
     wzRenderMilestoneLayer(container, model);
 }
 
+function wzCostObligations(input) {
+    if (Array.isArray(input?.obligations) && input.obligations.length) {
+        return input.obligations.filter((item) => Number(item.monthly) > 0);
+    }
+    if (Number(input?.mortgage_monthly) > 0 && input?.mortgage_end_age != null) {
+        return [{
+            name: "Kredyt hipoteczny",
+            monthly: Number(input.mortgage_monthly),
+            start_age: 0,
+            end_age: Number(input.mortgage_end_age),
+        }];
+    }
+    return [];
+}
+
+function wzRenderObligationCosts(input, projection) {
+    const card = el("wzObligationsCosts");
+    if (!card) return;
+    const obligations = wzCostObligations(input);
+    const ages = (projection?.chart?.ages || []).map(Number);
+    if (!obligations.length || !ages.length) {
+        card.classList.add("hidden");
+        card.innerHTML = "";
+        return;
+    }
+    const minAge = ages[0];
+    const maxAge = ages[ages.length - 1];
+    if (maxAge <= minAge) {
+        card.classList.add("hidden");
+        card.innerHTML = "";
+        return;
+    }
+    const realizationStarts = (input?.stages || [])
+        .filter((stage) => stage.stage_type === "realizacja"
+            && Object.keys(stage.accounts || {}).some((key) => baseAccountKey(key) !== "zus"))
+        .map((stage) => Number(stage.start_age))
+        .filter(Number.isFinite);
+    const fireAge = realizationStarts.length ? Math.min(...realizationStarts) : null;
+    const pct = (age) => ((Math.max(minAge, Math.min(maxAge, age)) - minAge) / (maxAge - minAge)) * 100;
+    const rows = obligations.map((obligation) => {
+        const start = Number(obligation.start_age) || 0;
+        const end = Number(obligation.end_age) || 0;
+        if (end <= minAge || start >= maxAge || end <= start) return "";
+        const left = pct(start);
+        const width = Math.max(0.8, pct(end) - left);
+        const funding = fireAge == null
+            ? "źródło zależne od etapu"
+            : end <= fireAge
+                ? "z pensji"
+                : start >= fireAge
+                    ? "z portfela"
+                    : "z pensji, potem z portfela";
+        const title = `${obligation.name || "Zobowiązanie"}: ${wzFmtZloty(obligation.monthly)} zł/mies., ${start}–${end} r.ż., ${funding}.`;
+        return `<div class="wz-cost-row" title="${escapeHtml(title)}">
+            <div class="wz-cost-meta">
+                <span class="wz-cost-name">${escapeHtml(obligation.name || "Zobowiązanie")}</span>
+                <span class="wz-cost-amount">${wzFmtZloty(obligation.monthly)} zł/mies.</span>
+            </div>
+            <div class="wz-cost-track">
+                <span class="wz-cost-bar" style="left:${left.toFixed(2)}%;width:${width.toFixed(2)}%"></span>
+            </div>
+            <span class="wz-cost-age">${start}–${end} r.ż.</span>
+        </div>`;
+    }).join("");
+    if (!rows) {
+        card.classList.add("hidden");
+        card.innerHTML = "";
+        return;
+    }
+    const tickAges = Array.from({ length: 5 }, (_, index) => (
+        Math.round(minAge + ((maxAge - minAge) * index) / 4)
+    ));
+    const axis = tickAges.map((age, index) => {
+        const left = (index / 4) * 100;
+        const justify = index === 0 ? "translateX(0)" : index === 4 ? "translateX(-100%)" : "translateX(-50%)";
+        return `<span style="left:${left}%;transform:${justify}">${age}</span>`;
+    }).join("");
+    card.innerHTML = `<div class="wz-costs-head">
+            <h4 class="wz-plan-subhead">Zobowiązania</h4>
+            <span class="dim">Koszty poza budżetem życia</span>
+        </div>
+        <div class="wz-costs-list">${rows}</div>
+        <div class="wz-costs-axis"><span></span><div class="wz-costs-axis-track">${axis}</div><span></span></div>`;
+    card.classList.remove("hidden");
+}
+
 function wzRenderCharts(input, projection, summary = {}) {
     const wrap = el("wzChartsWrap");
     if (!wrap) return;
@@ -1117,21 +1168,15 @@ function wzRenderCharts(input, projection, summary = {}) {
         wzUpdateMilestoneToggle();
         wzChartData = null;
         wzChartTipHide(true);
+        wzRenderObligationCosts(input, projection);
         return;
     }
     const series = (values) => Array.from(
         { length: ages.length },
         (_, index) => Number(values?.[index]) || 0
     );
-    const lifestyle = series(chart?.lifestyle_monthly);
     const obligations = series(chart?.obligations_monthly);
-    const partTime = series(chart?.part_time_monthly);
-    const hasLifestyle = lifestyle.some((value, index) => (
-        value > 0.5 && (
-            obligations[index] > 0.5
-            || partTime[index] > 0.5
-        )
-    ));
+    const hasObligations = obligations.some((value) => value > 0.5);
 
     const withdrawalGroups = wzScaleChartGroups(
         wzLimitChartGroups(
@@ -1167,6 +1212,7 @@ function wzRenderCharts(input, projection, summary = {}) {
         wzUpdateMilestoneToggle();
         wzChartData = null;
         wzChartTipHide(true);
+        wzRenderObligationCosts(input, projection);
         return;
     }
 
@@ -1192,9 +1238,7 @@ function wzRenderCharts(input, projection, summary = {}) {
             horizonAge,
             groups: withdrawalGroups,
             totals: wzChartTotals(withdrawalGroups, ages.length),
-            lifestyle: hasLifestyle ? lifestyle : null,
-            obligations: hasLifestyle ? obligations : null,
-            partTime: hasLifestyle ? partTime : null,
+            obligations: hasObligations ? obligations : null,
         },
         capital: {
             kind: "capital",
@@ -1212,10 +1256,7 @@ function wzRenderCharts(input, projection, summary = {}) {
     const withdrawalLegend = el("wzWithdrawalsLegend");
     const capitalLegend = el("wzCapitalLegend");
     if (withdrawalLegend) {
-        withdrawalLegend.innerHTML = wzChartLegendHtml(withdrawalGroups)
-            + (hasLifestyle
-                ? `<span class="wz-chart-legend-item wz-chart-legend-lifestyle"><span class="wz-chart-swatch"></span>Budżet na życie</span>`
-                : "");
+        withdrawalLegend.innerHTML = wzChartLegendHtml(withdrawalGroups);
     }
     if (capitalLegend) capitalLegend.innerHTML = wzChartLegendHtml(capitalGroups);
 
@@ -1240,6 +1281,7 @@ function wzRenderCharts(input, projection, summary = {}) {
     }
 
     wzBindChartGlobalEvents();
+    wzRenderObligationCosts(input, projection);
 }
 
 

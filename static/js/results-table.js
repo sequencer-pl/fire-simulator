@@ -116,7 +116,7 @@
         ];
 
         const wealthTip = "Majątek prywatny: suma sald na koniec roku bez ZUS i OFE. ZUS pokazujemy w osobnej kolumnie. Kwoty są brutto — majątek końcowy netto jest po podatku wyjścia.";
-        const lifestyleTip = "Budżet na życie: dochód netto (portfel + ZUS + praca) minus aktywne zobowiązania czasowe. W roku zakończenia zobowiązania zobaczysz skok kwoty.";
+        const lifestyleTip = "Budżet na życie: dochód netto (portfel + ZUS + praca) minus aktywne zobowiązania czasowe. W latach z zobowiązaniem portfel wypłaca więcej, więc budżet pozostaje stabilny.";
         const header = columns.map((column) => {
             const classes = ["amount"];
             if (column.key === "monthly") classes.push("col-monthly");

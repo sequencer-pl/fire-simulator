@@ -225,28 +225,28 @@ function simulatorHero(data, summary) {
         ? Math.max(...payoutPhases.map((phase) => phase.end_age))
         : null;
     const end = summary?.end_age ?? phaseEnd;
-    // Hero pokazuje lifestyle: budżet netto łącznie z ZUS, częścią etatu i kredytem.
+    // Hero pokazuje budżet na życie po zobowiązaniach, nie sumę wypłat.
     const monthly = projection.mean_monthly
         || projection.min_monthly
-        || summary?.avg_income
         || summary?.avg_monthly
         || 0;
-    const lifestyle = projection.mean_lifestyle_monthly
-        || summary?.avg_monthly
-        || null;
+    const avgObligations = Number(projection.avg_obligations_monthly)
+        || Number(summary?.avg_obligations)
+        || 0;
     const finalNet = summary?.final_wealth_net ?? data.final_wealth_net ?? 0;
     const zusOnlyNote = payoutPhases.length && !mainPayouts.length
         ? " Wypłaty pochodzą wyłącznie z ZUS."
         : "";
+    const obligationsNote = avgObligations > 0.5
+        ? ` Zobowiązania czasowe (średnio <strong>${fmt(avgObligations)}/mies.</strong>) są dodatkowym kosztem poza budżetem.`
+        : "";
+    const afterObligations = avgObligations > 0.5 ? ", po opłaceniu zobowiązań" : "";
 
     if (monthly > 0 && start != null && end != null) {
-        const lifestyleNote = lifestyle != null && lifestyle < monthly - 1
-            ? ` Po zobowiązaniach zostaje średnio <strong>${fmt(lifestyle)}/mies.</strong>`
-            : "";
         return {
             kicker: "TWÓJ PLAN",
-            headline: `Plan wypłaca średnio ${fmt(monthly)}/mies. netto`,
-            desc: `Od ${start}. do ${end}. roku życia. Na koniec zostaje <strong>${fmt(finalNet)}</strong> netto.${lifestyleNote}${zusOnlyNote}`,
+            headline: `Budżet na życie: średnio ${fmt(monthly)}/mies.`,
+            desc: `Od ${start}. do ${end}. roku życia${afterObligations}. Na koniec zostaje <strong>${fmt(finalNet)}</strong> netto.${obligationsNote}${zusOnlyNote}`,
         };
     }
     return {
@@ -340,7 +340,11 @@ document.addEventListener("DOMContentLoaded", () => {
         initNumControls(configContent, guardedNumberInputStep);
     }
     const obligationsPanel = document.getElementById("simObligationsPanel");
-    if (obligationsPanel) initNumControls(obligationsPanel);
+    if (obligationsPanel) {
+        initNumControls(obligationsPanel);
+        obligationsPanel.addEventListener("input", syncObligationRedirects);
+        obligationsPanel.addEventListener("change", syncObligationRedirects);
+    }
     document.getElementById("addObligationBtn")?.addEventListener("click", () => {
         addObligationRow({});
     });
@@ -352,6 +356,8 @@ document.addEventListener("DOMContentLoaded", () => {
     updateHorizonHint();
     container.addEventListener("input", updateHorizonHint);
     container.addEventListener("change", updateHorizonHint);
+    container.addEventListener("input", syncObligationRedirects);
+    container.addEventListener("change", syncObligationRedirects);
     if (draftApplied) {
         // Draft zostaje, żeby F5/back-forward nie gubiły planu. Czyścimy go
         // dopiero przy pierwszej edycji etapów albo po eksporcie.
@@ -376,9 +382,11 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     updateEmptyState();
+    syncObligationRedirects();
     new MutationObserver(() => {
         updateEmptyState();
         updateHorizonHint();
+        syncObligationRedirects();
     }).observe(container, { childList: true });
 });
 
@@ -1367,6 +1375,25 @@ function defaultObligationAges() {
     return { start, end: Math.min(120, start + 5) };
 }
 
+function simFireAge() {
+    const starts = [...document.querySelectorAll(
+        '#stages-container .stage-block[data-stage-type="realizacja"] .start-age'
+    )]
+        .map((input) => parseInt(input.value, 10))
+        .filter(Number.isFinite);
+    return starts.length ? Math.min(...starts) : null;
+}
+
+function syncObligationRedirects() {
+    const fireAge = simFireAge();
+    document.querySelectorAll("#obligationsList .obligation-row").forEach((row) => {
+        const endAge = parseInt(row.querySelector(".obligation-end")?.value, 10);
+        const beforeFire = fireAge == null || !Number.isFinite(endAge) || endAge < fireAge;
+        row.querySelector(".obligation-redirect")?.classList.toggle("hidden", !beforeFire);
+        row.querySelector(".obligation-redirect-note")?.classList.toggle("hidden", beforeFire);
+    });
+}
+
 function createObligationRow(data = {}) {
     const ages = defaultObligationAges();
     const row = document.createElement("div");
@@ -1428,7 +1455,8 @@ function createObligationRow(data = {}) {
                 </label>
             </div>
             <p class="field-hint obligation-redirect-hint">Bez przekierowania uwolniona kwota zostaje w budżecie na życie.</p>
-        </div>`;
+        </div>
+        <p class="field-hint obligation-redirect-note hidden">To zobowiązanie kończy się na FIRE lub później. Po zakończeniu wypłata z portfela po prostu spada do budżetu — bez przekierowania.</p>`;
     row.querySelector(".obligation-remove").addEventListener("click", () => row.remove());
     return row;
 }
@@ -1437,6 +1465,7 @@ function addObligationRow(data = {}) {
     const list = document.getElementById("obligationsList");
     if (!list) return;
     list.appendChild(createObligationRow(data));
+    syncObligationRedirects();
 }
 
 function renderObligations(list = []) {
@@ -1444,6 +1473,7 @@ function renderObligations(list = []) {
     if (!box) return;
     box.innerHTML = "";
     list.filter((item) => Number(item.monthly) > 0).forEach((item) => addObligationRow(item));
+    syncObligationRedirects();
 }
 
 function gatherObligations() {

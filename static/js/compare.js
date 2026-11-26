@@ -377,7 +377,7 @@ function renderCards(sims) {
             <div class="cmp-card-badges">${rankBadge}</div>
             <dl class="cmp-card-metrics">
                 <div><dt>Łącznie netto</dt><dd>${fmtMoney(netBen)}</dd></div>
-                <div><dt>Wypłata mies.</dt><dd>${fmtMoney(avg)}</dd></div>
+                <div><dt>Budżet mies.</dt><dd>${fmtMoney(avg)}</dd></div>
                 <div><dt>Podatki</dt><dd>${fmtMoney(sum.total_tax)}</dd></div>
             </dl>
             <div class="cmp-card-foot">

@@ -25,8 +25,8 @@
     function metricsFor(planView) {
         const metrics = [
             window.ResultsModel.metric(planView, "totalWithdrawnPrivate"),
-            window.ResultsModel.metric(planView, "avgIncome"),
-            window.ResultsModel.metric(planView, "minIncome"),
+            window.ResultsModel.metric(planView, "avgMonthly"),
+            window.ResultsModel.metric(planView, "minMonthly"),
             window.ResultsModel.metric(planView, "portfolioMinMonthly", {
                 label: "Minimalna wypłata z portfela",
             }),
@@ -161,22 +161,38 @@
         return [];
     }
 
+    function fireAgeFor(input) {
+        const starts = (input?.stages || [])
+            .filter((stage) => stage.stage_type === "realizacja"
+                && Object.keys(stage.accounts || {}).some((key) => {
+                    const base = window.baseAccountKey ? window.baseAccountKey(key) : key;
+                    return base !== "zus" && base !== "zus:ofe";
+                }))
+            .map((stage) => Number(stage.start_age))
+            .filter(Number.isFinite);
+        return starts.length ? Math.min(...starts) : null;
+    }
+
     function obligationFacts(input) {
         const obligations = obligationsFor(input);
         if (!obligations.length) return [];
         const total = obligations.reduce((sum, item) => sum + (Number(item.monthly) || 0), 0);
+        const fireAge = fireAgeFor(input);
         const details = obligations.map((item) => {
             const from = Number(item.start_age) || 0;
             const to = Number(item.end_age) || 0;
-            const redirect = item.redirect_to_savings === false
-                ? "po zakończeniu zostaje w budżecie"
-                : "po zakończeniu na oszczędności";
+            const afterFire = Number.isFinite(fireAge) && to >= fireAge;
+            const redirect = afterFire
+                ? "po zakończeniu wypłata wraca do budżetu"
+                : item.redirect_to_savings === false
+                    ? "po zakończeniu zostaje w budżecie"
+                    : "po zakończeniu na oszczędności";
             return `${item.name || "Zobowiązanie"}: ${money(item.monthly)}/mies. od ${from} do ${to} r.ż., ${redirect}.`;
         }).join(" ");
         const endAges = obligations.map((item) => Number(item.end_age)).filter(Number.isFinite);
         const endLabel = endAges.length ? ` do ${Math.max(...endAges)} r.ż.` : "";
         return [
-            `<span class="chip wz-fact">Zobowiązania: ${money(total)}/mies.${endLabel}${tip(`Aktywne zobowiązania czasowe odejmujemy od miesięcznego budżetu na życie. ${details}`)}</span>`
+            `<span class="chip wz-fact">Zobowiązania: ${money(total)}/mies.${endLabel}${tip(`Zobowiązania czasowe są dodatkowym kosztem poza budżetem: w latach ich trwania portfel wypłaca budżet plus zobowiązanie. ${details}`)}</span>`
         ];
     }
 
@@ -192,7 +208,7 @@
         const detail = Number.isFinite(min)
             ? ` Minimalny budżet: ${money(min)}/mies., średni: ${money(avg)}/mies.`
             : ` Średni budżet: ${money(avg)}/mies.`;
-        return `<span class="chip wz-fact">Budżet na życie: ${label}${tip(`Dochód netto z planu (portfel + ZUS + praca) po odjęciu aktywnych zobowiązań czasowych. To kwota na życie, a nie wypłata z portfela.${detail} Wzrost po zakończeniu zobowiązania zobaczysz w tabeli rok po roku.`)}</span>`;
+        return `<span class="chip wz-fact">Budżet na życie: ${label}${tip(`Dochód netto z planu (portfel + ZUS + praca) po odjęciu aktywnych zobowiązań czasowych. To kwota na życie, a nie wypłata z portfela.${detail} Spadek wypłaty po zakończeniu zobowiązania zobaczysz w tabeli rok po roku.`)}</span>`;
     }
 
     function factsForSimulator(input, projection, summary) {

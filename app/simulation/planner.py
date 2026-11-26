@@ -13,11 +13,7 @@ from app.simulation.config import (
     default_config,
 )
 from app.simulation.constants import MONTHS_PER_YEAR, PPE_ZUS_FRACTION
-from app.simulation.engine import (
-    _init_state,
-    _run_year,
-    simulate,
-)
+from app.simulation.engine import simulate
 from app.simulation.salary import (
     b2b_gross_from_net,
     b2b_net_from_gross,
@@ -180,7 +176,7 @@ class WizardAnswers(BaseModel):
 
     savings: float = Field(default=1000.0, ge=0.0)
 
-    # Preferencja z kroku „Priorytety” (tylko ścieżka 1): stała wypłata
+    # Preferencja z kroku „Priorytety” (tylko ścieżka 1): stały budżet
     # (max-min) albo najwyższa suma wypłat przy stałej miesięcznej kwocie.
     optimization_objective: Literal["payout", "total"] = "payout"
     # Profil ryzyka ogranicza nowe wpłaty (nie istniejący portfel).
@@ -390,6 +386,9 @@ class ProjectionChart(BaseModel):
 
 
 class PlanProjection(BaseModel):
+    """Wynik planu; ``min_monthly`` i ``mean_monthly`` to budżet na życie
+    po zobowiązaniach, a nie suma wypłat z portfela."""
+
     met: bool = False
     target_monthly: float | None = None
     min_monthly: float = 0.0
@@ -1261,6 +1260,54 @@ def _boost_stage_contributions(
     return boosted
 
 
+def _split_realization_for_obligations(
+    stages: list[StageInput],
+    obligations: list[TemporaryObligation],
+) -> list[StageInput]:
+    """Podziel etapy realizacji na granicach zobowiązań.
+
+    Dzięki temu każdy segment ma stały zestaw aktywnych zobowiązań, a solver
+    może ustawić osobny cel brutto: budżet + aktywne zobowiązania.
+    """
+    active = [
+        obligation
+        for obligation in obligations
+        if obligation.monthly > 0 and obligation.end_age > obligation.start_age
+    ]
+    if not active:
+        return list(stages)
+
+    result: list[StageInput] = []
+    for stage in stages:
+        if stage.stage_type != "realizacja" or "zus" in stage.accounts:
+            result.append(stage)
+            continue
+        boundaries = {stage.start_age, stage.end_age}
+        for obligation in active:
+            for boundary in (obligation.start_age, obligation.end_age):
+                if stage.start_age < boundary < stage.end_age:
+                    boundaries.add(int(boundary))
+        points = sorted(boundaries)
+        if len(points) == 2:
+            result.append(stage)
+            continue
+        for start, end in zip(points, points[1:], strict=False):
+            segment = stage.model_copy(deep=True)
+            segment.start_age = start
+            segment.end_age = end
+            current = [
+                obligation
+                for obligation in active
+                if obligation.start_age < end and obligation.end_age > start
+            ]
+            if current:
+                segment.name = f"{stage.name} (z zobowiązaniem)"
+            elif start > stage.start_age:
+                segment.name = f"{stage.name} (po zobowiązaniu)"
+            result.append(segment)
+    return result
+
+
 def _apply_obligation_savings(
     stages: list[StageInput],
     obligations: list[TemporaryObligation],
@@ -1730,6 +1777,7 @@ def build_stages(a: WizardAnswers) -> SimulationInput:
     stages = _apply_obligation_savings(
         stages, obligations, a, config, gross, retirement_age=re
     )
+    stages = _split_realization_for_obligations(stages, obligations)
     return SimulationInput(
         stages=stages,
         obligations=obligations,
@@ -2496,30 +2544,26 @@ def _project(
     bequest: float = 0.0,
 ) -> PlanProjection:
     start, end = realization_window(data)
-    months = [
-        (year.age, total_net_income_monthly(data, year))
+    lifestyle_months = [
+        (year.age, lifestyle_monthly_net(data, year))
         for year in result.years
         if start <= year.age < end
     ]
-    values = [m for _, m in months]
+    values = [m for _, m in lifestyle_months]
     min_m = min(values) if values else 0.0
     mean_m = sum(values) / len(values) if values else 0.0
-    lifestyle_values = [
-        lifestyle_monthly_net(data, year)
-        for year in result.years
-        if start <= year.age < end
-    ]
+    lifestyle_values = [m for _, m in lifestyle_months]
     obligations_values = [
         obligations_monthly(data, year.age)
         for year in result.years
         if start <= year.age < end
     ]
-    # A draw below the target is a miss: the gross-up scales so the year-min
-    # nets to the target, so the guarantee "you always get at least target"
-    # holds for every year — met fails only when the portfolio depletes.
-    floor = (target - _tl(target)) if target and target > 0 else 0.5
+    # Cel jest budżetem na życie po zobowiązaniach. Metryka jest spełniona,
+    # gdy w żadnym roku realizacji budżet nie spada poniżej celu.
+    tolerance = max(0.5, _tl(target)) if target and target > 0 else 0.5
+    floor = (target - tolerance) if target and target > 0 else 0.5
     exhaust = None
-    for age, m in months:
+    for age, m in lifestyle_months:
         if m < floor:
             exhaust = age
             break
@@ -2631,50 +2675,97 @@ def build_projection(
     return projection
 
 
-def _drawn_floor(data: SimulationInput, result: SimulationResult) -> float:
-    """Lowest net monthly draw observed across the whole realization window.
-
-    The constant-target engine pays a fixed gross, so the net take-home is
-    lowest in the final years (taxes grow as principal is realized). Grossing
-    this up to ``target`` is what makes "you can rely on at least target"
-    literally true for every year of the horizon.
-    """
-    start, end = realization_window(data)
-    nets = [
-        total_net_income_monthly(data, year)
+def _stage_budget_values(
+    data: SimulationInput,
+    result: SimulationResult,
+    stage: StageInput,
+) -> list[float]:
+    return [
+        lifestyle_monthly_net(data, year)
         for year in result.years
-        if start <= year.age < end
+        if stage.start_age <= year.age < stage.end_age
     ]
-    return min(nets) if nets else 0.0
 
 
-def _net_to_gross(
-    data: SimulationInput, target: float, max_iter: int = 25
-) -> tuple[float, SimulationResult]:
-    """Monthly gross draw whose minimum net take-home equals ``target``.
+def _stage_obligations_average(data: SimulationInput, stage: StageInput) -> float:
+    values = [
+        obligations_monthly(data, age)
+        for age in range(stage.start_age, stage.end_age)
+    ]
+    return sum(values) / len(values) if values else 0.0
 
-    The engine pays out gross; taxes eat a growing share as principal is
-    realized, so the worst (final) years pay least. Iteratively scale the
-    gross by the drawn minimum so that no year — the guarantee — falls below
-    the target. Infeasible targets diverge upward (min stays below target).
+
+def _solve_stage_targets(
+    data: SimulationInput,
+    target: float,
+    max_iter: int = 30,
+) -> SimulationResult:
+    """Ustaw cele brutto etapów realizacji tak, by budżet po zobowiązaniach
+    był co najmniej równy ``target``.
+
+    Etapy realizacji są wcześniej dzielone na granicach zobowiązań, więc
+    wewnątrz segmentu aktywne zobowiązania są stałe. Solver skaluje gross
+    każdego segmentu na podstawie najniższego budżetu w tym segmencie.
     """
-    if target <= 0:
-        return 0.0, simulate(data, 0.0)
-    G = target
-    tol = _tl(target)
-    res = simulate(data, G)
+    stages = [
+        stage
+        for stage in data.stages
+        if stage.stage_type == "realizacja" and "zus" not in stage.accounts
+    ]
+    if not stages:
+        return simulate(data, None)
+
+    tolerance = max(0.5, _tl(target))
+    for stage in stages:
+        active = _stage_obligations_average(data, stage)
+        stage.withdrawal_target_gross_monthly = max(1.0, target + active)
+
+    result = simulate(data, None)
+    history: dict[int, tuple[float, float]] = {}
+    stalled: set[int] = set()
+    upper_margin = max(10.0, target * 0.02)
     for _ in range(max(1, max_iter)):
-        net = _drawn_floor(data, res)
-        if net <= 0:
+        changed = False
+        infeasible = False
+        for index, stage in enumerate(stages):
+            if index in stalled:
+                continue
+            values = _stage_budget_values(data, result, stage)
+            if not values:
+                continue
+            actual = min(values)
+            if actual <= 0.01:
+                infeasible = True
+                break
+            if target - tolerance <= actual <= target + upper_margin:
+                continue
+            gross = stage.withdrawal_target_gross_monthly
+            last = history.get(index)
+            if (
+                last is not None
+                and abs(actual - last[1]) <= 0.01
+                and abs(gross - last[0]) > 0.01
+            ):
+                # Brak kapitału w etapie sprawia, że zmiana celu brutto nic
+                # nie zmienia. Nie skalujemy w próżni.
+                stalled.add(index)
+                continue
+            history[index] = (gross, actual)
+            if last is not None and abs(actual - last[1]) > 0.05:
+                slope = (gross - last[0]) / (actual - last[1])
+                if slope > 0:
+                    proposed = gross + (target - actual) * slope
+                else:
+                    proposed = gross * target / actual
+            else:
+                proposed = gross * target / actual
+            proposed = max(gross * 0.25, min(gross * 4.0, proposed))
+            stage.withdrawal_target_gross_monthly = max(0.0, proposed)
+            changed = True
+        if infeasible or not changed or len(stalled) == len(stages):
             break
-        if abs(net - target) <= tol:
-            break
-        G = G * target / net
-        if G > 1e12:
-            res = simulate(data, G)
-            break
-        res = simulate(data, G)
-    return G, res
+        result = simulate(data, None)
+    return result
 
 
 def _evaluate_with_result(
@@ -2686,7 +2777,7 @@ def _evaluate_with_result(
     if target is None or target <= 0:
         res = simulate(data, target)
     else:
-        _G, res = _net_to_gross(data, target, grossup_iter)
+        res = _solve_stage_targets(data, target, grossup_iter)
     return _project(data, res, target, bequest), res
 
 
@@ -2927,35 +3018,28 @@ def _solve_re(a: WizardAnswers, target: float) -> tuple[int | None, bool]:
 
 
 def _bake_realization_targets(data: SimulationInput, target_net: float | None) -> None:
-    """Persist the solved gross target and ending buffers into realization stages
-    so that replaying ``data`` in /sim (even via PMT or constant-target) matches
-    the wizard projection."""
+    """Persist solved gross targets and ending buffers into realization stages.
+
+    Targets are per segment because realization is split at obligation
+    boundaries. Replaying ``data`` with ``simulate(data, None)`` then matches
+    the wizard projection; buffers remain for PMT/legacy replay.
+    """
     if target_net is None or target_net <= 0:
         return
-    gross_target, _ = _net_to_gross(data, target_net)
+    result = _solve_stage_targets(data, target_net)
     for si in data.stages:
         if si.stage_type == "realizacja" and "zus" not in si.accounts:
-            si.withdrawal_target_gross_monthly = round(float(gross_target), 2)
-
-    state = _init_state(data)
-    min_age = min((si.start_age for si in data.stages), default=0)
-    for age in range(min_age, data.max_age + 1):
-        _run_year(
-            state,
-            age,
-            data.monthly_gross,
-            data.stages,
-            gross_target,
-        )
-
-    for si in data.stages:
-        if si.stage_type == "realizacja" and "zus" not in si.accounts:
-            end_state = state.computed.get(si.end_age - 1)
-            if end_state:
-                end_bal = end_state.get("ending_balances", {})
-                for acc_name, acc_cfg in si.accounts.items():
-                    if acc_name in end_bal:
-                        acc_cfg.buffer = round(max(0.0, end_bal[acc_name]), 2)
+            end_state = next(
+                (year for year in result.years if year.age == si.end_age - 1),
+                None,
+            )
+            if end_state is None:
+                continue
+            for acc_name in si.accounts:
+                if acc_name in end_state.ending_balances:
+                    si.accounts[acc_name].buffer = round(
+                        max(0.0, end_state.ending_balances[acc_name]), 2
+                    )
 
 
 WIZARD_POLICIES = (
@@ -3017,7 +3101,7 @@ def _plan_single(
         note = ""
         if not feasible:
             note = (
-                "Nie da się jednocześnie utrzymać wypłaty i zostawić "
+                "Nie da się jednocześnie utrzymać budżetu i zostawić "
                 f"{a.bequest_target:,.0f} zł na koniec horyzontu. "
                 "Obniż spadek, wydłuż horyzont lub zwiększ oszczędności."
             )
@@ -3046,8 +3130,8 @@ def _plan_single(
         note = ""
         if not feasible:
             note = (
-                "Cel wypłaty nieosiągalny nawet przy bardzo wysokiej skali "
-                "oszczędności — rozważ późniejsze FIRE, niższą wypłatę lub "
+                "Cel budżetu nieosiągalny nawet przy bardzo wysokiej skali "
+                "oszczędności — rozważ późniejsze FIRE, niższy budżet lub "
                 "bardziej agresywną strategię."
             )
         _, result = _evaluate_with_result(data, target, a.bequest_target)
@@ -3068,8 +3152,8 @@ def _plan_single(
         data = build_stages(a)
         _bake_realization_targets(data, target)
         note = (
-            "Nie znaleziono wieku FIRE spełniającego cel wypłaty — także przy "
-            "pracy do pełnego wieku emerytalnego. Rozważ niższą wypłatę, "
+            "Nie znaleziono wieku FIRE spełniającego cel budżetu — także przy "
+            "pracy do pełnego wieku emerytalnego. Rozważ niższy budżet, "
             "większe oszczędności lub agresywniejszą strategię."
         )
         _, result = _evaluate_with_result(data, target)
@@ -3090,7 +3174,7 @@ def _plan_single(
             retire_early_age=re,
             feasible=feasible,
             note=(
-                f"Najwcześniejszy wiek FIRE z gwarancją wypłaty {target:,.0f} zł/mies. to {re} lat."
+                f"Najwcześniejszy wiek FIRE z gwarancją budżetu {target:,.0f} zł/mies. to {re} lat."
                 if re <= _retirement_age(a, _config_for_answers(a))
                 else (
                     f"Wiek FIRE {re} lat — po ustawowym wieku emerytalnym; "

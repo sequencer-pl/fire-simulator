@@ -37,8 +37,8 @@ test("Symulator: zobowiązanie czasowe zmniejsza budżet i tworzy etap akumulacj
     await expect(page.locator("#wzMetrics .metric-label").first()).toContainText(
         "Suma wypłat z portfela"
     );
-    await expect(page.locator("#wzMetrics")).toContainText("Średnia wypłata netto");
-    await expect(page.locator("#wzMetrics")).toContainText("Minimalna wypłata netto");
+    await expect(page.locator("#wzMetrics")).toContainText("Średni budżet na życie");
+    await expect(page.locator("#wzMetrics")).toContainText("Minimalny budżet na życie");
 });
 
 test("Asystent: zobowiązanie czasowe jest osobną listą i trafia do planu", async ({ page }) => {
@@ -57,12 +57,15 @@ test("Asystent: zobowiązanie czasowe jest osobną listą i trafia do planu", as
     await expect(row.locator(".obligation-name")).toHaveValue("Alimenty");
     await row.locator(".obligation-monthly").fill("2000");
     await row.locator(".obligation-start").fill("40");
-    await row.locator(".obligation-end").fill("60");
-    await expect(row.locator(".obligation-redirect-yes")).toBeChecked();
+    await row.locator(".obligation-end").fill("50");
+    await expect(row.locator(".obligation-redirect")).toBeVisible();
     await row.locator("label.seg-option", { hasText: "Zostawić w budżecie" }).click();
     await expect(row.locator(".obligation-redirect-no")).toBeChecked();
     await row.locator("label.seg-option", { hasText: "Przekierować na oszczędności" }).click();
     await expect(row.locator(".obligation-redirect-yes")).toBeChecked();
+    await row.locator(".obligation-end").fill("60");
+    await expect(row.locator(".obligation-redirect")).toBeHidden();
+    await expect(row.locator(".obligation-redirect-note")).toBeVisible();
 
     await page.locator('[data-obligation-type="inne"]').click();
     const customRow = page.locator("#wzObligationsList .obligation-row").nth(1);
@@ -76,13 +79,15 @@ test("Asystent: zobowiązanie czasowe jest osobną listą i trafia do planu", as
         await page.locator("#wzNextBtn").click();
     }
     await expect(page.locator("#wzResult")).toBeVisible({ timeout: 120_000 });
-    await expect(page.locator("#wzHeroAnswer")).toContainText("Po zobowiązaniach");
+    await expect(page.locator("#wzHeroAnswer")).toContainText("budżet na życie po zobowiązaniach");
     await expect(page.locator("#wzFacts")).toContainText("Zobowiązania");
     await expect(page.locator("#wzFacts")).toContainText("Alimenty");
     await expect(page.locator("#wzFacts")).toContainText("Budżet na życie");
     await expect(page.locator("#wzYearTable thead")).toContainText("Budżet na życie");
-    await expect(page.locator("#wzWithdrawalsLegend")).toContainText("Budżet na życie");
-    await expect(page.locator(".wz-chart-lifestyle")).toHaveCount(1);
+    await expect(page.locator("#wzObligationsCosts")).toBeVisible();
+    await expect(page.locator("#wzObligationsCosts")).toContainText("Zobowiązania");
+    await expect(page.locator("#wzObligationsCosts .wz-cost-row")).toHaveCount(1);
+    await expect(page.locator(".wz-chart-lifestyle")).toHaveCount(0);
     await expect(
         page.locator(".wz-chart-milestone", { hasText: "Koniec zob." }).first()
     ).toBeVisible({ timeout: 30_000 });
