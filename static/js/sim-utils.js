@@ -179,6 +179,8 @@ function logicalStageName(name) {
     return text;
 }
 
+window.logicalStageName = logicalStageName;
+
 function logicalStagesForSummary(input) {
     if (!input || !Array.isArray(input.stages)) return input;
     const groups = new Map();

@@ -215,6 +215,26 @@ def test_solver_returned_input_matches_result_when_infeasible():
     assert replay.final_wealth == pytest.approx(result.final_wealth, abs=0.02)
 
 
+def test_coast_warning_flags_deficit_even_without_target():
+    from app.simulation.planner import PlanProjection, _append_coast_warning
+
+    a = WizardAnswers(
+        age_now=40,
+        semi_fire_enabled=True,
+        semi_fire_mode="coast",
+        semi_fire_age=45,
+        semi_fire_net_monthly=1_000,
+        semi_fire_savings_monthly=0,
+        retire_early_age=55,
+        obligations=[
+            TemporaryObligation(name="Zob", monthly=2_000, start_age=45, end_age=50)
+        ],
+    )
+    projection = PlanProjection(met=True, min_monthly=0)
+    _append_coast_warning(projection, a, None)
+    assert any("Brakuje ok." in warning for warning in projection.warnings)
+
+
 def test_coast_warning_includes_obligations():
     a = answers(
         age_now=40,
@@ -236,7 +256,9 @@ def test_coast_warning_includes_obligations():
     )
     result = plan(2, a, 3_000)
     assert any(
-        "Brakuje ok." in warning and "45 r.ż." in warning
+        "Brakuje ok." in warning
+        and "45 r.ż." in warning
+        and "1,000" in warning
         for warning in result.projection.warnings
     )
 
@@ -287,6 +309,35 @@ def test_logical_phases_keep_barista_and_no_zus_boundaries():
     phases = {phase.key: phase for phase in result.projection.phase_metrics}
     assert (phases["bridge"].start_age, phases["bridge"].end_age) == (55, 65)
     assert (phases["retirement_topup"].start_age, phases["retirement_topup"].end_age) == (65, 85)
+
+
+def test_stages_summary_groups_split_realization():
+    a = answers(
+        age_now=40,
+        gross_monthly=12_000,
+        capital={"broker": 800_000},
+        savings=3_000,
+        use_broker=True,
+        retire_early_age=55,
+        retirement_age=65,
+        plan_end_age=85,
+        allocations={"broker": 100},
+        semi_fire_enabled=True,
+        semi_fire_mode="barista",
+        semi_fire_age=45,
+        semi_fire_net_monthly=5_000,
+        obligations=[
+            TemporaryObligation(name="Zob", monthly=2_000, start_age=48, end_age=50)
+        ],
+    )
+    data = P.build_stages(a)
+    result = simulate(data)
+    from app.web.routes import _stages_summary
+
+    summary = _stages_summary(data, result)
+    spans = {(stage["start_age"], stage["end_age"]) for stage in summary}
+    assert (45, 55) in spans
+    assert (45, 48) not in spans
 
 
 def test_many_obligations_do_not_hit_schema_stage_limit():

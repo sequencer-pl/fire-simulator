@@ -64,7 +64,7 @@ test("Symulator pokazuje wspólne planowanie i wykresy SVG", async ({ page }) =>
     await page.evaluate((input) => {
         localStorage.setItem(
             "fire.wizardDraft",
-            JSON.stringify({ ...input, source: "test" })
+            JSON.stringify({ version: 3, input, source: "test" })
         );
     }, input);
     await page.goto("/sim?wizard=1", { waitUntil: "networkidle" });

@@ -760,6 +760,30 @@ const harness = `
             && annotation.text.includes("To wiek FIRE")
             && !annotation.text.includes("Uwalnia");
     });
+    check("adnotacja FIRE w Baricie używa pełnego FIRE, nie części etatu", () => {
+        const input = {
+            stages: [
+                { stage_type: "realizacja", start_age: 45, end_age: 48, part_time_net_monthly: 5000, accounts: { broker: {} } },
+                { stage_type: "realizacja", start_age: 48, end_age: 50, part_time_net_monthly: 5000, accounts: { broker: {} } },
+                { stage_type: "realizacja", start_age: 55, end_age: 65, accounts: { broker: {} } },
+            ],
+            obligations: [
+                { name: "Przed FIRE", monthly: 1000, start_age: 45, end_age: 50, redirect_to_savings: false },
+                { name: "Na FIRE", monthly: 1000, start_age: 50, end_age: 55, redirect_to_savings: false },
+            ],
+        };
+        const projection = {
+            chart: { ages: Array.from({ length: 61 }, (_, index) => 40 + index) },
+            early_return_total: 0,
+        };
+        const annotations = ResultsCharts.annotationsFor(input, projection, "wizard")
+            .filter((item) => item.kind === "obligation");
+        const before = annotations.find((item) => item.age === 50);
+        const atFire = annotations.find((item) => item.age === 55);
+        return Boolean(before && atFire)
+            && before.text.includes("Uwalnia")
+            && atFire.text.includes("To wiek FIRE");
+    });
     check("wynik: wykresy wypłat i kapitału renderują się", () => {
         return Boolean(document.querySelector("#wzWithdrawalsChart svg"))
             && Boolean(document.querySelector("#wzCapitalChart svg"))
@@ -827,6 +851,17 @@ const harness = `
             && !box.classList.contains("hidden")
             && box.textContent.includes("ZUS od 67")
             && box.textContent.includes("Dlaczego ten plan?");
+    });
+    check("cel: UI odrzuca 499 zł i akceptuje 500 zł", () => {
+        const path2 = document.querySelector('input[name="wzPath"][value="2"]');
+        const target = document.getElementById("wzTarget");
+        path2.checked = true;
+        target.value = "499";
+        const rejected = wzValidateStep("sabbatical") === false;
+        target.value = "500";
+        const accepted = wzValidateStep("sabbatical") === true;
+        document.querySelector('input[name="wzPath"][value="1"]').checked = true;
+        return rejected && accepted;
     });
     check("przekierowanie: Coast liczy akumulację do pełnego FIRE, Barista do części etatu", () => {
         const list = document.getElementById("wzObligationsList");

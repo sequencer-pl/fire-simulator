@@ -3,6 +3,7 @@
 // $, show, escapeHtml, fmtMoney, iconSvg — wspólne helpery z base.html.
 
 const WIZARD_DRAFT_KEY = "fire.wizardDraft";
+const WIZARD_DRAFT_VERSION = 3;
 let currentSims = [];
 
 function cssVar(name) {
@@ -396,7 +397,10 @@ function renderCards(sims) {
             if (s.id != null) {
                 window.location.href = "/sim?id=" + s.id;
             } else if (s.input) {
-                localStorage.setItem(WIZARD_DRAFT_KEY, JSON.stringify(s.input));
+                localStorage.setItem(
+                    WIZARD_DRAFT_KEY,
+                    JSON.stringify({ version: WIZARD_DRAFT_VERSION, input: s.input })
+                );
                 window.location.href = "/sim?wizard=1";
             }
         });

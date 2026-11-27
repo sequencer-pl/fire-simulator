@@ -8,10 +8,11 @@ const WZ_LEGACY_CONFIG_KEY = "fire.config.anonymous";
 const WZ_LEGACY_STATE_KEY = "fire.wizardV2State";
 const WZ_LEGACY_PLAN_KEY = "fire.wizardV2Plan";
 const WZ_TINY_CASH_ANNUAL = 120;
+const WZ_MIN_TARGET_MONTHLY = 500;
 const WZ_STATE_SAVE_MS = 150;
 // Wersje cache'y w localStorage. Niezgodne wpisy odrzucamy, żeby po zmianie
 // schematu stary stan nie nadpisywał nowego planu.
-const WZ_STATE_VERSION = 2;
+const WZ_STATE_VERSION = 3;
 const WZ_PLAN_VERSION = 3;
 const WZ_DRAFT_VERSION = 3;
 
@@ -1022,7 +1023,7 @@ function wzCreateObligationRow(data = {}) {
             </div>
             <p class="field-hint obligation-redirect-hint">Bez przekierowania uwolniona kwota zostaje w budżecie na życie.</p>
         </div>
-        <p class="field-hint obligation-redirect-note hidden">To zobowiązanie kończy się na FIRE lub później. Po zakończeniu wypłata z portfela po prostu spada do budżetu — bez przekierowania.</p>`;
+        <p class="field-hint obligation-redirect-note hidden">To zobowiązanie kończy się na FIRE lub później. Po zakończeniu budżet zależy od ustawionych wypłat; w Asystencie planner utrzymuje cel, w Symulatorze zmieniasz wypłaty ręcznie.</p>`;
     row.querySelector(".obligation-remove").addEventListener("click", () => {
         row.remove();
         wzTouch();
@@ -2063,9 +2064,9 @@ function wzValidateStep(stepId) {
     }
 
     if (stepId === "sabbatical") {
-        if (path !== 1 && wzNum("wzTarget", 0) <= 0) {
+        if (path !== 1 && wzNum("wzTarget", 0) < WZ_MIN_TARGET_MONTHLY) {
             return wzValidationError(
-                "Podaj docelowy miesięczny budżet na życie.",
+                `Cel budżetu musi wynosić co najmniej ${WZ_MIN_TARGET_MONTHLY} zł/mies.`,
                 "wzTarget"
             );
         }

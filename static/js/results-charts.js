@@ -339,7 +339,21 @@ let wzChartMilestonesVisible = true;
 let wzActiveChartMilestone = null;
 let wzMilestoneAnchor = null;
 
+function wzFullFireStage(input) {
+    const portfolioStages = (input?.stages || []).filter(
+        (stage) => stage.stage_type === "realizacja"
+            && Object.keys(stage.accounts || {})
+                .some((key) => baseAccountKey(key) !== "zus")
+    );
+    return portfolioStages.find(
+        (stage) => !(Number(stage.part_time_net_monthly) > 0)
+            && !(Number(stage.part_time_gross_monthly) > 0)
+    ) || null;
+}
+
 function wzFireAge(input) {
+    const fullFire = wzFullFireStage(input);
+    if (fullFire) return Number(fullFire.start_age);
     const starts = (input?.stages || [])
         .filter((stage) => stage.stage_type === "realizacja"
             && Object.keys(stage.accounts || {}).some((key) => baseAccountKey(key) !== "zus"))
@@ -354,17 +368,9 @@ function wzChartAnnotationsFor(input, projection, mode = "wizard") {
     const minAge = ages[0];
     const maxAge = ages[ages.length - 1];
     const stages = input?.stages || [];
-    const portfolioStages = stages.filter(
-        (stage) => stage.stage_type === "realizacja"
-            && Object.keys(stage.accounts || {})
-                .some((key) => baseAccountKey(key) !== "zus")
-    );
     // FIRE to pełne zakończenie pracy, a nie etap części etatu. Etapy
     // Coast/Barista mają dodatni part_time_* i nie mogą przejąć etykiety FIRE.
-    const fireStage = portfolioStages.find(
-        (stage) => !(Number(stage.part_time_net_monthly) > 0)
-            && !(Number(stage.part_time_gross_monthly) > 0)
-    );
+    const fireStage = wzFullFireStage(input);
     const zusStage = stages.find(
         (stage) => stage.stage_type === "realizacja"
             && Object.keys(stage.accounts || {}).length === 1
@@ -930,7 +936,14 @@ function wzBindChartGlobalEvents() {
         wzChartTipHide(true);
         clearTimeout(wzChartResizeTimer);
         wzChartResizeTimer = setTimeout(() => {
-            if (wzChartData) wzRenderCharts(wzChartData.input, wzChartData.projection);
+            if (wzChartData) {
+                wzRenderCharts(
+                    wzChartData.input,
+                    wzChartData.projection,
+                    wzChartData.summary,
+                    wzChartData.mode,
+                );
+            }
         }, 180);
     });
 }
@@ -1144,6 +1157,13 @@ function wzRenderObligationCosts(input, projection) {
     }
     const fireAge = wzFireAge(input);
     const pct = (age) => ((Math.max(minAge, Math.min(maxAge, age)) - minAge) / (maxAge - minAge)) * 100;
+    const overlapsPartTime = (start, end) => (input?.stages || []).some(
+        (stage) => stage.stage_type === "realizacja"
+            && (Number(stage.part_time_net_monthly) > 0
+                || Number(stage.part_time_gross_monthly) > 0)
+            && Number(stage.start_age) < end
+            && Number(stage.end_age) > start
+    );
     const rows = obligations.map((obligation) => {
         const start = Number(obligation.start_age) || 0;
         const end = Number(obligation.end_age) || 0;
@@ -1153,7 +1173,9 @@ function wzRenderObligationCosts(input, projection) {
         const funding = fireAge == null
             ? "źródło zależne od etapu"
             : end <= fireAge
-                ? "z pensji"
+                ? (overlapsPartTime(start, end)
+                    ? "z pensji i portfela"
+                    : "z pensji")
                 : start >= fireAge
                     ? "z portfela"
                     : "z pensji, potem z portfela";
@@ -1260,7 +1282,7 @@ function wzRenderCharts(input, projection, summary = {}, mode = "wizard") {
     wzChartMilestones = annotations;
     wzMilestoneTipHide();
     wzUpdateMilestoneToggle();
-    wzChartData = { input, projection };
+    wzChartData = { input, projection, summary, mode };
     wzChartModels = {
         withdrawals: {
             kind: "withdrawals",
@@ -1335,5 +1357,6 @@ function wzRenderCharts(input, projection, summary = {}, mode = "wizard") {
         annotationsFor: wzChartAnnotationsFor,
         references: wzChartReferences,
         referenceValues: wzChartReferenceValues,
+        milestones: () => wzChartMilestones,
     };
 })();

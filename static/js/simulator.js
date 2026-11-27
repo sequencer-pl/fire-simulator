@@ -424,10 +424,7 @@ function applyWizardDraftIfPresent() {
     if (!raw || !container) return false;
     try {
         const draft = JSON.parse(raw);
-        if (
-            draft?.version != null
-            && Number(draft.version) !== SUPPORTED_WIZARD_DRAFT_VERSION
-        ) {
+        if (Number(draft?.version) !== SUPPORTED_WIZARD_DRAFT_VERSION) {
             localStorage.removeItem(WIZARD_DRAFT_KEY);
             return false;
         }
@@ -1331,7 +1328,20 @@ function parseSimulationInput(parsed) {
     if (parsed?.schema !== "fire-simulation/v1" || !Array.isArray(parsed?.input?.stages)) {
         throw new Error("Oczekiwano pliku .sim.json (schema fire-simulation/v1).");
     }
-    return parsed.input;
+    const input = parsed.input;
+    // Starsze eksporty nie miały markera, ale mają już zmaterializowane
+    // wpłaty po zobowiązaniu. Nie doliczajmy ich drugi raz.
+    if (input.redirects_applied == null) {
+        const hasBakedSplit = input.stages.some(
+            (stage) => stage.stage_type === "akumulacja"
+                && /\(po zobowiązaniu/.test(stage.name || "")
+        );
+        const hasRedirect = (input.obligations || []).some(
+            (obligation) => obligation.redirect_to_savings
+        );
+        input.redirects_applied = hasBakedSplit && hasRedirect;
+    }
+    return input;
 }
 
 function initSimulationIO() {
@@ -1340,7 +1350,9 @@ function initSimulationIO() {
 
     if (exportBtn) {
         exportBtn.addEventListener("click", () => {
-            const data = lastInput || gatherFormData();
+            // Eksportuj aktualny formularz, nie snapshot z ostatniej symulacji:
+            // użytkownik mógł zmienić etapy lub zobowiązania bez ponownego kliknięcia.
+            const data = gatherFormData();
             const name = defaultSimName();
             const payload = {
                 schema: "fire-simulation/v1",
@@ -1477,7 +1489,7 @@ function createObligationRow(data = {}) {
             </div>
             <p class="field-hint obligation-redirect-hint">Bez przekierowania uwolniona kwota zostaje w budżecie na życie.</p>
         </div>
-        <p class="field-hint obligation-redirect-note hidden">To zobowiązanie kończy się na FIRE lub później. Po zakończeniu wypłata z portfela po prostu spada do budżetu — bez przekierowania.</p>`;
+        <p class="field-hint obligation-redirect-note hidden">To zobowiązanie kończy się na FIRE lub później. Po zakończeniu budżet zależy od ustawionych wypłat; w Asystencie planner utrzymuje cel, w Symulatorze zmieniasz wypłaty ręcznie.</p>`;
     row.querySelector(".obligation-remove").addEventListener("click", () => row.remove());
     return row;
 }

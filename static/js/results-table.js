@@ -165,7 +165,11 @@
                 : "";
             return `<tr class="${rowClass}" data-age="${window.escapeHtml(String(year.age))}" data-keep="${keep}"${title}>
                 <td class="col-age">${window.escapeHtml(String(year.age))}</td>
-                <td class="col-stage">${window.escapeHtml(year.stage_name || "")}</td>
+                <td class="col-stage">${window.escapeHtml(
+                    typeof window.logicalStageName === "function"
+                        ? window.logicalStageName(year.stage_name || "")
+                        : (year.stage_name || "")
+                )}</td>
                 ${cells}
             </tr>`;
         };

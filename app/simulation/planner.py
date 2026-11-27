@@ -3154,7 +3154,7 @@ def _append_coast_warning(
     if not a.semi_fire_enabled or a.semi_fire_mode != "coast":
         return proj
     reference = target if target and target > 0 else proj.min_monthly
-    coast_start = int(a.semi_fire_age or 0)
+    coast_start = int(a.semi_fire_age if a.semi_fire_age is not None else a.age_now)
     coast_end = int(
         a.retire_early_age
         if a.retire_early_age is not None
@@ -3177,7 +3177,7 @@ def _append_coast_warning(
                 required - a.semi_fire_net_monthly,
             )
             break
-    if reference and reference > 0 and first_deficit is not None:
+    if first_deficit is not None:
         age, active, required, shortfall = first_deficit
         proj.warnings.append(
             "Coast FIRE zakłada, że pensja z części etatu pokrywa życie, "
@@ -3187,11 +3187,6 @@ def _append_coast_warning(
             f"+ oszczędności {a.semi_fire_savings_monthly:,.0f}), a pensja "
             f"z części etatu to {a.semi_fire_net_monthly:,.0f} zł/mies. "
             f"Brakuje ok. {shortfall:,.0f} zł/mies. Plan może być zbyt optymistyczny."
-        )
-    if a.semi_fire_savings_monthly > a.semi_fire_net_monthly + 1:
-        proj.warnings.append(
-            "Oszczędności w okresie Coast FIRE przekraczają pensję z części etatu. "
-            "Zmniejsz kwotę odkładaną albo zwiększ pensję."
         )
     return proj
 

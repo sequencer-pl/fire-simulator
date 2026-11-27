@@ -262,9 +262,9 @@ function createStageBlock(defaults) {
     block.className = "stage-block " + stageKindClass(stageType);
     block.dataset.index = idx;
     block.dataset.stageType = stageType;
-    if (defaults?.origin_stage_id) {
-        block.dataset.originStageId = String(defaults.origin_stage_id);
-    }
+    block.dataset.originStageId = defaults?.origin_stage_id
+        ? String(defaults.origin_stage_id)
+        : `manual-${idx}`;
     if (defaults?.withdrawal_target_gross_monthly > 0) {
         block.dataset.withdrawalTargetGrossMonthly = String(defaults.withdrawal_target_gross_monthly);
     }
