@@ -170,14 +170,51 @@ function _accountMonthly(name, cfg, monthlyGross) {
     return (cfg.annual_contribution || 0) / 12;
 }
 
+function logicalStageName(name) {
+    const text = String(name || "");
+    for (const marker of [" (z zobowiązaniem)", " (po zobowiązaniu"]) {
+        const index = text.indexOf(marker);
+        if (index >= 0) return text.slice(0, index);
+    }
+    return text;
+}
+
+function logicalStagesForSummary(input) {
+    if (!input || !Array.isArray(input.stages)) return input;
+    const groups = new Map();
+    const stages = [];
+    for (const stage of input.stages) {
+        if (stage.stage_type !== "realizacja" || !stage.origin_stage_id) {
+            stages.push(stage);
+            continue;
+        }
+        const existing = groups.get(stage.origin_stage_id);
+        if (!existing) {
+            const merged = {
+                ...stage,
+                name: logicalStageName(stage.name),
+                start_age: Number(stage.start_age),
+                end_age: Number(stage.end_age),
+            };
+            groups.set(stage.origin_stage_id, merged);
+            stages.push(merged);
+        } else {
+            existing.start_age = Math.min(existing.start_age, Number(stage.start_age));
+            existing.end_age = Math.max(existing.end_age, Number(stage.end_age));
+        }
+    }
+    return { ...input, stages };
+}
+
 function computeStageSummaries(input, result) {
     if (!input || !input.stages || !result || !result.years) return [];
+    const summaryInput = logicalStagesForSummary(input);
     const yearsByAge = {};
     for (const y of result.years) yearsByAge[y.age] = y;
 
     // Collect unique age boundaries
     const bounds = new Set();
-    for (const s of input.stages) {
+    for (const s of summaryInput.stages) {
         bounds.add(s.start_age);
         bounds.add(s.end_age);
     }
@@ -190,7 +227,7 @@ function computeStageSummaries(input, result) {
         if (a >= b) continue;
 
         // Stages active for this entire segment
-        const active = input.stages.filter((s) => s.start_age <= a && s.end_age >= b);
+        const active = summaryInput.stages.filter((s) => s.start_age <= a && s.end_age >= b);
         if (active.length === 0) continue;
 
         const isAccum = active[0].stage_type === "akumulacja";

@@ -177,10 +177,12 @@ Wszystkie ekrany liczą te same metryki w `app/simulation/summary.py`:
   wiek start/koniec, przekierowanie na oszczędności). Są dodatkowym kosztem
   poza budżetem: przed FIRE finansuje je pensja, a po FIRE zwiększają wypłatę
   z portfela. Planner dzieli realizację na granicach zobowiązań i ustawia
-  osobny cel brutto dla segmentu. Jeśli zobowiązanie kończy się przed
-  realizacją i ma włączone przekierowanie, planner dodaje etap akumulacji
-  z uwolnioną kwotą. Wszystkie metryki liczy `summary.py`; front i eksport
-  czytają gotowe wartości.
+  osobny cel brutto dla segmentu; segmenty zachowują `origin_stage_id`, więc
+  prezentacja może pokazać pierwotny, logiczny etap. Limit 20 etapów dotyczy
+  etapów logicznych, nie technicznych segmentów solvera. Jeśli zobowiązanie
+  kończy się przed realizacją i ma włączone przekierowanie, planner dodaje
+  etap akumulacji z uwolnioną kwotą. Wszystkie metryki liczy `summary.py`;
+  front i eksport czytają gotowe wartości.
 - **ZUS mies.** = miesięczna emerytura ZUS na koniec horyzontu.
 - **Podatki i składki** = podatki plus składka zdrowotna ZUS w horyzoncie.
 - **Efektywność podatkowa** = wypłaty netto / (wypłaty netto + podatki +

@@ -310,7 +310,7 @@ function renderVerdict(sims) {
                     <span class="cmp-verdict-sub">${escapeHtml(winner.sim.name)}${diffRunner >= 1 ? ` · ${fmtSignedMoney(diffRunner)} vs #2` : ""}</span>
                 </div>
                 <div class="metric">
-                    <span class="metric-label">${tipLabelHtml("Najwyższa wypłata mies.", "Scenariusz zapewniający najwyższą średnią miesięczną wypłatę netto w latach realizacji.")}</span>
+                    <span class="metric-label">${tipLabelHtml("Najwyższy średni budżet na życie", "Scenariusz zapewniający najwyższy średni miesięczny budżet po zobowiązaniach w latach realizacji.")}</span>
                     <span class="metric-value">${bestAvg.avg > 0 ? fmtMoney(bestAvg.avg) + "/mies." : "—"}</span>
                     <span class="cmp-verdict-sub">${bestAvg.avg > 0 ? `${escapeHtml(bestAvg.sim.name)}${avgDelta >= 1 ? ` · ${fmtSignedMoney(avgDelta)}/mies. vs #2` : ""}` : "Brak etapu wypłat"}</span>
                 </div>

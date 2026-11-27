@@ -12,7 +12,7 @@ test("Asystent pokazuje wspólne Etapy i tabelę rok po roku", async ({ page }) 
         localStorage.setItem(
             "fire.wizardPlan",
             JSON.stringify({
-                version: 2,
+                version: 3,
                 plan,
                 path: plan.path,
                 selectedScenario: "realne",

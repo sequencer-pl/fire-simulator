@@ -12,7 +12,7 @@ const WZ_STATE_SAVE_MS = 150;
 // Wersje cache'y w localStorage. Niezgodne wpisy odrzucamy, żeby po zmianie
 // schematu stary stan nie nadpisywał nowego planu.
 const WZ_STATE_VERSION = 2;
-const WZ_PLAN_VERSION = 2;
+const WZ_PLAN_VERSION = 3;
 const WZ_DRAFT_VERSION = 2;
 
 const WZ_RETIREMENT_DEFAULT = { k: 60, m: 65 };
@@ -933,13 +933,19 @@ function wzSyncObligationsBox() {
 function wzSyncObligationRedirects() {
     // W ścieżce 3 wiek FIRE jest wynikiem, a nie założeniem — nie ukrywamy
     // wtedy przełącznika na podstawie pola, które i tak jest nieaktywne.
-    const fireAge = wzCurrentPath() === 3 ? null : wzInt("wzRe", 55);
+    const path = wzCurrentPath();
+    const semi = wzRadio("wzFireStyle", "full") !== "full";
+    // Przekierowanie ma pokrycie tylko w akumulacji. W Baricie/Coast kończy
+    // się ona w wieku części etatu, a nie w wieku pełnego FIRE.
+    const accumulationEnd = path === 3
+        ? null
+        : (semi ? wzInt("wzSemiAge", 48) : wzInt("wzRe", 55));
     document.querySelectorAll("#wzObligationsList .obligation-row").forEach((row) => {
         const endAge = parseInt(row.querySelector(".obligation-end")?.value, 10);
-        const beforeFire = !Number.isFinite(endAge) || !Number.isFinite(fireAge)
-            || endAge < fireAge;
-        row.querySelector(".obligation-redirect")?.classList.toggle("hidden", !beforeFire);
-        row.querySelector(".obligation-redirect-note")?.classList.toggle("hidden", beforeFire);
+        const hasAccumulation = !Number.isFinite(endAge) || !Number.isFinite(accumulationEnd)
+            || endAge < accumulationEnd;
+        row.querySelector(".obligation-redirect")?.classList.toggle("hidden", !hasAccumulation);
+        row.querySelector(".obligation-redirect-note")?.classList.toggle("hidden", hasAccumulation);
     });
 }
 
@@ -1102,6 +1108,7 @@ function wzSyncFireStyle() {
     wzEl("wzSemiFireBox")?.classList.toggle("hidden", !semi);
     wzEl("wzSemiSavingsGroup")?.classList.toggle("hidden", style === "barista");
     if (semi) wzSyncSemiBounds();
+    wzSyncObligationRedirects();
 }
 
 function wzSyncAgeBounds() {
@@ -3517,7 +3524,13 @@ function wzBindEvents() {
         if (target.name === "wzHasZusCap") wzSyncZusBox();
         if (target.name === "wzHasOfe") wzSyncOfeBox();
         if (target.name === "wzHasObligations") wzSyncObligationsBox();
-        if (target.matches?.(".obligation-end") || target.id === "wzRe" || target.id === "wzReRange") {
+        if (
+            target.matches?.(".obligation-end")
+            || target.id === "wzRe"
+            || target.id === "wzReRange"
+            || target.id === "wzSemiAge"
+            || target.id === "wzSemiAgeRange"
+        ) {
             wzSyncObligationRedirects();
         }
         if (target.name === "wzPpkState" || target.name === "wzPpeState") {
@@ -3578,7 +3591,13 @@ function wzBindEvents() {
         if (target.name === "wzHasZusCap") wzSyncZusBox();
         if (target.name === "wzHasOfe") wzSyncOfeBox();
         if (target.name === "wzHasObligations") wzSyncObligationsBox();
-        if (target.matches?.(".obligation-end") || target.id === "wzRe" || target.id === "wzReRange") {
+        if (
+            target.matches?.(".obligation-end")
+            || target.id === "wzRe"
+            || target.id === "wzReRange"
+            || target.id === "wzSemiAge"
+            || target.id === "wzSemiAgeRange"
+        ) {
             wzSyncObligationRedirects();
         }
         if (target.name === "wzPpkState" || target.name === "wzPpeState") {

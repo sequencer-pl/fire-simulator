@@ -177,6 +177,22 @@
         const obligations = obligationsFor(input);
         if (!obligations.length) return [];
         const total = obligations.reduce((sum, item) => sum + (Number(item.monthly) || 0), 0);
+        const startAges = obligations.map((item) => Number(item.start_age)).filter(Number.isFinite);
+        const endAges = obligations.map((item) => Number(item.end_age)).filter(Number.isFinite);
+        const firstAge = startAges.length ? Math.min(...startAges) : 0;
+        const lastAge = endAges.length ? Math.max(...endAges) : firstAge;
+        let peak = 0;
+        for (let age = firstAge; age <= lastAge; age += 1) {
+            const active = obligations.reduce(
+                (sum, item) => sum
+                    + ((Number(item.start_age) <= age && age < Number(item.end_age))
+                        ? (Number(item.monthly) || 0)
+                        : 0),
+                0
+            );
+            peak = Math.max(peak, active);
+        }
+        peak = peak || total;
         const fireAge = fireAgeFor(input);
         const details = obligations.map((item) => {
             const from = Number(item.start_age) || 0;
@@ -189,18 +205,19 @@
                     : "po zakończeniu na oszczędności";
             return `${item.name || "Zobowiązanie"}: ${money(item.monthly)}/mies. od ${from} do ${to} r.ż., ${redirect}.`;
         }).join(" ");
-        const endAges = obligations.map((item) => Number(item.end_age)).filter(Number.isFinite);
         const endLabel = endAges.length ? ` do ${Math.max(...endAges)} r.ż.` : "";
         return [
-            `<span class="chip wz-fact">Zobowiązania: ${money(total)}/mies.${endLabel}${tip(`Zobowiązania czasowe są dodatkowym kosztem poza budżetem: w latach ich trwania portfel wypłaca budżet plus zobowiązanie. ${details}`)}</span>`
+            `<span class="chip wz-fact">Zobowiązania: do ${money(peak)}/mies.${endLabel}${tip(`Zobowiązania czasowe są dodatkowym kosztem poza budżetem. W Asystencie planner dolicza je do wypłaty w latach ich trwania; w ręcznym Symulatorze budżet to faktyczna kwota po ich opłaceniu. ${details}`)}</span>`
         ];
     }
 
     function budgetFact(input, summary) {
         const obligations = obligationsFor(input);
         if (!obligations.length) return "";
-        const avg = Number(summary?.avg_monthly);
-        const min = Number(summary?.min_monthly);
+        const avgRaw = summary?.avg_monthly;
+        const minRaw = summary?.min_monthly;
+        const avg = avgRaw == null ? null : Number(avgRaw);
+        const min = minRaw == null ? null : Number(minRaw);
         if (!Number.isFinite(avg)) return "";
         const label = Number.isFinite(min)
             ? `min. ${money(min)}/mies.`

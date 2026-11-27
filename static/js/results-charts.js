@@ -328,6 +328,15 @@ let wzChartMilestonesVisible = true;
 let wzActiveChartMilestone = null;
 let wzMilestoneAnchor = null;
 
+function wzFireAge(input) {
+    const starts = (input?.stages || [])
+        .filter((stage) => stage.stage_type === "realizacja"
+            && Object.keys(stage.accounts || {}).some((key) => baseAccountKey(key) !== "zus"))
+        .map((stage) => Number(stage.start_age))
+        .filter(Number.isFinite);
+    return starts.length ? Math.min(...starts) : null;
+}
+
 function wzChartAnnotationsFor(input, projection) {
     const ages = (projection?.chart?.ages || []).map(Number);
     if (!ages.length) return [];
@@ -411,19 +420,26 @@ function wzChartAnnotationsFor(input, projection) {
         if (!obligationsByEnd.has(endAge)) obligationsByEnd.set(endAge, []);
         obligationsByEnd.get(endAge).push(obligation);
     });
+    const fireAge = wzFireAge(input);
     obligationsByEnd.forEach((items, endAge) => {
         const total = items.reduce((sum, item) => sum + (Number(item.monthly) || 0), 0);
+        const afterFire = Number.isFinite(fireAge) && endAge >= fireAge;
         const details = items.map((item) => {
-            const redirect = item.redirect_to_savings === false
-                ? "zostaje w budżecie"
-                : "na oszczędności";
+            const redirect = afterFire
+                ? "wypłata z portfela wraca do budżetu"
+                : item.redirect_to_savings === false
+                    ? "zostaje w budżecie"
+                    : "na oszczędności";
             return `${item.name || "Zobowiązanie"}: ${wzFmtZloty(item.monthly)} zł/mies. (${redirect})`;
         }).join("; ");
+        const text = afterFire
+            ? `Od ${endAge} r.ż. kończy się: ${details}. Wypłata z portfela spada o ${wzFmtZloty(total)} zł/mies., a budżet pozostaje na poziomie celu.`
+            : `Od ${endAge} r.ż. kończy się: ${details}. Uwalnia to ${wzFmtZloty(total)} zł/mies.`;
         add(
             "obligation",
             "Koniec zobowiązania",
             endAge,
-            `Od ${endAge} r.ż. kończy się: ${details}. Uwalnia to ${wzFmtZloty(total)} zł/mies.`,
+            text,
             "Koniec zob."
         );
     });
@@ -1101,12 +1117,7 @@ function wzRenderObligationCosts(input, projection) {
         card.innerHTML = "";
         return;
     }
-    const realizationStarts = (input?.stages || [])
-        .filter((stage) => stage.stage_type === "realizacja"
-            && Object.keys(stage.accounts || {}).some((key) => baseAccountKey(key) !== "zus"))
-        .map((stage) => Number(stage.start_age))
-        .filter(Number.isFinite);
-    const fireAge = realizationStarts.length ? Math.min(...realizationStarts) : null;
+    const fireAge = wzFireAge(input);
     const pct = (age) => ((Math.max(minAge, Math.min(maxAge, age)) - minAge) / (maxAge - minAge)) * 100;
     const rows = obligations.map((obligation) => {
         const start = Number(obligation.start_age) || 0;
@@ -1221,8 +1232,8 @@ function wzRenderCharts(input, projection, summary = {}) {
     const references = {
         // Linie referencyjne to wypłata z portfela i ZUS, nie lifestyle
         // (mean/min z projekcji zawierają część etatu i kredyt).
-        avgMonthly: Number(summary?.avg_income ?? summary?.avg_monthly) || null,
-        minMonthly: Number(summary?.min_income ?? summary?.min_monthly) || null,
+        avgMonthly: Number(summary?.avg_monthly_portfolio ?? summary?.avg_monthly) || null,
+        minMonthly: Number(summary?.min_monthly_portfolio ?? summary?.min_monthly) || null,
         peakWealth: Number(projection?.peak_wealth) || null,
     };
     wzChartMilestones = annotations;

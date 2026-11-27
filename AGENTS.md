@@ -115,10 +115,12 @@ Nie zmieniaj ich bez uzgodnienia. Wartości liczbowe pochodzą z `config.py`,
   start/koniec, przekierowanie na oszczędności). Są dodatkowym kosztem poza
   budżetem: przed FIRE finansuje je pensja (zmniejszają oszczędności), po FIRE
   zwiększają wypłatę z portfela. Planner dzieli realizację na granicach
-  zobowiązań i ustawia osobny cel brutto dla każdego segmentu. Dodatkowy etap
-  akumulacji powstaje tylko wtedy, gdy zobowiązanie kończy się przed realizacją
-  i ma włączone przekierowanie. Stare pola `mortgage_*` są tylko zgodnością
-  wsteczną i mapują się na jeden wpis.
+  zobowiązań i ustawia osobny cel brutto dla każdego segmentu. Segmenty
+  techniczne dziedziczą `origin_stage_id`; fazy, Gantt i podsumowania grupują
+  je z powrotem po logicznym etapie. Limit 20 etapów dotyczy etapów logicznych,
+  nie segmentów solvera. Dodatkowy etap akumulacji powstaje tylko wtedy, gdy
+  zobowiązanie kończy się przed realizacją i ma włączone przekierowanie. Stare
+  pola `mortgage_*` są tylko zgodnością wsteczną i mapują się na jeden wpis.
 - **IKZE:** ulga obniża podatek w roku wpłaty; zwrot trafia na
   `ikze_refund_target` (auto: IKE/OIPE do limitu → obligacje → lokata →
   OKI oszcz. → broker → gotówka; **nigdy krypto**). Wcześniejszy zwrot przed 65:

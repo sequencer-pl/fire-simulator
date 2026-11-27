@@ -1375,22 +1375,19 @@ function defaultObligationAges() {
     return { start, end: Math.min(120, start + 5) };
 }
 
-function simFireAge() {
-    const starts = [...document.querySelectorAll(
-        '#stages-container .stage-block[data-stage-type="realizacja"] .start-age'
-    )]
-        .map((input) => parseInt(input.value, 10))
-        .filter(Number.isFinite);
-    return starts.length ? Math.min(...starts) : null;
+function hasAccumulationAfterBlock(endAge) {
+    if (!Number.isFinite(endAge)) return true;
+    return [...document.querySelectorAll(
+        '#stages-container .stage-block[data-stage-type="akumulacja"] .end-age'
+    )].some((input) => parseInt(input.value, 10) > endAge);
 }
 
 function syncObligationRedirects() {
-    const fireAge = simFireAge();
     document.querySelectorAll("#obligationsList .obligation-row").forEach((row) => {
         const endAge = parseInt(row.querySelector(".obligation-end")?.value, 10);
-        const beforeFire = fireAge == null || !Number.isFinite(endAge) || endAge < fireAge;
-        row.querySelector(".obligation-redirect")?.classList.toggle("hidden", !beforeFire);
-        row.querySelector(".obligation-redirect-note")?.classList.toggle("hidden", beforeFire);
+        const hasAccumulation = hasAccumulationAfterBlock(endAge);
+        row.querySelector(".obligation-redirect")?.classList.toggle("hidden", !hasAccumulation);
+        row.querySelector(".obligation-redirect-note")?.classList.toggle("hidden", hasAccumulation);
     });
 }
 
@@ -1540,17 +1537,15 @@ function boostStageAccounts(stage, extraMonthly) {
 function applyObligationStages(stages, obligations) {
     const out = stages.map((stage) => structuredClone(stage));
     const firstStart = Math.min(...out.map((stage) => Number(stage.start_age) || 0), 120);
-    const firstReal = Math.min(
-        ...out
-            .filter((stage) => stage.stage_type === "realizacja")
-            .map((stage) => Number(stage.start_age) || 0),
-        120
+    const hasAccumulationAfter = (endAge) => out.some(
+        (stage) => stage.stage_type === "akumulacja"
+            && Number(stage.end_age) > Number(endAge)
     );
     [...(obligations || [])]
         .filter((item) => item.redirect_to_savings
             && Number(item.monthly) > 0
             && firstStart < Number(item.end_age)
-            && Number(item.end_age) < firstReal)
+            && hasAccumulationAfter(item.end_age))
         .sort((a, b) => Number(a.end_age) - Number(b.end_age))
         .forEach((obligation) => {
             const endAge = Number(obligation.end_age);

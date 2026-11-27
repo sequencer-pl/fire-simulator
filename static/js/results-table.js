@@ -116,7 +116,7 @@
         ];
 
         const wealthTip = "Majątek prywatny: suma sald na koniec roku bez ZUS i OFE. ZUS pokazujemy w osobnej kolumnie. Kwoty są brutto — majątek końcowy netto jest po podatku wyjścia.";
-        const lifestyleTip = "Budżet na życie: dochód netto (portfel + ZUS + praca) minus aktywne zobowiązania czasowe. W latach z zobowiązaniem portfel wypłaca więcej, więc budżet pozostaje stabilny.";
+        const lifestyleTip = "Budżet na życie: dochód netto (portfel + ZUS + praca) minus aktywne zobowiązania czasowe. W Asystencie planner dolicza zobowiązania do wypłaty, więc budżet pozostaje stabilny; w ręcznym Symulatorze zależy od ustawionych wypłat.";
         const header = columns.map((column) => {
             const classes = ["amount"];
             if (column.key === "monthly") classes.push("col-monthly");
@@ -170,6 +170,21 @@
             </tr>`;
         };
 
+        const postStart = Number(result?.summary?.end_age) + 1;
+        const pensionEnd = zusEndAge(input);
+        const postObligations = Array.isArray(input?.obligations) && input.obligations.length
+            ? input.obligations
+            : (Number(input?.mortgage_monthly) > 0 && input?.mortgage_end_age != null
+                ? [{
+                    monthly: Number(input.mortgage_monthly),
+                    start_age: 0,
+                    end_age: Number(input.mortgage_end_age),
+                }]
+                : []);
+        const obligationsAfterHorizon = postHorizon
+            && Number.isFinite(postStart)
+            && postObligations.some((item) => Number(item.start_age) < (pensionEnd ?? postStart)
+                && Number(item.end_age) > postStart);
         const postYear = postHorizon && postHorizon.monthly > 0.5
             ? {
                 age: postHorizon.ageLabel,
@@ -178,7 +193,7 @@
                 total_wealth: 0,
                 annual_withdrawal: postHorizon.annual,
                 monthly_withdrawal: postHorizon.monthly,
-                lifestyle_monthly: postHorizon.monthly,
+                lifestyle_monthly: obligationsAfterHorizon ? null : postHorizon.monthly,
                 tax_paid: 0,
             }
             : null;

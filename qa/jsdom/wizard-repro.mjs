@@ -444,6 +444,13 @@ const harness = `
             && portfolio.textContent.includes("4")
             && portfolio.textContent.includes("100");
     });
+    check("fakty: brak metryki budżetu nie pokazuje 0 zł", () => {
+        const html = ResultsSummary.budgetFact(
+            { obligations: [{ monthly: 100, start_age: 40, end_age: 50 }] },
+            { avg_monthly: null, min_monthly: null }
+        );
+        return html === "";
+    });
     check("rok po roku: wiersz po horyzoncie pokazuje sam ZUS", () => {
         const row = ResultsTable.postHorizonFor(
             {
@@ -481,6 +488,47 @@ const harness = `
             && Math.round(row.monthly) === 1842
             && Math.round(row.annual) === 22100
             && beyond == null;
+    });
+    check("rok po roku: po horyzoncie z aktywnym zobowiązaniem budżet to —", () => {
+        const host = document.createElement("div");
+        document.body.appendChild(host);
+        window.ResultsTable.render(host, {
+            input: {
+                obligations: [{ monthly: 1000, start_age: 42, end_age: 50 }],
+                stages: [
+                    { stage_type: "realizacja", start_age: 65, end_age: 100, accounts: { zus: {} } },
+                ],
+            },
+            result: {
+                summary: { end_age: 41, has_pension: true, zus_monthly: 1900 },
+                accounts: ["zus"],
+                account_labels: { zus: "ZUS" },
+                years: [
+                    {
+                        age: 41,
+                        stage_name: "Realizacja",
+                        balances: {},
+                        ending_balances: {},
+                        total_wealth: 0,
+                        annual_withdrawal: 24000,
+                        monthly_withdrawal: 2000,
+                        lifestyle_monthly: 2000,
+                        tax_paid: 0,
+                    },
+                ],
+            },
+            embedded: true,
+            postHorizon: {
+                ageLabel: "42+",
+                stageName: "Tylko ZUS",
+                monthly: 1900,
+                annual: 22800,
+                title: "test",
+            },
+        });
+        const post = host.querySelector("tr.post-horizon");
+        const cell = post?.querySelector('td[data-col="lifestyle"]');
+        return Boolean(post && cell) && cell.textContent.trim() === "—";
     });
     check("rok po roku: kluczowe kolumny są pierwsze i miesięczna wypłata jest wyróżniona", () => {
         const host = document.createElement("div");
@@ -553,6 +601,29 @@ const harness = `
                 .includes("majątek prywatny jest poza modelem");
         host.remove();
         return ok;
+    });
+    check("etapy: techniczne segmenty wracają do jednego logicznego etapu", () => {
+        const input = {
+            monthly_gross: 0,
+            stages: [
+                { stage_type: "realizacja", origin_stage_id: "r1", name: "Realizacja (z zobowiązaniem)", start_age: 45, end_age: 48, accounts: {} },
+                { stage_type: "realizacja", origin_stage_id: "r1", name: "Realizacja (po zobowiązaniu)", start_age: 48, end_age: 50, accounts: {} },
+                { stage_type: "realizacja", origin_stage_id: "r1", name: "Realizacja", start_age: 50, end_age: 55, accounts: {} },
+            ],
+        };
+        const result = {
+            years: [45, 46, 47, 48, 49, 50, 51, 52, 53, 54].map((age) => ({
+                age,
+                monthly_withdrawal: 3000,
+                zus_monthly: 0,
+                balances: {},
+            })),
+        };
+        const segments = computeStageSummaries(input, result);
+        return segments.length === 1
+            && segments[0].start_age === 45
+            && segments[0].end_age === 55
+            && segments[0].label === "Realizacja";
     });
     check("wynik: scenariusze są osobną sekcją pod hero", () => {
         const hero = document.getElementById("wzHeroAnswer");
@@ -647,6 +718,25 @@ const harness = `
             && zus.text.includes("65")
             && !zus.text.includes("40 r.ż.");
     });
+    check("adnotacja zobowiązania po FIRE mówi o spadku wypłaty", () => {
+        const input = {
+            stages: [
+                { stage_type: "realizacja", start_age: 55, end_age: 65, accounts: { broker: {} } },
+            ],
+            obligations: [
+                { name: "Kredyt", monthly: 2000, start_age: 55, end_age: 60, redirect_to_savings: true },
+            ],
+        };
+        const projection = {
+            chart: { ages: Array.from({ length: 61 }, (_, index) => 40 + index) },
+            early_return_total: 0,
+        };
+        const annotation = ResultsCharts.annotationsFor(input, projection)
+            .find((item) => item.kind === "obligation");
+        return Boolean(annotation)
+            && annotation.text.includes("spada")
+            && !annotation.text.includes("Uwalnia");
+    });
     check("wynik: wykresy wypłat i kapitału renderują się", () => {
         return Boolean(document.querySelector("#wzWithdrawalsChart svg"))
             && Boolean(document.querySelector("#wzCapitalChart svg"))
@@ -699,6 +789,17 @@ const harness = `
             && !box.classList.contains("hidden")
             && box.textContent.includes("ZUS od 67")
             && box.textContent.includes("Dlaczego ten plan?");
+    });
+    check("cache: stara wersja planu jest odrzucana", () => {
+        localStorage.removeItem("fire.wizardState");
+        localStorage.setItem("fire.wizardPlan", JSON.stringify({
+            version: WZ_PLAN_VERSION - 1,
+            plan: wzPlan,
+            path: 1,
+            selectedScenario: "realne",
+        }));
+        window.history.replaceState({}, "", "/wizard?restore=1");
+        return wzRestoreIfRequested() === false;
     });
     check("restore: ?restore=1 odtwarza krok wyniku z zapisanego planu", () => {
         localStorage.removeItem("fire.wizardState");
