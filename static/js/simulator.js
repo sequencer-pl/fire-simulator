@@ -28,6 +28,7 @@ let loadedMaxAge = null;
 let loadedStartYear = null;
 let loadedInflation = null;
 let loadedMonthlyGross = null;
+let loadedRedirectsApplied = false;
 let simObligationRedirectSeq = 0;
 
 function gatherFormData() {
@@ -76,10 +77,23 @@ function gatherFormData() {
     });
 
     const obligations = gatherObligations();
-    const adjustedStages = applyObligationStages(stages, obligations);
+    const firstStart = Math.min(
+        ...stages.map((stage) => Number(stage.start_age) || 0),
+        120
+    );
+    const redirectsApplicable = !loadedRedirectsApplied && obligations.some(
+        (item) => item.redirect_to_savings
+            && Number(item.monthly) > 0
+            && firstStart < Number(item.end_age)
+            && hasAccumulationAfterStage(stages, item.end_age)
+    );
+    const adjustedStages = redirectsApplicable
+        ? applyObligationStages(stages, obligations)
+        : stages;
     return {
         stages: adjustedStages,
         obligations,
+        redirects_applied: loadedRedirectsApplied || redirectsApplicable,
         max_age: derivedMaxAgeInfo(adjustedStages).maxAge,
         gender: currentGender(),
         monthly_gross: loadedMonthlyGross ?? 0,
@@ -1534,18 +1548,21 @@ function boostStageAccounts(stage, extraMonthly) {
     });
 }
 
-function applyObligationStages(stages, obligations) {
-    const out = stages.map((stage) => structuredClone(stage));
-    const firstStart = Math.min(...out.map((stage) => Number(stage.start_age) || 0), 120);
-    const hasAccumulationAfter = (endAge) => out.some(
+function hasAccumulationAfterStage(stages, endAge) {
+    return stages.some(
         (stage) => stage.stage_type === "akumulacja"
             && Number(stage.end_age) > Number(endAge)
     );
+}
+
+function applyObligationStages(stages, obligations) {
+    const out = stages.map((stage) => structuredClone(stage));
+    const firstStart = Math.min(...out.map((stage) => Number(stage.start_age) || 0), 120);
     [...(obligations || [])]
         .filter((item) => item.redirect_to_savings
             && Number(item.monthly) > 0
             && firstStart < Number(item.end_age)
-            && hasAccumulationAfter(item.end_age))
+            && hasAccumulationAfterStage(out, item.end_age))
         .sort((a, b) => Number(a.end_age) - Number(b.end_age))
         .forEach((obligation) => {
             const endAge = Number(obligation.end_age);
@@ -1595,6 +1612,11 @@ function populateStages(inputData) {
     loadedMonthlyGross = Number.isFinite(Number(inputData.monthly_gross))
         ? Number(inputData.monthly_gross)
         : null;
+    loadedRedirectsApplied = Boolean(inputData.redirects_applied);
+    document.getElementById("simRedirectsBakedHint")?.classList.toggle(
+        "hidden",
+        !loadedRedirectsApplied
+    );
     applyObligationsFromInput(inputData);
     if (inputData.config) CONFIG = backfillConfig(inputData.config);
     if (inputData.gender) setGender(inputData.gender);

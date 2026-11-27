@@ -149,6 +149,9 @@ class SimulationInput(BaseModel):
     # mogą być liczniejsze, bo powstają przy granicach zobowiązań.
     stages: list[StageInput] = Field(default_factory=list, max_length=128)
     obligations: list[TemporaryObligation] = Field(default_factory=list, max_length=20)
+    # True, gdy etapy akumulacji zawierają już materializację przekierowania
+    # zobowiązań na oszczędności. Symulator nie może doliczyć jej drugi raz.
+    redirects_applied: bool = False
     max_age: int = Field(
         default=100,
         ge=0,

@@ -119,7 +119,8 @@ Nie zmieniaj ich bez uzgodnienia. Wartości liczbowe pochodzą z `config.py`,
   techniczne dziedziczą `origin_stage_id`; fazy, Gantt i podsumowania grupują
   je z powrotem po logicznym etapie. Limit 20 etapów dotyczy etapów logicznych,
   nie segmentów solvera. Dodatkowy etap akumulacji powstaje tylko wtedy, gdy
-  zobowiązanie kończy się przed realizacją i ma włączone przekierowanie. Stare
+  zobowiązanie kończy się przed realizacją i ma włączone przekierowanie;
+  `redirects_applied` pilnuje, żeby Symulator nie doliczył go drugi raz. Stare
   pola `mortgage_*` są tylko zgodnością wsteczną i mapują się na jeden wpis.
 - **IKZE:** ulga obniża podatek w roku wpłaty; zwrot trafia na
   `ikze_refund_target` (auto: IKE/OIPE do limitu → obligacje → lokata →

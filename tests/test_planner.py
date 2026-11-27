@@ -387,6 +387,44 @@ def test_extend_chart_does_not_change_values_before_horizon():
         )
 
 
+def test_build_stages_marks_materialized_redirects():
+    a = answers(
+        age_now=40,
+        gross_monthly=12_000,
+        capital={"broker": 500_000},
+        savings=3_000,
+        use_broker=True,
+        retire_early_age=55,
+        plan_end_age=85,
+        allocations={"broker": 100},
+        obligations=[
+            TemporaryObligation(
+                name="Zob",
+                monthly=2_000,
+                start_age=42,
+                end_age=50,
+                redirect_to_savings=True,
+            )
+        ],
+    )
+    assert P.build_stages(a).redirects_applied is True
+    no_redirect = a.model_copy(
+        update={
+            "obligations": [
+                TemporaryObligation(
+                    name="Zob",
+                    monthly=2_000,
+                    start_age=42,
+                    end_age=50,
+                    redirect_to_savings=False,
+                )
+            ]
+        },
+        deep=True,
+    )
+    assert P.build_stages(no_redirect).redirects_applied is False
+
+
 def test_redirect_is_ignored_when_barista_leaves_no_accumulation():
     base = answers(
         age_now=40,
@@ -432,6 +470,8 @@ def test_redirect_is_ignored_when_barista_leaves_no_accumulation():
     )
     with_redirect = P.build_stages(enabled)
     without_redirect = P.build_stages(disabled)
+    assert with_redirect.redirects_applied is False
+    assert without_redirect.redirects_applied is False
     assert [
         (stage.name, stage.start_age, stage.end_age, stage.accounts)
         for stage in with_redirect.stages

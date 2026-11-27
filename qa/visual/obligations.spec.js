@@ -41,6 +41,33 @@ test("Symulator: zobowiązanie czasowe zmniejsza budżet i tworzy etap akumulacj
     await expect(page.locator("#wzMetrics")).toContainText("Minimalny budżet na życie");
 });
 
+test("Symulator: nie dolicza drugi raz przekierowania z Asystenta", async ({ page }) => {
+    const input = JSON.parse(JSON.stringify(PLAN.input));
+    input.obligations = [{
+        name: "Zobowiązanie",
+        monthly: 2000,
+        start_age: 40,
+        end_age: 45,
+        redirect_to_savings: true,
+    }];
+    input.redirects_applied = true;
+
+    await page.goto("/sim", { waitUntil: "networkidle" });
+    await page.evaluate((payload) => {
+        localStorage.setItem(
+            "fire.wizardDraft",
+            JSON.stringify({ ...payload, source: "test" })
+        );
+    }, input);
+    await page.goto("/sim?wizard=1", { waitUntil: "networkidle" });
+
+    const data = await page.evaluate(() => gatherFormData());
+    const accumulation = data.stages.filter((stage) => stage.stage_type === "akumulacja");
+    expect(data.redirects_applied).toBe(true);
+    expect(accumulation).toHaveLength(1);
+    expect(accumulation[0].name).not.toContain("po zobowiązaniu");
+});
+
 test("Asystent: zobowiązanie czasowe jest osobną listą i trafia do planu", async ({ page }) => {
     await page.goto("/wizard", { waitUntil: "networkidle" });
 

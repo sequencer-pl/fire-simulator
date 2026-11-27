@@ -1806,6 +1806,13 @@ def build_stages(a: WizardAnswers) -> SimulationInput:
         )
 
     _validate_logical_stages(stages)
+    redirects_applied = any(
+        obligation.redirect_to_savings
+        and obligation.monthly > 0
+        and a.age_now < obligation.end_age < re
+        and _has_accumulation_after(stages, obligation.end_age)
+        for obligation in obligations
+    )
     stages = _apply_obligation_savings(
         stages, obligations, a, config, gross, retirement_age=re
     )
@@ -1813,6 +1820,7 @@ def build_stages(a: WizardAnswers) -> SimulationInput:
     return SimulationInput(
         stages=stages,
         obligations=obligations,
+        redirects_applied=redirects_applied,
         max_age=plan_end - 1,
         gender=a.gender,
         monthly_gross=gross,
