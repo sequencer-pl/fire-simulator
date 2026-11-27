@@ -220,7 +220,9 @@ def test_barista_lifestyle_min_matches_projection_and_portfolio_is_separate():
     # Jedna definicja budżetu: summary i projekcja muszą się zgadzać.
     assert summary.min_monthly == pytest.approx(result.projection.min_monthly, abs=1)
     assert summary.avg_monthly == pytest.approx(result.projection.mean_monthly, abs=1)
-    assert result.projection.min_monthly == pytest.approx(4_500, abs=5)
+    # Barista ma pensję 4 500 zł netto; portfel może podnieść budżet powyżej
+    # tej kwoty, ale nie może go obniżyć poniżej pensji z części etatu.
+    assert result.projection.min_monthly >= 4_500 - 1
     # Wariant portfelowy jest osobnym polem i nie zawiera części etatu.
     assert summary.min_monthly_portfolio is not None
     assert summary.min_monthly_portfolio < summary.min_monthly

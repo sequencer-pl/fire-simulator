@@ -76,6 +76,10 @@ class AccountConfig(BaseModel):
 class StageInput(BaseModel):
     stage_type: Literal["akumulacja", "realizacja"]
     name: str = Field(default="", max_length=200)
+    # ID logicznego etapu użytkownika. Planner może rozbić realizację na
+    # techniczne segmenty przy granicach zobowiązań — wszystkie dziedziczą
+    # ten identyfikator, żeby fazy i podsumowania mogły je z powrotem scalić.
+    origin_stage_id: str | None = Field(default=None, max_length=64)
     start_age: int = Field(ge=0, le=119)
     end_age: int = Field(ge=1, le=120)
     accounts: dict[str, AccountConfig] = Field(default_factory=dict)
@@ -141,7 +145,9 @@ class TemporaryObligation(BaseModel):
 
 
 class SimulationInput(BaseModel):
-    stages: list[StageInput] = Field(default_factory=list, max_length=20)
+    # Limit dotyczy etapów logicznych (waliduje go planner). Segmenty solvera
+    # mogą być liczniejsze, bo powstają przy granicach zobowiązań.
+    stages: list[StageInput] = Field(default_factory=list, max_length=128)
     obligations: list[TemporaryObligation] = Field(default_factory=list, max_length=20)
     max_age: int = Field(
         default=100,

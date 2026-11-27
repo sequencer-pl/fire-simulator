@@ -39,6 +39,7 @@ from app.simulation.summary import (
 )
 
 SAVINGS_ACCOUNTS = ("broker", "lokata", "obligacje", "krypto")
+MAX_LOGICAL_STAGES = 20
 
 # Legacy order używany przez małą pulę i stare podglądy priorytetów. Główny
 # podział (suggest_allocation_plan) bierze cel safe/market/high z profilu i
@@ -1308,6 +1309,35 @@ def _split_realization_for_obligations(
     return result
 
 
+def _validate_logical_stages(stages: list[StageInput]) -> None:
+    """Waliduj limit etapów użytkownika i nadaj im tożsamość logiczną.
+
+    Limit dotyczy etapów przed ekspansją solvera; techniczne segmenty powstają
+    później i nie powinny wywalać walidacji pydantic.
+    """
+    if len(stages) > MAX_LOGICAL_STAGES:
+        raise ValueError(
+            f"Plan może mieć maksymalnie {MAX_LOGICAL_STAGES} etapów. "
+            "Usuń część etapów lub połącz je w jeden."
+        )
+    for index, stage in enumerate(stages):
+        if not stage.origin_stage_id:
+            stage.origin_stage_id = f"stage-{index}"
+
+
+def _has_accumulation_after(stages: list[StageInput], end_age: int) -> bool:
+    """Czy po zakończeniu zobowiązania jest jeszcze etapa akumulacji?
+
+    To jedyne miejsce, w którym przekierowanie uwolnionej kwoty ma pokrycie
+    we wpłatach. W Baricie/Coast po starcie części etatu nie ma już
+    akumulacji, więc przełącznik nie powinien obiecywać działania.
+    """
+    return any(
+        stage.stage_type == "akumulacja" and stage.end_age > end_age
+        for stage in stages
+    )
+
+
 def _apply_obligation_savings(
     stages: list[StageInput],
     obligations: list[TemporaryObligation],
@@ -1330,6 +1360,7 @@ def _apply_obligation_savings(
             if obligation.redirect_to_savings
             and obligation.monthly > 0
             and a.age_now < obligation.end_age < retirement_age
+            and _has_accumulation_after(stages, obligation.end_age)
         ),
         key=lambda obligation: obligation.end_age,
     )
@@ -1774,6 +1805,7 @@ def build_stages(a: WizardAnswers) -> SimulationInput:
             )
         )
 
+    _validate_logical_stages(stages)
     stages = _apply_obligation_savings(
         stages, obligations, a, config, gross, retirement_age=re
     )
@@ -1826,6 +1858,51 @@ def _monthly_contribution(
     return cfg.annual_contribution / MONTHS_PER_YEAR
 
 
+def _logical_stage_name(name: str) -> str:
+    """Usuń techniczny sufiks dodany przy podziale etapu."""
+    for marker in (" (z zobowiązaniem)", " (po zobowiązaniu"):
+        if marker in name:
+            return name.split(marker, 1)[0]
+    return name
+
+
+def _logical_realization_groups(
+    stages: list[StageInput],
+) -> list[tuple[StageInput, int, int, str]]:
+    """Połącz techniczne segmenty w logiczne etapy realizacji.
+
+    Zwraca ``(pierwszy_segment, start, end, nazwa)`` w kolejności występowania.
+    Etapy bez ``origin_stage_id`` (np. stare importy) pozostają osobno.
+    """
+    groups: dict[str, list[StageInput]] = {}
+    order: list[str] = []
+    for stage in stages:
+        if stage.stage_type != "realizacja":
+            continue
+        key = stage.origin_stage_id or f"solo-{id(stage)}"
+        if key not in groups:
+            groups[key] = []
+            order.append(key)
+        groups[key].append(stage)
+    result: list[tuple[StageInput, int, int, str]] = []
+    for key in order:
+        group = groups[key]
+        first = group[0]
+        result.append(
+            (
+                first,
+                min(stage.start_age for stage in group),
+                max(stage.end_age for stage in group),
+                _logical_stage_name(first.name),
+            )
+        )
+    return result
+
+
+def _stage_group_key(stage: StageInput) -> str:
+    return stage.origin_stage_id or f"solo-{id(stage)}"
+
+
 def _stage_metrics(
     data: SimulationInput, result: SimulationResult
 ) -> list[StageMetric]:
@@ -1837,17 +1914,32 @@ def _stage_metrics(
     so overlapping supplement + ZUS rows sum to the actual payout.
     """
     metrics: list[StageMetric] = []
+    groups = _logical_realization_groups(data.stages)
+    groups_by_key = {
+        _stage_group_key(first): (first, start, end, name)
+        for first, start, end, name in groups
+    }
+    seen_realization: set[str] = set()
     for stage in data.stages:
         if stage.stage_type == "akumulacja":
             monthly = sum(
                 _monthly_contribution(name, cfg, data.monthly_gross, data.config)
                 for name, cfg in stage.accounts.items()
             )
+            name = stage.name or "Akumulacja"
+            start_age, end_age = stage.start_age, stage.end_age
         else:
-            zus_only = set(stage.accounts) == {"zus"}
+            key = _stage_group_key(stage)
+            if key in seen_realization:
+                continue
+            seen_realization.add(key)
+            first, start_age, end_age, name = groups_by_key.get(
+                key, (stage, stage.start_age, stage.end_age, stage.name)
+            )
+            zus_only = set(first.accounts) == {"zus"}
             values: list[float] = []
             for year in result.years:
-                if not (stage.start_age <= year.age < stage.end_age):
+                if not (start_age <= year.age < end_age):
                     continue
                 value = (
                     year.zus_monthly
@@ -1857,13 +1949,13 @@ def _stage_metrics(
                 if value > 0:
                     values.append(value)
             monthly = sum(values) / len(values) if values else 0.0
-        fallback = "Akumulacja" if stage.stage_type == "akumulacja" else "Realizacja"
+            name = name or "Realizacja"
         metrics.append(
             StageMetric(
-                name=stage.name or fallback,
+                name=name,
                 stage_type=stage.stage_type,  # type: ignore[arg-type]
-                start_age=stage.start_age,
-                end_age=stage.end_age,
+                start_age=start_age,
+                end_age=end_age,
                 monthly=round(monthly, 2),
             )
         )
@@ -1984,7 +2076,10 @@ def _phase_metrics(
         key=lambda stage: (stage.start_age, stage.end_age),
     )
     realizations = [
-        stage for stage in data.stages if stage.stage_type == "realizacja"
+        first.model_copy(
+            update={"start_age": start, "end_age": end, "name": name}
+        )
+        for first, start, end, name in _logical_realization_groups(data.stages)
     ]
     zus_stage = next(
         (stage for stage in realizations if set(stage.accounts) == {"zus"}),
@@ -2484,8 +2579,6 @@ def _projection_chart(result: SimulationResult) -> ProjectionChart:
 
 def _extend_chart_to_100(
     data: SimulationInput,
-    target: float | None,
-    bequest: float,
     projection: PlanProjection,
     *,
     max_age: int = 100,
@@ -2524,13 +2617,11 @@ def _extend_chart_to_100(
             )
         )
 
-    # None zachowuje cele etapów (Symulator). Dodatni target to solver
-    # Asystenta, który nadpisuje cele etapów jedną wartością.
-    chart_target = target if target and target > 0 else None
+    # Wykres nie może ponownie rozwiązywać planu: targety etapów są już
+    # wypieczone przez solver. Replay z ``None`` zachowuje je i pozwala
+    # wyliczyć wyłącznie kontynuację po horyzoncie.
     try:
-        _, chart_result = _evaluate_with_result(
-            chart_data, chart_target, bequest
-        )
+        chart_result = simulate(chart_data, None)
     except ValueError:
         return projection
     projection.chart = _projection_chart(chart_result)
@@ -2655,7 +2746,7 @@ def _extend_chart_for_simulator(
     )
     if portfolio_after:
         return projection
-    return _extend_chart_to_100(data, None, 0.0, projection, max_age=max_age)
+    return _extend_chart_to_100(data, projection, max_age=max_age)
 
 
 def build_projection(
@@ -2704,68 +2795,189 @@ def _solve_stage_targets(
     był co najmniej równy ``target``.
 
     Etapy realizacji są wcześniej dzielone na granicach zobowiązań, więc
-    wewnątrz segmentu aktywne zobowiązania są stałe. Solver skaluje gross
-    każdego segmentu na podstawie najniższego budżetu w tym segmencie.
+    wewnątrz segmentu aktywne zobowiązania są stałe. Solver prowadzi osobny
+    bracket dla każdego segmentu: nie zakłada, że budżet reaguje liniowo na
+    brutto, i nie przerywa przy budżecie zero. To ostatnie jest ważne przy
+    Baricie, gdzie portfel zaczyna wypłacać dopiero po przekroczeniu pensji
+    z części etatu.
     """
+    working = data.model_copy(deep=True)
     stages = [
         stage
-        for stage in data.stages
+        for stage in working.stages
         if stage.stage_type == "realizacja" and "zus" not in stage.accounts
     ]
     if not stages:
+        data.stages = working.stages
         return simulate(data, None)
 
     tolerance = max(0.5, _tl(target))
-    for stage in stages:
-        active = _stage_obligations_average(data, stage)
-        stage.withdrawal_target_gross_monthly = max(1.0, target + active)
+    upper_margin = max(1.0, target * 0.002)
+    cap = 1e9
+    states: list[dict[str, float | int | bool | None]] = []
 
-    result = simulate(data, None)
-    history: dict[int, tuple[float, float]] = {}
-    stalled: set[int] = set()
-    upper_margin = max(10.0, target * 0.02)
+    for stage in stages:
+        active = _stage_obligations_average(working, stage)
+        part_time = stage.part_time_gross_monthly or stage.part_time_net_monthly
+        # Start powyżej progu pensji z części etatu. Bez tego portfel może
+        # wypłacać zero i wyglądać na niewykonalny mimo dużego kapitału.
+        stage.withdrawal_target_gross_monthly = max(
+            1.0,
+            target + active,
+            part_time + active + min(target, 1_000.0),
+        )
+        states.append(
+            {
+                "last_gross": None,
+                "last_actual": None,
+                "low": None,
+                "low_actual": None,
+                "high": None,
+                "high_actual": None,
+                "zero_attempts": 0,
+                "no_response": 0,
+                "stalled": False,
+            }
+        )
+
+    result = simulate(working, None)
     for _ in range(max(1, max_iter)):
         changed = False
-        infeasible = False
         for index, stage in enumerate(stages):
-            if index in stalled:
+            state = states[index]
+            if state["stalled"]:
                 continue
-            values = _stage_budget_values(data, result, stage)
+            values = _stage_budget_values(working, result, stage)
             if not values:
                 continue
             actual = min(values)
-            if actual <= 0.01:
-                infeasible = True
-                break
-            if target - tolerance <= actual <= target + upper_margin:
-                continue
             gross = stage.withdrawal_target_gross_monthly
-            last = history.get(index)
-            if (
-                last is not None
-                and abs(actual - last[1]) <= 0.01
-                and abs(gross - last[0]) > 0.01
-            ):
-                # Brak kapitału w etapie sprawia, że zmiana celu brutto nic
-                # nie zmienia. Nie skalujemy w próżni.
-                stalled.add(index)
+            if target - tolerance <= actual <= target + upper_margin:
+                state["high"] = gross
+                state["high_actual"] = actual
+                state["last_gross"] = gross
+                state["last_actual"] = actual
                 continue
-            history[index] = (gross, actual)
-            if last is not None and abs(actual - last[1]) > 0.05:
-                slope = (gross - last[0]) / (actual - last[1])
-                if slope > 0:
-                    proposed = gross + (target - actual) * slope
+
+            if actual < target - tolerance:
+                state["low"] = gross
+                state["low_actual"] = actual
+                last_gross = state["last_gross"]
+                last_actual = state["last_actual"]
+                if (
+                    isinstance(last_gross, float)
+                    and isinstance(last_actual, float)
+                    and gross > last_gross + 0.01
+                    and actual <= last_actual + 0.01
+                ):
+                    no_response = state["no_response"]
+                    no_response = (
+                        no_response + 1 if isinstance(no_response, int) else 1
+                    )
+                    state["no_response"] = no_response
+                    if no_response >= 3:
+                        state["stalled"] = True
+                        continue
+                else:
+                    state["no_response"] = 0
+                high = state["high"]
+                high_actual = state["high_actual"]
+                if (
+                    isinstance(high, float)
+                    and isinstance(high_actual, float)
+                    and high > gross + 0.01
+                    and high_actual - actual > 0.05
+                ):
+                    proposed = gross + (target - actual) * (
+                        (high - gross) / (high_actual - actual)
+                    )
+                    span = high - gross
+                    proposed = max(
+                        gross + span * 0.05,
+                        min(high - span * 0.05, proposed),
+                    )
+                elif actual <= 0.01:
+                    zero_attempts = state["zero_attempts"]
+                    zero_attempts = (
+                        zero_attempts + 1 if isinstance(zero_attempts, int) else 1
+                    )
+                    state["zero_attempts"] = zero_attempts
+                    if zero_attempts > 10:
+                        state["stalled"] = True
+                        continue
+                    proposed = gross * 2.0
+                else:
+                    last_gross = state["last_gross"]
+                    last_actual = state["last_actual"]
+                    if (
+                        isinstance(last_gross, float)
+                        and isinstance(last_actual, float)
+                        and abs(actual - last_actual) > 0.05
+                    ):
+                        slope = (gross - last_gross) / (actual - last_actual)
+                        proposed = (
+                            gross + (target - actual) * slope
+                            if slope > 0
+                            else gross * target / actual
+                        )
+                    else:
+                        proposed = gross * target / actual
+                    proposed = max(gross * 1.02, min(gross * 3.0, proposed))
+            else:
+                last_gross = state["last_gross"]
+                last_actual = state["last_actual"]
+                if (
+                    isinstance(last_gross, float)
+                    and isinstance(last_actual, float)
+                    and gross < last_gross - 0.01
+                    and actual <= last_actual + 0.01
+                ):
+                    # Niższe brutto nie obniża już budżetu (np. ZUS/praca
+                    # pokrywają go niezależnie od portfela). Dalsze kręcenie
+                    # w dół nic nie da.
+                    state["stalled"] = True
+                    continue
+                state["high"] = gross
+                state["high_actual"] = actual
+                low = state["low"]
+                low_actual = state["low_actual"]
+                if (
+                    isinstance(low, float)
+                    and isinstance(low_actual, float)
+                    and gross > low + 0.01
+                    and actual - low_actual > 0.05
+                ):
+                    proposed = low + (target - low_actual) * (
+                        (gross - low) / (actual - low_actual)
+                    )
+                    span = gross - low
+                    proposed = max(
+                        low + span * 0.05,
+                        min(gross - span * 0.05, proposed),
+                    )
+                elif gross <= 1.01:
+                    state["stalled"] = True
+                    continue
                 else:
                     proposed = gross * target / actual
-            else:
-                proposed = gross * target / actual
-            proposed = max(gross * 0.25, min(gross * 4.0, proposed))
-            stage.withdrawal_target_gross_monthly = max(0.0, proposed)
+                    proposed = max(gross * 0.5, min(gross * 0.98, proposed))
+
+            proposed = max(1.0, min(cap, proposed))
+            if abs(proposed - gross) <= 0.01:
+                state["stalled"] = True
+                continue
+            state["last_gross"] = gross
+            state["last_actual"] = actual
+            stage.withdrawal_target_gross_monthly = proposed
             changed = True
-        if infeasible or not changed or len(stalled) == len(stages):
+
+        if not changed or all(bool(state["stalled"]) for state in states):
             break
-        result = simulate(data, None)
-    return result
+        result = simulate(working, None)
+
+    data.stages = working.stages
+    # Każdy zwrócony wynik musi odpowiadać dokładnie targetom w ``data``.
+    return simulate(data, None)
 
 
 def _evaluate_with_result(
@@ -2907,12 +3119,23 @@ def _append_coast_warning(
     if not a.semi_fire_enabled or a.semi_fire_mode != "coast":
         return proj
     reference = target if target and target > 0 else proj.min_monthly
-    if reference and reference > 0 and a.semi_fire_net_monthly < reference - 1:
+    coast_start = int(a.semi_fire_age or 0)
+    coast_end = int(
+        a.retire_early_age
+        if a.retire_early_age is not None
+        else _retirement_age(a, _config_for_answers(a))
+    )
+    obligations = _max_concurrent_obligations(a, coast_start, coast_end)
+    required = reference + obligations + a.semi_fire_savings_monthly
+    if reference and reference > 0 and a.semi_fire_net_monthly < required - 1:
         proj.warnings.append(
-            "Coast FIRE zakłada, że pensja z części etatu pokrywa całe życie. "
-            f"Zadeklarowana pensja ({a.semi_fire_net_monthly:,.0f} zł/mies.) jest "
-            f"niższa od celu ({reference:,.0f} zł/mies.) — plan może być zbyt "
-            "optymistyczny; różnicę trzeba by dopłacać z portfela."
+            "Coast FIRE zakłada, że pensja z części etatu pokrywa życie, "
+            "zobowiązania i ewentualne oszczędności. "
+            f"Wymagany przepływ to ok. {required:,.0f} zł/mies. "
+            f"(budżet {reference:,.0f} + zobowiązania {obligations:,.0f} "
+            f"+ oszczędności {a.semi_fire_savings_monthly:,.0f}), a pensja "
+            f"z części etatu to {a.semi_fire_net_monthly:,.0f} zł/mies. "
+            "Plan może być zbyt optymistyczny."
         )
     if a.semi_fire_savings_monthly > a.semi_fire_net_monthly + 1:
         proj.warnings.append(
@@ -2934,6 +3157,26 @@ def _vary_re(a: WizardAnswers, re: int) -> SimulationInput:
     return build_stages(na)
 
 
+def _max_concurrent_obligations(
+    a: WizardAnswers, start_age: float, end_age: float
+) -> float:
+    """Najwyższa suma zobowiązań aktywnych równolegle w oknie realizacji."""
+    if end_age <= start_age:
+        return 0.0
+    obligations = a.effective_obligations()
+    return max(
+        (
+            sum(
+                obligation.monthly
+                for obligation in obligations
+                if obligation.start_age <= age < obligation.end_age
+            )
+            for age in range(int(start_age), int(end_age))
+        ),
+        default=0.0,
+    )
+
+
 def _savings_upper_bound(a: WizardAnswers, target: float) -> float:
     """Numeric cap for the savings bisection — derived from plan geometry,
     not income. Contributions alone (without returns) funding the whole
@@ -2946,7 +3189,11 @@ def _savings_upper_bound(a: WizardAnswers, target: float) -> float:
     re = float(a.retire_early_age if a.retire_early_age is not None else retirement)
     horizon = max(1.0, float(a.plan_end_age) - re)
     window = max(0.1, re - float(a.age_now))
-    return max(1.0, 2.0 * target * 12.0 * horizon / window)
+    # Portfel musi finansować budżet ORAZ zobowiązania aktywne w realizacji.
+    effective_target = target + _max_concurrent_obligations(
+        a, re, float(a.plan_end_age)
+    )
+    return max(1.0, 2.0 * effective_target * 12.0 * horizon / window)
 
 
 def _solve_savings(a: WizardAnswers, target: float) -> tuple[float, bool]:
@@ -2968,21 +3215,29 @@ def _solve_savings(a: WizardAnswers, target: float) -> tuple[float, bool]:
 
     hi = _savings_upper_bound(a, target)
     if not meets(hi):
-        # The upper bound assumes withdrawals are the only tax drag. The OKI
-        # asset tax grows with the balance, so a very high savings rate can
-        # leave less net than the target even though moderate savings work.
-        # Walk down to a feasible ceiling, then bisect from zero (the payout
-        # is monotone below the asset-tax peak).
-        lo = hi
-        for _ in range(24):
-            lo /= 2.0
-            if lo < tol:
-                return hi, False
-            if meets(lo):
-                hi = lo
+        # Najpierw sprawdź, czy pułap nie jest po prostu za niski (np. duże
+        # zobowiązania). Dopiero potem schodź w dół — bardzo wysokie
+        # oszczędności mogą być gorsze przez podatek od aktywów OKI.
+        original_hi = hi
+        expanded = hi
+        found_above = False
+        for _ in range(4):
+            expanded *= 2.0
+            if meets(expanded):
+                hi = expanded
+                found_above = True
                 break
-        else:
-            return hi, False
+        if not found_above:
+            lo = original_hi
+            for _ in range(24):
+                lo /= 2.0
+                if lo < tol:
+                    return original_hi, False
+                if meets(lo):
+                    hi = lo
+                    break
+            else:
+                return original_hi, False
 
     lo = 0.0
     for _ in range(24):
@@ -3228,9 +3483,7 @@ def plan(
     main_proj = _append_b2b_warning(main_proj, a)
     main_summary = build_summary(main_input, main_result)
     if extend_chart:
-        main_proj = _extend_chart_to_100(
-            main_input, target, a.bequest_target, main_proj
-        )
+        main_proj = _extend_chart_to_100(main_input, main_proj)
 
     scenarios_out: dict[str, ScenarioSummary] = {}
     scenario_summaries: dict[str, ResultSummary] = {}
@@ -3255,9 +3508,7 @@ def plan(
                 s_proj = _append_coast_warning(s_proj, sa, target)
                 s_proj = _append_b2b_warning(s_proj, sa)
                 if extend_chart:
-                    s_proj = _extend_chart_to_100(
-                        s_in, target, sa.bequest_target, s_proj
-                    )
+                    s_proj = _extend_chart_to_100(s_in, s_proj)
             scenario_inputs[key] = s_in
             scenario_projections[key] = s_proj
             scenario_solved[key] = s_solved
