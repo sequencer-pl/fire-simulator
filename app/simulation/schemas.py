@@ -9,6 +9,8 @@ from app.simulation.config import (
     default_config,
 )
 
+MAX_LOGICAL_STAGES = 20
+
 _ALLOWED_IKZE_TARGETS = {
     "",
     "auto",
@@ -230,6 +232,18 @@ class SimulationInput(BaseModel):
             )
         # Kredyt zakończony przed startem planu jest poprawny — build_stages
         # nie dokłada wtedy raty do puli oszczędności (phase1_boosted = False).
+        return self
+
+    @model_validator(mode="after")
+    def _validate_logical_stage_limit(self) -> "SimulationInput":
+        keys = {
+            stage.origin_stage_id or f"stage-without-id-{index}"
+            for index, stage in enumerate(self.stages)
+        }
+        if len(keys) > MAX_LOGICAL_STAGES:
+            raise ValueError(
+                f"Plan może mieć maksymalnie {MAX_LOGICAL_STAGES} etapów logicznych."
+            )
         return self
 
 

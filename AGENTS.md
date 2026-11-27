@@ -113,8 +113,9 @@ Nie zmieniaj ich bez uzgodnienia. Wartości liczbowe pochodzą z `config.py`,
   powielaj go w wielu etapach.
 - **Zobowiązania czasowe:** lista `TemporaryObligation` (nazwa, kwota, wiek
   start/koniec, przekierowanie na oszczędności). Są dodatkowym kosztem poza
-  budżetem: przed FIRE finansuje je pensja (zmniejszają oszczędności), po FIRE
-  zwiększają wypłatę z portfela. Planner dzieli realizację na granicach
+  budżetem: przed FIRE finansuje je pensja, ale nie zmieniają zadeklarowanej
+  wpłaty — ograniczają budżet konsumpcyjny; po FIRE zwiększają wypłatę
+  z portfela. Planner dzieli realizację na granicach
   zobowiązań i ustawia osobny cel brutto dla każdego segmentu. Segmenty
   techniczne dziedziczą `origin_stage_id`; fazy, Gantt i podsumowania grupują
   je z powrotem po logicznym etapie. Limit 20 etapów dotyczy etapów logicznych,

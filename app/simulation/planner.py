@@ -23,6 +23,7 @@ from app.simulation.salary import (
     net_from_gross,
 )
 from app.simulation.schemas import (
+    MAX_LOGICAL_STAGES,
     AccountConfig,
     ResultSummary,
     SimulationInput,
@@ -39,7 +40,6 @@ from app.simulation.summary import (
 )
 
 SAVINGS_ACCOUNTS = ("broker", "lokata", "obligacje", "krypto")
-MAX_LOGICAL_STAGES = 20
 
 # Legacy order używany przez małą pulę i stare podglądy priorytetów. Główny
 # podział (suggest_allocation_plan) bierze cel safe/market/high z profilu i
@@ -243,6 +243,9 @@ class WizardAnswers(BaseModel):
         return []
 
 
+MIN_TARGET_MONTHLY = 500.0
+
+
 class WizardPlanRequest(BaseModel):
     path: Literal[1, 2, 3]
     target_monthly: float | None = Field(default=None, ge=0.0)
@@ -250,11 +253,35 @@ class WizardPlanRequest(BaseModel):
     # True uruchamia optymalizator wieku ZUS / mixu IKE-IKZE (ścieżka 1).
     optimize: bool = False
 
+    @model_validator(mode="after")
+    def _validate_target(self) -> "WizardPlanRequest":
+        if (
+            self.path != 1
+            and self.target_monthly is not None
+            and self.target_monthly < MIN_TARGET_MONTHLY
+        ):
+            raise ValueError(
+                f"Cel budżetu musi wynosić co najmniej {MIN_TARGET_MONTHLY:.0f} zł/mies."
+            )
+        return self
+
 
 class WizardSuggestRequest(BaseModel):
     answers: WizardAnswers
     path: Literal[1, 2, 3] = 1
     target_monthly: float | None = Field(default=None, ge=0.0)
+
+    @model_validator(mode="after")
+    def _validate_target(self) -> "WizardSuggestRequest":
+        if (
+            self.path != 1
+            and self.target_monthly is not None
+            and self.target_monthly < MIN_TARGET_MONTHLY
+        ):
+            raise ValueError(
+                f"Cel budżetu musi wynosić co najmniej {MIN_TARGET_MONTHLY:.0f} zł/mies."
+            )
+        return self
 
 
 class SalaryPreviewRequest(BaseModel):
@@ -1326,11 +1353,11 @@ def _validate_logical_stages(stages: list[StageInput]) -> None:
 
 
 def _has_accumulation_after(stages: list[StageInput], end_age: int) -> bool:
-    """Czy po zakończeniu zobowiązania jest jeszcze etapa akumulacji?
+    """Czy po zakończeniu zobowiązania jest jeszcze etap akumulacji?
 
     To jedyne miejsce, w którym przekierowanie uwolnionej kwoty ma pokrycie
-    we wpłatach. W Baricie/Coast po starcie części etatu nie ma już
-    akumulacji, więc przełącznik nie powinien obiecywać działania.
+    we wpłatach. W Baricie akumulacja kończy się na starcie części etatu,
+    a w Coast trwa do pełnego FIRE — decyduje rzeczywisty harmonogram etapów.
     """
     return any(
         stage.stage_type == "akumulacja" and stage.end_age > end_age
@@ -3133,17 +3160,33 @@ def _append_coast_warning(
         if a.retire_early_age is not None
         else _retirement_age(a, _config_for_answers(a))
     )
-    obligations = _max_concurrent_obligations(a, coast_start, coast_end)
-    required = reference + obligations + a.semi_fire_savings_monthly
-    if reference and reference > 0 and a.semi_fire_net_monthly < required - 1:
+    obligations = a.effective_obligations()
+    first_deficit: tuple[int, float, float, float] | None = None
+    for age in range(coast_start, coast_end):
+        active = sum(
+            obligation.monthly
+            for obligation in obligations
+            if obligation.start_age <= age < obligation.end_age
+        )
+        required = reference + active + a.semi_fire_savings_monthly
+        if a.semi_fire_net_monthly < required - 1:
+            first_deficit = (
+                age,
+                active,
+                required,
+                required - a.semi_fire_net_monthly,
+            )
+            break
+    if reference and reference > 0 and first_deficit is not None:
+        age, active, required, shortfall = first_deficit
         proj.warnings.append(
             "Coast FIRE zakłada, że pensja z części etatu pokrywa życie, "
             "zobowiązania i ewentualne oszczędności. "
-            f"Wymagany przepływ to ok. {required:,.0f} zł/mies. "
-            f"(budżet {reference:,.0f} + zobowiązania {obligations:,.0f} "
+            f"W wieku {age} r.ż. wymagany przepływ to ok. {required:,.0f} zł/mies. "
+            f"(budżet {reference:,.0f} + zobowiązania {active:,.0f} "
             f"+ oszczędności {a.semi_fire_savings_monthly:,.0f}), a pensja "
             f"z części etatu to {a.semi_fire_net_monthly:,.0f} zł/mies. "
-            "Plan może być zbyt optymistyczny."
+            f"Brakuje ok. {shortfall:,.0f} zł/mies. Plan może być zbyt optymistyczny."
         )
     if a.semi_fire_savings_monthly > a.semi_fire_net_monthly + 1:
         proj.warnings.append(
@@ -3373,6 +3416,10 @@ def _plan_single(
 
     if target is None or target <= 0:
         raise ValueError("target_monthly jest wymagany dla tej ścieżki.")
+    if target < MIN_TARGET_MONTHLY:
+        raise ValueError(
+            f"Cel budżetu musi wynosić co najmniej {MIN_TARGET_MONTHLY:.0f} zł/mies."
+        )
 
     if path == 2:
         amount, feasible = _solve_savings(a, target)

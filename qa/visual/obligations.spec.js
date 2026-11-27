@@ -4,6 +4,9 @@ import { test, expect } from "@playwright/test";
 const PLAN = JSON.parse(
     fs.readFileSync(new URL("./fixtures/plan-response.json", import.meta.url), "utf8")
 );
+const BARISTA_INPUT = JSON.parse(
+    fs.readFileSync(new URL("./fixtures/barista-obligation-input.json", import.meta.url), "utf8")
+);
 
 test("Symulator: zobowiązanie czasowe zmniejsza budżet i tworzy etap akumulacji", async ({ page }) => {
     await page.goto("/sim", { waitUntil: "networkidle" });
@@ -61,11 +64,56 @@ test("Symulator: nie dolicza drugi raz przekierowania z Asystenta", async ({ pag
     }, input);
     await page.goto("/sim?wizard=1", { waitUntil: "networkidle" });
 
+    const annualMonthly = (stages) => stages
+        .filter((stage) => stage.stage_type === "akumulacja")
+        .reduce((sum, stage) => sum + Object.values(stage.accounts || {})
+            .reduce((inner, account) => inner + (Number(account.annual_contribution) || 0), 0) / 12, 0);
+    const before = annualMonthly(input.stages);
     const data = await page.evaluate(() => gatherFormData());
     const accumulation = data.stages.filter((stage) => stage.stage_type === "akumulacja");
     expect(data.redirects_applied).toBe(true);
     expect(accumulation).toHaveLength(1);
     expect(accumulation[0].name).not.toContain("po zobowiązaniu");
+    expect(annualMonthly(data.stages)).toBeCloseTo(before, 5);
+});
+
+test("Symulator: odrzuca stary draft bez nowej semantyki", async ({ page }) => {
+    await page.goto("/sim", { waitUntil: "networkidle" });
+    await page.evaluate((input) => {
+        localStorage.setItem(
+            "fire.wizardDraft",
+            JSON.stringify({ version: 2, input, source: "test" })
+        );
+    }, PLAN.input);
+    await page.goto("/sim?wizard=1", { waitUntil: "networkidle" });
+    await expect(page.locator("#stages-container .stage-block")).toHaveCount(0);
+    await expect(page.locator("#wizardDraftBar")).toBeHidden();
+});
+
+test("Symulator: zachowuje logiczne etapy Baristy z Asystenta", async ({ page }) => {
+    expect(
+        BARISTA_INPUT.stages.some((stage) => Boolean(stage.origin_stage_id))
+    ).toBeTruthy();
+
+    await page.goto("/sim", { waitUntil: "networkidle" });
+    await page.evaluate((input) => {
+        localStorage.setItem(
+            "fire.wizardDraft",
+            JSON.stringify({ ...input, source: "test" })
+        );
+    }, BARISTA_INPUT);
+    await page.goto("/sim?wizard=1", { waitUntil: "networkidle" });
+
+    const gathered = await page.evaluate(() => gatherFormData());
+    const realization = gathered.stages.filter((stage) => stage.stage_type === "realizacja");
+    expect(realization.every((stage) => Boolean(stage.origin_stage_id))).toBeTruthy();
+
+    await page.locator("#simulateBtn").click();
+    await expect(page.locator("#results")).toBeVisible({ timeout: 30_000 });
+    const timeline = await page.locator("#wzTimeline").innerText();
+    expect(timeline).toContain("45–55");
+    expect(timeline).toContain("55–65");
+    expect(timeline).not.toContain("45–48");
 });
 
 test("Asystent: zobowiązanie czasowe jest osobną listą i trafia do planu", async ({ page }) => {

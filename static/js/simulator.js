@@ -65,6 +65,7 @@ function gatherFormData() {
 
         stages.push({
             stage_type: block.dataset.stageType,
+            origin_stage_id: block.dataset.originStageId || null,
             name: block.querySelector(".stage-name").value,
             start_age: parseInt(block.querySelector(".start-age").value) || 0,
             end_age: parseInt(block.querySelector(".end-age").value) || 0,
@@ -309,6 +310,7 @@ function renderSharedCharts(root, data) {
         input: lastInput,
         projection,
         summary: data.summary || {},
+        mode: "simulator",
     });
     section?.classList.remove("hidden");
     return true;
@@ -414,6 +416,7 @@ function updateEmptyState() {
 }
 
 const WIZARD_DRAFT_KEY = "fire.wizardDraft";
+const SUPPORTED_WIZARD_DRAFT_VERSION = 3;
 
 function applyWizardDraftIfPresent() {
     const container = document.getElementById("stages-container");
@@ -421,6 +424,13 @@ function applyWizardDraftIfPresent() {
     if (!raw || !container) return false;
     try {
         const draft = JSON.parse(raw);
+        if (
+            draft?.version != null
+            && Number(draft.version) !== SUPPORTED_WIZARD_DRAFT_VERSION
+        ) {
+            localStorage.removeItem(WIZARD_DRAFT_KEY);
+            return false;
+        }
         // Wersję draftu ustala Asystent (wizard.js); Symulator czyta zawsze
         // aktualny kształt pola `input` i nie duplikuje tej stałej.
         const input = draft?.input && Array.isArray(draft.input.stages)

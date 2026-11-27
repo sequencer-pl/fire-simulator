@@ -13,7 +13,7 @@ const WZ_STATE_SAVE_MS = 150;
 // schematu stary stan nie nadpisywał nowego planu.
 const WZ_STATE_VERSION = 2;
 const WZ_PLAN_VERSION = 3;
-const WZ_DRAFT_VERSION = 2;
+const WZ_DRAFT_VERSION = 3;
 
 const WZ_RETIREMENT_DEFAULT = { k: 60, m: 65 };
 
@@ -934,18 +934,24 @@ function wzSyncObligationRedirects() {
     // W ścieżce 3 wiek FIRE jest wynikiem, a nie założeniem — nie ukrywamy
     // wtedy przełącznika na podstawie pola, które i tak jest nieaktywne.
     const path = wzCurrentPath();
-    const semi = wzRadio("wzFireStyle", "full") !== "full";
-    // Przekierowanie ma pokrycie tylko w akumulacji. W Baricie/Coast kończy
-    // się ona w wieku części etatu, a nie w wieku pełnego FIRE.
+    const style = wzRadio("wzFireStyle", "full");
+    // Przekierowanie ma pokrycie tylko w akumulacji. W Baricie kończy się ona
+    // w wieku części etatu; w Coast trwa do pełnego FIRE.
     const accumulationEnd = path === 3
         ? null
-        : (semi ? wzInt("wzSemiAge", 48) : wzInt("wzRe", 55));
+        : (style === "barista" ? wzInt("wzSemiAge", 48) : wzInt("wzRe", 55));
     document.querySelectorAll("#wzObligationsList .obligation-row").forEach((row) => {
         const endAge = parseInt(row.querySelector(".obligation-end")?.value, 10);
         const hasAccumulation = !Number.isFinite(endAge) || !Number.isFinite(accumulationEnd)
             || endAge < accumulationEnd;
         row.querySelector(".obligation-redirect")?.classList.toggle("hidden", !hasAccumulation);
         row.querySelector(".obligation-redirect-note")?.classList.toggle("hidden", hasAccumulation);
+        const hint = row.querySelector(".obligation-redirect-hint");
+        if (hint) {
+            hint.textContent = path === 3
+                ? "Zadziała tylko wtedy, gdy po zakończeniu zobowiązania pozostanie etap akumulacji."
+                : "Bez przekierowania uwolniona kwota zostaje w budżecie na życie.";
+        }
     });
 }
 
@@ -3122,6 +3128,7 @@ function wzRenderResult(data) {
         input: active.input,
         projection: active.projection,
         summary,
+        mode: "wizard",
     });
     wzLoadFullResult(active.input, wzSelectedScenario);
 }

@@ -718,7 +718,7 @@ const harness = `
             && zus.text.includes("65")
             && !zus.text.includes("40 r.ż.");
     });
-    check("adnotacja zobowiązania po FIRE mówi o spadku wypłaty", () => {
+    check("adnotacja zobowiązania po FIRE zależy od trybu", () => {
         const input = {
             stages: [
                 { stage_type: "realizacja", start_age: 55, end_age: 65, accounts: { broker: {} } },
@@ -731,10 +731,33 @@ const harness = `
             chart: { ages: Array.from({ length: 61 }, (_, index) => 40 + index) },
             early_return_total: 0,
         };
-        const annotation = ResultsCharts.annotationsFor(input, projection)
+        const wizard = ResultsCharts.annotationsFor(input, projection, "wizard")
+            .find((item) => item.kind === "obligation");
+        const simulator = ResultsCharts.annotationsFor(input, projection, "simulator")
+            .find((item) => item.kind === "obligation");
+        return Boolean(wizard && simulator)
+            && wizard.text.includes("wraca do poziomu budżetu")
+            && !wizard.text.includes("Uwalnia")
+            && simulator.text.includes("nie spada automatycznie")
+            && !simulator.text.includes("pozostaje na poziomie celu");
+    });
+    check("adnotacja zobowiązania na FIRE nie obiecuje spadku wypłaty", () => {
+        const input = {
+            stages: [
+                { stage_type: "realizacja", start_age: 55, end_age: 65, accounts: { broker: {} } },
+            ],
+            obligations: [
+                { name: "Kredyt", monthly: 2000, start_age: 55, end_age: 55, redirect_to_savings: true },
+            ],
+        };
+        const projection = {
+            chart: { ages: Array.from({ length: 61 }, (_, index) => 40 + index) },
+            early_return_total: 0,
+        };
+        const annotation = ResultsCharts.annotationsFor(input, projection, "wizard")
             .find((item) => item.kind === "obligation");
         return Boolean(annotation)
-            && annotation.text.includes("spada")
+            && annotation.text.includes("To wiek FIRE")
             && !annotation.text.includes("Uwalnia");
     });
     check("wynik: wykresy wypłat i kapitału renderują się", () => {
@@ -771,6 +794,21 @@ const harness = `
             && refs.some((ref) => ref.key === "avg")
             && refs.some((ref) => ref.key === "min");
     });
+    check("wykres: prawdziwe zero portfela nie jest traktowane jak brak danych", () => {
+        const values = ResultsCharts.referenceValues(
+            { avg_monthly_portfolio: 0, min_monthly_portfolio: 0 },
+            { peak_wealth: 0 }
+        );
+        const refs = ResultsCharts.references({
+            kind: "withdrawals",
+            ages: [40, 41],
+            totals: [0, 0],
+            references: values,
+        });
+        return values.minMonthly === 0
+            && values.avgMonthly === 0
+            && refs.some((ref) => ref.key === "min" && ref.value === 0);
+    });
     check("wynik: dlaczego ten plan?", () => {
         ResultsSummary.renderWhy(document.getElementById("wzPlanWhy"), wzPlanWhyHtml({
             optimization: {
@@ -789,6 +827,28 @@ const harness = `
             && !box.classList.contains("hidden")
             && box.textContent.includes("ZUS od 67")
             && box.textContent.includes("Dlaczego ten plan?");
+    });
+    check("przekierowanie: Coast liczy akumulację do pełnego FIRE, Barista do części etatu", () => {
+        const list = document.getElementById("wzObligationsList");
+        const row = document.createElement("div");
+        row.className = "obligation-row";
+        row.innerHTML = '<input class="obligation-end" value="50">'
+            + '<div class="obligation-redirect"><p class="obligation-redirect-hint"></p></div>'
+            + '<p class="obligation-redirect-note hidden"></p>';
+        list.appendChild(row);
+        document.getElementById("wzSemiAge").value = "45";
+        document.getElementById("wzRe").value = "55";
+        const style = (value) => {
+            const input = document.querySelector('input[name="wzFireStyle"][value="' + value + '"]');
+            input.checked = true;
+            wzSyncObligationRedirects();
+            return !row.querySelector(".obligation-redirect").classList.contains("hidden");
+        };
+        const coastVisible = style("coast");
+        const baristaVisible = style("barista");
+        document.querySelector('input[name="wzFireStyle"][value="full"]').checked = true;
+        row.remove();
+        return coastVisible && !baristaVisible;
     });
     check("cache: stara wersja planu jest odrzucana", () => {
         localStorage.removeItem("fire.wizardState");

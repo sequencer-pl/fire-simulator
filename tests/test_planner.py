@@ -235,7 +235,10 @@ def test_coast_warning_includes_obligations():
         ],
     )
     result = plan(2, a, 3_000)
-    assert any("Wymagany przepływ" in warning for warning in result.projection.warnings)
+    assert any(
+        "Brakuje ok." in warning and "45 r.ż." in warning
+        for warning in result.projection.warnings
+    )
 
 
 def test_logical_phases_keep_barista_and_no_zus_boundaries():
@@ -323,6 +326,31 @@ def test_logical_stage_limit_is_checked_before_segments():
     ]
     with pytest.raises(ValueError, match="20 etapów"):
         P._validate_logical_stages(stages)
+
+
+def test_simulation_input_rejects_more_than_20_logical_stages():
+    stages = [
+        StageInput(
+            stage_type="akumulacja",
+            name=f"Etap {index}",
+            start_age=40 + index,
+            end_age=41 + index,
+        )
+        for index in range(21)
+    ]
+    with pytest.raises(ValidationError, match="20 etapów"):
+        SimulationInput(stages=stages, max_age=60)
+    segments = [
+        StageInput(
+            stage_type="realizacja",
+            origin_stage_id=f"stage-{index % 20}",
+            name=f"Segment {index}",
+            start_age=40 + index,
+            end_age=41 + index,
+        )
+        for index in range(30)
+    ]
+    assert len(SimulationInput(stages=segments, max_age=70).stages) == 30
 
 
 def test_savings_upper_bound_includes_realization_obligations():
@@ -423,6 +451,72 @@ def test_build_stages_marks_materialized_redirects():
         deep=True,
     )
     assert P.build_stages(no_redirect).redirects_applied is False
+
+
+def test_redirect_uses_full_fire_as_coast_accumulation_end():
+    a = answers(
+        age_now=40,
+        gross_monthly=12_000,
+        capital={"broker": 800_000},
+        savings=3_000,
+        use_broker=True,
+        retire_early_age=55,
+        plan_end_age=85,
+        allocations={"broker": 100},
+        semi_fire_enabled=True,
+        semi_fire_mode="coast",
+        semi_fire_age=45,
+        semi_fire_net_monthly=4_000,
+        semi_fire_savings_monthly=0,
+        obligations=[
+            TemporaryObligation(
+                name="Zob",
+                monthly=2_000,
+                start_age=45,
+                end_age=50,
+                redirect_to_savings=True,
+            )
+        ],
+    )
+    data = P.build_stages(a)
+    assert data.redirects_applied is True
+    assert any(
+        stage.stage_type == "akumulacja" and "po zobowiązaniu" in stage.name
+        for stage in data.stages
+    )
+
+
+def test_redirect_is_ignored_when_coast_ends_at_fire():
+    a = answers(
+        age_now=40,
+        gross_monthly=12_000,
+        capital={"broker": 800_000},
+        savings=3_000,
+        use_broker=True,
+        retire_early_age=55,
+        plan_end_age=85,
+        allocations={"broker": 100},
+        semi_fire_enabled=True,
+        semi_fire_mode="coast",
+        semi_fire_age=45,
+        semi_fire_net_monthly=4_000,
+        semi_fire_savings_monthly=0,
+        obligations=[
+            TemporaryObligation(
+                name="Zob",
+                monthly=2_000,
+                start_age=55,
+                end_age=60,
+                redirect_to_savings=True,
+            )
+        ],
+    )
+    data = P.build_stages(a)
+    assert data.redirects_applied is False
+    assert not any(
+        stage.stage_type == "akumulacja" and "po zobowiązaniu" in stage.name
+        for stage in data.stages
+    )
 
 
 def test_redirect_is_ignored_when_barista_leaves_no_accumulation():
@@ -1310,6 +1404,16 @@ def test_api_missing_target_400(client):
     assert resp.status_code == 400
 
 
+def test_api_rejects_target_below_ui_minimum(client):
+    resp = client.post(
+        "/api/wizard/plan",
+        json={"path": 2, "target_monthly": 499, "answers": dict(BASE)},
+    )
+    assert resp.status_code == 422
+    with pytest.raises(ValueError, match="co najmniej 500"):
+        plan(2, answers(), 499)
+
+
 def test_api_invalid_path_422(client):
     resp = client.post("/api/wizard/plan", json={"path": 9, "answers": dict(BASE)})
     assert resp.status_code == 422
@@ -2132,7 +2236,7 @@ def test_coast_warning_flags_salary_below_target():
     )
     projection = PlanProjection(met=True, min_monthly=5_000)
     _append_coast_warning(projection, answers, 5_000)
-    assert any("Wymagany przepływ" in warning for warning in projection.warnings)
+    assert any("Brakuje ok." in warning for warning in projection.warnings)
 
 
 def test_solve_re_rejects_semi_fire_beyond_horizon():

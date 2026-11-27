@@ -175,8 +175,9 @@ Wszystkie ekrany liczą te same metryki w `app/simulation/summary.py`:
   bez części etatu i bez zobowiązań.
 - **Zobowiązania czasowe** to lista `TemporaryObligation` (nazwa, kwota,
   wiek start/koniec, przekierowanie na oszczędności). Są dodatkowym kosztem
-  poza budżetem: przed FIRE finansuje je pensja, a po FIRE zwiększają wypłatę
-  z portfela. Planner dzieli realizację na granicach zobowiązań i ustawia
+  poza budżetem: przed FIRE finansuje je pensja, ale nie zmieniają
+  zadeklarowanej wpłaty — ograniczają budżet konsumpcyjny; po FIRE zwiększają
+  wypłatę z portfela. Planner dzieli realizację na granicach zobowiązań i ustawia
   osobny cel brutto dla segmentu; segmenty zachowują `origin_stage_id`, więc
   prezentacja może pokazać pierwotny, logiczny etap. Limit 20 etapów dotyczy
   etapów logicznych, nie technicznych segmentów solvera. Jeśli zobowiązanie

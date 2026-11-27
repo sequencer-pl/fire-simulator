@@ -230,6 +230,17 @@ function wzChartGradientId(kind, index) {
     return `wz-chart-grad-${kind}-${index}`;
 }
 
+function wzChartReferenceValues(summary, projection) {
+    const avgRaw = summary?.avg_monthly_portfolio ?? summary?.avg_monthly;
+    const minRaw = summary?.min_monthly_portfolio ?? summary?.min_monthly;
+    const peakRaw = projection?.peak_wealth;
+    return {
+        avgMonthly: avgRaw == null ? null : Number(avgRaw),
+        minMonthly: minRaw == null ? null : Number(minRaw),
+        peakWealth: peakRaw == null ? null : Number(peakRaw),
+    };
+}
+
 function wzChartReferences(model) {
     if (model.kind === "withdrawals") {
         const positive = model.totals.filter((value) => value > 0.5);
@@ -337,7 +348,7 @@ function wzFireAge(input) {
     return starts.length ? Math.min(...starts) : null;
 }
 
-function wzChartAnnotationsFor(input, projection) {
+function wzChartAnnotationsFor(input, projection, mode = "wizard") {
     const ages = (projection?.chart?.ages || []).map(Number);
     if (!ages.length) return [];
     const minAge = ages[0];
@@ -421,20 +432,34 @@ function wzChartAnnotationsFor(input, projection) {
         obligationsByEnd.get(endAge).push(obligation);
     });
     const fireAge = wzFireAge(input);
+    const manual = mode === "simulator";
     obligationsByEnd.forEach((items, endAge) => {
         const total = items.reduce((sum, item) => sum + (Number(item.monthly) || 0), 0);
-        const afterFire = Number.isFinite(fireAge) && endAge >= fireAge;
+        const atFire = Number.isFinite(fireAge) && endAge === fireAge;
+        const afterFire = Number.isFinite(fireAge) && endAge > fireAge;
+        const afterOrAtFire = atFire || afterFire;
         const details = items.map((item) => {
-            const redirect = afterFire
-                ? "wypłata z portfela wraca do budżetu"
+            const redirect = afterOrAtFire
+                ? (manual
+                    ? "wypłata zależy od ustawionych wypłat"
+                    : "wypłata z portfela wraca do budżetu")
                 : item.redirect_to_savings === false
                     ? "zostaje w budżecie"
                     : "na oszczędności";
             return `${item.name || "Zobowiązanie"}: ${wzFmtZloty(item.monthly)} zł/mies. (${redirect})`;
         }).join("; ");
-        const text = afterFire
-            ? `Od ${endAge} r.ż. kończy się: ${details}. Wypłata z portfela spada o ${wzFmtZloty(total)} zł/mies., a budżet pozostaje na poziomie celu.`
-            : `Od ${endAge} r.ż. kończy się: ${details}. Uwalnia to ${wzFmtZloty(total)} zł/mies.`;
+        let text;
+        if (atFire) {
+            text = manual
+                ? `Od ${endAge} r.ż. kończy się: ${details}. To wiek FIRE — w ręcznym planie budżet zależy od ustawionych wypłat.`
+                : `Od ${endAge} r.ż. kończy się: ${details}. To wiek FIRE, więc zobowiązanie nie obniża już wypłaty z portfela.`;
+        } else if (afterFire) {
+            text = manual
+                ? `Od ${endAge} r.ż. kończy się: ${details}. W ręcznym planie wypłata nie spada automatycznie; budżet wzrośnie, jeśli sam ją obniżysz.`
+                : `Od ${endAge} r.ż. kończy się: ${details}. Wypłata z portfela wraca do poziomu budżetu; różnica netto zależy od podatków i pozostałych dochodów.`;
+        } else {
+            text = `Od ${endAge} r.ż. kończy się: ${details}. Uwalnia to ${wzFmtZloty(total)} zł/mies.`;
+        }
         add(
             "obligation",
             "Koniec zobowiązania",
@@ -1166,7 +1191,7 @@ function wzRenderObligationCosts(input, projection) {
     card.classList.remove("hidden");
 }
 
-function wzRenderCharts(input, projection, summary = {}) {
+function wzRenderCharts(input, projection, summary = {}, mode = "wizard") {
     const wrap = el("wzChartsWrap");
     if (!wrap) return;
     wzChartFocusIndex = {};
@@ -1228,14 +1253,10 @@ function wzRenderCharts(input, projection, summary = {}) {
     }
 
     wrap.classList.remove("hidden");
-    const annotations = wzChartAnnotationsFor(input, projection);
-    const references = {
-        // Linie referencyjne to wypłata z portfela i ZUS, nie lifestyle
-        // (mean/min z projekcji zawierają część etatu i kredyt).
-        avgMonthly: Number(summary?.avg_monthly_portfolio ?? summary?.avg_monthly) || null,
-        minMonthly: Number(summary?.min_monthly_portfolio ?? summary?.min_monthly) || null,
-        peakWealth: Number(projection?.peak_wealth) || null,
-    };
+    const annotations = wzChartAnnotationsFor(input, projection, mode);
+    // Linie referencyjne to wypłata z portfela i ZUS, nie lifestyle
+    // (mean/min z projekcji zawierają część etatu i kredyt).
+    const references = wzChartReferenceValues(summary, projection);
     wzChartMilestones = annotations;
     wzMilestoneTipHide();
     wzUpdateMilestoneToggle();
@@ -1297,8 +1318,8 @@ function wzRenderCharts(input, projection, summary = {}) {
 
 
     function render(options = {}) {
-        const { input, projection, summary } = options;
-        wzRenderCharts(input, projection, summary);
+        const { input, projection, summary, mode = "wizard" } = options;
+        wzRenderCharts(input, projection, summary, mode);
     }
 
     function hideTips() {
@@ -1313,5 +1334,6 @@ function wzRenderCharts(input, projection, summary = {}) {
         color: accountColor,
         annotationsFor: wzChartAnnotationsFor,
         references: wzChartReferences,
+        referenceValues: wzChartReferenceValues,
     };
 })();
