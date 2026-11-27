@@ -63,6 +63,14 @@ const WZ_SHELTERS = [
     { account: "oipe", label: "OIPE" },
 ];
 
+const WZ_OBLIGATION_TYPES = {
+    kredyt: "Kredyt",
+    alimenty: "Alimenty",
+    czynsz: "Czynsz",
+    czesne: "Czesne",
+    inne: "Zobowiązanie",
+};
+
 const WZ_SAFE_BASES = ["lokata", "obligacje", "gotowka"];
 const WZ_MARKET_BASES = ["broker", "krypto"];
 const WZ_ALLOCATABLE_ACCOUNTS = [
@@ -915,6 +923,11 @@ function wzSyncZusBox() {
     wzEl("wzZusCapBox")?.classList.toggle("hidden", !has);
 }
 
+function wzSyncObligationsBox() {
+    const has = wzRadio("wzHasObligations", "no") === "yes";
+    wzEl("wzObligationsBox")?.classList.toggle("hidden", !has);
+}
+
 function wzObligationDefaultAges() {
     const start = wzInt("wzAge", 40);
     return { start, end: Math.min(120, Math.max(start + 1, 55)) };
@@ -926,13 +939,17 @@ function wzCreateObligationRow(data = {}) {
     row.className = "obligation-row";
     row.dataset.obligation = "true";
     row.innerHTML = `
-        <div class="obligation-main">
+        <div class="obligation-head">
             <label class="field obligation-name-field">
                 <span class="obligation-label">Nazwa</span>
                 <input type="text" class="input obligation-name" maxlength="200"
                        value="${escapeHtml(data.name || "Zobowiązanie")}"
                        aria-label="Nazwa zobowiązania">
             </label>
+            <button type="button" class="btn btn-ghost btn-icon btn-sm obligation-remove"
+                    title="Usuń zobowiązanie" aria-label="Usuń zobowiązanie">${iconSvg("x")}</button>
+        </div>
+        <div class="obligation-main">
             <div class="field">
                 <span class="obligation-label">Kwota mies. (zł)</span>
                 ${numControlsHtml({
@@ -966,8 +983,6 @@ function wzCreateObligationRow(data = {}) {
                 <input type="checkbox" class="obligation-redirect" ${data.redirect_to_savings !== false ? "checked" : ""}>
                 <span>Po zakończeniu przekieruj na oszczędności</span>
             </label>
-            <button type="button" class="btn btn-ghost btn-icon btn-sm obligation-remove"
-                    title="Usuń zobowiązanie" aria-label="Usuń zobowiązanie">${iconSvg("x")}</button>
         </div>`;
     row.querySelector(".obligation-remove").addEventListener("click", () => {
         row.remove();
@@ -984,14 +999,30 @@ function wzAddObligationRow(data = {}) {
     list.appendChild(wzCreateObligationRow(data));
 }
 
+function wzAddObligationType(type) {
+    const name = WZ_OBLIGATION_TYPES[type] || "Zobowiązanie";
+    wzAddObligationRow({ name });
+    wzEl("wzObligationsList")?.lastElementChild?.scrollIntoView?.({
+        block: "nearest",
+        behavior: "smooth",
+    });
+}
+
 function wzRenderObligations(items = []) {
     const list = wzEl("wzObligationsList");
     if (!list) return;
+    const hasItems = (items || []).length > 0;
+    const radio = document.querySelector(
+        `input[name="wzHasObligations"][value="${hasItems ? "yes" : "no"}"]`
+    );
+    if (radio) radio.checked = true;
+    wzSyncObligationsBox();
     list.innerHTML = "";
     (items || []).forEach((item) => wzAddObligationRow(item));
 }
 
 function wzGatherObligations() {
+    if (wzRadio("wzHasObligations", "no") !== "yes") return [];
     return [...document.querySelectorAll("#wzObligationsList .obligation-row")]
         .map((row) => {
             const name = row.querySelector(".obligation-name")?.value.trim() || "Zobowiązanie";
@@ -1945,24 +1976,32 @@ function wzValidateStep(stepId) {
         if (path !== 2 && wzNum("wzSavings", 0) < 0) {
             return wzValidationError("Kwota oszczędności nie może być ujemna.", "wzSavings");
         }
-        const invalid = [...document.querySelectorAll(
-            "#wzObligationsList .obligation-row"
-        )].find((row) => {
-            const monthly = parseFloat(row.querySelector(".obligation-monthly")?.value) || 0;
-            const start = parseInt(row.querySelector(".obligation-start")?.value, 10);
-            const end = parseInt(row.querySelector(".obligation-end")?.value, 10);
-            return monthly > 0 && (
-                !Number.isFinite(start)
-                || !Number.isFinite(end)
-                || end <= start
-                || end <= age
-            );
-        });
-        if (invalid) {
-            return wzValidationError(
-                "Uzupełnij zobowiązania: wiek końca musi być późniejszy niż wiek start i obecny wiek.",
-                null
-            );
+        if (wzRadio("wzHasObligations", "no") === "yes") {
+            const rows = [...document.querySelectorAll(
+                "#wzObligationsList .obligation-row"
+            )];
+            if (!rows.length) {
+                return wzValidationError(
+                    "Dodaj przynajmniej jedno zobowiązanie albo wybierz „Nie mam żadnych zobowiązań”."
+                );
+            }
+            const invalid = rows.find((row) => {
+                const monthly = parseFloat(row.querySelector(".obligation-monthly")?.value) || 0;
+                const start = parseInt(row.querySelector(".obligation-start")?.value, 10);
+                const end = parseInt(row.querySelector(".obligation-end")?.value, 10);
+                return monthly > 0 && (
+                    !Number.isFinite(start)
+                    || !Number.isFinite(end)
+                    || end <= start
+                    || end <= age
+                );
+            });
+            if (invalid) {
+                return wzValidationError(
+                    "Uzupełnij zobowiązania: wiek końca musi być późniejszy niż wiek start i obecny wiek.",
+                    null
+                );
+            }
         }
     }
 
@@ -3352,6 +3391,7 @@ function wzSyncAllPanels() {
     wzSyncB2bRows();
     wzSyncZusBox();
     wzSyncOfeBox();
+    wzSyncObligationsBox();
     wzSyncPayrollPrograms();
     wzSyncRealEstateBox();
     wzSyncFireStyle();
@@ -3365,7 +3405,12 @@ function wzBindEvents() {
     wzEl("wzBackBtn")?.addEventListener("click", wzBack);
     wzEl("wzNextBtn")?.addEventListener("click", wzNext);
     wzEl("wzExportBtn")?.addEventListener("click", wzExportPlan);
-    wzEl("wzAddObligationBtn")?.addEventListener("click", () => wzAddObligationRow({}));
+    wzEl("wzObligationTypes")?.addEventListener("click", (event) => {
+        const button = event.target.closest("[data-obligation-type]");
+        if (!button) return;
+        wzAddObligationType(button.dataset.obligationType);
+        wzTouch();
+    });
     wzEl("wzProfileSeeds")?.addEventListener("click", (event) => {
         const button = event.target.closest("[data-profile-seed]");
         if (button) wzApplyProfileSeed(button.dataset.profileSeed);
@@ -3444,6 +3489,7 @@ function wzBindEvents() {
         if (target.name === "wzB2bSalaryMode") wzUpdateSalaryLabels();
         if (target.name === "wzHasZusCap") wzSyncZusBox();
         if (target.name === "wzHasOfe") wzSyncOfeBox();
+        if (target.name === "wzHasObligations") wzSyncObligationsBox();
         if (target.name === "wzPpkState" || target.name === "wzPpeState") {
             wzSyncPayrollPrograms();
         }
@@ -3501,6 +3547,7 @@ function wzBindEvents() {
         }
         if (target.name === "wzHasZusCap") wzSyncZusBox();
         if (target.name === "wzHasOfe") wzSyncOfeBox();
+        if (target.name === "wzHasObligations") wzSyncObligationsBox();
         if (target.name === "wzPpkState" || target.name === "wzPpeState") {
             wzSyncPayrollPrograms();
         }

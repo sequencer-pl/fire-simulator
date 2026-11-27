@@ -1308,9 +1308,20 @@ tbody tr.table-group:hover td { background: var(--surface-2); }
     background: var(--surface-2);
 }
 
+.obligation-head {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--sp-2);
+}
+
+.obligation-name-field {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
 .obligation-main {
     display: grid;
-    grid-template-columns: minmax(0, 1.6fr) repeat(3, minmax(120px, 0.8fr));
+    grid-template-columns: repeat(3, minmax(120px, 1fr));
     gap: var(--sp-3);
     align-items: end;
 }

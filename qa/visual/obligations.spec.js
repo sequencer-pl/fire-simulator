@@ -49,13 +49,22 @@ test("Asystent: zobowiązanie czasowe jest osobną listą i trafia do planu", as
     }
     await expect(page.locator('.wz-step[data-step-id="oszczednosci"]')).toBeVisible();
     await expect(page.locator("#wzObligationsPanel")).toBeVisible();
-    await page.locator("#wzAddObligationBtn").click();
+    await expect(page.locator("#wzObligationsBox")).toBeHidden();
+    await page.locator("label.seg-option", { hasText: "Mam zobowiązania" }).click();
+    await expect(page.locator("#wzObligationsBox")).toBeVisible();
+    await page.locator('[data-obligation-type="alimenty"]').click();
     const row = page.locator("#wzObligationsList .obligation-row").first();
-    await row.locator(".obligation-name").fill("Alimenty");
+    await expect(row.locator(".obligation-name")).toHaveValue("Alimenty");
     await row.locator(".obligation-monthly").fill("2000");
     await row.locator(".obligation-start").fill("40");
     await row.locator(".obligation-end").fill("60");
     await expect(row.locator(".obligation-redirect")).toBeChecked();
+
+    await page.locator('[data-obligation-type="inne"]').click();
+    const customRow = page.locator("#wzObligationsList .obligation-row").nth(1);
+    await expect(customRow.locator(".obligation-name")).toHaveValue("Zobowiązanie");
+    await customRow.locator(".obligation-remove").click();
+    await expect(page.locator("#wzObligationsList .obligation-row")).toHaveCount(1);
 
     for (let step = 0; step < 6; step += 1) {
         const current = await page.locator(".wz-step:not(.hidden)").getAttribute("data-step-id");

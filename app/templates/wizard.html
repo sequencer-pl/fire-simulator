@@ -393,17 +393,30 @@
         </div>
 
         <div class="card-inset wz-panel" id="wzObligationsPanel">
-            <div class="wz-section-head">
-                <h3 class="eyebrow wz-panel-title">
-                    <span class="tip-label-row">
-                        <span class="tip-label-text">Zobowiązania czasowe</span>
-                        <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">Kredyt, alimenty, czynsz, czesne — kwota jest odejmowana od miesięcznego budżetu na życie do wieku końca. Nie zwiększa wypłat z portfela: po prostu zmniejsza to, ile z dochodu zostaje na życie. Po zakończeniu zobowiązania budżet rośnie. Jeśli zobowiązanie kończy się przed FIRE i zaznaczysz przekierowanie, planner doda etap akumulacji z uwolnioną kwotą.</span></span>
-                    </span>
-                </h3>
-                <button type="button" class="btn btn-secondary btn-sm" id="wzAddObligationBtn">Dodaj zobowiązanie</button>
+            <h3 class="eyebrow wz-panel-title">
+                <span class="tip-label-row">
+                    <span class="tip-label-text">Zobowiązania czasowe</span>
+                    <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">Kredyt, alimenty, czynsz, czesne. Kwota jest odejmowana od miesięcznego budżetu na życie do wieku końca. Nie jest dodatkową wpłatą na inwestycje ani wypłatą z portfela — po prostu zmniejsza to, ile z dochodu zostaje na życie. Po zakończeniu zobowiązania budżet rośnie. Jeśli zobowiązanie kończy się przed FIRE i zaznaczysz przekierowanie, planner doda etap akumulacji z uwolnioną kwotą.</span></span>
+                </span>
+            </h3>
+            <div class="segmented is-auto gender-options segmented-stack" id="wzObligationsSwitch">
+                <label class="seg-option gender-option"><input type="radio" name="wzHasObligations" value="no" checked /> Nie mam żadnych zobowiązań</label>
+                <label class="seg-option gender-option"><input type="radio" name="wzHasObligations" value="yes" /> Mam zobowiązania</label>
             </div>
-            <p class="field-hint">Wpłaty podajesz już po opłaceniu zobowiązań. Po zakończeniu możesz przekierować uwolnioną kwotę na oszczędności — wtedy powstanie dodatkowy etap akumulacji.</p>
-            <div id="wzObligationsList" class="obligations-list"></div>
+            <div id="wzObligationsBox" class="wz-subpanel hidden">
+                <p class="field-hint">Zobowiązania pomniejszają miesięczny budżet na życie, a nie kwotę odkładaną na inwestycje. Kwota oszczędności powyżej to pieniądze, które zostają po ich opłaceniu.</p>
+                <div class="wz-obligation-add">
+                    <span class="wz-obligation-add-label">Dodaj zobowiązanie</span>
+                    <div class="pill-grid" id="wzObligationTypes" role="group" aria-label="Rodzaj zobowiązania">
+                        <button type="button" class="pill-toggle" data-obligation-type="kredyt">Kredyt</button>
+                        <button type="button" class="pill-toggle" data-obligation-type="alimenty">Alimenty</button>
+                        <button type="button" class="pill-toggle" data-obligation-type="czynsz">Czynsz</button>
+                        <button type="button" class="pill-toggle" data-obligation-type="czesne">Czesne</button>
+                        <button type="button" class="pill-toggle" data-obligation-type="inne">Inne</button>
+                    </div>
+                </div>
+                <div id="wzObligationsList" class="obligations-list"></div>
+            </div>
         </div>
     </section>
 

@@ -1372,13 +1372,17 @@ function createObligationRow(data = {}) {
     row.className = "obligation-row";
     row.dataset.obligation = "true";
     row.innerHTML = `
-        <div class="obligation-main">
+        <div class="obligation-head">
             <label class="field obligation-name-field">
                 <span class="obligation-label">Nazwa</span>
                 <input type="text" class="input obligation-name" maxlength="200"
                        value="${escapeHtml(data.name || "Zobowiązanie")}"
                        aria-label="Nazwa zobowiązania">
             </label>
+            <button type="button" class="btn btn-ghost btn-icon btn-sm obligation-remove"
+                    title="Usuń zobowiązanie" aria-label="Usuń zobowiązanie">${iconSvg("x")}</button>
+        </div>
+        <div class="obligation-main">
             <div class="field">
                 <span class="obligation-label">Kwota mies. (zł)</span>
                 ${numControlsHtml({
@@ -1412,8 +1416,6 @@ function createObligationRow(data = {}) {
                 <input type="checkbox" class="obligation-redirect" ${data.redirect_to_savings !== false ? "checked" : ""}>
                 <span>Po zakończeniu przekieruj na oszczędności</span>
             </label>
-            <button type="button" class="btn btn-ghost btn-icon btn-sm obligation-remove"
-                    title="Usuń zobowiązanie" aria-label="Usuń zobowiązanie">${iconSvg("x")}</button>
         </div>`;
     row.querySelector(".obligation-remove").addEventListener("click", () => row.remove());
     return row;

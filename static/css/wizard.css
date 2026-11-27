@@ -1265,6 +1265,21 @@
 
 .wz-subpanel > .wz-grid { margin-top: 0; }
 
+/* Krok 5: pasek typów zobowiązań dodaje wiersze do listy. */
+.wz-obligation-add {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--sp-2) var(--sp-3);
+    margin-top: var(--sp-3);
+}
+
+.wz-obligation-add-label {
+    color: var(--text-2);
+    font-size: var(--fs-sm);
+    font-weight: 600;
+}
+
 .wz-choice-cards { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
 
 .wz-add-buttons { margin-bottom: var(--sp-3); }
