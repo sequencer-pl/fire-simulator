@@ -405,12 +405,16 @@ def test_extend_chart_does_not_change_values_before_horizon():
     )
     upto = len(base.projection.chart.ages)
     assert extended.projection.chart.ages[:upto] == base.projection.chart.ages
-    for key in ("lifestyle_monthly", "obligations_monthly"):
+    for key in ("lifestyle_monthly", "obligations_monthly", "part_time_monthly"):
         base_values = getattr(base.projection.chart, key)
         ext_values = getattr(extended.projection.chart, key)[:upto]
         assert ext_values == pytest.approx(base_values, abs=0.02)
     for account, values in base.projection.chart.withdrawals_net.items():
         assert extended.projection.chart.withdrawals_net[account][:upto] == pytest.approx(
+            values, abs=0.02
+        )
+    for account, values in base.projection.chart.balances.items():
+        assert extended.projection.chart.balances[account][:upto] == pytest.approx(
             values, abs=0.02
         )
 

@@ -7,6 +7,9 @@ const PLAN = JSON.parse(
 const BARISTA_INPUT = JSON.parse(
     fs.readFileSync(new URL("./fixtures/barista-obligation-input.json", import.meta.url), "utf8")
 );
+const NO_ZUS_INPUT = JSON.parse(
+    fs.readFileSync(new URL("./fixtures/no-zus-obligation-input.json", import.meta.url), "utf8")
+);
 
 test("Symulator: zobowiązanie czasowe zmniejsza budżet i tworzy etap akumulacji", async ({ page }) => {
     await page.goto("/sim", { waitUntil: "networkidle" });
@@ -114,6 +117,24 @@ test("Symulator: zachowuje logiczne etapy Baristy z Asystenta", async ({ page })
     expect(timeline).toContain("45–55");
     expect(timeline).toContain("55–65");
     expect(timeline).not.toContain("45–48");
+});
+
+test("Symulator: zachowuje granicę emerytury w planie bez ZUS", async ({ page }) => {
+    await page.goto("/sim", { waitUntil: "networkidle" });
+    await page.evaluate((input) => {
+        localStorage.setItem(
+            "fire.wizardDraft",
+            JSON.stringify({ ...input, source: "test" })
+        );
+    }, NO_ZUS_INPUT);
+    await page.goto("/sim?wizard=1", { waitUntil: "networkidle" });
+
+    await page.locator("#simulateBtn").click();
+    await expect(page.locator("#results")).toBeVisible({ timeout: 30_000 });
+    const timeline = await page.locator("#wzTimeline").innerText();
+    expect(timeline).toContain("55–65");
+    expect(timeline).toContain("65–85");
+    expect(timeline).not.toContain("55–70");
 });
 
 test("Asystent: zobowiązanie czasowe jest osobną listą i trafia do planu", async ({ page }) => {
