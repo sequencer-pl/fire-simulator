@@ -31,7 +31,7 @@ pydantic==2.14.3
     # via
     #   fastapi
     #   fire-simulator
-pydantic-core==2.50.4
+pydantic-core==2.50.5
     # via pydantic
 python-dotenv==1.2.3
     # via uvicorn
