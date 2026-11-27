@@ -33,10 +33,27 @@ Trzy poziomy:
    Jeśli zmiana jest świadomie wizualna: `make visual-baseline`, przejrzyj diff
    baseline'ów, potem `make check`.
 
-CI na pushu jest backstopem, nie zamiennikiem lokalnego gate'u. Testy planera
-używają `plan(..., scenarios=False)`; integracje solvera/API/scenariusze są
-oznaczone `@pytest.mark.slow`; optymalizator ma osobne `tests/test_optimizer.py`.
-W visualach nie testuj dokładnego copy ani każdej mikrointerakcji.
+### Pętla pracy i budżet testów
+
+- Nie odpalaj `make check` po każdej zmianie. To gate przed commitem/pushem,
+  nie pętla developerska.
+- Lokalny commit: `make check-fast` + dotknięte specyfikacje Playwright.
+- Push/deploy: pełny `make check`.
+- Budżety orientacyjne: `check-fast` < 30 s, pełny pytest < 45 s,
+  visual < 2 min, `make check` < 3 min. Przekroczenie traktuj jako sygnał
+  do optymalizacji testów, nie jako normalny koszt.
+- Testy mobilne uruchamiaj tylko w projekcie mobile (`test.skip` dla drugiego
+  projektu). Nie duplikuj tego samego zachowania w desktop i mobile, jeśli test
+  sam ustawia viewport.
+- Jeśli test nie dotyczy przejścia przez wizard, używaj fixture/API zamiast
+  klikania dziewięciu kroków. Nowy test wizualny dodawaj tylko wtedy, gdy
+  regresji nie złapie unit/jsdom.
+- Testy planera używają `plan(..., scenarios=False)`; integracje solvera/API/
+  scenariusze są oznaczone `@pytest.mark.slow`; optymalizator ma osobne
+  `tests/test_optimizer.py`. W visualach nie testuj dokładnego copy ani każdej
+  mikrointerakcji.
+
+CI na pushu jest backstopem, nie zamiennikiem lokalnego gate'u.
 
 Wymagania: `uv`, Python 3.12+.
 
