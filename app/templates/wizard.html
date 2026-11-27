@@ -27,20 +27,20 @@
             <label class="wz-path">
                 <input type="radio" name="wzPath" value="1" checked>
                 <span class="wz-path-check" aria-hidden="true"></span>
-                <span class="wz-path-title">Ile dostanę miesięcznie na rękę na FIRE?</span>
-                <span class="wz-path-desc">Wiem, ile dziś odkładam i kiedy chcę zwolnić tempo lub przestać pracować. Policz, jaką bezpieczną wypłatę netto zapewni mój kapitał.</span>
+                <span class="wz-path-title">Ile dostanę miesięcznie na życie na FIRE?</span>
+                <span class="wz-path-desc">Wiem, ile dziś odkładam i kiedy chcę zwolnić tempo lub przestać pracować. Policz, jaki bezpieczny budżet na życie zapewni mój kapitał.</span>
             </label>
             <label class="wz-path">
                 <input type="radio" name="wzPath" value="2">
                 <span class="wz-path-check" aria-hidden="true"></span>
                 <span class="wz-path-title">Ile muszę dziś odkładać co miesiąc?</span>
-                <span class="wz-path-desc">Mam wymarzoną kwotę miesięcznej wypłaty na rękę i docelowy wiek FIRE. Policz, ile muszę odkładać, aby ten plan się spiął.</span>
+                <span class="wz-path-desc">Mam wymarzony miesięczny budżet na życie i docelowy wiek FIRE. Policz, ile muszę odkładać, aby ten plan się spiął.</span>
             </label>
             <label class="wz-path">
                 <input type="radio" name="wzPath" value="3">
                 <span class="wz-path-check" aria-hidden="true"></span>
                 <span class="wz-path-title">W jakim wieku mogę przestać pracować?</span>
-                <span class="wz-path-desc">Wiem, ile odkładam co miesiąc i jakiej wypłaty potrzebuję na życie. Sprawdź najwcześniejszy wiek, w którym osiągnę niezależność.</span>
+                <span class="wz-path-desc">Wiem, ile odkładam co miesiąc i jakiego budżetu potrzebuję na życie. Sprawdź najwcześniejszy wiek, w którym osiągnę niezależność.</span>
             </label>
         </div>
     </section>
@@ -396,7 +396,7 @@
             <h3 class="eyebrow wz-panel-title">
                 <span class="tip-label-row">
                     <span class="tip-label-text">Zobowiązania czasowe</span>
-                    <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">Kredyt, alimenty, czynsz, czesne. Kwota jest odejmowana od miesięcznego budżetu na życie do wieku końca. Nie jest dodatkową wpłatą na inwestycje ani wypłatą z portfela — po prostu zmniejsza to, ile z dochodu zostaje na życie. Po zakończeniu zobowiązania budżet rośnie. Jeśli zobowiązanie kończy się przed FIRE i zaznaczysz przekierowanie, planner doda etap akumulacji z uwolnioną kwotą.</span></span>
+                    <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">Kredyt, alimenty, czynsz, czesne. To dodatkowy koszt poza budżetem na życie. Przed FIRE finansuje go pensja, ale nie zmienia zadeklarowanej wpłaty — ogranicza budżet konsumpcyjny. Po FIRE portfel wypłaca budżet plus zobowiązanie, a po jego zakończeniu wypłata wraca do samego budżetu. Jeśli zobowiązanie kończy się przed FIRE i zaznaczysz przekierowanie, planner doda etap akumulacji z uwolnioną kwotą.</span></span>
                 </span>
             </h3>
             <div class="segmented is-auto gender-options segmented-stack" id="wzObligationsSwitch">
@@ -404,7 +404,7 @@
                 <label class="seg-option gender-option"><input type="radio" name="wzHasObligations" value="yes" /> Mam zobowiązania</label>
             </div>
             <div id="wzObligationsBox" class="wz-subpanel hidden">
-                <p class="field-hint">Zobowiązania pomniejszają miesięczny budżet na życie, a nie kwotę odkładaną na inwestycje. Kwota oszczędności powyżej to pieniądze, które zostają po ich opłaceniu.</p>
+                <p class="field-hint">Zobowiązania są dodatkowym kosztem poza budżetem: przed FIRE finansuje je pensja, ale nie zmieniają zadeklarowanej wpłaty. Powyższa kwota to zadeklarowana wpłata; zobowiązania zmniejszają jedynie budżet konsumpcyjny.</p>
                 <div class="wz-obligation-add">
                     <span class="wz-obligation-add-label">Dodaj zobowiązanie</span>
                     <div class="pill-grid" id="wzObligationTypes" role="group" aria-label="Rodzaj zobowiązania">
@@ -581,8 +581,8 @@
             <div class="field wz-field-block">
                 <label class="field-label-lg" for="wzTarget">
                     <span class="tip-label-row">
-                        <span class="tip-label-text">Jaki dochód netto miesięcznie ma dawać plan (w dzisiejszych zł)?</span>
-                        <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">Łączny miesięczny dochód netto z planu: portfel, ZUS i ewentualna praca. Zobowiązania czasowe (kredyt, alimenty, czynsz) odejmujemy od tej kwoty, żeby pokazać budżet na życie — nie dodajemy ich do wypłat z portfela.</span></span>
+                        <span class="tip-label-text">Docelowy budżet na życie po zobowiązaniach (zł/mies.)</span>
+                        <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">Portfel, ZUS i ewentualna praca mają zapewniać co najmniej tę kwotę po odjęciu aktywnych zobowiązań. W latach z zobowiązaniem portfel wypłaci więcej: budżet + zobowiązanie. Po jego zakończeniu wypłata wraca do samego budżetu.</span></span>
                     </span>
                 </label>
                 <div class="wz-slider">
@@ -591,7 +591,7 @@
                         <input type="number" id="wzTarget" class="acc-field" value="6000" min="500" max="60000" step="250">
                         <button type="button" class="stepper stepper-up" tabindex="-1">+</button>
                     </div>
-                    <input type="range" id="wzTargetRange" min="1000" max="30000" step="250" value="6000" aria-label="Docelowy dochód netto miesięcznie">
+                    <input type="range" id="wzTargetRange" min="1000" max="30000" step="250" value="6000" aria-label="Docelowy budżet na życie miesięcznie">
                 </div>
             </div>
         </div>
@@ -697,7 +697,7 @@
                 <div class="field wz-field-block">
                     <label class="field-label-lg" for="wzPlanEnd">
                         <span class="tip-label-row">
-                            <span class="tip-label-text">Do jakiego wieku prywatny portfel ma gwarantować pełną wypłatę?</span>
+                            <span class="tip-label-text">Do jakiego wieku prywatny portfel ma gwarantować pełny budżet na życie?</span>
                             <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">Domyślnie oczekiwana długość życia (GUS) powiększona o prognozowany wzrost długowieczności. Po tym wieku nadal wypłacana jest dożywotnia emerytura z ZUS.</span></span>
                         </span>
                     </label>
@@ -714,7 +714,7 @@
                     <label class="field-label-lg" for="wzBequest">
                         <span class="tip-label-row">
                             <span class="tip-label-text">Ile chcesz zostawić na koniec horyzontu? (netto, 0 = wydać wszystko)</span>
-                            <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">Minimalny majątek netto po podatku wyjścia, jaki ma zostać na koniec planu. Silnik maksymalizuje wypłatę przy tym ograniczeniu. 0 zł oznacza, że plan może wydać cały kapitał.</span></span>
+                            <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">Minimalny majątek netto po podatku wyjścia, jaki ma zostać na koniec planu. Silnik maksymalizuje budżet na życie przy tym ograniczeniu. 0 zł oznacza, że plan może wydać cały kapitał.</span></span>
                         </span>
                     </label>
                     <div class="wz-slider">
@@ -786,15 +786,15 @@
                 <h3 class="eyebrow wz-panel-title">
                     <span class="tip-label-row">
                         <span class="tip-label-text">Co ma maksymalizować silnik?</span>
-                        <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">„Stała wypłata” maksymalizuje najniższą miesięczną kwotę. „Wyższa suma” wybiera wariant z największą sumą wypłat w horyzoncie.</span></span>
+                        <span class="tip" tabindex="0" aria-label="Wyjaśnienie">?<span class="tooltip">„Stały budżet” maksymalizuje najniższy miesięczny budżet na życie. „Wyższa suma” wybiera wariant z największą sumą wypłat w horyzoncie.</span></span>
                     </span>
                 </h3>
                 <div class="wz-paths wz-choice-cards" role="radiogroup" aria-label="Priorytet optymalizacji">
                     <label class="wz-path">
                         <input type="radio" name="wzPriority" value="payout" checked>
                         <span class="wz-path-check" aria-hidden="true"></span>
-                        <span class="wz-path-title">Stała wypłata</span>
-                        <span class="wz-path-desc">Silnik maksymalizuje najniższy miesięczny dochód netto. Plan jest bardziej równy i bezpieczny; część kapitału może zostać na koniec horyzontu.</span>
+                        <span class="wz-path-title">Stały budżet</span>
+                        <span class="wz-path-desc">Silnik maksymalizuje najniższy miesięczny budżet na życie. Plan jest bardziej równy i bezpieczny; część kapitału może zostać na koniec horyzontu.</span>
                     </label>
                     <label class="wz-path">
                         <input type="radio" name="wzPriority" value="total">

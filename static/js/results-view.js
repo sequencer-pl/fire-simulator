@@ -18,9 +18,15 @@
         const containerId = kind === "withdrawals" ? "wzWithdrawalsChart" : "wzCapitalChart";
         const legendId = kind === "withdrawals" ? "wzWithdrawalsLegend" : "wzCapitalLegend";
         const titleId = kind === "withdrawals" ? "wzWithdrawalsTitle" : "wzCapitalTitle";
+        const titleHtml = kind === "withdrawals"
+            ? tip(
+                title,
+                "Wykres pokazuje wypłaty netto z kont i ZUS. Zobowiązania czasowe są pokazane osobno, pod wykresami, jako koszt — nie jako źródło pieniędzy. Szczegóły roku znajdziesz w tabeli „Rok po roku”."
+            )
+            : esc(title);
         return `<section class="wz-chart-card" data-results-chart-card="${kind}" aria-labelledby="${titleId}">
             <div class="wz-chart-head">
-                <h4 class="wz-plan-subhead" id="${titleId}">${esc(title)}</h4>
+                <h4 class="wz-plan-subhead" id="${titleId}">${titleHtml}</h4>
                 <div class="wz-chart-legend" id="${legendId}" data-results-legend="${kind}"></div>
             </div>
             <div class="wz-chart" id="${containerId}" data-results-chart="${kind}"></div>
@@ -68,6 +74,7 @@
                     ${chartCard("withdrawals", "Wypłaty netto w czasie")}
                     ${chartCard("capital", "Kapitał prywatny FIRE")}
                 </div>
+                <div id="wzObligationsCosts" class="wz-costs-card hidden" data-results-costs></div>
                 <div class="wz-gantt-tip hidden" id="wzChartTip" role="tooltip">
                     <button type="button" class="wz-gantt-tip-close" id="wzChartTipClose" aria-label="Zamknij podpowiedź">×</button>
                     <div id="wzChartTipBody"></div>

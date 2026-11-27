@@ -214,6 +214,15 @@
     font-weight: 700;
 }
 
+.res-year-table th.col-lifestyle {
+    color: var(--text-2);
+}
+
+.res-year-table td.col-lifestyle {
+    color: var(--text);
+    font-weight: 650;
+}
+
 @media (max-width: 760px) {
     .res-year-table td.col-stage {
         max-width: 130px;

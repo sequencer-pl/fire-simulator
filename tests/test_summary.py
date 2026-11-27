@@ -82,6 +82,10 @@ def test_summary_separates_income_from_lifestyle_after_obligations():
     assert lifestyle_monthly_net(input_data, year) == pytest.approx(
         year.monthly_withdrawal - 2_000, abs=0.02
     )
+    assert year.obligations_monthly == pytest.approx(2_000, abs=0.02)
+    assert year.lifestyle_monthly == pytest.approx(
+        lifestyle_monthly_net(input_data, year), abs=0.02
+    )
 
 
 def test_legacy_mortgage_maps_to_one_obligation():
@@ -216,7 +220,9 @@ def test_barista_lifestyle_min_matches_projection_and_portfolio_is_separate():
     # Jedna definicja budżetu: summary i projekcja muszą się zgadzać.
     assert summary.min_monthly == pytest.approx(result.projection.min_monthly, abs=1)
     assert summary.avg_monthly == pytest.approx(result.projection.mean_monthly, abs=1)
-    assert result.projection.min_monthly == pytest.approx(4_500, abs=5)
+    # Barista ma pensję 4 500 zł netto; portfel może podnieść budżet powyżej
+    # tej kwoty, ale nie może go obniżyć poniżej pensji z części etatu.
+    assert result.projection.min_monthly >= 4_500 - 1
     # Wariant portfelowy jest osobnym polem i nie zawiera części etatu.
     assert summary.min_monthly_portfolio is not None
     assert summary.min_monthly_portfolio < summary.min_monthly

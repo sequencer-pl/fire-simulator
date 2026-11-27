@@ -9,6 +9,8 @@ from app.simulation.config import (
     default_config,
 )
 
+MAX_LOGICAL_STAGES = 20
+
 _ALLOWED_IKZE_TARGETS = {
     "",
     "auto",
@@ -76,6 +78,10 @@ class AccountConfig(BaseModel):
 class StageInput(BaseModel):
     stage_type: Literal["akumulacja", "realizacja"]
     name: str = Field(default="", max_length=200)
+    # ID logicznego etapu użytkownika. Planner może rozbić realizację na
+    # techniczne segmenty przy granicach zobowiązań — wszystkie dziedziczą
+    # ten identyfikator, żeby fazy i podsumowania mogły je z powrotem scalić.
+    origin_stage_id: str | None = Field(default=None, max_length=64)
     start_age: int = Field(ge=0, le=119)
     end_age: int = Field(ge=1, le=120)
     accounts: dict[str, AccountConfig] = Field(default_factory=dict)
@@ -141,8 +147,13 @@ class TemporaryObligation(BaseModel):
 
 
 class SimulationInput(BaseModel):
-    stages: list[StageInput] = Field(default_factory=list, max_length=20)
+    # Limit dotyczy etapów logicznych (waliduje go planner). Segmenty solvera
+    # mogą być liczniejsze, bo powstają przy granicach zobowiązań.
+    stages: list[StageInput] = Field(default_factory=list, max_length=128)
     obligations: list[TemporaryObligation] = Field(default_factory=list, max_length=20)
+    # True, gdy etapy akumulacji zawierają już materializację przekierowania
+    # zobowiązań na oszczędności. Symulator nie może doliczyć jej drugi raz.
+    redirects_applied: bool = False
     max_age: int = Field(
         default=100,
         ge=0,
@@ -223,6 +234,18 @@ class SimulationInput(BaseModel):
         # nie dokłada wtedy raty do puli oszczędności (phase1_boosted = False).
         return self
 
+    @model_validator(mode="after")
+    def _validate_logical_stage_limit(self) -> "SimulationInput":
+        keys = {
+            stage.origin_stage_id or f"stage-without-id-{index}"
+            for index, stage in enumerate(self.stages)
+        }
+        if len(keys) > MAX_LOGICAL_STAGES:
+            raise ValueError(
+                f"Plan może mieć maksymalnie {MAX_LOGICAL_STAGES} etapów logicznych."
+            )
+        return self
+
 
 class YearResult(BaseModel):
     age: int
@@ -232,6 +255,11 @@ class YearResult(BaseModel):
     annual_withdrawal: float = 0.0
     monthly_withdrawal: float = 0.0
     zus_monthly: float = 0.0
+    # Budżet na życie w danym roku: dochód netto + część etatu - zobowiązania.
+    # W akumulacji silnik nie modeluje pensji, więc te pola są tam zerowe.
+    part_time_monthly: float = 0.0
+    obligations_monthly: float = 0.0
+    lifestyle_monthly: float = 0.0
     tax_paid: float = 0.0
     # Składka zdrowotna (9%) od emerytury ZUS — nie jest podatkiem, ale
     # pomniejsza kwotę „na rękę”.

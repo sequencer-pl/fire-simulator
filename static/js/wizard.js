@@ -8,12 +8,13 @@ const WZ_LEGACY_CONFIG_KEY = "fire.config.anonymous";
 const WZ_LEGACY_STATE_KEY = "fire.wizardV2State";
 const WZ_LEGACY_PLAN_KEY = "fire.wizardV2Plan";
 const WZ_TINY_CASH_ANNUAL = 120;
+const WZ_MIN_TARGET_MONTHLY = 500;
 const WZ_STATE_SAVE_MS = 150;
 // Wersje cache'y w localStorage. Niezgodne wpisy odrzucamy, żeby po zmianie
 // schematu stary stan nie nadpisywał nowego planu.
-const WZ_STATE_VERSION = 2;
-const WZ_PLAN_VERSION = 2;
-const WZ_DRAFT_VERSION = 2;
+const WZ_STATE_VERSION = 3;
+const WZ_PLAN_VERSION = 3;
+const WZ_DRAFT_VERSION = 3;
 
 const WZ_RETIREMENT_DEFAULT = { k: 60, m: 65 };
 
@@ -249,6 +250,7 @@ let wzStrategyExpanded = false;
 let wzLongevityGrowth = 1.5;
 let wzEtatPeriodPrev = "year";
 let wzFormVersion = 0;
+let wzObligationRedirectSeq = 0;
 let wzAccountConfig = null;
 let wzAllocationMode = "auto";
 let wzManualAllocations = null;
@@ -750,7 +752,7 @@ function wzPlanStepId() {
 function wzQuestionForPath(path = wzCurrentPath()) {
     if (path === 2) return "Ile muszę odkładać?";
     if (path === 3) return "Kiedy mogę przejść na FIRE?";
-    return "Ile dostanę miesięcznie?";
+    return "Jaki budżet na życie?";
 }
 
 function wzShowStep(stepId, focus = false) {
@@ -888,6 +890,7 @@ function wzSyncPathUI() {
     wzEl("wzSavingsPanel")?.classList.toggle("hidden", path === 2);
     wzEl("wzReGroup")?.classList.toggle("hidden", path === 3);
     wzSyncModeUI();
+    wzSyncObligationRedirects();
 }
 
 function wzSyncModeUI() {
@@ -928,6 +931,31 @@ function wzSyncObligationsBox() {
     wzEl("wzObligationsBox")?.classList.toggle("hidden", !has);
 }
 
+function wzSyncObligationRedirects() {
+    // W ścieżce 3 wiek FIRE jest wynikiem, a nie założeniem — nie ukrywamy
+    // wtedy przełącznika na podstawie pola, które i tak jest nieaktywne.
+    const path = wzCurrentPath();
+    const style = wzRadio("wzFireStyle", "full");
+    // Przekierowanie ma pokrycie tylko w akumulacji. W Baricie kończy się ona
+    // w wieku części etatu; w Coast trwa do pełnego FIRE.
+    const accumulationEnd = path === 3
+        ? null
+        : (style === "barista" ? wzInt("wzSemiAge", 48) : wzInt("wzRe", 55));
+    document.querySelectorAll("#wzObligationsList .obligation-row").forEach((row) => {
+        const endAge = parseInt(row.querySelector(".obligation-end")?.value, 10);
+        const hasAccumulation = !Number.isFinite(endAge) || !Number.isFinite(accumulationEnd)
+            || endAge < accumulationEnd;
+        row.querySelector(".obligation-redirect")?.classList.toggle("hidden", !hasAccumulation);
+        row.querySelector(".obligation-redirect-note")?.classList.toggle("hidden", hasAccumulation);
+        const hint = row.querySelector(".obligation-redirect-hint");
+        if (hint) {
+            hint.textContent = path === 3
+                ? "Zadziała tylko wtedy, gdy po zakończeniu zobowiązania pozostanie etap akumulacji."
+                : "Bez przekierowania uwolniona kwota zostaje w budżecie na życie.";
+        }
+    });
+}
+
 function wzObligationDefaultAges() {
     const start = wzInt("wzAge", 40);
     return { start, end: Math.min(120, Math.max(start + 1, 55)) };
@@ -936,6 +964,8 @@ function wzObligationDefaultAges() {
 function wzCreateObligationRow(data = {}) {
     const ages = wzObligationDefaultAges();
     const row = document.createElement("div");
+    const redirectName = `wzObligationRedirect${++wzObligationRedirectSeq}`;
+    const redirectToSavings = data.redirect_to_savings !== false;
     row.className = "obligation-row";
     row.dataset.obligation = "true";
     row.innerHTML = `
@@ -978,12 +1008,22 @@ function wzCreateObligationRow(data = {}) {
                 })}
             </div>
         </div>
-        <div class="obligation-actions">
-            <label class="field-checkbox obligation-redirect-label">
-                <input type="checkbox" class="obligation-redirect" ${data.redirect_to_savings !== false ? "checked" : ""}>
-                <span>Po zakończeniu przekieruj na oszczędności</span>
-            </label>
-        </div>`;
+        <div class="obligation-redirect">
+            <span class="obligation-redirect-title">Po zakończeniu zobowiązania</span>
+            <div class="segmented is-sm segmented-stack obligation-redirect-switch"
+                 role="radiogroup" aria-label="Po zakończeniu zobowiązania">
+                <label class="seg-option">
+                    <input type="radio" class="obligation-redirect-yes" name="${redirectName}" value="yes" ${redirectToSavings ? "checked" : ""}>
+                    Przekierować na oszczędności
+                </label>
+                <label class="seg-option">
+                    <input type="radio" class="obligation-redirect-no" name="${redirectName}" value="no" ${redirectToSavings ? "" : "checked"}>
+                    Zostawić w budżecie
+                </label>
+            </div>
+            <p class="field-hint obligation-redirect-hint">Bez przekierowania uwolniona kwota zostaje w budżecie na życie.</p>
+        </div>
+        <p class="field-hint obligation-redirect-note hidden">To zobowiązanie kończy się na FIRE lub później. Po zakończeniu budżet zależy od ustawionych wypłat; w Asystencie planner utrzymuje cel, w Symulatorze zmieniasz wypłaty ręcznie.</p>`;
     row.querySelector(".obligation-remove").addEventListener("click", () => {
         row.remove();
         wzTouch();
@@ -997,6 +1037,7 @@ function wzAddObligationRow(data = {}) {
     const list = wzEl("wzObligationsList");
     if (!list) return;
     list.appendChild(wzCreateObligationRow(data));
+    wzSyncObligationRedirects();
 }
 
 function wzAddObligationType(type) {
@@ -1034,7 +1075,7 @@ function wzGatherObligations() {
                 monthly,
                 start_age: Number.isFinite(startAge) ? startAge : 0,
                 end_age: Number.isFinite(endAge) ? endAge : 0,
-                redirect_to_savings: Boolean(row.querySelector(".obligation-redirect")?.checked),
+                redirect_to_savings: Boolean(row.querySelector(".obligation-redirect-yes")?.checked),
             };
         })
         .filter((item) => item.monthly > 0 && item.end_age > item.start_age);
@@ -1074,6 +1115,7 @@ function wzSyncFireStyle() {
     wzEl("wzSemiFireBox")?.classList.toggle("hidden", !semi);
     wzEl("wzSemiSavingsGroup")?.classList.toggle("hidden", style === "barista");
     if (semi) wzSyncSemiBounds();
+    wzSyncObligationRedirects();
 }
 
 function wzSyncAgeBounds() {
@@ -2022,9 +2064,9 @@ function wzValidateStep(stepId) {
     }
 
     if (stepId === "sabbatical") {
-        if (path !== 1 && wzNum("wzTarget", 0) <= 0) {
+        if (path !== 1 && wzNum("wzTarget", 0) < WZ_MIN_TARGET_MONTHLY) {
             return wzValidationError(
-                "Podaj docelowy miesięczny dochód netto.",
+                `Cel budżetu musi wynosić co najmniej ${WZ_MIN_TARGET_MONTHLY} zł/mies.`,
                 "wzTarget"
             );
         }
@@ -3067,7 +3109,7 @@ function wzRenderResult(data) {
         hero: wzHeroData(data),
         warnings,
         metrics: window.ResultsSummary.metricsFor(planView),
-        facts: wzFactsFor(active.projection, data, active.input),
+        facts: wzFactsFor(active.projection, data, active.input, summary),
         why: wzPlanWhyHtml(data),
     });
     wzRenderScenarios(data);
@@ -3087,6 +3129,7 @@ function wzRenderResult(data) {
         input: active.input,
         projection: active.projection,
         summary,
+        mode: "wizard",
     });
     wzLoadFullResult(active.input, wzSelectedScenario);
 }
@@ -3102,7 +3145,7 @@ function wzPlanWhyHtml(data) {
         : (rec.payout_monthly || 0) - (baseline?.payout_monthly || 0);
     const objectiveText = totalObjective
         ? "najwyższą sumę wypłat"
-        : "najwyższy dochód miesięczny";
+        : "najwyższy budżet na życie";
     const mix = wzOptimizerMixLabel(rec);
     const deltaText = delta > 1
         ? ` o ${Math.round(delta).toLocaleString("pl-PL")} zł więcej niż wariant bazowy`
@@ -3128,13 +3171,9 @@ function wzHeroData(data) {
 
     if (path === 1) {
         const payout = proj.min_monthly || 0;
-        const lifestyle = proj.min_lifestyle_monthly || 0;
         const reAge = solved.retire_early_age ?? input?.retire_early_age ?? wzInt("wzRe", 55);
         const endAge = wzInputHorizonAge(input) ?? wzInt("wzPlanEnd", 85);
         const totalObjective = data.optimization?.objective === "total";
-        const lifestyleNote = lifestyle > 0 && lifestyle < payout - 1
-            ? ` Po zobowiązaniach zostaje co najmniej <strong>${fmt(lifestyle)} zł/mies.</strong>`
-            : "";
         if (solved.feasible && proj.met && payout > 0) {
             if (totalObjective) {
                 const baseScenario = !data.scenarios?.[wzSelectedScenario]
@@ -3144,14 +3183,14 @@ function wzHeroData(data) {
                     : "Podział i wiek ZUS pochodzą z wariantu Realne; ten scenariusz zmienia tylko założenia rynkowe.";
                 return {
                     kicker: escapeHtml(kicker),
-                    headline: `Dochód netto z planu: co najmniej ${fmt(payout)} zł/mies.`,
-                    desc: `Wariant pod najwyższą sumę: łącznie <strong>${fmt(proj.total_withdrawn)} zł</strong> do ${endAge}. roku życia, średnio ${fmt(proj.mean_monthly)} zł/mies.${lifestyleNote} ${escapeHtml(sourceNote)}`,
+                    headline: `Budżet na życie: co najmniej ${fmt(payout)} zł/mies.`,
+                    desc: `Wariant pod najwyższą sumę: łącznie <strong>${fmt(proj.total_withdrawn)} zł</strong> do ${endAge}. roku życia, średnio ${fmt(proj.mean_monthly)} zł/mies. budżetu. ${escapeHtml(sourceNote)}`,
                 };
             }
             return {
                 kicker: escapeHtml(kicker),
-                headline: `Dochód netto z planu: ${fmt(payout)} zł/mies.`,
-                desc: `Od ${reAge}. do ${endAge}. roku życia Twój łączny dochód netto wyniesie co najmniej <strong>${fmt(payout)} zł/mies.</strong> — portfel, ZUS i ewentualna praca na część etatu.${lifestyleNote}`,
+                headline: `Budżet na życie: ${fmt(payout)} zł/mies.`,
+                desc: `Od ${reAge}. do ${endAge}. roku życia Twój budżet na życie po zobowiązaniach wyniesie co najmniej <strong>${fmt(payout)} zł/mies.</strong> — portfel, ZUS i ewentualna praca na część etatu.`,
             };
         }
         return {
@@ -3172,14 +3211,14 @@ function wzHeroData(data) {
             return {
                 kicker: escapeHtml(kicker),
                 headline: `Odkładaj ${fmt(savings)} zł/mies.${pct}`,
-                desc: `Tyle wystarczy odkładać, aby osiągnąć docelowy dochód netto <strong>${fmt(target)} zł/mies.</strong> przez cały wybrany horyzont czasowy.`,
+                desc: `Tyle wystarczy odkładać, aby osiągnąć docelowy budżet na życie <strong>${fmt(target)} zł/mies.</strong> przez cały wybrany horyzont czasowy.`,
             };
         }
         return {
             kicker: escapeHtml(kicker),
             warn: true,
-            headline: `Cel ${fmt(target)} zł/mies. dochodu wymaga korekty założeń`,
-            desc: escapeHtml(solved.note || "Rozważ późniejszy wiek FIRE lub niższy cel wypłaty."),
+            headline: `Cel ${fmt(target)} zł/mies. budżetu wymaga korekty założeń`,
+            desc: escapeHtml(solved.note || "Rozważ późniejszy wiek FIRE lub niższy cel budżetu."),
         };
     }
 
@@ -3191,14 +3230,14 @@ function wzHeroData(data) {
         return {
             kicker: escapeHtml(kicker),
             headline: `W wieku ${re} lat (za ${yearsLeft} ${wzFormatYears(yearsLeft)})`,
-            desc: `To najwcześniejszy wiek przejścia na FIRE z gwarancją dochodu netto co najmniej <strong>${fmt(target)} zł/mies.</strong>.`,
+            desc: `To najwcześniejszy wiek przejścia na FIRE z gwarancją budżetu na życie co najmniej <strong>${fmt(target)} zł/mies.</strong> po zobowiązaniach.`,
         };
     }
     return {
         kicker: escapeHtml(kicker),
         warn: true,
         headline: `Cel ${fmt(target)} zł/mies. nieosiągalny przed emeryturą`,
-        desc: escapeHtml(solved.note || "Rozważ wyższe miesięczne oszczędności lub niższy docelowy dochód."),
+        desc: escapeHtml(solved.note || "Rozważ wyższe miesięczne oszczędności lub niższy docelowy budżet."),
     };
 }
 
@@ -3232,9 +3271,9 @@ function wzRenderScenarios(data) {
             mainText = scenario.feasible
                 ? `${fmt(scenario.payout_monthly)} zł/mies.`
                 : "Nieosiągalne";
-            if (data.optimization?.objective === "total") {
-                subText = `Łącznie ${fmt(scenario.total_withdrawn)} zł · Szczyt: ${fmt(scenario.peak_wealth)} zł`;
-            }
+            subText = data.optimization?.objective === "total"
+                ? `Budżet na życie · Łącznie ${fmt(scenario.total_withdrawn)} zł`
+                : `Budżet na życie · Szczyt: ${fmt(scenario.peak_wealth)} zł`;
         } else if (path === 2) {
             mainText = scenario.feasible ? `${fmt(scenario.savings_monthly)} zł/mies.` : "Nieosiągalne";
             if (scenario.savings_pct != null && scenario.feasible) {
@@ -3259,7 +3298,7 @@ function wzRenderScenarios(data) {
     box.innerHTML = html;
 }
 
-function wzFactsFor(projection, plan = null, input = null) {
+function wzFactsFor(projection, plan = null, input = null, summary = null) {
     const facts = [];
     const mixText = wzAssetMixLabel(plan?.asset_mix);
     if (mixText) {
@@ -3272,6 +3311,8 @@ function wzFactsFor(projection, plan = null, input = null) {
             `<span class="chip wz-fact">Nowe wpłaty: ${escapeHtml(mixText)}${tipHtml(tip)}</span>`
         );
     }
+    const budget = window.ResultsSummary.budgetFact(input, summary);
+    if (budget) facts.push(budget);
     return facts
         .concat(window.ResultsSummary.ikzeFacts(projection))
         .concat(window.ResultsSummary.obligationFacts(input));
@@ -3392,6 +3433,7 @@ function wzSyncAllPanels() {
     wzSyncZusBox();
     wzSyncOfeBox();
     wzSyncObligationsBox();
+    wzSyncObligationRedirects();
     wzSyncPayrollPrograms();
     wzSyncRealEstateBox();
     wzSyncFireStyle();
@@ -3490,6 +3532,15 @@ function wzBindEvents() {
         if (target.name === "wzHasZusCap") wzSyncZusBox();
         if (target.name === "wzHasOfe") wzSyncOfeBox();
         if (target.name === "wzHasObligations") wzSyncObligationsBox();
+        if (
+            target.matches?.(".obligation-end")
+            || target.id === "wzRe"
+            || target.id === "wzReRange"
+            || target.id === "wzSemiAge"
+            || target.id === "wzSemiAgeRange"
+        ) {
+            wzSyncObligationRedirects();
+        }
         if (target.name === "wzPpkState" || target.name === "wzPpeState") {
             wzSyncPayrollPrograms();
         }
@@ -3548,6 +3599,15 @@ function wzBindEvents() {
         if (target.name === "wzHasZusCap") wzSyncZusBox();
         if (target.name === "wzHasOfe") wzSyncOfeBox();
         if (target.name === "wzHasObligations") wzSyncObligationsBox();
+        if (
+            target.matches?.(".obligation-end")
+            || target.id === "wzRe"
+            || target.id === "wzReRange"
+            || target.id === "wzSemiAge"
+            || target.id === "wzSemiAgeRange"
+        ) {
+            wzSyncObligationRedirects();
+        }
         if (target.name === "wzPpkState" || target.name === "wzPpeState") {
             wzSyncPayrollPrograms();
         }

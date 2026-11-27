@@ -262,6 +262,9 @@ function createStageBlock(defaults) {
     block.className = "stage-block " + stageKindClass(stageType);
     block.dataset.index = idx;
     block.dataset.stageType = stageType;
+    block.dataset.originStageId = defaults?.origin_stage_id
+        ? String(defaults.origin_stage_id)
+        : `manual-${idx}`;
     if (defaults?.withdrawal_target_gross_monthly > 0) {
         block.dataset.withdrawalTargetGrossMonthly = String(defaults.withdrawal_target_gross_monthly);
     }
@@ -885,7 +888,22 @@ function updateDivider(container) {
     container.insertBefore(divider, blocks[firstRealIndex]);
 }
 
+function logicalStageCount(container) {
+    const keys = new Set();
+    getStageBlocks(container).forEach((block) => {
+        keys.add(block.dataset.originStageId || `stage-${block.dataset.index}`);
+    });
+    return keys.size;
+}
+
+function stageLimitReached(container) {
+    if (logicalStageCount(container) < 20) return false;
+    alert("Plan może mieć maksymalnie 20 etapów logicznych.");
+    return true;
+}
+
 function addAccumulationStage(container) {
+    if (stageLimitReached(container)) return;
     const block = createStageBlock(null);
     const firstRealizacja = getStageBlocks(container).find((b) => stageTypeOf(b) === "realizacja");
     if (firstRealizacja) {
@@ -976,6 +994,7 @@ function initStageEventHandlers(container) {
     document.getElementById("emptyAddAccumulationBtn")?.addEventListener("click", () => addAccumulationStage(container));
 
     document.getElementById("addRealizationBtn").addEventListener("click", () => {
+        if (stageLimitReached(container)) return;
         const blocks = getStageBlocks(container);
         const last = blocks[blocks.length - 1];
         const prevEnd = last ? parseInt(last.querySelector(".end-age").value, 10) : NaN;
@@ -998,6 +1017,8 @@ function initStageEventHandlers(container) {
         if (typeof loadedStartYear !== "undefined") loadedStartYear = null;
         if (typeof loadedInflation !== "undefined") loadedInflation = null;
         if (typeof loadedMonthlyGross !== "undefined") loadedMonthlyGross = null;
+        if (typeof loadedRedirectsApplied !== "undefined") loadedRedirectsApplied = false;
+        document.getElementById("simRedirectsBakedHint")?.classList.add("hidden");
         if (typeof switchToConfig === "function") switchToConfig();
         if (typeof clearWizardDraft === "function") clearWizardDraft();
         updateStageButtons(container);

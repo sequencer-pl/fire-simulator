@@ -102,43 +102,77 @@ def _monthly_contribution(stage, monthly_gross: float = 0.0) -> float | None:
     return round(total_annual / 12, 2) if total_annual > 0 else None
 
 
+def _stage_display_name(name: str) -> str:
+    for marker in (" (z zobowiązaniem)", " (po zobowiązaniu"):
+        if marker in name:
+            return name.split(marker, 1)[0]
+    return name
+
+
 def _stages_summary(
     input_data: SimulationInput, result: SimulationResult | None = None
 ) -> list[dict]:
     years_by_age = {y.age: y for y in result.years} if result else {}
+    groups: dict[str, list] = {}
+    order: list[str] = []
+    for index, stage in enumerate(input_data.stages):
+        key = stage.origin_stage_id or f"solo-{index}"
+        if key not in groups:
+            groups[key] = []
+            order.append(key)
+        groups[key].append(stage)
+
     stages = []
-    for stage in input_data.stages:
-        meta = STAGE_META.get(stage.stage_type, {})
+    for key in order:
+        group = groups[key]
+        first = group[0]
+        meta = STAGE_META.get(first.stage_type, {})
         accounts = []
-        for key, cfg in stage.accounts.items():
-            if cfg.custom_name and cfg.custom_name.strip():
-                acc_label = cfg.custom_name.strip()
-            else:
-                base_key = base_account_key(key)
-                acc_label = (
-                    meta.get("available_accounts", {}).get(key, {}).get("label")
-                    or account_display_label(key)
-                    or meta.get("available_accounts", {}).get(base_key, {}).get("label", key)
-                )
-            accounts.append(acc_label)
+        seen_accounts: set[str] = set()
+        for stage in group:
+            for account, cfg in stage.accounts.items():
+                if cfg.custom_name and cfg.custom_name.strip():
+                    acc_label = cfg.custom_name.strip()
+                else:
+                    base_key = base_account_key(account)
+                    acc_label = (
+                        meta.get("available_accounts", {}).get(account, {}).get("label")
+                        or account_display_label(account)
+                        or meta.get("available_accounts", {})
+                        .get(base_key, {})
+                        .get("label", account)
+                    )
+                if acc_label not in seen_accounts:
+                    seen_accounts.add(acc_label)
+                    accounts.append(acc_label)
+        start_age = min(stage.start_age for stage in group)
+        end_age = max(stage.end_age for stage in group)
         info = {
-            "label": meta.get("label", stage.stage_type),
-            "start_age": stage.start_age,
-            "end_age": stage.end_age,
+            "label": meta.get("label", first.stage_type),
+            "name": _stage_display_name(first.name),
+            "start_age": start_age,
+            "end_age": end_age,
             "accounts": accounts,
         }
-        if stage.stage_type == "realizacja" and years_by_age:
+        if first.stage_type == "realizacja" and years_by_age:
             withdrawals = [
                 years_by_age[a].monthly_withdrawal
-                for a in range(stage.start_age, stage.end_age)
+                for a in range(start_age, end_age)
                 if a in years_by_age and years_by_age[a].monthly_withdrawal > 0
             ]
             if withdrawals:
-                info["avg_monthly_withdrawal"] = round(sum(withdrawals) / len(withdrawals), 2)
-        elif stage.stage_type == "akumulacja":
-            mc = _monthly_contribution(stage, input_data.monthly_gross)
-            if mc is not None:
-                info["monthly_contribution"] = mc
+                info["avg_monthly_withdrawal"] = round(
+                    sum(withdrawals) / len(withdrawals), 2
+                )
+        elif first.stage_type == "akumulacja":
+            duration = max(0, end_age - start_age)
+            weighted = 0.0
+            for stage in group:
+                monthly = _monthly_contribution(stage, input_data.monthly_gross)
+                if monthly is not None:
+                    weighted += monthly * max(0, stage.end_age - stage.start_age)
+            if duration > 0 and weighted > 0:
+                info["monthly_contribution"] = round(weighted / duration, 2)
         stages.append(info)
     return stages
 

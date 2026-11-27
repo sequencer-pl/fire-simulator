@@ -167,18 +167,23 @@ Wszystkie ekrany liczą te same metryki w `app/simulation/summary.py`:
 - **Średni/Minimalny dochód netto** = łączny miesięczny dochód z planu:
   portfel, ZUS i ewentualna praca, **przed** zobowiązaniami czasowymi.
   To jest X, od którego odejmujemy kredyt, alimenty, czynsz itd.
-- **Średni/Minimalny budżet na życie** = X minus aktywne zobowiązania
-  czasowe w danym roku. Uwzględniamy wszystkie lata okna realizacji, także
-  te bez wypłaty. Minimum może pokazać 0, uczciwie sygnalizując wyczerpanie
-  portfela.
+- **Średni/Minimalny budżet na życie** = to, co zostaje z X po opłaceniu
+  aktywnych zobowiązań czasowych w danym roku. To cel Asystenta na ścieżkach
+  2 i 3. Uwzględniamy wszystkie lata okna realizacji, także te bez wypłaty.
+  Minimum może pokazać 0, uczciwie sygnalizując wyczerpanie portfela.
 - **Średnia/Minimalna wypłata z portfela** = tylko wypłaty z portfela i ZUS,
   bez części etatu i bez zobowiązań.
 - **Zobowiązania czasowe** to lista `TemporaryObligation` (nazwa, kwota,
-  wiek start/koniec, przekierowanie na oszczędności). Nie zwiększają wypłat
-  z portfela — są odejmowane od budżetu na życie. Jeśli zobowiązanie kończy
-  się przed realizacją i ma włączone przekierowanie, planner dodaje etap
-  akumulacji z uwolnioną kwotą. Wszystkie metryki liczy `summary.py`; front
-  i eksport czytają gotowe wartości.
+  wiek start/koniec, przekierowanie na oszczędności). Są dodatkowym kosztem
+  poza budżetem: przed FIRE finansuje je pensja, ale nie zmieniają
+  zadeklarowanej wpłaty — ograniczają budżet konsumpcyjny; po FIRE zwiększają
+  wypłatę z portfela. Planner dzieli realizację na granicach zobowiązań i ustawia
+  osobny cel brutto dla segmentu; segmenty zachowują `origin_stage_id`, więc
+  prezentacja może pokazać pierwotny, logiczny etap. Limit 20 etapów dotyczy
+  etapów logicznych, nie technicznych segmentów solvera. Jeśli zobowiązanie
+  kończy się przed realizacją i ma włączone przekierowanie, planner dodaje
+  etap akumulacji z uwolnioną kwotą. Wszystkie metryki liczy `summary.py`;
+  front i eksport czytają gotowe wartości.
 - **ZUS mies.** = miesięczna emerytura ZUS na koniec horyzontu.
 - **Podatki i składki** = podatki plus składka zdrowotna ZUS w horyzoncie.
 - **Efektywność podatkowa** = wypłaty netto / (wypłaty netto + podatki +

@@ -71,6 +71,7 @@ test("salary defaults to annual gross from limits and converts modes", async ({ 
 });
 
 test("mobile layout stays within the screen throughout the employment path", async ({ page }) => {
+    test.skip((page.viewportSize()?.width ?? 0) > 640, "mobile-only layout check");
     let planCalls = 0;
     page.on("request", (request) => {
         if (request.url().includes("/api/wizard/plan")) planCalls += 1;

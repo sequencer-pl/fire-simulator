@@ -18,7 +18,7 @@ from app.simulation.planner import (
 from app.simulation.planner import (
     plan as _plan,
 )
-from app.simulation.schemas import SimulationInput
+from app.simulation.schemas import SimulationInput, StageInput, TemporaryObligation
 from app.simulation.summary import lifestyle_monthly_net
 
 _PLAN_CACHE: dict[tuple, P.WizardPlanResult] = {}
@@ -54,6 +54,609 @@ def answers(**over):
     merged = dict(BASE)
     merged.update(over)
     return WizardAnswers(**merged)
+
+
+def test_target_is_budget_after_obligations():
+    a = answers(
+        age_now=40,
+        gross_monthly=12_000,
+        capital={"broker": 800_000},
+        savings=3_000,
+        use_broker=True,
+        retire_early_age=55,
+        retirement_age=65,
+        plan_end_age=85,
+        allocations={"broker": 100},
+        obligations=[
+            TemporaryObligation(
+                name="Kredyt",
+                monthly=2_000,
+                start_age=55,
+                end_age=60,
+                redirect_to_savings=True,
+            )
+        ],
+    )
+    r = plan(2, a, 3_000)
+    assert r.projection.target_monthly == pytest.approx(3_000)
+    assert r.projection.min_monthly == pytest.approx(3_000, abs=1.0)
+    assert r.projection.min_lifestyle_monthly == pytest.approx(3_000, abs=1.0)
+    result = simulate(r.input)
+    y55 = next(year for year in result.years if year.age == 55)
+    y60 = next(year for year in result.years if year.age == 60)
+    assert lifestyle_monthly_net(r.input, y55) >= 2_999
+    # W latach z zobowiązaniem portfel dokłada 2 000 zł do budżetu.
+    assert y55.monthly_withdrawal >= 4_900
+    assert y60.monthly_withdrawal <= 3_100
+    assert y55.monthly_withdrawal > y60.monthly_withdrawal
+    names = [stage.name for stage in r.input.stages if stage.stage_type == "realizacja"]
+    assert any("z zobowiązaniem" in name for name in names)
+    assert any("po zobowiązaniu" in name for name in names)
+
+
+def test_barista_obligation_target_below_part_time_gross_is_feasible():
+    a = answers(
+        age_now=40,
+        gross_monthly=12_000,
+        capital={"broker": 2_000_000},
+        savings=0,
+        use_broker=True,
+        retire_early_age=50,
+        plan_end_age=85,
+        allocations={"broker": 100},
+        semi_fire_enabled=True,
+        semi_fire_mode="barista",
+        semi_fire_age=45,
+        semi_fire_net_monthly=5_000,
+        obligations=[
+            TemporaryObligation(
+                name="Zobowiązanie",
+                monthly=6_000,
+                start_age=45,
+                end_age=50,
+                redirect_to_savings=False,
+            )
+        ],
+    )
+    for target in (500, 1_000, 2_000):
+        r = plan(2, a, target)
+        assert r.projection.met
+        assert r.projection.min_monthly >= target - 1
+
+
+def test_budget_target_is_monotonic_with_barista_obligation():
+    a = answers(
+        age_now=40,
+        gross_monthly=12_000,
+        capital={"broker": 2_000_000},
+        savings=0,
+        use_broker=True,
+        retire_early_age=50,
+        plan_end_age=85,
+        allocations={"broker": 100},
+        semi_fire_enabled=True,
+        semi_fire_mode="barista",
+        semi_fire_age=45,
+        semi_fire_net_monthly=5_000,
+        obligations=[
+            TemporaryObligation(
+                name="Zobowiązanie",
+                monthly=6_000,
+                start_age=45,
+                end_age=50,
+                redirect_to_savings=False,
+            )
+        ],
+    )
+    results = [plan(2, a, target).projection.met for target in (500, 1_000, 2_000)]
+    assert results == [True, True, True]
+
+
+def test_overlapping_obligations_keep_budget_target():
+    a = answers(
+        age_now=40,
+        gross_monthly=12_000,
+        capital={"broker": 800_000},
+        savings=3_000,
+        use_broker=True,
+        retire_early_age=55,
+        retirement_age=65,
+        plan_end_age=85,
+        allocations={"broker": 100},
+        obligations=[
+            TemporaryObligation(name="A", monthly=2_000, start_age=55, end_age=62),
+            TemporaryObligation(name="B", monthly=1_500, start_age=58, end_age=70),
+            TemporaryObligation(name="C", monthly=500, start_age=60, end_age=61),
+        ],
+    )
+    r = plan(2, a, 3_000)
+    assert r.projection.met
+    assert r.projection.min_monthly == pytest.approx(3_000, abs=1.0)
+    result = simulate(r.input)
+    budgets = [
+        lifestyle_monthly_net(r.input, year)
+        for year in result.years
+        if 55 <= year.age < 85
+    ]
+    assert min(budgets) >= 2_999
+
+
+def test_solver_returned_input_matches_result_when_infeasible():
+    a = answers(
+        age_now=54,
+        gross_monthly=5_000,
+        capital={},
+        savings=0,
+        use_broker=True,
+        retire_early_age=55,
+        plan_end_age=85,
+        allocations={"broker": 100},
+        obligations=[
+            TemporaryObligation(name="Zob", monthly=8_000, start_age=55, end_age=60)
+        ],
+    )
+    data = P.build_stages(a)
+    result = P._solve_stage_targets(data, 3_000)
+    replay = simulate(data, None)
+    values = [
+        lifestyle_monthly_net(data, year)
+        for year in replay.years
+        if 55 <= year.age < 85
+    ]
+    assert min(values) == pytest.approx(
+        min(
+            lifestyle_monthly_net(data, year)
+            for year in result.years
+            if 55 <= year.age < 85
+        ),
+        abs=0.02,
+    )
+    assert replay.total_withdrawn == pytest.approx(result.total_withdrawn, abs=0.02)
+    assert replay.final_wealth == pytest.approx(result.final_wealth, abs=0.02)
+
+
+def test_coast_warning_flags_deficit_even_without_target():
+    from app.simulation.planner import PlanProjection, _append_coast_warning
+
+    a = WizardAnswers(
+        age_now=40,
+        semi_fire_enabled=True,
+        semi_fire_mode="coast",
+        semi_fire_age=45,
+        semi_fire_net_monthly=1_000,
+        semi_fire_savings_monthly=0,
+        retire_early_age=55,
+        obligations=[
+            TemporaryObligation(name="Zob", monthly=2_000, start_age=45, end_age=50)
+        ],
+    )
+    projection = PlanProjection(met=True, min_monthly=0)
+    _append_coast_warning(projection, a, None)
+    assert any("Brakuje ok." in warning for warning in projection.warnings)
+
+
+def test_coast_warning_includes_obligations():
+    a = answers(
+        age_now=40,
+        gross_monthly=12_000,
+        capital={"broker": 800_000},
+        savings=3_000,
+        use_broker=True,
+        retire_early_age=55,
+        plan_end_age=85,
+        allocations={"broker": 100},
+        semi_fire_enabled=True,
+        semi_fire_mode="coast",
+        semi_fire_age=45,
+        semi_fire_net_monthly=4_000,
+        semi_fire_savings_monthly=0,
+        obligations=[
+            TemporaryObligation(name="Zob", monthly=2_000, start_age=45, end_age=50)
+        ],
+    )
+    result = plan(2, a, 3_000)
+    assert any(
+        "Brakuje ok." in warning
+        and "45 r.ż." in warning
+        and "1,000" in warning
+        for warning in result.projection.warnings
+    )
+
+
+def test_logical_phases_keep_barista_and_no_zus_boundaries():
+    barista = answers(
+        age_now=40,
+        gross_monthly=12_000,
+        capital={"broker": 800_000},
+        savings=3_000,
+        use_broker=True,
+        retire_early_age=55,
+        retirement_age=65,
+        plan_end_age=85,
+        allocations={"broker": 100},
+        semi_fire_enabled=True,
+        semi_fire_mode="barista",
+        semi_fire_age=45,
+        semi_fire_net_monthly=5_000,
+        obligations=[
+            TemporaryObligation(name="Zob", monthly=2_000, start_age=48, end_age=50)
+        ],
+    )
+    result = plan(2, barista, 3_000)
+    phases = {phase.key: phase for phase in result.projection.phase_metrics}
+    assert (phases["partial_fire"].start_age, phases["partial_fire"].end_age) == (45, 55)
+    assert (phases["bridge"].start_age, phases["bridge"].end_age) == (55, 65)
+    assert all(
+        not stage.name.endswith(("(z zobowiązaniem)", "(po zobowiązaniu)"))
+        for stage in result.projection.stage_metrics
+    )
+
+    no_zus = answers(
+        age_now=40,
+        gross_monthly=12_000,
+        capital={"broker": 800_000},
+        savings=3_000,
+        use_broker=True,
+        use_zus=False,
+        retire_early_age=55,
+        plan_end_age=85,
+        allocations={"broker": 100},
+        obligations=[
+            TemporaryObligation(name="Zob", monthly=2_000, start_age=55, end_age=70)
+        ],
+    )
+    result = plan(2, no_zus, 3_000)
+    phases = {phase.key: phase for phase in result.projection.phase_metrics}
+    assert (phases["bridge"].start_age, phases["bridge"].end_age) == (55, 65)
+    assert (phases["retirement_topup"].start_age, phases["retirement_topup"].end_age) == (65, 85)
+
+
+def test_stages_summary_groups_split_realization():
+    a = answers(
+        age_now=40,
+        gross_monthly=12_000,
+        capital={"broker": 800_000},
+        savings=3_000,
+        use_broker=True,
+        retire_early_age=55,
+        retirement_age=65,
+        plan_end_age=85,
+        allocations={"broker": 100},
+        semi_fire_enabled=True,
+        semi_fire_mode="barista",
+        semi_fire_age=45,
+        semi_fire_net_monthly=5_000,
+        obligations=[
+            TemporaryObligation(name="Zob", monthly=2_000, start_age=48, end_age=50)
+        ],
+    )
+    data = P.build_stages(a)
+    result = simulate(data)
+    from app.web.routes import _stages_summary
+
+    summary = _stages_summary(data, result)
+    spans = {(stage["start_age"], stage["end_age"]) for stage in summary}
+    assert (45, 55) in spans
+    assert (45, 48) not in spans
+
+
+def test_many_obligations_do_not_hit_schema_stage_limit():
+    obligations = [
+        TemporaryObligation(
+            name=f"Zob {index}",
+            monthly=100,
+            start_age=45 + index,
+            end_age=50 + index,
+        )
+        for index in range(10)
+    ]
+    a = answers(
+        age_now=40,
+        gross_monthly=12_000,
+        capital={"broker": 800_000},
+        savings=3_000,
+        use_broker=True,
+        retire_early_age=55,
+        plan_end_age=85,
+        allocations={"broker": 100},
+        obligations=obligations,
+    )
+    data = P.build_stages(a)
+    assert len(data.stages) <= 128
+
+
+def test_logical_stage_limit_is_checked_before_segments():
+    stages = [
+        StageInput(
+            stage_type="akumulacja",
+            name=f"Etap {index}",
+            start_age=40 + index,
+            end_age=41 + index,
+        )
+        for index in range(21)
+    ]
+    with pytest.raises(ValueError, match="20 etapów"):
+        P._validate_logical_stages(stages)
+
+
+def test_simulation_input_rejects_more_than_20_logical_stages():
+    stages = [
+        StageInput(
+            stage_type="akumulacja",
+            name=f"Etap {index}",
+            start_age=40 + index,
+            end_age=41 + index,
+        )
+        for index in range(21)
+    ]
+    with pytest.raises(ValidationError, match="20 etapów"):
+        SimulationInput(stages=stages, max_age=60)
+    segments = [
+        StageInput(
+            stage_type="realizacja",
+            origin_stage_id=f"stage-{index % 20}",
+            name=f"Segment {index}",
+            start_age=40 + index,
+            end_age=41 + index,
+        )
+        for index in range(30)
+    ]
+    assert len(SimulationInput(stages=segments, max_age=70).stages) == 30
+
+
+def test_savings_upper_bound_includes_realization_obligations():
+    a = answers(
+        age_now=40,
+        gross_monthly=12_000,
+        capital={},
+        savings=0,
+        use_broker=True,
+        use_zus=False,
+        retire_early_age=55,
+        plan_end_age=85,
+        allocations={"broker": 100},
+        roi_overrides={"broker": 0.0},
+        obligations=[
+            TemporaryObligation(
+                name="Duże zobowiązanie",
+                monthly=30_000,
+                start_age=55,
+                end_age=85,
+            )
+        ],
+    )
+    bound = P._savings_upper_bound(a, 1_000)
+    assert bound > 48_000
+    amount, feasible = P._solve_savings(a, 1_000)
+    assert feasible
+    assert amount > 48_000
+
+
+def test_extend_chart_does_not_change_values_before_horizon():
+    a = answers(
+        age_now=40,
+        gross_monthly=12_000,
+        capital={"broker": 500_000},
+        savings=3_000,
+        use_broker=True,
+        use_zus=False,
+        retire_early_age=55,
+        plan_end_age=85,
+        allocations={"broker": 100},
+    )
+    base = plan(2, a, 3_000, extend_chart=False)
+    extended = plan(2, a, 3_000, extend_chart=True)
+    assert base.projection.met
+    assert extended.projection.met
+    assert base.projection.min_monthly == pytest.approx(
+        extended.projection.min_monthly, abs=0.02
+    )
+    assert base.projection.final_wealth == pytest.approx(
+        extended.projection.final_wealth, abs=0.02
+    )
+    upto = len(base.projection.chart.ages)
+    assert extended.projection.chart.ages[:upto] == base.projection.chart.ages
+    for key in ("lifestyle_monthly", "obligations_monthly", "part_time_monthly"):
+        base_values = getattr(base.projection.chart, key)
+        ext_values = getattr(extended.projection.chart, key)[:upto]
+        assert ext_values == pytest.approx(base_values, abs=0.02)
+    for account, values in base.projection.chart.withdrawals_net.items():
+        assert extended.projection.chart.withdrawals_net[account][:upto] == pytest.approx(
+            values, abs=0.02
+        )
+    for account, values in base.projection.chart.balances.items():
+        assert extended.projection.chart.balances[account][:upto] == pytest.approx(
+            values, abs=0.02
+        )
+
+
+def test_build_stages_marks_materialized_redirects():
+    a = answers(
+        age_now=40,
+        gross_monthly=12_000,
+        capital={"broker": 500_000},
+        savings=3_000,
+        use_broker=True,
+        retire_early_age=55,
+        plan_end_age=85,
+        allocations={"broker": 100},
+        obligations=[
+            TemporaryObligation(
+                name="Zob",
+                monthly=2_000,
+                start_age=42,
+                end_age=50,
+                redirect_to_savings=True,
+            )
+        ],
+    )
+    assert P.build_stages(a).redirects_applied is True
+    no_redirect = a.model_copy(
+        update={
+            "obligations": [
+                TemporaryObligation(
+                    name="Zob",
+                    monthly=2_000,
+                    start_age=42,
+                    end_age=50,
+                    redirect_to_savings=False,
+                )
+            ]
+        },
+        deep=True,
+    )
+    assert P.build_stages(no_redirect).redirects_applied is False
+
+
+def test_redirect_uses_full_fire_as_coast_accumulation_end():
+    a = answers(
+        age_now=40,
+        gross_monthly=12_000,
+        capital={"broker": 800_000},
+        savings=3_000,
+        use_broker=True,
+        retire_early_age=55,
+        plan_end_age=85,
+        allocations={"broker": 100},
+        semi_fire_enabled=True,
+        semi_fire_mode="coast",
+        semi_fire_age=45,
+        semi_fire_net_monthly=4_000,
+        semi_fire_savings_monthly=0,
+        obligations=[
+            TemporaryObligation(
+                name="Zob",
+                monthly=2_000,
+                start_age=45,
+                end_age=50,
+                redirect_to_savings=True,
+            )
+        ],
+    )
+    data = P.build_stages(a)
+    assert data.redirects_applied is True
+    assert any(
+        stage.stage_type == "akumulacja" and "po zobowiązaniu" in stage.name
+        for stage in data.stages
+    )
+
+
+def test_redirect_is_ignored_when_coast_ends_at_fire():
+    a = answers(
+        age_now=40,
+        gross_monthly=12_000,
+        capital={"broker": 800_000},
+        savings=3_000,
+        use_broker=True,
+        retire_early_age=55,
+        plan_end_age=85,
+        allocations={"broker": 100},
+        semi_fire_enabled=True,
+        semi_fire_mode="coast",
+        semi_fire_age=45,
+        semi_fire_net_monthly=4_000,
+        semi_fire_savings_monthly=0,
+        obligations=[
+            TemporaryObligation(
+                name="Zob",
+                monthly=2_000,
+                start_age=55,
+                end_age=60,
+                redirect_to_savings=True,
+            )
+        ],
+    )
+    data = P.build_stages(a)
+    assert data.redirects_applied is False
+    assert not any(
+        stage.stage_type == "akumulacja" and "po zobowiązaniu" in stage.name
+        for stage in data.stages
+    )
+
+
+def test_redirect_is_ignored_when_barista_leaves_no_accumulation():
+    base = answers(
+        age_now=40,
+        gross_monthly=12_000,
+        capital={"broker": 2_000_000},
+        savings=0,
+        use_broker=True,
+        retire_early_age=55,
+        plan_end_age=85,
+        allocations={"broker": 100},
+        semi_fire_enabled=True,
+        semi_fire_mode="barista",
+        semi_fire_age=45,
+        semi_fire_net_monthly=5_000,
+    )
+    enabled = base.model_copy(
+        update={
+            "obligations": [
+                TemporaryObligation(
+                    name="Zob",
+                    monthly=2_000,
+                    start_age=48,
+                    end_age=50,
+                    redirect_to_savings=True,
+                )
+            ]
+        },
+        deep=True,
+    )
+    disabled = base.model_copy(
+        update={
+            "obligations": [
+                TemporaryObligation(
+                    name="Zob",
+                    monthly=2_000,
+                    start_age=48,
+                    end_age=50,
+                    redirect_to_savings=False,
+                )
+            ]
+        },
+        deep=True,
+    )
+    with_redirect = P.build_stages(enabled)
+    without_redirect = P.build_stages(disabled)
+    assert with_redirect.redirects_applied is False
+    assert without_redirect.redirects_applied is False
+    assert [
+        (stage.name, stage.start_age, stage.end_age, stage.accounts)
+        for stage in with_redirect.stages
+        if stage.stage_type == "akumulacja"
+    ] == [
+        (stage.name, stage.start_age, stage.end_age, stage.accounts)
+        for stage in without_redirect.stages
+        if stage.stage_type == "akumulacja"
+    ]
+
+
+def test_redirect_is_ignored_when_obligation_ends_after_fire():
+    a = answers(
+        age_now=40,
+        gross_monthly=12_000,
+        capital={"broker": 800_000},
+        savings=3_000,
+        use_broker=True,
+        retire_early_age=55,
+        plan_end_age=85,
+        allocations={"broker": 100},
+        obligations=[
+            TemporaryObligation(
+                name="Kredyt",
+                monthly=2_000,
+                start_age=55,
+                end_age=60,
+                redirect_to_savings=True,
+            )
+        ],
+    )
+    data = P.build_stages(a)
+    accumulation = [stage for stage in data.stages if stage.stage_type == "akumulacja"]
+    assert len(accumulation) == 1
+    assert accumulation[0].end_age == 55
+    assert not any("po zobowiązaniu" in stage.name for stage in accumulation)
 
 
 def test_tiny_allocation_residual_does_not_create_cash():
@@ -856,6 +1459,16 @@ def test_api_missing_target_400(client):
     assert resp.status_code == 400
 
 
+def test_api_rejects_target_below_ui_minimum(client):
+    resp = client.post(
+        "/api/wizard/plan",
+        json={"path": 2, "target_monthly": 499, "answers": dict(BASE)},
+    )
+    assert resp.status_code == 422
+    with pytest.raises(ValueError, match="co najmniej 500"):
+        plan(2, answers(), 499)
+
+
 def test_api_invalid_path_422(client):
     resp = client.post("/api/wizard/plan", json={"path": 9, "answers": dict(BASE)})
     assert resp.status_code == 422
@@ -1475,6 +2088,9 @@ def test_simulator_projection_extends_zus_chart_to_100():
     assert max(year.age for year in simulation.years) == r.input.max_age
     assert projection.chart.ages[-1] == 100
     assert projection.chart.withdrawals_net["zus"][-1] > 0
+    assert len(projection.chart.lifestyle_monthly) == len(projection.chart.ages)
+    assert len(projection.chart.obligations_monthly) == len(projection.chart.ages)
+    assert len(projection.chart.part_time_monthly) == len(projection.chart.ages)
     assert projection.final_wealth == pytest.approx(simulation.final_wealth)
 
 
@@ -1514,7 +2130,7 @@ def _lifestyle_series(result, data):
     ]
 
 
-def test_barista_lifestyle_is_constant_after_part_time_gross_fix():
+def test_barista_lifestyle_does_not_overshoot_after_part_time_gross_fix():
     a = answers(
         age_now=40,
         gross_monthly=12_000,
@@ -1535,13 +2151,16 @@ def test_barista_lifestyle_is_constant_after_part_time_gross_fix():
     values = _lifestyle_series(r[3], data)
     assert values
     assert min(values) == pytest.approx(proj.min_monthly, abs=1.0)
-    # Lata Baristy nie mogą wypłacać o ~700 zł/mies. więcej niż cel.
+    # Lata Baristy nie mogą wypłacać znacząco więcej niż cel. Solver działa
+    # per etap i gwarantuje minimum; niewielkie odchylenie w górę wynika
+    # z podatków w różnych latach.
     barista_years = [
         lifestyle_monthly_net(data, year)
         for year in simulate(data).years
         if 45 <= year.age < 55
     ]
-    assert all(value == pytest.approx(proj.min_monthly, abs=1.5) for value in barista_years)
+    assert all(value >= proj.min_monthly - 1.0 for value in barista_years)
+    assert max(barista_years) - proj.min_monthly < 50.0
 
 
 def test_coast_does_not_add_new_ppk_contributions():
@@ -1672,7 +2291,7 @@ def test_coast_warning_flags_salary_below_target():
     )
     projection = PlanProjection(met=True, min_monthly=5_000)
     _append_coast_warning(projection, answers, 5_000)
-    assert any("niższa od celu" in warning for warning in projection.warnings)
+    assert any("Brakuje ok." in warning for warning in projection.warnings)
 
 
 def test_solve_re_rejects_semi_fire_beyond_horizon():

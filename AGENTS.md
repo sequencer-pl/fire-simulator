@@ -33,10 +33,27 @@ Trzy poziomy:
    Jeśli zmiana jest świadomie wizualna: `make visual-baseline`, przejrzyj diff
    baseline'ów, potem `make check`.
 
-CI na pushu jest backstopem, nie zamiennikiem lokalnego gate'u. Testy planera
-używają `plan(..., scenarios=False)`; integracje solvera/API/scenariusze są
-oznaczone `@pytest.mark.slow`; optymalizator ma osobne `tests/test_optimizer.py`.
-W visualach nie testuj dokładnego copy ani każdej mikrointerakcji.
+### Pętla pracy i budżet testów
+
+- Nie odpalaj `make check` po każdej zmianie. To gate przed commitem/pushem,
+  nie pętla developerska.
+- Lokalny commit: `make check-fast` + dotknięte specyfikacje Playwright.
+- Push/deploy: pełny `make check`.
+- Budżety orientacyjne: `check-fast` < 30 s, pełny pytest < 45 s,
+  visual < 2 min, `make check` < 3 min. Przekroczenie traktuj jako sygnał
+  do optymalizacji testów, nie jako normalny koszt.
+- Testy mobilne uruchamiaj tylko w projekcie mobile (`test.skip` dla drugiego
+  projektu). Nie duplikuj tego samego zachowania w desktop i mobile, jeśli test
+  sam ustawia viewport.
+- Jeśli test nie dotyczy przejścia przez wizard, używaj fixture/API zamiast
+  klikania dziewięciu kroków. Nowy test wizualny dodawaj tylko wtedy, gdy
+  regresji nie złapie unit/jsdom.
+- Testy planera używają `plan(..., scenarios=False)`; integracje solvera/API/
+  scenariusze są oznaczone `@pytest.mark.slow`; optymalizator ma osobne
+  `tests/test_optimizer.py`. W visualach nie testuj dokładnego copy ani każdej
+  mikrointerakcji.
+
+CI na pushu jest backstopem, nie zamiennikiem lokalnego gate'u.
 
 Wymagania: `uv`, Python 3.12+.
 
@@ -59,9 +76,9 @@ Wymagania: `uv`, Python 3.12+.
 
 - `app/simulation/` — model: `engine.py` (silnik, podatki, ZUS), `planner.py`
   (wizard, budowa etapów, solvery), `optimizer.py` (alokacja i wiek ZUS),
-  `config.py` (globalny config, presety, scenariusze, limity), `summary.py`
-  (wspólne metryki wyników), `schemas.py` (walidacja wejścia), `zus.py`,
-  `constants.py`.
+  `config.py` (globalny config, presety, scenariusze, limity), `cashflow.py`
+  (wspólny dochód netto i budżet na życie), `summary.py` (wspólne metryki
+  wyników), `schemas.py` (walidacja wejścia), `zus.py`, `constants.py`.
 - `app/stages/` — implementacje etapów (akumulacja, realizacja).
 - `app/web/` — FastAPI: `routes.py`, `limits.py`.
 - `app/core/` — helpery: podatki, PMT, ROI, inflacja.
@@ -107,15 +124,22 @@ Nie zmieniaj ich bez uzgodnienia. Wartości liczbowe pochodzą z `config.py`,
 - **Długowieczność** modelujemy liniowo: `longevity.growth_months_per_year`
   wydłuża tabelę ŚDTŻ i domyślny horyzont Asystenta.
 - **Etapy:** `akumulacja` i `realizacja`; „Brydż do emerytury” to realizacja.
-  Edytor/legacy używa PMT, Asystent — stałego celu dochodu netto; nie mieszaj
-  trybów. ZUS liczy engine (waloryzacja, ŚDTŻ, renta netto po PIT i 9%
-  zdrowotnej), a etap ZUS zawiera tylko `zus` — nie powielaj go w wielu etapach.
+  Edytor/legacy używa PMT, Asystent — stałego celu budżetu na życie po
+  zobowiązaniach; nie mieszaj trybów. ZUS liczy engine (waloryzacja, ŚDTŻ,
+  renta netto po PIT i 9% zdrowotnej), a etap ZUS zawiera tylko `zus` — nie
+  powielaj go w wielu etapach.
 - **Zobowiązania czasowe:** lista `TemporaryObligation` (nazwa, kwota, wiek
-  start/koniec, przekierowanie na oszczędności). Nie zwiększają wypłat
-  z portfela — odejmujemy je od łącznego dochodu netto, żeby pokazać budżet
-  na życie. Dodatkowy etap akumulacji powstaje tylko wtedy, gdy zobowiązanie
-  kończy się przed realizacją i ma włączone przekierowanie. Stare pola
-  `mortgage_*` są tylko zgodnością wsteczną i mapują się na jeden wpis.
+  start/koniec, przekierowanie na oszczędności). Są dodatkowym kosztem poza
+  budżetem: przed FIRE finansuje je pensja, ale nie zmieniają zadeklarowanej
+  wpłaty — ograniczają budżet konsumpcyjny; po FIRE zwiększają wypłatę
+  z portfela. Planner dzieli realizację na granicach
+  zobowiązań i ustawia osobny cel brutto dla każdego segmentu. Segmenty
+  techniczne dziedziczą `origin_stage_id`; fazy, Gantt i podsumowania grupują
+  je z powrotem po logicznym etapie. Limit 20 etapów dotyczy etapów logicznych,
+  nie segmentów solvera. Dodatkowy etap akumulacji powstaje tylko wtedy, gdy
+  zobowiązanie kończy się przed realizacją i ma włączone przekierowanie;
+  `redirects_applied` pilnuje, żeby Symulator nie doliczył go drugi raz. Stare
+  pola `mortgage_*` są tylko zgodnością wsteczną i mapują się na jeden wpis.
 - **IKZE:** ulga obniża podatek w roku wpłaty; zwrot trafia na
   `ikze_refund_target` (auto: IKE/OIPE do limitu → obligacje → lokata →
   OKI oszcz. → broker → gotówka; **nigdy krypto**). Wcześniejszy zwrot przed 65:

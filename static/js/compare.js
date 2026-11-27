@@ -3,6 +3,7 @@
 // $, show, escapeHtml, fmtMoney, iconSvg — wspólne helpery z base.html.
 
 const WIZARD_DRAFT_KEY = "fire.wizardDraft";
+const WIZARD_DRAFT_VERSION = 3;
 let currentSims = [];
 
 function cssVar(name) {
@@ -310,7 +311,7 @@ function renderVerdict(sims) {
                     <span class="cmp-verdict-sub">${escapeHtml(winner.sim.name)}${diffRunner >= 1 ? ` · ${fmtSignedMoney(diffRunner)} vs #2` : ""}</span>
                 </div>
                 <div class="metric">
-                    <span class="metric-label">${tipLabelHtml("Najwyższa wypłata mies.", "Scenariusz zapewniający najwyższą średnią miesięczną wypłatę netto w latach realizacji.")}</span>
+                    <span class="metric-label">${tipLabelHtml("Najwyższy średni budżet na życie", "Scenariusz zapewniający najwyższy średni miesięczny budżet po zobowiązaniach w latach realizacji.")}</span>
                     <span class="metric-value">${bestAvg.avg > 0 ? fmtMoney(bestAvg.avg) + "/mies." : "—"}</span>
                     <span class="cmp-verdict-sub">${bestAvg.avg > 0 ? `${escapeHtml(bestAvg.sim.name)}${avgDelta >= 1 ? ` · ${fmtSignedMoney(avgDelta)}/mies. vs #2` : ""}` : "Brak etapu wypłat"}</span>
                 </div>
@@ -377,7 +378,7 @@ function renderCards(sims) {
             <div class="cmp-card-badges">${rankBadge}</div>
             <dl class="cmp-card-metrics">
                 <div><dt>Łącznie netto</dt><dd>${fmtMoney(netBen)}</dd></div>
-                <div><dt>Wypłata mies.</dt><dd>${fmtMoney(avg)}</dd></div>
+                <div><dt>Budżet mies.</dt><dd>${fmtMoney(avg)}</dd></div>
                 <div><dt>Podatki</dt><dd>${fmtMoney(sum.total_tax)}</dd></div>
             </dl>
             <div class="cmp-card-foot">
@@ -396,7 +397,10 @@ function renderCards(sims) {
             if (s.id != null) {
                 window.location.href = "/sim?id=" + s.id;
             } else if (s.input) {
-                localStorage.setItem(WIZARD_DRAFT_KEY, JSON.stringify(s.input));
+                localStorage.setItem(
+                    WIZARD_DRAFT_KEY,
+                    JSON.stringify({ version: WIZARD_DRAFT_VERSION, input: s.input })
+                );
                 window.location.href = "/sim?wizard=1";
             }
         });

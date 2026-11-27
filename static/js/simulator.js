@@ -28,6 +28,8 @@ let loadedMaxAge = null;
 let loadedStartYear = null;
 let loadedInflation = null;
 let loadedMonthlyGross = null;
+let loadedRedirectsApplied = false;
+let simObligationRedirectSeq = 0;
 
 function gatherFormData() {
     const stages = [];
@@ -63,6 +65,7 @@ function gatherFormData() {
 
         stages.push({
             stage_type: block.dataset.stageType,
+            origin_stage_id: block.dataset.originStageId || null,
             name: block.querySelector(".stage-name").value,
             start_age: parseInt(block.querySelector(".start-age").value) || 0,
             end_age: parseInt(block.querySelector(".end-age").value) || 0,
@@ -75,10 +78,23 @@ function gatherFormData() {
     });
 
     const obligations = gatherObligations();
-    const adjustedStages = applyObligationStages(stages, obligations);
+    const firstStart = Math.min(
+        ...stages.map((stage) => Number(stage.start_age) || 0),
+        120
+    );
+    const redirectsApplicable = !loadedRedirectsApplied && obligations.some(
+        (item) => item.redirect_to_savings
+            && Number(item.monthly) > 0
+            && firstStart < Number(item.end_age)
+            && hasAccumulationAfterStage(stages, item.end_age)
+    );
+    const adjustedStages = redirectsApplicable
+        ? applyObligationStages(stages, obligations)
+        : stages;
     return {
         stages: adjustedStages,
         obligations,
+        redirects_applied: loadedRedirectsApplied || redirectsApplicable,
         max_age: derivedMaxAgeInfo(adjustedStages).maxAge,
         gender: currentGender(),
         monthly_gross: loadedMonthlyGross ?? 0,
@@ -224,28 +240,28 @@ function simulatorHero(data, summary) {
         ? Math.max(...payoutPhases.map((phase) => phase.end_age))
         : null;
     const end = summary?.end_age ?? phaseEnd;
-    // Hero pokazuje lifestyle: budżet netto łącznie z ZUS, częścią etatu i kredytem.
+    // Hero pokazuje budżet na życie po zobowiązaniach, nie sumę wypłat.
     const monthly = projection.mean_monthly
         || projection.min_monthly
-        || summary?.avg_income
         || summary?.avg_monthly
         || 0;
-    const lifestyle = projection.mean_lifestyle_monthly
-        || summary?.avg_monthly
-        || null;
+    const avgObligations = Number(projection.avg_obligations_monthly)
+        || Number(summary?.avg_obligations)
+        || 0;
     const finalNet = summary?.final_wealth_net ?? data.final_wealth_net ?? 0;
     const zusOnlyNote = payoutPhases.length && !mainPayouts.length
         ? " Wypłaty pochodzą wyłącznie z ZUS."
         : "";
+    const obligationsNote = avgObligations > 0.5
+        ? ` Zobowiązania czasowe (średnio <strong>${fmt(avgObligations)}/mies.</strong>) są dodatkowym kosztem poza budżetem.`
+        : "";
+    const afterObligations = avgObligations > 0.5 ? ", po opłaceniu zobowiązań" : "";
 
     if (monthly > 0 && start != null && end != null) {
-        const lifestyleNote = lifestyle != null && lifestyle < monthly - 1
-            ? ` Po zobowiązaniach zostaje średnio <strong>${fmt(lifestyle)}/mies.</strong>`
-            : "";
         return {
             kicker: "TWÓJ PLAN",
-            headline: `Plan wypłaca średnio ${fmt(monthly)}/mies. netto`,
-            desc: `Od ${start}. do ${end}. roku życia. Na koniec zostaje <strong>${fmt(finalNet)}</strong> netto.${lifestyleNote}${zusOnlyNote}`,
+            headline: `Budżet na życie: średnio ${fmt(monthly)}/mies.`,
+            desc: `Od ${start}. do ${end}. roku życia${afterObligations}. Na koniec zostaje <strong>${fmt(finalNet)}</strong> netto.${obligationsNote}${zusOnlyNote}`,
         };
     }
     return {
@@ -294,6 +310,7 @@ function renderSharedCharts(root, data) {
         input: lastInput,
         projection,
         summary: data.summary || {},
+        mode: "simulator",
     });
     section?.classList.remove("hidden");
     return true;
@@ -339,7 +356,11 @@ document.addEventListener("DOMContentLoaded", () => {
         initNumControls(configContent, guardedNumberInputStep);
     }
     const obligationsPanel = document.getElementById("simObligationsPanel");
-    if (obligationsPanel) initNumControls(obligationsPanel);
+    if (obligationsPanel) {
+        initNumControls(obligationsPanel);
+        obligationsPanel.addEventListener("input", syncObligationRedirects);
+        obligationsPanel.addEventListener("change", syncObligationRedirects);
+    }
     document.getElementById("addObligationBtn")?.addEventListener("click", () => {
         addObligationRow({});
     });
@@ -351,6 +372,8 @@ document.addEventListener("DOMContentLoaded", () => {
     updateHorizonHint();
     container.addEventListener("input", updateHorizonHint);
     container.addEventListener("change", updateHorizonHint);
+    container.addEventListener("input", syncObligationRedirects);
+    container.addEventListener("change", syncObligationRedirects);
     if (draftApplied) {
         // Draft zostaje, żeby F5/back-forward nie gubiły planu. Czyścimy go
         // dopiero przy pierwszej edycji etapów albo po eksporcie.
@@ -375,9 +398,11 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
     updateEmptyState();
+    syncObligationRedirects();
     new MutationObserver(() => {
         updateEmptyState();
         updateHorizonHint();
+        syncObligationRedirects();
     }).observe(container, { childList: true });
 });
 
@@ -391,6 +416,7 @@ function updateEmptyState() {
 }
 
 const WIZARD_DRAFT_KEY = "fire.wizardDraft";
+const SUPPORTED_WIZARD_DRAFT_VERSION = 3;
 
 function applyWizardDraftIfPresent() {
     const container = document.getElementById("stages-container");
@@ -398,6 +424,10 @@ function applyWizardDraftIfPresent() {
     if (!raw || !container) return false;
     try {
         const draft = JSON.parse(raw);
+        if (Number(draft?.version) !== SUPPORTED_WIZARD_DRAFT_VERSION) {
+            localStorage.removeItem(WIZARD_DRAFT_KEY);
+            return false;
+        }
         // Wersję draftu ustala Asystent (wizard.js); Symulator czyta zawsze
         // aktualny kształt pola `input` i nie duplikuje tej stałej.
         const input = draft?.input && Array.isArray(draft.input.stages)
@@ -1298,7 +1328,20 @@ function parseSimulationInput(parsed) {
     if (parsed?.schema !== "fire-simulation/v1" || !Array.isArray(parsed?.input?.stages)) {
         throw new Error("Oczekiwano pliku .sim.json (schema fire-simulation/v1).");
     }
-    return parsed.input;
+    const input = parsed.input;
+    // Starsze eksporty nie miały markera, ale mają już zmaterializowane
+    // wpłaty po zobowiązaniu. Nie doliczajmy ich drugi raz.
+    if (input.redirects_applied == null) {
+        const hasBakedSplit = input.stages.some(
+            (stage) => stage.stage_type === "akumulacja"
+                && /\(po zobowiązaniu/.test(stage.name || "")
+        );
+        const hasRedirect = (input.obligations || []).some(
+            (obligation) => obligation.redirect_to_savings
+        );
+        input.redirects_applied = hasBakedSplit && hasRedirect;
+    }
+    return input;
 }
 
 function initSimulationIO() {
@@ -1307,7 +1350,9 @@ function initSimulationIO() {
 
     if (exportBtn) {
         exportBtn.addEventListener("click", () => {
-            const data = lastInput || gatherFormData();
+            // Eksportuj aktualny formularz, nie snapshot z ostatniej symulacji:
+            // użytkownik mógł zmienić etapy lub zobowiązania bez ponownego kliknięcia.
+            const data = gatherFormData();
             const name = defaultSimName();
             const payload = {
                 schema: "fire-simulation/v1",
@@ -1366,9 +1411,27 @@ function defaultObligationAges() {
     return { start, end: Math.min(120, start + 5) };
 }
 
+function hasAccumulationAfterBlock(endAge) {
+    if (!Number.isFinite(endAge)) return true;
+    return [...document.querySelectorAll(
+        '#stages-container .stage-block[data-stage-type="akumulacja"] .end-age'
+    )].some((input) => parseInt(input.value, 10) > endAge);
+}
+
+function syncObligationRedirects() {
+    document.querySelectorAll("#obligationsList .obligation-row").forEach((row) => {
+        const endAge = parseInt(row.querySelector(".obligation-end")?.value, 10);
+        const hasAccumulation = hasAccumulationAfterBlock(endAge);
+        row.querySelector(".obligation-redirect")?.classList.toggle("hidden", !hasAccumulation);
+        row.querySelector(".obligation-redirect-note")?.classList.toggle("hidden", hasAccumulation);
+    });
+}
+
 function createObligationRow(data = {}) {
     const ages = defaultObligationAges();
     const row = document.createElement("div");
+    const redirectName = `simObligationRedirect${++simObligationRedirectSeq}`;
+    const redirectToSavings = data.redirect_to_savings !== false;
     row.className = "obligation-row";
     row.dataset.obligation = "true";
     row.innerHTML = `
@@ -1411,12 +1474,22 @@ function createObligationRow(data = {}) {
                 })}
             </div>
         </div>
-        <div class="obligation-actions">
-            <label class="field-checkbox obligation-redirect-label">
-                <input type="checkbox" class="obligation-redirect" ${data.redirect_to_savings !== false ? "checked" : ""}>
-                <span>Po zakończeniu przekieruj na oszczędności</span>
-            </label>
-        </div>`;
+        <div class="obligation-redirect">
+            <span class="obligation-redirect-title">Po zakończeniu zobowiązania</span>
+            <div class="segmented is-sm segmented-stack obligation-redirect-switch"
+                 role="radiogroup" aria-label="Po zakończeniu zobowiązania">
+                <label class="seg-option">
+                    <input type="radio" class="obligation-redirect-yes" name="${redirectName}" value="yes" ${redirectToSavings ? "checked" : ""}>
+                    Przekierować na oszczędności
+                </label>
+                <label class="seg-option">
+                    <input type="radio" class="obligation-redirect-no" name="${redirectName}" value="no" ${redirectToSavings ? "" : "checked"}>
+                    Zostawić w budżecie
+                </label>
+            </div>
+            <p class="field-hint obligation-redirect-hint">Bez przekierowania uwolniona kwota zostaje w budżecie na życie.</p>
+        </div>
+        <p class="field-hint obligation-redirect-note hidden">To zobowiązanie kończy się na FIRE lub później. Po zakończeniu budżet zależy od ustawionych wypłat; w Asystencie planner utrzymuje cel, w Symulatorze zmieniasz wypłaty ręcznie.</p>`;
     row.querySelector(".obligation-remove").addEventListener("click", () => row.remove());
     return row;
 }
@@ -1425,6 +1498,7 @@ function addObligationRow(data = {}) {
     const list = document.getElementById("obligationsList");
     if (!list) return;
     list.appendChild(createObligationRow(data));
+    syncObligationRedirects();
 }
 
 function renderObligations(list = []) {
@@ -1432,6 +1506,7 @@ function renderObligations(list = []) {
     if (!box) return;
     box.innerHTML = "";
     list.filter((item) => Number(item.monthly) > 0).forEach((item) => addObligationRow(item));
+    syncObligationRedirects();
 }
 
 function gatherObligations() {
@@ -1446,7 +1521,7 @@ function gatherObligations() {
                 monthly,
                 start_age: Number.isFinite(startAge) ? startAge : 0,
                 end_age: Number.isFinite(endAge) ? endAge : 0,
-                redirect_to_savings: Boolean(row.querySelector(".obligation-redirect")?.checked),
+                redirect_to_savings: Boolean(row.querySelector(".obligation-redirect-yes")?.checked),
             };
         })
         .filter((item) => item.monthly > 0 && item.end_age > item.start_age);
@@ -1495,20 +1570,21 @@ function boostStageAccounts(stage, extraMonthly) {
     });
 }
 
+function hasAccumulationAfterStage(stages, endAge) {
+    return stages.some(
+        (stage) => stage.stage_type === "akumulacja"
+            && Number(stage.end_age) > Number(endAge)
+    );
+}
+
 function applyObligationStages(stages, obligations) {
     const out = stages.map((stage) => structuredClone(stage));
     const firstStart = Math.min(...out.map((stage) => Number(stage.start_age) || 0), 120);
-    const firstReal = Math.min(
-        ...out
-            .filter((stage) => stage.stage_type === "realizacja")
-            .map((stage) => Number(stage.start_age) || 0),
-        120
-    );
     [...(obligations || [])]
         .filter((item) => item.redirect_to_savings
             && Number(item.monthly) > 0
             && firstStart < Number(item.end_age)
-            && Number(item.end_age) < firstReal)
+            && hasAccumulationAfterStage(out, item.end_age))
         .sort((a, b) => Number(a.end_age) - Number(b.end_age))
         .forEach((obligation) => {
             const endAge = Number(obligation.end_age);
@@ -1558,6 +1634,11 @@ function populateStages(inputData) {
     loadedMonthlyGross = Number.isFinite(Number(inputData.monthly_gross))
         ? Number(inputData.monthly_gross)
         : null;
+    loadedRedirectsApplied = Boolean(inputData.redirects_applied);
+    document.getElementById("simRedirectsBakedHint")?.classList.toggle(
+        "hidden",
+        !loadedRedirectsApplied
+    );
     applyObligationsFromInput(inputData);
     if (inputData.config) CONFIG = backfillConfig(inputData.config);
     if (inputData.gender) setGender(inputData.gender);

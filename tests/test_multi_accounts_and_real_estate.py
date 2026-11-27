@@ -200,8 +200,11 @@ def test_barista_fire_and_obligation_in_realization():
     # 6 000 zł: 3 000 zł z pracy i 3 000 zł z portfela.
     y50 = next(y for y in res.years if y.age == 50)
     assert round(y50.monthly_withdrawal, 2) == 3_000.0
+    assert round(y50.part_time_monthly, 2) == 3_000.0
+    assert round(y50.lifestyle_monthly, 2) == 4_000.0
     assert round(lifestyle_monthly_net(inp, y50), 2) == 4_000.0
     # Po spłacie kredytu budżet na życie rośnie do pełnych 6 000 zł.
     y52 = next(y for y in res.years if y.age == 52)
     assert round(y52.monthly_withdrawal, 2) == 3_000.0
+    assert round(y52.lifestyle_monthly, 2) == 6_000.0
     assert round(lifestyle_monthly_net(inp, y52), 2) == 6_000.0
