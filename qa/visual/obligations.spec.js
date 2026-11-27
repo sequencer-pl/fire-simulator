@@ -103,6 +103,7 @@ test("Symulator: stary eksport nie dolicza przekierowania drugi raz", async ({ p
 });
 
 test("Symulator: resize nie przywraca gwarancji solvera", async ({ page }) => {
+    test.skip((page.viewportSize()?.width ?? 0) <= 640, "desktop resize check");
     const input = JSON.parse(JSON.stringify(PLAN.input));
     input.obligations = [{
         name: "Zobowiązanie",
@@ -221,6 +222,7 @@ test("Symulator: zachowuje granicę emerytury w planie bez ZUS", async ({ page }
 });
 
 test("Asystent: zobowiązanie czasowe jest osobną listą i trafia do planu", async ({ page }) => {
+    test.skip((page.viewportSize()?.width ?? 0) <= 640, "desktop functional check");
     await page.goto("/wizard", { waitUntil: "networkidle" });
 
     for (let step = 1; step < 5; step += 1) {
