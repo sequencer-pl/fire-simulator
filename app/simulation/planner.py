@@ -1231,18 +1231,23 @@ def _build_accum_stage_accounts(
     if a.use_zus and (employed or has_zus_capital):
         if zus_base_override is not None:
             zus_base = zus_base_override
+            zus_base_explicit = True
         elif a.employment == "b2b" and employed:
             zus_base = (
                 _b2b_zus_base(a, config)
                 if a.b2b_tax_form is not None or a.b2b_zus_mode != "duzy"
                 else min(gross, config.zus.b2b_base_monthly)
             )
+            # B2B ma zawsze jawną podstawę — także 0 zł przy uldze na start.
+            zus_base_explicit = True
         else:
             zus_base = gross if employed else 0.0
+            zus_base_explicit = False
         accum_accounts["zus"] = AccountConfig(
             starting_balance=a.capital.get("zus", 0.0) if include_starting else 0.0,
             starting_balance_ofe=a.capital.get("zus:ofe", 0.0) if include_starting else 0.0,
             ofe_member=a.ofe_member,
+            base_override_enabled=zus_base_explicit,
             monthly_base=zus_base,
             roi=_roi(a, "zus", config),
         )
@@ -3134,13 +3139,15 @@ def _append_b2b_warning(proj: PlanProjection, a: WizardAnswers) -> PlanProjectio
         return proj
     if a.b2b_zus_mode == "ulga":
         proj.warnings.append(
-            "B2B: ulga na start trwa 6 miesięcy, a model liczy ją przez cały plan. "
-            "Po tym okresie pojawi się co najmniej preferencyjny, a potem pełny ZUS."
+            "B2B: ulga na start trwa 6 miesięcy, a model liczy 0 zł społecznych "
+            "przez cały plan. Po tym okresie pojawi się co najmniej preferencyjny, "
+            "a potem pełny ZUS. Do długoterminowego FIRE ustaw Duży ZUS."
         )
     elif a.b2b_zus_mode == "maly":
         proj.warnings.append(
             "B2B: mały/preferencyjny ZUS trwa 24 miesiące, a model liczy go przez "
-            "cały plan. Po tym okresie składka wzrośnie do pełnego ZUS."
+            "cały plan. Po tym okresie składka wzrośnie do pełnego ZUS. "
+            "Do długoterminowego FIRE ustaw Duży ZUS."
         )
     return proj
 

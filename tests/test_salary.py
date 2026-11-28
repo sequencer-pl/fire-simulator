@@ -225,22 +225,40 @@ def test_b2b_social_base_respects_annual_cap():
     assert social < 25_000 * CFG.b2b.social_rate_full
 
 
-def test_b2b_custom_base_below_threshold_has_no_fundusz_pracy():
+def test_b2b_custom_base_below_minimum_wage_has_no_fundusz_pracy():
     from app.simulation.salary import b2b_zus_base_and_social
 
-    base, social = b2b_zus_base_and_social("custom", CFG, 2_500)
-    assert base == pytest.approx(2_500)
+    base, social = b2b_zus_base_and_social("custom", CFG, 3_500)
+    assert base == pytest.approx(3_500)
     assert social == pytest.approx(
         base * (CFG.b2b.pension_rent_rate + CFG.b2b.accident_rate), abs=0.01
     )
     assert social < base * CFG.b2b.social_rate_full
 
 
-def test_b2b_custom_base_at_threshold_includes_fundusz_pracy():
+def test_b2b_custom_base_at_minimum_wage_includes_fundusz_pracy():
     from app.simulation.salary import b2b_zus_base_and_social
 
-    base, social = b2b_zus_base_and_social("custom", CFG, CFG.b2b.full_zus_min_base)
+    base, social = b2b_zus_base_and_social("custom", CFG, CFG.b2b.min_wage)
     assert social == pytest.approx(base * CFG.b2b.social_rate_full, abs=0.01)
+
+
+@pytest.mark.parametrize(
+    ("revenue", "expected_net"),
+    [
+        (5_000, 2_357.85),
+        (5_001, 2_358.73),
+        (6_000, 3_237.85),
+        (20_000, 15_245.56),
+        (26_000, 20_525.56),
+        (30_000, 23_420.96),
+    ],
+)
+def test_b2b_ryczalt_health_threshold_uses_revenue_after_social(revenue, expected_net):
+    net = b2b_net_from_gross(
+        revenue, CFG, tax_form="ryczalt", lump_rate=0.12, zus_mode="duzy"
+    )
+    assert net == pytest.approx(expected_net, abs=0.02)
 
 
 def test_b2b_2027_constants_are_in_config():
@@ -252,6 +270,10 @@ def test_b2b_2027_constants_are_in_config():
     assert cfg.b2b.preferential_base_monthly == pytest.approx(1_485)
     assert cfg.b2b.min_health_monthly == pytest.approx(445.50)
     assert cfg.b2b.linear_health_deduction_annual == pytest.approx(15_100)
+    assert cfg.b2b.min_wage == pytest.approx(4_950)
+    assert cfg.b2b.lump_health_amounts == pytest.approx(
+        (541.78, 902.97, 1_625.35)
+    )
 
 
 def test_backfill_uses_year_specific_defaults():

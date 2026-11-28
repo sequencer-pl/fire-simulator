@@ -51,9 +51,9 @@ def b2b_social_monthly(
         full = False
     elif zus_mode == "custom":
         base = max(0.0, custom_base)
-        # Poniżej progu nie ma obowiązku opłacać Funduszu Pracy — wtedy
-        # obowiązują stawki preferencyjne (bez 2,45% FP).
-        full = base >= b2b.full_zus_min_base
+        # Fundusz Pracy (2,45%) jest obowiązkowy od podstawy równej co najmniej
+        # płacy minimalnej; poniżej progu obowiązują stawki bez FP.
+        full = base >= b2b.min_wage
     else:
         base = config.zus.b2b_base_monthly
         full = True
@@ -92,13 +92,16 @@ def b2b_net_from_gross(
     _base, social_m = b2b_zus_base_and_social(zus_mode, config, custom_zus_base)
     annual_rev = rev * MONTHS_PER_YEAR
     annual_social = social_m * MONTHS_PER_YEAR
+    # Próg zdrowotnej na ryczałcie liczy się od przychodu narastająco
+    # pomniejszonego o opłacone składki społeczne.
+    health_threshold_rev = max(0.0, annual_rev - annual_social)
 
     if tax_form == "ryczalt":
         # 3 progi składki zdrowotnej na ryczałcie (do 60k, 60k-300k, >300k rocznie)
         low, high = config.b2b.lump_health_thresholds
-        if annual_rev <= low:
+        if health_threshold_rev <= low:
             health_m = config.b2b.lump_health_amounts[0]
-        elif annual_rev <= high:
+        elif health_threshold_rev <= high:
             health_m = config.b2b.lump_health_amounts[1]
         else:
             health_m = config.b2b.lump_health_amounts[2]

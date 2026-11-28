@@ -34,6 +34,36 @@ def test_zus_skladka_19_52_from_monthly_base():
     assert after_one_year.balances["zus"] == pytest.approx(100000 * 1.02 + 18739.2)
 
 
+def test_zus_zero_base_override_adds_no_contribution():
+    # B2B ulga na start: jawna podstawa 0 zł nie może fallbackować do brutto.
+    stages = [
+        accumulation_stage(
+            {
+                "zus": acc(
+                    base_override_enabled=True,
+                    starting_balance=100000,
+                    monthly_base=0,
+                    ofe_member=False,
+                )
+            }
+        )
+    ]
+    result = simulate(SimulationInput(stages=stages, max_age=41, config=CFG_NOINFL))
+    y = result.years[1]
+    assert y.balances["zus"] == pytest.approx(100000 * 1.02)
+
+
+def test_zus_positive_base_without_override_keeps_legacy_behavior():
+    stages = [
+        accumulation_stage(
+            {"zus": acc(base_override_enabled=False, monthly_base=8000, ofe_member=False)}
+        )
+    ]
+    result = simulate(SimulationInput(stages=stages, max_age=41, config=CFG_NOINFL))
+    y = result.years[1]
+    assert y.balances["zus"] == pytest.approx(18739.2)
+
+
 def test_zus_skladka_capped_at_30x_base():
     # podstawa 40 000 zł/mies. -> 480 000 zł/rok > limit 282 600 -> składka z 282 600
     stages = [

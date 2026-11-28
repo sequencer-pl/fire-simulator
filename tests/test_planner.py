@@ -1821,6 +1821,28 @@ def test_b2b_zus_uses_flat_base():
     data = P.build_stages(a)
     zus_acc = data.stages[0].accounts["zus"]
     assert zus_acc.monthly_base == pytest.approx(cfg.zus.b2b_base_monthly)
+    assert zus_acc.base_override_enabled is True
+
+
+def test_b2b_ulga_has_zero_zus_base():
+    a = answers(employment="b2b", b2b_tax_form="ryczalt", b2b_zus_mode="ulga")
+    data = P.build_stages(a)
+    zus_acc = data.stages[0].accounts["zus"]
+    assert zus_acc.base_override_enabled is True
+    assert zus_acc.monthly_base == pytest.approx(0.0)
+
+
+def test_b2b_custom_zero_base_stays_zero():
+    a = answers(
+        employment="b2b",
+        b2b_tax_form="ryczalt",
+        b2b_zus_mode="custom",
+        b2b_custom_zus_base=0.0,
+    )
+    data = P.build_stages(a)
+    zus_acc = data.stages[0].accounts["zus"]
+    assert zus_acc.base_override_enabled is True
+    assert zus_acc.monthly_base == pytest.approx(0.0)
 
 
 def test_bridge_protects_retirement_accounts_before_min_age():

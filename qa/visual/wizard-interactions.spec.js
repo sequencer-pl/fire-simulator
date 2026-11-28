@@ -398,6 +398,11 @@ test("B2B step 3 orders tax forms by popularity and keeps salary fields apart", 
     );
     expect(formOrder).toEqual(["ryczalt", "skala", "liniowy"]);
 
+    const lumpOrder = await page.locator('input[name="wzB2bLumpRate"]').evaluateAll(
+        (els) => els.map((el) => el.value)
+    );
+    expect(lumpOrder).toEqual(["0.055", "0.085", "0.12", "0.14", "0.15"]);
+
     const overlaps = (a, b) => !(
         a.right <= b.left + 1
         || a.bottom <= b.top + 1

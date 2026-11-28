@@ -221,8 +221,6 @@ class B2bConfig(BaseModel):
     preferential_base_monthly: float = 1_442.0
     social_rate_full: float = 0.3164
     social_rate_preferential: float = 0.2919
-    # Poniżej tej podstawy nie ma obowiązku płacić Funduszu Pracy (2,45%).
-    full_zus_min_base: float = 3_000.0
     # Components used for the annual 30× base cap: pension + disability are
     # capped, accident and Labour Fund contributions are not.
     pension_rent_rate: float = 0.2752
@@ -234,6 +232,8 @@ class B2bConfig(BaseModel):
     lump_health_amounts: tuple[float, float, float] = (498.35, 830.58, 1_495.04)
     linear_health_rate: float = 0.049
     linear_health_deduction_annual: float = 14_100.0
+    # Fundusz Pracy (2,45%) jest obowiązkowy od podstawy równej co najmniej
+    # płacy minimalnej; poniżej progu obowiązują stawki bez FP.
     min_wage: float = 4_806.0
 
 
@@ -571,6 +571,10 @@ def default_config(year: int = 2026) -> TaxConfig:
         cfg.b2b = B2bConfig(
             preferential_base_monthly=1_485.0,
             min_health_monthly=445.50,
+            # GUS ogłasza podstawę zdrowotnej ryczałtu dopiero w styczniu
+            # następnego roku; do tego czasu spójna projekcja od 10 033 zł
+            # (60% / 100% / 180% × 9%).
+            lump_health_amounts=(541.78, 902.97, 1_625.35),
             linear_health_deduction_annual=15_100.0,
             min_wage=4_950.0,
         )

@@ -616,6 +616,11 @@ function wzUpdateB2bZusLabels() {
         if (contributionLabel && Number.isFinite(rate) && rate > 0) {
             contributionLabel.textContent = zl(base * rate);
         }
+        const socialRate = Number(wzAccountConfig?.b2b?.social_rate_full);
+        const socialTotalLabel = wzEl("wzB2bZusSocialTotal");
+        if (socialTotalLabel && Number.isFinite(socialRate) && socialRate > 0) {
+            socialTotalLabel.textContent = zl(base * socialRate);
+        }
         const custom = wzEl("wzB2bCustomZus");
         if (custom) {
             const current = parseFloat(custom.value);
